@@ -107,6 +107,7 @@ defmodule PhoenixKit.Modules.Storage do
   alias PhoenixKit.Modules.Storage.FolderLink
   alias PhoenixKit.Modules.Storage.ImageEditing
   alias PhoenixKit.Modules.Storage.Libraries
+  alias PhoenixKit.Modules.Storage.Locations
   alias PhoenixKit.Modules.Storage.Manager
   alias PhoenixKit.Modules.Storage.ProcessFileJob
   alias PhoenixKit.Modules.Storage.ProviderRegistry
@@ -2619,8 +2620,10 @@ defmodule PhoenixKit.Modules.Storage do
         if Manager.file_exists?(key) do
           {:ok, %{file: file, instance: instance}}
         else
-          with {:ok, _} <- Manager.store_file(content_path, path_prefix: key),
-               do: {:ok, %{file: file, instance: instance}}
+          with {:ok, info} <- Manager.store_file(content_path, path_prefix: key) do
+            Locations.record_all(key, info.bucket_ids)
+            {:ok, %{file: file, instance: instance}}
+          end
         end
 
       :not_found ->
@@ -2629,7 +2632,7 @@ defmodule PhoenixKit.Modules.Storage do
   end
 
   defp do_store_system_file(content_path, key, parent_file_uuid, mime_type, file_type, opts) do
-    with {:ok, _info} <- Manager.store_file(content_path, path_prefix: key),
+    with {:ok, info} <- Manager.store_file(content_path, path_prefix: key),
          {:ok, size} <- file_size(content_path, opts),
          checksum <- calculate_file_hash(content_path),
          file_attrs = %{
@@ -2664,6 +2667,7 @@ defmodule PhoenixKit.Modules.Storage do
            file_uuid: file.uuid
          },
          {:ok, instance} <- insert_or_fetch_system_instance(instance_attrs, file.uuid) do
+      Locations.record_all(key, info.bucket_ids)
       {:ok, %{file: file, instance: instance}}
     else
       # The object may be stored with no row for it (the parent went
@@ -4921,6 +4925,8 @@ defmodule PhoenixKit.Modules.Storage do
 
         case create_file_instance(original_instance_attrs) do
           {:ok, _instance} ->
+            Locations.record_all(original_path, storage_info.bucket_ids)
+
             Logger.info(
               "Recreated original instance for file: #{file.uuid}, path: #{original_path}"
             )
@@ -5219,7 +5225,13 @@ defmodule PhoenixKit.Modules.Storage do
         case create_file(file_attrs) do
           {:ok, file} ->
             # Create original instance and variants (non-critical operations)
-            create_original_instance_and_variants(file, file_checksum, size_bytes)
+            create_original_instance_and_variants(
+              file,
+              file_checksum,
+              size_bytes,
+              storage_info.bucket_ids
+            )
+
             {:ok, record_new_capture_date(file, source_path, storage_info.destination_path)}
 
           {:error, changeset} ->
@@ -5305,7 +5317,7 @@ defmodule PhoenixKit.Modules.Storage do
 
   defp record_new_capture_date(file, _source_path, _key), do: file
 
-  defp create_original_instance_and_variants(file, file_checksum, size_bytes) do
+  defp create_original_instance_and_variants(file, file_checksum, size_bytes, bucket_ids) do
     original_instance_attrs = %{
       variant_name: "original",
       file_name: file.file_name,
@@ -5322,7 +5334,10 @@ defmodule PhoenixKit.Modules.Storage do
     }
 
     case create_file_instance(original_instance_attrs) do
-      {:ok, _original_instance} ->
+      {:ok, original_instance} ->
+        # Where the object went, now that its instance exists (V204).
+        Locations.record_all(original_instance.file_name, bucket_ids)
+
         # Generate variants if enabled (failure is non-critical)
         case VariantGenerator.generate_variants(file) do
           {:ok, _variants} -> :ok

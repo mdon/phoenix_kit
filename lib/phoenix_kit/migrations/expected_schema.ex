@@ -202,9 +202,10 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # access to; the real-database integration suite re-ran clean against a DB
   # migrated through V196, which is the property s7/s8 exist to prove.
   #
-  # V204 (2026-09-25, storage location-truth) DECLARES one object here and
+  # V204 (2026-09-25, storage location-truth) DECLARES two objects here and
   # RESHAPES one. New: `index:phoenix_kit_file_locations_instance_bucket_index`,
-  # UNIQUE `(file_instance_uuid, bucket_uuid)`. Reshaped, with an APPENDED
+  # UNIQUE `(file_instance_uuid, bucket_uuid)`, and
+  # `index:phoenix_kit_file_locations_path_index` on `path`. Reshaped, with an APPENDED
   # `{204, ...}` revision and its `create` following it:
   # `phoenix_kit_file_locations_bucket_id_fkey`, now `ON DELETE RESTRICT`.
   # Shapes are CATALOG-EXACT, read with `Repair.Probe.snapshot/2` on a test
@@ -486,7 +487,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "090dff522f293d765524dc36d7428132102e04354ecbb721509143a00e41d79a"
+  @chain_hash "3486df9219c9bf5ab95a0b1a41d1c7d570a0a7138cb55e0776eb24e14e1f7947"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -73446,6 +73447,37 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
                "CREATE UNIQUE INDEX phoenix_kit_file_locations_instance_bucket_index ON __SCHEMA__.phoenix_kit_file_locations USING btree (file_instance_uuid, bucket_uuid)",
              name_template: nil,
              opclasses: ["uuid_ops", "uuid_ops"],
+             predicate: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_file_locations_path_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_file_locations_path_index",
+             table: "phoenix_kit_file_locations",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_file_locations_path_index ON __SCHEMA__.phoenix_kit_file_locations USING btree (path)",
+        since: 204,
+        class: :index,
+        revisions: [
+          {204,
+           %{
+             table: "phoenix_kit_file_locations",
+             keys: ["path"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_file_locations_path_index ON __SCHEMA__.phoenix_kit_file_locations USING btree (path)",
+             name_template: nil,
+             opclasses: ["text_ops"],
              predicate: nil
            }}
         ],

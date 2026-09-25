@@ -10,7 +10,8 @@ defmodule PhoenixKit.Migrations.Postgres.V204 do
     * **One row per instance per bucket (G7).** Duplicate rows are removed,
       keeping the oldest of each `(file_instance_uuid, bucket_uuid)`, and
       `phoenix_kit_file_locations_instance_bucket_index` makes the pair
-      unique from now on.
+      unique from now on. `phoenix_kit_file_locations_path_index` is what a
+      read looks a key's buckets up by.
     * **A bucket that still holds files cannot be deleted (G4).** The
       location's bucket FK moves from `ON DELETE CASCADE` (deleting a bucket
       quietly dropped its rows and left its objects behind) to
@@ -67,6 +68,11 @@ defmodule PhoenixKit.Migrations.Postgres.V204 do
       CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_file_locations_instance_bucket_index
       ON #{p}phoenix_kit_file_locations (file_instance_uuid, bucket_uuid)
       """,
+      # Reads look a key's buckets up by its object key.
+      """
+      CREATE INDEX IF NOT EXISTS phoenix_kit_file_locations_path_index
+      ON #{p}phoenix_kit_file_locations (path)
+      """,
       V203.replace_constraint(
         p,
         prefix,
@@ -94,6 +100,7 @@ defmodule PhoenixKit.Migrations.Postgres.V204 do
         "c.confdeltype <> 'c'",
         "_v204"
       ),
+      "DROP INDEX IF EXISTS #{p}phoenix_kit_file_locations_path_index",
       "DROP INDEX IF EXISTS #{p}phoenix_kit_file_locations_instance_bucket_index",
       "COMMENT ON TABLE #{p}phoenix_kit IS '203'"
     ])

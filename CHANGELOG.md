@@ -25,6 +25,26 @@
   override that uses `{{line_items_html}}` (or another markup variable).
 - Dependency updates: `phoenix_live_reload` 1.7.0 (dev; pin `~> 1.6.1` →
   `~> 1.7`), `mdex` 0.14.0, `hackney` 4.8.1, `lazy_html` 0.1.13 (test).
+- **Storage reads follow where a file actually is (V204, location-truth).**
+  Reading, serving and checking a stored object go first to the buckets its
+  location rows name, local first, then by priority. Only when none has it
+  are the other enabled buckets tried, and a bucket found to hold it that
+  way is recorded. Every writer now records where it stored: Tessera tiles
+  and comment attachments did not. A variant is written to exactly the
+  buckets its original is in; before, that list was capped at the
+  redundancy setting and reordered.
+- **A bucket that still holds files cannot be deleted.** Deleting one used
+  to drop its location rows silently and leave its objects behind. The
+  settings page says to disable the bucket instead.
+- **Bucket changes apply at once.** Adding, editing or removing a bucket
+  used to take up to five minutes to reach file serving (a cache).
+
+### Migration notes
+
+- **V204** removes duplicate `phoenix_kit_file_locations` rows (keeping the
+  oldest of each instance and bucket), adds a unique index on that pair and
+  an index on `path`, and moves the location's bucket FK from
+  `ON DELETE CASCADE` to `RESTRICT`.
 
 ## 2.39.0 - 2026-09-25
 
