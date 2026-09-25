@@ -1,3 +1,16 @@
+## Unreleased
+
+### Changed
+
+- **`phoenix_kit_templates` 0.2.0** (pin `~> 0.1.0` → `~> 0.2.0`). A host
+  override's `html` part now HTML-escapes a bound `{{variable}}`; a variable
+  that already holds markup must use `{{{variable}}}`. Core's own defaults are
+  text-only, so core's messages don't change. Database templates keep their
+  own `{{var}}` substitution. Check any hand-written or exported `html.html`
+  override that uses `{{line_items_html}}` (or another markup variable).
+- Dependency updates: `phoenix_live_reload` 1.7.0 (dev; pin `~> 1.6.1` →
+  `~> 1.7`), `mdex` 0.14.0, `hackney` 4.8.1, `lazy_html` 0.1.13 (test).
+
 ## 2.39.0 - 2026-09-25
 
 ### Added

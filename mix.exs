@@ -104,7 +104,7 @@ defmodule PhoenixKit.MixProject do
       # override files and the locale chain, then substitutes {{variables}}.
       # A leaf by construction — no runtime deps of its own — which is what lets
       # core depend on it rather than feature-detecting it through a behaviour.
-      local_dep(:phoenix_kit_templates, "~> 0.1.0"),
+      local_dep(:phoenix_kit_templates, "~> 0.2.0"),
 
       # Slugs. Locale-aware because ö must expand to "oe" in German and fold to "o"
       # in Estonian, and core's hand-rolled table could not express the difference —
@@ -136,7 +136,7 @@ defmodule PhoenixKit.MixProject do
       {:bandit, "~> 1.0"},
       {:esbuild, "~> 0.8", only: :dev},
       {:tailwind, "~> 0.5", only: :dev},
-      {:phoenix_live_reload, "~> 1.6.1", only: :dev},
+      {:phoenix_live_reload, "~> 1.7", only: :dev},
 
       # Authentication
       {:bcrypt_elixir, "~> 3.0"},
