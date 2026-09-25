@@ -83,43 +83,95 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3 do
       bucket.cdn_url ->
         "#{String.trim_trailing(bucket.cdn_url, "/")}/#{file_path}"
 
-      # A custom S3-compatible endpoint (B2, R2, MinIO, Wasabi…) is where the
-      # object is, not amazonaws.com: path style, the way ExAws addresses it.
-      endpoint(bucket) ->
-        %{scheme: scheme, host: host, port: port} = endpoint(bucket)
-        "#{scheme}://#{host}#{port_suffix(scheme, port)}/#{bucket.bucket_name}/#{file_path}"
+      # R2's S3 API host does not answer anonymous reads: a public R2 bucket
+      # is read through its r2.dev or custom domain (`cdn_url`). Without
+      # one there is no public URL, and the manager proxies instead.
+      bucket.provider == "r2" ->
+        nil
 
       true ->
-        region = bucket.region || "us-east-1"
-        "https://#{bucket.bucket_name}.s3.#{region}.amazonaws.com/#{file_path}"
+        case endpoint(bucket) do
+          nil -> aws_public_url(bucket, file_path)
+          {:error, _reason} -> nil
+          %{} = endpoint -> object_url(bucket, endpoint, file_path)
+        end
     end
   end
 
+  defp aws_public_url(bucket, file_path) do
+    region = bucket.region || "us-east-1"
+    "https://#{bucket.bucket_name}.s3.#{region}.amazonaws.com/#{file_path}"
+  end
+
+  # A custom S3-compatible endpoint is where the object is, not
+  # amazonaws.com, addressed the way the requests are: virtual-host style
+  # for Tigris (it refuses path style for newer buckets), path style for
+  # the rest (B2, MinIO, Wasabi).
+  defp object_url(bucket, %{scheme: scheme, host: host, port: port}, file_path) do
+    authority = "#{url_host(host)}#{port_suffix(scheme, port)}"
+
+    if virtual_host?(bucket),
+      do: "#{scheme}://#{bucket.bucket_name}.#{authority}/#{file_path}",
+      else: "#{scheme}://#{authority}/#{bucket.bucket_name}/#{file_path}"
+  end
+
+  # An IPv6 literal goes in brackets in a URL.
+  defp url_host(host), do: if(String.contains?(host, ":"), do: "[#{host}]", else: host)
+
+  @doc false
+  # Whether requests to this bucket name it in the host
+  # (`bucket.host/key`) rather than the path (`host/bucket/key`).
+  def virtual_host?(%{provider: "tigris"}), do: true
+  def virtual_host?(_bucket), do: false
+
   @doc """
-  A bucket's endpoint, parsed: `%{scheme:, host:, port:}`, or nil for none
-  (plain AWS). The one place an endpoint is read, so the host requests go
-  to and the host a public URL names cannot disagree. Accepts a bare host
-  (`s3.us-west-002.backblazeb2.com`), one with a port, or a full URL; a
-  trailing path or slash is dropped, and the scheme defaults to https.
+  A bucket's endpoint, parsed: `%{scheme:, host:, port:}`; nil when none is
+  set (plain AWS); `{:error, :invalid_endpoint}` when one is set but cannot
+  be used. The one place an endpoint is read, so the host requests go to
+  and the host a public URL names cannot disagree.
+
+  Accepted: a bare host (`s3.us-west-002.backblazeb2.com`), host:port, or an
+  `http`/`https` URL with no path (`http://minio.local:9000`, `https://h/`);
+  the scheme defaults to https. Refused rather than read as plain AWS: any
+  other scheme, a path (a gateway prefix would be dropped silently), a
+  query, and an IPv6 zone id (`%eth0`).
   """
-  @spec endpoint(map()) :: %{scheme: String.t(), host: String.t(), port: pos_integer()} | nil
+  @spec endpoint(map()) ::
+          %{scheme: String.t(), host: String.t(), port: pos_integer()}
+          | nil
+          | {:error, :invalid_endpoint}
   def endpoint(%{endpoint: endpoint}) when is_binary(endpoint) do
-    trimmed = String.trim(endpoint)
-
-    with_scheme =
-      if trimmed =~ ~r{\A[a-zA-Z][a-zA-Z0-9+.-]*://}, do: trimmed, else: "https://" <> trimmed
-
-    case URI.parse(with_scheme) do
-      %URI{scheme: scheme, host: host, port: port}
-      when scheme in ["http", "https"] and is_binary(host) and host != "" ->
-        %{scheme: scheme, host: host, port: port}
-
-      _ ->
-        nil
+    case String.trim(endpoint) do
+      "" -> nil
+      trimmed -> parse_endpoint(trimmed)
     end
   end
 
   def endpoint(_bucket), do: nil
+
+  defp parse_endpoint(trimmed) do
+    with_scheme =
+      if trimmed =~ ~r{\A[a-zA-Z][a-zA-Z0-9+.-]*://}, do: trimmed, else: "https://" <> trimmed
+
+    case URI.parse(with_scheme) do
+      %URI{scheme: scheme, host: host, port: port, path: path, query: nil}
+      when scheme in ["http", "https"] and is_binary(host) and host != "" and
+             path in [nil, "", "/"] ->
+        if String.contains?(trimmed, "%"),
+          do: {:error, :invalid_endpoint},
+          else: %{scheme: scheme, host: host, port: port}
+
+      _ ->
+        {:error, :invalid_endpoint}
+    end
+  end
+
+  defp ipv6_endpoint?(bucket) do
+    case endpoint(bucket) do
+      %{host: host} -> String.contains?(host, ":")
+      _ -> false
+    end
+  end
 
   defp port_suffix("https", 443), do: ""
   defp port_suffix("http", 80), do: ""
@@ -136,12 +188,19 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3 do
           ]
           |> Enum.reject(fn {_name, value} -> value in [nil, ""] end)
 
-        :s3
-        |> ExAws.Config.new(aws_config(bucket))
-        |> ExAws.S3.presigned_url(:get, bucket.bucket_name, file_path,
-          expires_in: Keyword.get(opts, :expires_in, 3600),
-          query_params: query_params
-        )
+        # ExAws writes an IPv6 host into a presigned URL unbracketed, which
+        # no browser can open: such a bucket is proxied instead.
+        if ipv6_endpoint?(bucket) do
+          {:error, :ipv6_endpoint}
+        else
+          :s3
+          |> ExAws.Config.new(aws_config(bucket))
+          |> ExAws.S3.presigned_url(:get, bucket.bucket_name, file_path,
+            expires_in: Keyword.get(opts, :expires_in, 3600),
+            query_params: query_params,
+            virtual_host: virtual_host?(bucket)
+          )
+        end
 
       _ ->
         {:error, :no_credentials}
@@ -223,9 +282,17 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3 do
       region: bucket.region || "us-east-1"
     ]
 
+    config = if virtual_host?(bucket), do: config ++ [virtual_host: true], else: config
+
     case endpoint(bucket) do
       nil ->
         config
+
+      # A set but unusable endpoint must not fall through to real AWS: the
+      # operation fails with the reason instead (every provider call
+      # rescues it into an error).
+      {:error, :invalid_endpoint} ->
+        raise ArgumentError, "bucket #{bucket.name}: the endpoint is not a usable URL"
 
       %{scheme: scheme, host: host, port: port} ->
         config ++ [host: host, scheme: scheme <> "://", port: port]

@@ -54,10 +54,28 @@ defmodule PhoenixKit.Modules.Storage.ManagerBucketAccessTest do
     end
   end
 
+  defmodule ExpiryRecorder do
+    def public_url(_bucket, key), do: "https://cdn.example.com/#{key}"
+
+    def signed_download_url(_bucket, key, opts),
+      do: {:ok, "https://signed/#{key}?expires=#{opts[:expires_in]}"}
+  end
+
+  defmodule NoPublicUrl do
+    def public_url(_bucket, _key), do: nil
+  end
+
+  test "a public bucket with no public URL for the object is proxied, not skipped" do
+    assert Manager.bucket_access(%{access_type: "public"}, "k", NoPublicUrl, nil) == {:proxy, "k"}
+  end
+
   test "a signed bucket is served by a short presigned URL, never the plain one" do
     for download <- [nil, @download] do
       assert {:signed_redirect, "https://signed/k" <> _} =
                Manager.bucket_access(%{access_type: "signed"}, "k", Signing, download)
+
+      assert {:signed_redirect, "https://signed/k?expires=300"} =
+               Manager.bucket_access(%{access_type: "signed"}, "k", ExpiryRecorder, download)
     end
 
     for provider <- [FailingSigner, NoSigning] do

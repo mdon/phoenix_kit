@@ -5,15 +5,33 @@
 - **`Storage.list_files(bucket_uuid: …)` no longer raises.** It filtered on
   a column files never had; it now lists the files with a copy in that
   bucket.
-- **A bucket with a custom S3 endpoint (Backblaze B2, Cloudflare R2, MinIO,
-  Wasabi) gets working public URLs.** `public_url` built an amazonaws.com
-  address whatever the endpoint was. An endpoint may now also be typed with
-  a scheme or a port (`http://minio.local:9000`); requests and URLs read it
-  the same way.
+- **A bucket with a custom S3 endpoint (Backblaze B2, MinIO, Wasabi,
+  Tigris) gets working public URLs.** `public_url` built an amazonaws.com
+  address whatever the endpoint was. It now points at the endpoint, in the
+  style its requests use: virtual-host (`bucket.host/key`) for Tigris, which
+  refuses path style for newer buckets, path style for the rest. An endpoint
+  may be typed with a scheme or a port (`http://minio.local:9000`), and an
+  IPv6 one is bracketed. An endpoint that cannot be used (another scheme, a
+  path, a zone id) is a form error, and never quietly falls back to AWS.
+- **A public Cloudflare R2 bucket without a public domain is proxied.** Its
+  S3 API host does not answer anonymous reads, so it has no public URL;
+  set the bucket's CDN URL to its r2.dev or custom domain for direct links.
 - **A bucket set to "signed" access is served by presigned URLs.** It used
-  to fall through to a public redirect. Each request now gets a 5-minute
-  signed URL (proxied when the provider cannot sign), and neither a private
-  nor a signed bucket hands out a plain object URL.
+  to fall through to a public redirect, and the bucket form could not even
+  choose it: it now offers **Signed (short-lived link)**, so saving a
+  signed bucket no longer turns it public. Each request gets a 5-minute
+  signed URL (proxied when the provider cannot sign, or for an IPv6
+  endpoint), and neither a private nor a signed bucket hands out a plain
+  object URL.
+
+### Changed
+
+- **Page descriptions in the admin header are off by default (#875).** The
+  one line a page could put after its title (and under the in-page title)
+  is shown only when **Show page descriptions in the admin header** is on,
+  under Settings → General. The breadcrumb and the title already say where
+  you are. How a page builds its header trail is written down in
+  `dev_docs/guides/2026-09-25-admin-header-trail.md`.
 
 ### Removed
 

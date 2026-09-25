@@ -5190,8 +5190,7 @@ defmodule PhoenixKit.Modules.Storage do
   defp maybe_filter_by_bucket(query, nil), do: query
 
   # A file is in a bucket when one of its instances has an active location
-  # there. It used to filter on `f.bucket_uuid`, a column files never had,
-  # so the option raised.
+  # there.
   defp maybe_filter_by_bucket(query, bucket_uuid) do
     in_bucket =
       from(fl in FileLocation,

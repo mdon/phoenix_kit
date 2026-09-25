@@ -620,8 +620,8 @@ msgstr "Fett"
 msgid "Bullet List"
 msgstr "Aufzählungsliste"
 
-#: lib/modules/storage/web/bucket_form.html.heex:352
-#: lib/modules/storage/web/bucket_form.html.heex:380
+#: lib/modules/storage/web/bucket_form.html.heex:353
+#: lib/modules/storage/web/bucket_form.html.heex:381
 #: lib/modules/storage/web/dimension_form.html.heex:230
 #: lib/modules/storage/web/libraries_component.ex:210
 #: lib/modules/storage/web/libraries_component.ex:254
@@ -1580,7 +1580,7 @@ msgstr "Primär"
 msgid "Primary: %{lang}"
 msgstr "Primär: %{lang}"
 
-#: lib/modules/storage/web/bucket_form.html.heex:317
+#: lib/modules/storage/web/bucket_form.html.heex:318
 #: lib/modules/storage/web/settings.html.heex:133
 #: lib/modules/storage/web/settings.html.heex:156
 #, elixir-autogen, elixir-format
@@ -2730,12 +2730,12 @@ msgstr "In die Zwischenablage kopieren"
 msgid "Crawlers are allowed to index the site. Enable the toggle to hide staging deployments."
 msgstr "Crawler dürfen die Website indexieren. Aktivieren Sie den Schalter, um Staging-Umgebungen zu verbergen."
 
-#: lib/modules/storage/web/bucket_form.html.heex:387
+#: lib/modules/storage/web/bucket_form.html.heex:388
 #, elixir-autogen, elixir-format
 msgid "Create Path"
 msgstr "Pfad erstellen"
 
-#: lib/modules/storage/web/bucket_form.html.heex:372
+#: lib/modules/storage/web/bucket_form.html.heex:373
 #, elixir-autogen, elixir-format
 msgid "Create Storage Path"
 msgstr "Speicherpfad erstellen"
@@ -3411,7 +3411,7 @@ msgstr "Der erste Benutzer (Inhaber) ist unabhängig von dieser Einstellung imme
 msgid "The migration seeds 8 default dimensions: 4 image sizes (thumbnail, small, medium, large) and 4 video variants (360p, 720p, 1080p, video_thumbnail)."
 msgstr "Die Migration legt 8 Standardabmessungen an: 4 Bildgrößen (thumbnail, small, medium, large) und 4 Videovarianten (360p, 720p, 1080p, video_thumbnail)."
 
-#: lib/modules/storage/web/bucket_form.html.heex:374
+#: lib/modules/storage/web/bucket_form.html.heex:375
 #, elixir-autogen, elixir-format
 msgid "The storage path"
 msgstr "Der Speicherpfad"
@@ -3548,7 +3548,7 @@ msgstr "Ohne es funktionieren Skalieren, Beschneiden und Formatkonvertierung von
 msgid "Without it, video file processing will not work."
 msgstr "Ohne es funktioniert die Verarbeitung von Videodateien nicht."
 
-#: lib/modules/storage/web/bucket_form.html.heex:377
+#: lib/modules/storage/web/bucket_form.html.heex:378
 #, elixir-autogen, elixir-format
 msgid "Would you like to create it now?"
 msgstr "Möchten Sie ihn jetzt erstellen?"
@@ -3595,7 +3595,7 @@ msgstr "und"
 msgid "and generate/copy"
 msgstr "und generieren/kopieren"
 
-#: lib/modules/storage/web/bucket_form.html.heex:375
+#: lib/modules/storage/web/bucket_form.html.heex:376
 #, elixir-autogen, elixir-format
 msgid "does not exist."
 msgstr "existiert nicht."
@@ -3769,7 +3769,7 @@ msgstr "%{n} fehlgeschlagen"
 msgid "%{n} synced"
 msgstr "%{n} synchronisiert"
 
-#: lib/modules/storage/web/bucket_form.html.heex:327
+#: lib/modules/storage/web/bucket_form.html.heex:328
 #, elixir-autogen, elixir-format
 msgid "0 = auto, 1+ = higher priority"
 msgstr "0 = automatisch, 1+ = höhere Priorität"
@@ -4241,7 +4241,7 @@ msgstr "Integration bearbeiten"
 msgid "Enable Tax"
 msgstr "Steuer aktivieren"
 
-#: lib/modules/storage/web/bucket_form.html.heex:337
+#: lib/modules/storage/web/bucket_form.html.heex:338
 #, elixir-autogen, elixir-format
 msgid "Enable bucket"
 msgstr "Bucket aktivieren"
@@ -4699,7 +4699,7 @@ msgstr "Benachrichtigungseinstellungen gespeichert."
 msgid "Notifications"
 msgstr "Benachrichtigungen"
 
-#: lib/modules/storage/web/bucket_form.html.heex:339
+#: lib/modules/storage/web/bucket_form.html.heex:340
 #, elixir-autogen, elixir-format
 msgid "Only enabled buckets receive new uploads"
 msgstr "Nur aktivierte Buckets erhalten neue Uploads"
@@ -4786,7 +4786,7 @@ msgstr "Bitte geben Sie einen Verbindungsnamen ein."
 msgid "Please save your Client ID first"
 msgstr "Bitte speichern Sie zuerst Ihre Client-ID"
 
-#: lib/modules/storage/web/bucket_form.html.heex:310
+#: lib/modules/storage/web/bucket_form.html.heex:311
 #, elixir-autogen, elixir-format
 msgid "Private (proxied)"
 msgstr "Privat (über Proxy)"
@@ -4837,7 +4837,7 @@ msgstr "Medienmodul reparieren"
 msgid "Resume"
 msgstr "Fortsetzen"
 
-#: lib/modules/storage/web/bucket_form.html.heex:362
+#: lib/modules/storage/web/bucket_form.html.heex:363
 #, elixir-autogen, elixir-format
 msgid "Save Bucket"
 msgstr "Bucket speichern"
@@ -16074,3 +16074,8 @@ msgstr "Eine Seite kann eine einzeilige Beschreibung tragen; ist dies eingeschal
 #, elixir-autogen, elixir-format
 msgid "Show page descriptions in the admin header"
 msgstr "Seitenbeschreibungen in der Admin-Kopfzeile anzeigen"
+
+#: lib/modules/storage/web/bucket_form.html.heex:310
+#, elixir-autogen, elixir-format
+msgid "Signed (short-lived link)"
+msgstr "Signiert (kurzlebiger Link)"

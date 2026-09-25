@@ -623,8 +623,8 @@ msgstr "Paks"
 msgid "Bullet List"
 msgstr "Punktloend"
 
-#: lib/modules/storage/web/bucket_form.html.heex:352
-#: lib/modules/storage/web/bucket_form.html.heex:380
+#: lib/modules/storage/web/bucket_form.html.heex:353
+#: lib/modules/storage/web/bucket_form.html.heex:381
 #: lib/modules/storage/web/dimension_form.html.heex:230
 #: lib/modules/storage/web/libraries_component.ex:210
 #: lib/modules/storage/web/libraries_component.ex:254
@@ -1583,7 +1583,7 @@ msgstr "Peamine"
 msgid "Primary: %{lang}"
 msgstr "Peamine: %{lang}"
 
-#: lib/modules/storage/web/bucket_form.html.heex:317
+#: lib/modules/storage/web/bucket_form.html.heex:318
 #: lib/modules/storage/web/settings.html.heex:133
 #: lib/modules/storage/web/settings.html.heex:156
 #, elixir-autogen, elixir-format
@@ -2734,12 +2734,12 @@ msgstr "Kopeeri lõikelauale"
 msgid "Crawlers are allowed to index the site. Enable the toggle to hide staging deployments."
 msgstr "Roomajad võivad saiti indekseerida. Luba lüliti, et peita vahe-paigaldused."
 
-#: lib/modules/storage/web/bucket_form.html.heex:387
+#: lib/modules/storage/web/bucket_form.html.heex:388
 #, elixir-autogen, elixir-format
 msgid "Create Path"
 msgstr "Loo tee"
 
-#: lib/modules/storage/web/bucket_form.html.heex:372
+#: lib/modules/storage/web/bucket_form.html.heex:373
 #, elixir-autogen, elixir-format
 msgid "Create Storage Path"
 msgstr "Loo salvestustee"
@@ -3415,7 +3415,7 @@ msgstr "Esimene kasutaja (Omanik) on alati aktiivne, sõltumata sellest seadest.
 msgid "The migration seeds 8 default dimensions: 4 image sizes (thumbnail, small, medium, large) and 4 video variants (360p, 720p, 1080p, video_thumbnail)."
 msgstr "Migratsioon loob 8 vaikimisi dimensiooni: 4 pildi suurust (pisipilt, väike, keskmine, suur) ja 4 videovarianti (360p, 720p, 1080p, video_thumbnail)."
 
-#: lib/modules/storage/web/bucket_form.html.heex:374
+#: lib/modules/storage/web/bucket_form.html.heex:375
 #, elixir-autogen, elixir-format
 msgid "The storage path"
 msgstr "Salvestustee"
@@ -3553,7 +3553,7 @@ msgstr "Ilma selleta ei tööta piltide suuruse muutmine, kärpimine ega vorming
 msgid "Without it, video file processing will not work."
 msgstr "Ilma selleta ei tööta videofailide töötlemine."
 
-#: lib/modules/storage/web/bucket_form.html.heex:377
+#: lib/modules/storage/web/bucket_form.html.heex:378
 #, elixir-autogen, elixir-format
 msgid "Would you like to create it now?"
 msgstr "Kas soovid selle nüüd luua?"
@@ -3600,7 +3600,7 @@ msgstr "ja"
 msgid "and generate/copy"
 msgstr "ja genereeri/kopeeri"
 
-#: lib/modules/storage/web/bucket_form.html.heex:375
+#: lib/modules/storage/web/bucket_form.html.heex:376
 #, elixir-autogen, elixir-format
 msgid "does not exist."
 msgstr "ei eksisteeri."
@@ -3774,7 +3774,7 @@ msgstr "%{n} ebaõnnestus"
 msgid "%{n} synced"
 msgstr "%{n} sünkroonitud"
 
-#: lib/modules/storage/web/bucket_form.html.heex:327
+#: lib/modules/storage/web/bucket_form.html.heex:328
 #, elixir-autogen, elixir-format
 msgid "0 = auto, 1+ = higher priority"
 msgstr "0 = automaatne, 1+ = kõrgem prioriteet"
@@ -4246,7 +4246,7 @@ msgstr "Muuda integratsiooni"
 msgid "Enable Tax"
 msgstr "Luba maks"
 
-#: lib/modules/storage/web/bucket_form.html.heex:337
+#: lib/modules/storage/web/bucket_form.html.heex:338
 #, elixir-autogen, elixir-format
 msgid "Enable bucket"
 msgstr "Luba bucket"
@@ -4704,7 +4704,7 @@ msgstr "Teatiste eelistused salvestatud."
 msgid "Notifications"
 msgstr "Teavitused"
 
-#: lib/modules/storage/web/bucket_form.html.heex:339
+#: lib/modules/storage/web/bucket_form.html.heex:340
 #, elixir-autogen, elixir-format
 msgid "Only enabled buckets receive new uploads"
 msgstr "Ainult lubatud bucketid saavad uusi üleslaadimisi"
@@ -4791,7 +4791,7 @@ msgstr "Palun sisesta ühenduse nimi."
 msgid "Please save your Client ID first"
 msgstr "Palun salvesta kõigepealt oma Kliendi ID"
 
-#: lib/modules/storage/web/bucket_form.html.heex:310
+#: lib/modules/storage/web/bucket_form.html.heex:311
 #, elixir-autogen, elixir-format
 msgid "Private (proxied)"
 msgstr "Privaatne (puhverdatud)"
@@ -4842,7 +4842,7 @@ msgstr "Paranda meediamoodul"
 msgid "Resume"
 msgstr "Jätka"
 
-#: lib/modules/storage/web/bucket_form.html.heex:362
+#: lib/modules/storage/web/bucket_form.html.heex:363
 #, elixir-autogen, elixir-format
 msgid "Save Bucket"
 msgstr "Salvesta bucket"
@@ -16083,3 +16083,8 @@ msgstr "Lehel võib olla üherealine kirjeldus; kui see on sees, kuvatakse see h
 #, elixir-autogen, elixir-format
 msgid "Show page descriptions in the admin header"
 msgstr "Näita halduspäises lehe kirjeldusi"
+
+#: lib/modules/storage/web/bucket_form.html.heex:310
+#, elixir-autogen, elixir-format
+msgid "Signed (short-lived link)"
+msgstr "Allkirjastatud (lühiajaline link)"

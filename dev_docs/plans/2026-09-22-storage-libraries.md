@@ -1221,12 +1221,12 @@ Rechecked 2026-09-24: none of the items above were fixed by 2.38.0.
   profiles (V205) replace the idea.
 - `public_url` ignoring a custom endpoint, `access_type: "signed"` falling
   through to a public redirect: **fixed in 2.40.1** (`S3.endpoint/1` reads
-  an endpoint once for requests and URLs; a signed bucket serves a 5-minute
-  presigned URL; private and signed buckets never hand out a plain object
-  URL).
+  an endpoint once for requests and URLs, and refuses an unusable one
+  instead of falling through to AWS; Tigris is addressed virtual-host
+  style; an IPv6 endpoint is bracketed, and proxied rather than presigned;
+  an R2 bucket with no public domain is proxied; a signed bucket serves a
+  5-minute presigned URL, selectable in the bucket form; private and signed
+  buckets never hand out a plain object URL).
 - **Still open:** `S3.resolve_credentials/1` does not check who owns the
   integration. That belongs to V206 (user-owned storage), with the SSRF
   endpoint validation.
-- `S3.resolve_credentials/1` does not check integration ownership, and
-  `aws_config/1` does not normalize the endpoint the way the integration
-  validator does.

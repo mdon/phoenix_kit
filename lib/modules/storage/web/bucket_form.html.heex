@@ -307,6 +307,7 @@
                   value={Ecto.Changeset.get_field(@changeset, :access_type)}
                   options={[
                     {gettext("Public (direct URL)"), "public"},
+                    {gettext("Signed (short-lived link)"), "signed"},
                     {gettext("Private (proxied)"), "private"}
                   ]}
                 />

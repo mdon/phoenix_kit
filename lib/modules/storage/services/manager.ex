@@ -517,7 +517,7 @@ defmodule PhoenixKit.Modules.Storage.Manager do
 
   # A `"signed"` bucket is served by a short-lived presigned URL made for
   # this request, never by its plain object URL; proxied when the provider
-  # cannot sign. It used to fall through to the public redirect.
+  # cannot sign.
   def bucket_access(%{access_type: "signed"} = bucket, file_name, provider, download) do
     opts = Keyword.put(download || [], :expires_in, @signed_url_seconds)
 
@@ -541,9 +541,12 @@ defmodule PhoenixKit.Modules.Storage.Manager do
     end
   end
 
+  # A public bucket whose provider has no public URL for the object (an R2
+  # bucket with no public domain) is proxied: the object is there, it just
+  # cannot be linked to.
   def bucket_access(bucket, file_name, provider, nil) do
     case provider.public_url(bucket, file_name) do
-      nil -> nil
+      nil -> {:proxy, file_name}
       url -> {:redirect, url}
     end
   end

@@ -42,7 +42,9 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
 
   - `public` - Redirect to public URL (default, fastest, uses CDN)
   - `private` - Proxy files through server (for ACL-protected buckets)
-  - `signed` - Use presigned URLs (future implementation)
+  - `signed` - Redirect to a presigned URL made for each request (5 minutes);
+    proxied when the provider cannot sign. The plain object URL is never
+    handed out
 
   ## Examples
 
@@ -83,6 +85,8 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
   use Ecto.Schema
   use PhoenixKit.SchemaPrefix
   import Ecto.Changeset
+
+  alias PhoenixKit.Modules.Storage.Providers.S3
 
   alias PhoenixKit.Integrations.Encryption
 
@@ -179,7 +183,28 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
     |> validate_number(:max_size_mb, greater_than: 0)
     |> validate_credentials_exclusive()
     |> validate_cloud_credentials()
+    |> validate_endpoint()
     |> encrypt_secret_access_key()
+  end
+
+  # A cloud bucket's endpoint must be one `S3.endpoint/1` can use: a set but
+  # unusable one would otherwise fail every operation. A local bucket's
+  # endpoint is a filesystem path, not a URL.
+  defp validate_endpoint(changeset) do
+    provider = get_field(changeset, :provider)
+    endpoint = get_field(changeset, :endpoint)
+
+    if provider != "local" and
+         S3.endpoint(%{endpoint: endpoint}) ==
+           {:error, :invalid_endpoint} do
+      add_error(
+        changeset,
+        :endpoint,
+        "must be a host, host:port, or an http(s) URL with no path"
+      )
+    else
+      changeset
+    end
   end
 
   # A bucket may resolve its cloud credentials from ITS OWN

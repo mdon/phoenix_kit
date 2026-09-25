@@ -620,8 +620,8 @@ msgstr ""
 msgid "Bullet List"
 msgstr ""
 
-#: lib/modules/storage/web/bucket_form.html.heex:352
-#: lib/modules/storage/web/bucket_form.html.heex:380
+#: lib/modules/storage/web/bucket_form.html.heex:353
+#: lib/modules/storage/web/bucket_form.html.heex:381
 #: lib/modules/storage/web/dimension_form.html.heex:230
 #: lib/modules/storage/web/libraries_component.ex:210
 #: lib/modules/storage/web/libraries_component.ex:254
@@ -1580,7 +1580,7 @@ msgstr ""
 msgid "Primary: %{lang}"
 msgstr ""
 
-#: lib/modules/storage/web/bucket_form.html.heex:317
+#: lib/modules/storage/web/bucket_form.html.heex:318
 #: lib/modules/storage/web/settings.html.heex:133
 #: lib/modules/storage/web/settings.html.heex:156
 #, elixir-autogen, elixir-format
@@ -2730,12 +2730,12 @@ msgstr ""
 msgid "Crawlers are allowed to index the site. Enable the toggle to hide staging deployments."
 msgstr ""
 
-#: lib/modules/storage/web/bucket_form.html.heex:387
+#: lib/modules/storage/web/bucket_form.html.heex:388
 #, elixir-autogen, elixir-format
 msgid "Create Path"
 msgstr ""
 
-#: lib/modules/storage/web/bucket_form.html.heex:372
+#: lib/modules/storage/web/bucket_form.html.heex:373
 #, elixir-autogen, elixir-format
 msgid "Create Storage Path"
 msgstr ""
@@ -3411,7 +3411,7 @@ msgstr ""
 msgid "The migration seeds 8 default dimensions: 4 image sizes (thumbnail, small, medium, large) and 4 video variants (360p, 720p, 1080p, video_thumbnail)."
 msgstr ""
 
-#: lib/modules/storage/web/bucket_form.html.heex:374
+#: lib/modules/storage/web/bucket_form.html.heex:375
 #, elixir-autogen, elixir-format
 msgid "The storage path"
 msgstr ""
@@ -3548,7 +3548,7 @@ msgstr ""
 msgid "Without it, video file processing will not work."
 msgstr ""
 
-#: lib/modules/storage/web/bucket_form.html.heex:377
+#: lib/modules/storage/web/bucket_form.html.heex:378
 #, elixir-autogen, elixir-format
 msgid "Would you like to create it now?"
 msgstr ""
@@ -3595,7 +3595,7 @@ msgstr ""
 msgid "and generate/copy"
 msgstr ""
 
-#: lib/modules/storage/web/bucket_form.html.heex:375
+#: lib/modules/storage/web/bucket_form.html.heex:376
 #, elixir-autogen, elixir-format
 msgid "does not exist."
 msgstr ""
@@ -3769,7 +3769,7 @@ msgstr ""
 msgid "%{n} synced"
 msgstr ""
 
-#: lib/modules/storage/web/bucket_form.html.heex:327
+#: lib/modules/storage/web/bucket_form.html.heex:328
 #, elixir-autogen, elixir-format
 msgid "0 = auto, 1+ = higher priority"
 msgstr ""
@@ -4241,7 +4241,7 @@ msgstr ""
 msgid "Enable Tax"
 msgstr ""
 
-#: lib/modules/storage/web/bucket_form.html.heex:337
+#: lib/modules/storage/web/bucket_form.html.heex:338
 #, elixir-autogen, elixir-format
 msgid "Enable bucket"
 msgstr ""
@@ -4699,7 +4699,7 @@ msgstr ""
 msgid "Notifications"
 msgstr ""
 
-#: lib/modules/storage/web/bucket_form.html.heex:339
+#: lib/modules/storage/web/bucket_form.html.heex:340
 #, elixir-autogen, elixir-format
 msgid "Only enabled buckets receive new uploads"
 msgstr ""
@@ -4786,7 +4786,7 @@ msgstr ""
 msgid "Please save your Client ID first"
 msgstr ""
 
-#: lib/modules/storage/web/bucket_form.html.heex:310
+#: lib/modules/storage/web/bucket_form.html.heex:311
 #, elixir-autogen, elixir-format
 msgid "Private (proxied)"
 msgstr ""
@@ -4837,7 +4837,7 @@ msgstr ""
 msgid "Resume"
 msgstr ""
 
-#: lib/modules/storage/web/bucket_form.html.heex:362
+#: lib/modules/storage/web/bucket_form.html.heex:363
 #, elixir-autogen, elixir-format
 msgid "Save Bucket"
 msgstr ""
@@ -16073,4 +16073,9 @@ msgstr ""
 #: lib/phoenix_kit_web/live/settings.html.heex:104
 #, elixir-autogen, elixir-format
 msgid "Show page descriptions in the admin header"
+msgstr ""
+
+#: lib/modules/storage/web/bucket_form.html.heex:310
+#, elixir-autogen, elixir-format
+msgid "Signed (short-lived link)"
 msgstr ""
