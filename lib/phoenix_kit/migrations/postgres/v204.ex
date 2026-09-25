@@ -17,9 +17,14 @@ defmodule PhoenixKit.Migrations.Postgres.V204 do
       quietly dropped its rows and left its objects behind) to
       `ON DELETE RESTRICT`.
 
-  Nothing that reads bytes runs here. Instances stored before every writer
-  recorded its locations (Tessera tiles, comment attachments) are found by
-  `Storage.Workers.LocationBackfillJob`, which the application queues on
+  `phoenix_kit_file_location_checks` records which instances have been
+  checked against every bucket, and how many held them; the instances that
+  already had location rows are marked checked here (their writer recorded
+  every bucket it wrote).
+
+  Nothing that reads bytes runs here. The other instances (Tessera tiles and
+  comment attachments stored before every writer recorded its locations)
+  are checked by `Storage.Workers.LocationBackfillJob`, which the application queues on
   boot while any are left, and which probes each bucket once per instance.
 
   ## Locks
@@ -68,6 +73,29 @@ defmodule PhoenixKit.Migrations.Postgres.V204 do
       CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_file_locations_instance_bucket_index
       ON #{p}phoenix_kit_file_locations (file_instance_uuid, bucket_uuid)
       """,
+      # Which instances have been checked against every bucket (by the
+      # backfill, or by the writer that stored them), and how many buckets
+      # held them. "Has a location row" is not that: a read that finds a key
+      # records the one bucket it found, and a missing object has no row.
+      """
+      CREATE TABLE IF NOT EXISTS #{p}phoenix_kit_file_location_checks (
+        file_instance_uuid uuid NOT NULL,
+        checked_at timestamp(0) without time zone DEFAULT now() NOT NULL,
+        found_in integer DEFAULT 0 NOT NULL,
+        CONSTRAINT phoenix_kit_file_location_checks_pkey PRIMARY KEY (file_instance_uuid),
+        CONSTRAINT phoenix_kit_file_location_checks_instance_fkey FOREIGN KEY (file_instance_uuid)
+          REFERENCES #{p}phoenix_kit_file_instances(uuid) ON DELETE CASCADE
+      )
+      """,
+      # An instance with location rows from before V204 was recorded by the
+      # writer that stored it, with every bucket it wrote: checked.
+      """
+      INSERT INTO #{p}phoenix_kit_file_location_checks (file_instance_uuid, checked_at, found_in)
+      SELECT file_instance_uuid, now(), count(*)
+      FROM #{p}phoenix_kit_file_locations
+      GROUP BY file_instance_uuid
+      ON CONFLICT (file_instance_uuid) DO NOTHING
+      """,
       # Reads look a key's buckets up by its object key.
       """
       CREATE INDEX IF NOT EXISTS phoenix_kit_file_locations_path_index
@@ -100,6 +128,7 @@ defmodule PhoenixKit.Migrations.Postgres.V204 do
         "c.confdeltype <> 'c'",
         "_v204"
       ),
+      "DROP TABLE IF EXISTS #{p}phoenix_kit_file_location_checks",
       "DROP INDEX IF EXISTS #{p}phoenix_kit_file_locations_path_index",
       "DROP INDEX IF EXISTS #{p}phoenix_kit_file_locations_instance_bucket_index",
       "COMMENT ON TABLE #{p}phoenix_kit IS '203'"

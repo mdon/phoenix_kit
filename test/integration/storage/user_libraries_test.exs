@@ -277,6 +277,29 @@ defmodule PhoenixKit.Modules.Storage.UserLibrariesTest do
       assert Libraries.list_trashed_user_libraries(owner.uuid) == []
     end
 
+    test "restore and purge cannot both win", ctx do
+      owner = user!(ctx.role)
+      library = library!(owner, "Raced")
+      {:ok, trashed} = Libraries.trash_library(scope(owner), library)
+
+      # A purge that loaded the row before a restore committed: the restore
+      # wins, and the purge's stale struct no longer deletes anything.
+      {:ok, _restored} = Libraries.restore_library(scope(owner), trashed)
+      assert {:error, :not_trashed} = Libraries.purge_library(trashed)
+      assert Repo.get(Library, library.uuid)
+
+      # A purge that claimed the library first: a restore then refuses.
+      {:ok, trashed_again} =
+        Libraries.trash_library(scope(owner), Repo.get!(Library, library.uuid))
+
+      Repo.update_all(
+        from(l in Library, where: l.uuid == ^library.uuid),
+        set: [settings: %{"purging" => true}]
+      )
+
+      assert {:error, :not_allowed} = Libraries.restore_library(scope(owner), trashed_again)
+    end
+
     test "a name taken meanwhile, or the limit, refuses it", ctx do
       owner = user!(ctx.role)
       library = library!(owner, "Taken")

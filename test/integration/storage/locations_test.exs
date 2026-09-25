@@ -10,6 +10,7 @@ defmodule PhoenixKit.Modules.Storage.LocationsTest do
 
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.{FileLocation, Locations, Manager}
+  alias PhoenixKit.Modules.Storage.Workers.LocationBackfillJob
   alias PhoenixKit.Test.Repo
   alias PhoenixKit.Users.Auth
 
@@ -172,7 +173,42 @@ defmodule PhoenixKit.Modules.Storage.LocationsTest do
     assert Locations.record("no/such/key", ctx.a.uuid) == 0
   end
 
-  test "missing_count/0 counts instances with no row" do
+  test "a read that records one bucket does not retire the instance from the backfill", ctx do
+    key = key()
+    instance = instance!(key)
+
+    {:ok, _} =
+      Manager.store_file(source!("two copies"),
+        path_prefix: key,
+        force_bucket_ids: [ctx.a.uuid, ctx.b.uuid]
+      )
+
+    # The read stops at the first bucket that has it and records that one.
+    assert Manager.file_exists?(key)
+    assert length(locations(instance)) == 1
+
+    # Still unchecked, so the backfill visits it and records the other copy.
+    assert Repo.exists?(from(i in Locations.unchecked_query(), where: i.uuid == ^instance.uuid))
+    LocationBackfillJob.run_pass()
+
+    recorded = instance |> locations() |> Enum.map(&to_string(&1.bucket_uuid)) |> Enum.sort()
+    assert recorded == Enum.sort([to_string(ctx.a.uuid), to_string(ctx.b.uuid)])
+    refute Repo.exists?(from(i in Locations.unchecked_query(), where: i.uuid == ^instance.uuid))
+  end
+
+  test "a miss is remembered: checked and found nowhere, a read stops asking", _ctx do
+    key = key()
+    instance = instance!(key)
+    refute Locations.known_missing?(key)
+
+    LocationBackfillJob.run_pass()
+
+    assert Locations.known_missing?(key)
+    refute Repo.exists?(from(i in Locations.unchecked_query(), where: i.uuid == ^instance.uuid))
+    refute Manager.file_exists?(key)
+  end
+
+  test "missing_count/0 counts instances not checked yet" do
     before = Locations.missing_count()
     key = key()
     instance!(key)

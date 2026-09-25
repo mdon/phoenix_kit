@@ -8,6 +8,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowserOwnFilesTest do
   """
   use PhoenixKit.DataCase, async: false
 
+  import Ecto.Query, only: [from: 2]
+
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Users.Auth
   alias PhoenixKitWeb.Components.MediaBrowser
@@ -75,6 +77,53 @@ defmodule PhoenixKitWeb.Components.MediaBrowserOwnFilesTest do
            )
 
     assert refused?(MediaBrowser.handle_event("empty_trash", %{}, socket(contributor)))
+
+    assert Storage.get_file(others.uuid).status == "active"
+  end
+
+  test "a folder write whose subtree holds someone else's file is refused" do
+    contributor = user!()
+    other = user!()
+    {:ok, parent} = Storage.create_folder(%{name: "shared-#{System.unique_integer([:positive])}"})
+
+    {:ok, child} =
+      Storage.create_folder(%{name: "inner-#{System.unique_integer()}", parent_uuid: parent.uuid})
+
+    others = file!(other)
+
+    Repo.update_all(from(f in Storage.File, where: f.uuid == ^others.uuid),
+      set: [folder_uuid: child.uuid]
+    )
+
+    assert refused?(
+             MediaBrowser.handle_event(
+               "trash_folder",
+               %{"folder_uuid" => parent.uuid},
+               socket(contributor)
+             )
+           )
+
+    assert refused?(
+             MediaBrowser.handle_event(
+               "delete_folder",
+               %{"id" => parent.uuid},
+               socket(contributor)
+             )
+           )
+
+    selecting_folder =
+      put_in(socket(contributor).assigns[:selected_folders], MapSet.new([parent.uuid]))
+
+    assert refused?(MediaBrowser.handle_event("delete_selected", %{}, selecting_folder))
+    assert refused?(MediaBrowser.handle_event("restore_selected", %{}, selecting_folder))
+
+    assert refused?(
+             MediaBrowser.handle_event(
+               "move_folder_to_folder",
+               %{"folder_uuid" => child.uuid, "target_uuid" => ""},
+               socket(contributor)
+             )
+           )
 
     assert Storage.get_file(others.uuid).status == "active"
   end

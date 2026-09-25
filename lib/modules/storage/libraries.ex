@@ -755,10 +755,20 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
     if is_binary(user_uuid) and library.owner_uuid == user_uuid do
       repo().transaction(fn ->
         lock_user(user_uuid)
+        current = locked_library(library.uuid)
 
-        if count_owned(user_uuid) >= user_library_limit(),
-          do: repo().rollback(:limit_reached),
-          else: restore_owned(library, user_uuid)
+        cond do
+          # Purged, being purged, or restored meanwhile.
+          is_nil(current) or is_nil(current.trashed_at) or
+              Map.get(current.settings || %{}, "purging") == true ->
+            repo().rollback(:not_allowed)
+
+          count_owned(user_uuid) >= user_library_limit() ->
+            repo().rollback(:limit_reached)
+
+          true ->
+            restore_owned(current, user_uuid)
+        end
       end)
     else
       {:error, :not_allowed}
@@ -766,6 +776,9 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   end
 
   def restore_library(_scope, _library), do: {:error, :not_allowed}
+
+  defp locked_library(uuid),
+    do: repo().one(from(l in Library, where: l.uuid == ^uuid, lock: "FOR UPDATE"))
 
   defp restore_owned(library, user_uuid) do
     default? = is_nil(default_user_library(user_uuid))
@@ -963,6 +976,37 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   def purge_library(%Library{trashed_at: nil}), do: {:error, :not_trashed}
 
   def purge_library(%Library{uuid: uuid} = library) do
+    # Claimed first, in one statement that sees the row as it is now: a
+    # restore that committed after the caller loaded `library` makes it
+    # live, and the claim then finds nothing to purge. Once claimed, a
+    # restore refuses (`restore_library/2` checks the mark under a lock).
+    case claim_for_purge(uuid) do
+      :claimed -> do_purge(library)
+      :not_trashed -> {:error, :not_trashed}
+    end
+  end
+
+  def purge_library(uuid) do
+    case get_library(uuid) do
+      nil -> {:error, :not_found}
+      library -> purge_library(library)
+    end
+  end
+
+  defp claim_for_purge(uuid) do
+    {count, _} =
+      from(l in Library,
+        where: l.uuid == ^uuid and not is_nil(l.trashed_at),
+        update: [
+          set: [settings: fragment("? || jsonb_build_object('purging', true)", l.settings)]
+        ]
+      )
+      |> repo().update_all([])
+
+    if count == 1, do: :claimed, else: :not_trashed
+  end
+
+  defp do_purge(%Library{uuid: uuid} = library) do
     # Parents first: a parent's delete takes its system-managed children
     # (tiles, edit backups) with it.
     from(f in StorageFile,
@@ -990,13 +1034,6 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
     error ->
       Logger.error("Storage: purging library #{uuid} failed: #{Exception.message(error)}")
       reraise error, __STACKTRACE__
-  end
-
-  def purge_library(uuid) do
-    case get_library(uuid) do
-      nil -> {:error, :not_found}
-      library -> purge_library(library)
-    end
   end
 
   defp folder_depth(%Folder{} = folder), do: folder_depth(folder, 0)

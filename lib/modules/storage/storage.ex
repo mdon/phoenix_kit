@@ -4789,6 +4789,12 @@ defmodule PhoenixKit.Modules.Storage do
           })
           |> repo().insert()
         end)
+
+        # The copy is where the donor is: checked if the donor was.
+        case repo().get(PhoenixKit.Modules.Storage.LocationCheck, donor_inst.uuid) do
+          nil -> :ok
+          check -> Locations.mark_checked([new_inst.uuid], check.found_in)
+        end
       end
     end)
   end
@@ -5488,6 +5494,8 @@ defmodule PhoenixKit.Modules.Storage do
 
     if errors == [] do
       locations = Enum.map(results, fn {:ok, loc} -> loc end)
+      # The writer knows every bucket it stored in: the instance is checked.
+      Locations.mark_checked([file_instance_uuid], length(Enum.uniq(bucket_uuids)))
       {:ok, locations}
     else
       error_details =

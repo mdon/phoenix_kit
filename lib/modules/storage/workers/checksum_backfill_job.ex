@@ -13,7 +13,8 @@ defmodule PhoenixKit.Modules.Storage.Workers.ChecksumBackfillJob do
   A row whose uploader already has the same bytes in the same library would
   collide on the dedup index: it is left as it is (it keeps not deduping,
   which is what it did before). A file whose original cannot be read is
-  left too. The update is guarded on the old checksum, so a row changed
+  left too. Either is marked in its `metadata` (`"checksum_backfill"`), so a
+  later pass does not download it again. The update is guarded on the old checksum, so a row changed
   meanwhile (an image edit) is not overwritten.
 
   Throttled and self-queuing like `LocationBackfillJob`: one batch per run,
@@ -92,7 +93,9 @@ defmodule PhoenixKit.Modules.Storage.Workers.ChecksumBackfillJob do
 
     totals =
       Enum.reduce(batch, totals, fn file, acc ->
-        Map.update(acc, recompute(file), 1, &(&1 + 1))
+        outcome = recompute(file)
+        if outcome in [:duplicate, :unreadable], do: remember_skipped(file, outcome)
+        Map.update(acc, outcome, 1, &(&1 + 1))
       end)
 
     if length(batch) < @batch_size,
@@ -135,14 +138,38 @@ defmodule PhoenixKit.Modules.Storage.Workers.ChecksumBackfillJob do
         else: reraise(error, __STACKTRACE__)
   end
 
+  # A row left as MD5 (a duplicate of the uploader's own copy, or an
+  # original that could not be read) is marked in its metadata, so later
+  # passes do not download it again only to reach the same answer.
+  defp remember_skipped(file, outcome) do
+    from(f in StorageFile,
+      where: f.uuid == ^file.uuid,
+      update: [
+        set: [
+          metadata:
+            fragment(
+              "coalesce(?, '{}'::jsonb) || jsonb_build_object('checksum_backfill', ?::text)",
+              f.metadata,
+              ^to_string(outcome)
+            )
+        ]
+      ]
+    )
+    |> repo().update_all([])
+  rescue
+    _ -> :ok
+  end
+
   # Files the upload API stored with an MD5 checksum: 32 hex characters.
-  # System rows (tiles, edit backups) never had one.
+  # System rows (tiles, edit backups) never had one; a row a pass already
+  # had to leave is not visited again.
   defp md5_query(cursor) do
     base =
       from(f in StorageFile,
         where:
           f.system_managed == false and fragment("length(?)", f.file_checksum) == 32 and
-            fragment("? ~ '^[0-9a-f]{32}$'", f.file_checksum)
+            fragment("? ~ '^[0-9a-f]{32}$'", f.file_checksum) and
+            fragment("(?->>'checksum_backfill') IS NULL", f.metadata)
       )
 
     case cursor do

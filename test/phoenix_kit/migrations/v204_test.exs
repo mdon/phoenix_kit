@@ -165,6 +165,24 @@ defmodule PhoenixKit.Migrations.Postgres.V204Test do
            )
   end
 
+  test "an instance that already had a location row is marked checked by up" do
+    run(V204.down_statements("public"))
+
+    located = instance!()
+    location!(located, bucket!())
+    unlocated = instance!()
+
+    run(V204.up_statements("public"))
+
+    checked =
+      query(
+        "SELECT file_instance_uuid::text, found_in FROM public.phoenix_kit_file_location_checks"
+      )
+
+    assert [located, 1] in checked
+    refute Enum.any?(checked, fn [uuid, _] -> uuid == unlocated end)
+  end
+
   test "down puts the cascade back and drops the index" do
     run(V204.down_statements("public"))
 

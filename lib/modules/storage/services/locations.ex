@@ -19,7 +19,7 @@ defmodule PhoenixKit.Modules.Storage.Locations do
 
   require Logger
 
-  alias PhoenixKit.Modules.Storage.{FileInstance, FileLocation}
+  alias PhoenixKit.Modules.Storage.{FileInstance, FileLocation, LocationCheck}
 
   @doc "The uuids of the buckets the active location rows of `key` name."
   @spec bucket_uuids(String.t()) :: [String.t()]
@@ -95,13 +95,73 @@ defmodule PhoenixKit.Modules.Storage.Locations do
   def record(_key, _bucket_uuid), do: 0
 
   @doc """
-  Records every bucket in `bucket_uuids` for `key` (`record/2` each): what a
-  writer calls once its instance row exists, with the buckets the manager
-  stored the object in.
+  Records every bucket in `bucket_uuids` for `key` (`record/2` each) and
+  marks the key's instances checked: what a writer calls once its instance
+  row exists, with the buckets the manager stored the object in (a writer
+  knows every bucket it wrote).
   """
   @spec record_all(String.t(), [term()]) :: non_neg_integer()
-  def record_all(key, bucket_uuids) when is_list(bucket_uuids),
-    do: bucket_uuids |> Enum.map(&record(key, &1)) |> Enum.sum()
+  def record_all(key, bucket_uuids) when is_list(bucket_uuids) do
+    count = bucket_uuids |> Enum.map(&record(key, &1)) |> Enum.sum()
+    key |> instance_uuids() |> mark_checked(length(Enum.uniq(bucket_uuids)))
+    count
+  end
+
+  @doc """
+  Marks instances checked against every bucket, found in `found_in` of
+  them. Never raises.
+  """
+  @spec mark_checked([term()], non_neg_integer()) :: :ok
+  def mark_checked([], _found_in), do: :ok
+
+  def mark_checked(instance_uuids, found_in) when is_list(instance_uuids) do
+    now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+
+    rows =
+      instance_uuids
+      |> Enum.uniq()
+      |> Enum.map(&%{file_instance_uuid: &1, checked_at: now, found_in: found_in})
+
+    repo().insert_all(LocationCheck, rows,
+      on_conflict: {:replace, [:checked_at, :found_in]},
+      conflict_target: [:file_instance_uuid]
+    )
+
+    :ok
+  rescue
+    error ->
+      Logger.warning("Storage: marking instances checked failed: #{Exception.message(error)}")
+      :ok
+  end
+
+  @doc """
+  Whether `key` is known to be in no bucket: every instance stored under it
+  was checked and found nowhere, and nothing has recorded it since. A read
+  then answers "not found" without asking every bucket again.
+  """
+  @spec known_missing?(String.t()) :: boolean()
+  def known_missing?(key) when is_binary(key) do
+    instances =
+      from(i in FileInstance,
+        left_join: c in LocationCheck,
+        on: c.file_instance_uuid == i.uuid,
+        where: i.file_name == ^key,
+        select: c.found_in
+      )
+      |> repo().all()
+
+    instances != [] and Enum.all?(instances, &(&1 == 0))
+  rescue
+    _ -> false
+  end
+
+  def known_missing?(_key), do: false
+
+  defp instance_uuids(key) do
+    from(i in FileInstance, where: i.file_name == ^key, select: i.uuid) |> repo().all()
+  rescue
+    _ -> []
+  end
 
   @doc """
   Orders `buckets` so the ones in `located` come first, each group keeping
@@ -113,21 +173,29 @@ defmodule PhoenixKit.Modules.Storage.Locations do
     Enum.split_with(buckets, &(to_string(&1.uuid) in located))
   end
 
-  @doc "How many instances have no location row at all."
+  @doc "How many instances have not been checked against every bucket yet."
   @spec missing_count() :: non_neg_integer()
   def missing_count do
+    from(i in unchecked_query(), select: count(i.uuid)) |> repo().one()
+  end
+
+  @doc """
+  The instances not checked against every bucket yet: what
+  `LocationBackfillJob` walks. Not "has no location row": a read that finds
+  a key records one bucket, and a missing object never gets a row.
+  """
+  @spec unchecked_query() :: Ecto.Query.t()
+  def unchecked_query do
     from(i in FileInstance,
       as: :instance,
       where:
         not exists(
-          from(l in FileLocation,
-            where: l.file_instance_uuid == parent_as(:instance).uuid,
+          from(c in LocationCheck,
+            where: c.file_instance_uuid == parent_as(:instance).uuid,
             select: 1
           )
-        ),
-      select: count(i.uuid)
+        )
     )
-    |> repo().one()
   end
 
   defp repo, do: PhoenixKit.RepoHelper.repo()

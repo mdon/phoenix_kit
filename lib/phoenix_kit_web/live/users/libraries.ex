@@ -156,6 +156,9 @@ defmodule PhoenixKitWeb.Live.Users.Libraries do
     end
   rescue
     error -> Logger.error("Libraries: audit entry failed: #{Exception.message(error)}")
+  catch
+    # A dead pool exits rather than raises; the library must still open.
+    :exit, reason -> Logger.error("Libraries: audit entry failed: #{inspect(reason)}")
   end
 
   defp user_agent(socket) do

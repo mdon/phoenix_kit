@@ -58,6 +58,10 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
 
     socket =
       socket
+      # For the audit entry of an Owner/Admin opening a user-library file:
+      # connect info is only readable while mounting.
+      |> assign(:client_ip, IpAddress.extract_from_socket(socket))
+      |> assign(:user_agent, connected_user_agent(socket))
       |> assign(:page_title, "Media Detail")
       |> assign(:project_title, settings["project_title"])
       |> assign(:current_locale, locale)
@@ -288,6 +292,12 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
     end
   end
 
+  defp connected_user_agent(socket) do
+    if connected?(socket), do: get_connect_info(socket, :user_agent)
+  rescue
+    _ -> nil
+  end
+
   # An Owner/Admin opening a file of someone's user library, as neither its
   # uploader nor one of the library's people: written to the audit log once
   # per page, the same as opening the library at `/admin/libraries/<uuid>`.
@@ -305,7 +315,8 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
         admin_user_uuid: user_uuid,
         target_user_uuid: library.owner_uuid,
         action: "storage.library_opened",
-        ip_address: IpAddress.extract_from_socket(socket),
+        ip_address: socket.assigns[:client_ip] || IpAddress.extract_from_socket(socket),
+        user_agent: socket.assigns[:user_agent],
         metadata: %{
           "library_uuid" => library.uuid,
           "library_name" => library.name,
@@ -320,6 +331,11 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
   rescue
     error ->
       Logger.error("MediaDetail: audit entry failed: #{Exception.message(error)}")
+      socket
+  catch
+    # A dead pool exits rather than raises; the page must still show.
+    :exit, reason ->
+      Logger.error("MediaDetail: audit entry failed: #{inspect(reason)}")
       socket
   end
 

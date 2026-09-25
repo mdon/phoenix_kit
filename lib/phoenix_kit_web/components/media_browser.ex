@@ -1411,6 +1411,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # The actions that work on every file of the view at once.
   @every_file_events ~w(empty_trash delete_all_orphaned)
 
+  # The actions that carry every file homed under a folder with them: trash,
+  # delete and move a folder. Renaming or recolouring one is shared folder
+  # metadata and stays allowed.
+  @folder_content_events ~w(trash_folder delete_folder move_folder_to_folder)
+
   # A contributor changes only the files they uploaded (`own_files_only`):
   # a write that names someone else's file, or works on a selection holding
   # one, is refused before any handler below sees it.
@@ -1424,8 +1429,12 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
           else: []
         )
 
-    # Emptying the trash and clearing orphans act on every file at once.
-    if event in @every_file_events or others_file?(uuids, socket.assigns.own_files_only) do
+    folders = acted_on_folders(event, params, socket)
+
+    # Emptying the trash and clearing orphans act on every file at once; a
+    # folder write carries every file in its subtree.
+    if event in @every_file_events or others_file?(uuids, socket.assigns.own_files_only) or
+         others_file_in_folders?(folders, socket.assigns.own_files_only) do
       Logger.warning(
         "MediaBrowser id=#{socket.assigns.id}: #{event} refused — it names a file " <>
           "#{socket.assigns.own_files_only} did not upload"
@@ -4754,6 +4763,34 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # markup, is what a consumer can actually trust — so it's refused here too
   # (mirrors the `only_file_type` lock on `set_file_filter` above).
   defp unchecked(socket), do: %{socket | private: Map.delete(socket.private, :library_checked)}
+
+  # The folders a write carries the contents of: the one a folder event
+  # names (never a move's target), and the selected folders of a bulk
+  # action.
+  defp acted_on_folders(event, params, _socket) when event in @folder_content_events,
+    do: params |> Map.take(["folder_uuid", "id"]) |> Map.values() |> param_uuids([])
+
+  defp acted_on_folders(event, _params, socket) when event in @selection_events,
+    do: Enum.to_list(socket.assigns[:selected_folders] || [])
+
+  defp acted_on_folders(_event, _params, _socket), do: []
+
+  # Whether any file homed under `folder_uuids` (their whole subtrees,
+  # trashed files included) was uploaded by someone other than `user_uuid`.
+  defp others_file_in_folders?([], _user_uuid), do: false
+
+  defp others_file_in_folders?(folder_uuids, user_uuid) do
+    subtree = folder_uuids |> Enum.uniq() |> Enum.flat_map(&Storage.folder_subtree_uuids/1)
+
+    subtree != [] and
+      PhoenixKit.Config.get_repo().exists?(
+        from(f in Storage.File,
+          where:
+            f.folder_uuid in ^subtree and
+              (is_nil(f.user_uuid) or f.user_uuid != type(^user_uuid, UUIDv7))
+        )
+      )
+  end
 
   # Whether any of `uuids` is a file someone other than `user_uuid` uploaded.
   defp others_file?([], _user_uuid), do: false

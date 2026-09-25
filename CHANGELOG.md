@@ -18,9 +18,10 @@
 ### Changed
 
 - **A user library's contributor changes only the files they uploaded.**
-  The media browser refuses their change to anyone else's file, a bulk
-  action on a selection holding one, and emptying the trash; folders stay
-  shared. Before, the browser had no per-file check.
+  The media browser refuses their change to anyone else's file, a folder
+  trash, delete or move whose subtree holds one, a bulk action on a
+  selection holding either, and emptying the trash; folder names and looks
+  stay shared. Before, the browser had no per-file check.
 - **A trashed user library can be restored** by its owner until it is
   purged, from a Trash section on the profile's Media tab
   (`Libraries.restore_library/2`). It gets a URL slug again, counts toward
@@ -46,10 +47,13 @@
   redundancy setting and reordered.
 - **Files stored before location-truth are located in the background.**
   `Storage.Workers.LocationBackfillJob` checks each enabled bucket once for
-  every stored object with no location row and records where it is. It
-  queues itself shortly after boot and from the daily trash prune while any
-  are left, runs one batch every few seconds, and Settings → Media →
-  Health shows how many are left. Those files are served meanwhile.
+  every stored object not checked yet, records every bucket that has it,
+  and remembers the check, a miss included (a new
+  `phoenix_kit_file_location_checks` table), so a missing object is not
+  asked about on every request. It queues itself shortly after boot and
+  from the daily trash prune while any are left, runs one batch every few
+  seconds, and Settings → Media → Health shows how many are left. Those
+  files are served meanwhile.
 - **One checksum for every upload path.** The upload API hashed files with
   MD5 while everything else used SHA-256, so the same file uploaded both
   ways was stored twice. It uses SHA-256 now, and
@@ -67,7 +71,9 @@
 - **V204** removes duplicate `phoenix_kit_file_locations` rows (keeping the
   oldest of each instance and bucket), adds a unique index on that pair and
   an index on `path`, and moves the location's bucket FK from
-  `ON DELETE CASCADE` to `RESTRICT`.
+  `ON DELETE CASCADE` to `RESTRICT`. It adds
+  `phoenix_kit_file_location_checks` and marks every instance that already
+  has a location row as checked, so only the rest are probed.
 
 ## 2.39.0 - 2026-09-25
 

@@ -121,7 +121,7 @@ defmodule PhoenixKit.Modules.Storage.Manager do
   def file_exists?(file_path, opts \\ []) do
     {located, fallback} = read_order(file_path, Keyword.get(opts, :priority_buckets, []))
 
-    holds? = fn bucket -> get_provider_for_bucket(bucket).file_exists?(bucket, file_path) end
+    holds? = fn bucket -> bucket_holds?(bucket, file_path) end
 
     Enum.any?(located, holds?) or
       case Enum.find(fallback, holds?) do
@@ -141,11 +141,9 @@ defmodule PhoenixKit.Modules.Storage.Manager do
     {located, fallback} = read_order(file_path, Keyword.get(opts, :priority_buckets, []))
 
     url_from = fn bucket, record? ->
-      provider = get_provider_for_bucket(bucket)
-
-      if provider.file_exists?(bucket, file_path) do
+      if bucket_holds?(bucket, file_path) do
         if record?, do: Locations.record(file_path, bucket.uuid)
-        provider.public_url(bucket, file_path)
+        get_provider_for_bucket(bucket).public_url(bucket, file_path)
       end
     end
 
@@ -205,6 +203,21 @@ defmodule PhoenixKit.Modules.Storage.Manager do
     end
   end
 
+  # Whether `bucket` has the object. A bucket that raises (credentials, a
+  # timeout) does not have it, for this request: the next bucket is tried
+  # instead of the whole read failing. The recorded buckets are tried first
+  # now, so a sick one must not take a file down that another copy serves.
+  defp bucket_holds?(bucket, file_path) do
+    get_provider_for_bucket(bucket).file_exists?(bucket, file_path)
+  rescue
+    error ->
+      Logger.warning(
+        "Storage: could not check #{file_path} on bucket #{bucket.name}: #{Exception.message(error)}"
+      )
+
+      false
+  end
+
   defp forced_buckets(bucket_uuids) do
     enabled = Map.new(Storage.list_enabled_buckets(), &{to_string(&1.uuid), &1})
 
@@ -232,8 +245,17 @@ defmodule PhoenixKit.Modules.Storage.Manager do
   # order (by priority). Named buckets are used as they are, with no
   # fallback.
   defp read_order(file_path, []) do
-    select_buckets_for_retrieval([])
-    |> Locations.located_first(Locations.bucket_uuids(file_path))
+    case Locations.bucket_uuids(file_path) do
+      # Checked and found in no bucket: not asked about again on every
+      # request (the backfill remembered the miss).
+      [] ->
+        if Locations.known_missing?(file_path),
+          do: {[], []},
+          else: {[], select_buckets_for_retrieval([])}
+
+      located ->
+        Locations.located_first(select_buckets_for_retrieval([]), located)
+    end
   end
 
   defp read_order(_file_path, priority_buckets),
@@ -283,7 +305,7 @@ defmodule PhoenixKit.Modules.Storage.Manager do
     destination_path =
       Keyword.get(opts, :destination_path, generate_temp_path() <> temp_extension(file_path))
 
-    case provider.retrieve_file(bucket, file_path, destination_path) do
+    case safe_retrieve(provider, bucket, file_path, destination_path) do
       :ok ->
         {:ok, destination_path, bucket}
 
@@ -294,6 +316,13 @@ defmodule PhoenixKit.Modules.Storage.Manager do
 
         retrieve_with_failover(file_path, remaining_buckets, opts)
     end
+  end
+
+  # A bucket that raises while reading fails over like one that errors.
+  defp safe_retrieve(provider, bucket, file_path, destination_path) do
+    provider.retrieve_file(bucket, file_path, destination_path)
+  rescue
+    error -> {:error, Exception.message(error)}
   end
 
   defp get_provider_for_bucket(bucket) do
@@ -465,7 +494,7 @@ defmodule PhoenixKit.Modules.Storage.Manager do
   defp check_bucket_for_file(bucket, file_name, download, record?) do
     provider = get_provider_for_bucket(bucket)
 
-    if provider.file_exists?(bucket, file_name) do
+    if bucket_holds?(bucket, file_name) do
       if record?, do: Locations.record(file_name, bucket.uuid)
       bucket_access(bucket, file_name, provider, download)
     end

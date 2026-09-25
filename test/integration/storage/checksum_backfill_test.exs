@@ -87,5 +87,9 @@ defmodule PhoenixKit.Modules.Storage.ChecksumBackfillTest do
 
     assert ChecksumBackfillJob.recompute(old) == :duplicate
     assert Storage.get_file(old.uuid).file_checksum == md5(content)
+
+    # A pass marks it, so the next pass does not download it again.
+    ChecksumBackfillJob.run_pass()
+    assert Storage.get_file(old.uuid).metadata["checksum_backfill"] == "duplicate"
   end
 end

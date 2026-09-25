@@ -3,12 +3,17 @@ defmodule PhoenixKit.Modules.Storage.Workers.LocationBackfillJob do
   Records where the objects stored before location-truth are (V204).
 
   Every writer records a `phoenix_kit_file_locations` row for each bucket it
-  stores an object in. Instances stored earlier by writers that did not
-  (Tessera tiles, comment attachments), or whose rows were lost, have none.
-  This job walks them in `@batch_size` batches, in uuid order, checks each
-  enabled bucket for the instance's key once, and records every bucket that
-  has it (`Storage.Locations.record/2`). An instance found in no bucket is
-  counted as missing and left alone.
+  stores an object in, and marks its instances checked. Instances stored
+  earlier by writers that did not (Tessera tiles, comment attachments) are
+  unchecked. This job walks them in `@batch_size` batches, in uuid order,
+  checks each enabled bucket for the instance's key once, records every
+  bucket that has it (`Storage.Locations.record/2`), and marks the instance
+  checked with how many held it (`Locations.mark_checked/2`) — a miss too,
+  so it is not work again and the Health count reaches zero.
+
+  "Unchecked", not "has no location row": a read that finds a key in a
+  bucket records that one bucket, which must not retire the instance from
+  this walk while its other copies are unrecorded.
 
   **Throttled.** One batch per run, and the next run is scheduled
   `@pause_seconds` later, on the `file_processing` queue, so a large or
@@ -34,12 +39,12 @@ defmodule PhoenixKit.Modules.Storage.Workers.LocationBackfillJob do
   require Logger
 
   alias PhoenixKit.Modules.Storage
-  alias PhoenixKit.Modules.Storage.{FileInstance, FileLocation, Locations, ProviderRegistry}
+  alias PhoenixKit.Modules.Storage.{Locations, ProviderRegistry}
 
   @batch_size 50
   @pause_seconds 5
 
-  @doc "Queues a pass when any instance has no location row. Never raises."
+  @doc "Queues a pass when any instance is unchecked. Never raises."
   @spec maybe_enqueue() :: :queued | :nothing_to_do | :unavailable
   def maybe_enqueue do
     if pending?() do
@@ -56,13 +61,13 @@ defmodule PhoenixKit.Modules.Storage.Workers.LocationBackfillJob do
     :exit, _ -> :unavailable
   end
 
-  @doc "Whether any instance has no location row."
+  @doc "Whether any instance is unchecked."
   @spec pending?() :: boolean()
   def pending? do
     repo().exists?(missing_query(nil))
   end
 
-  @doc "How many instances have no location row (for the Health page)."
+  @doc "How many instances are unchecked (for the Health page)."
   @spec pending_count() :: non_neg_integer()
   def pending_count, do: Locations.missing_count()
 
@@ -113,8 +118,11 @@ defmodule PhoenixKit.Modules.Storage.Workers.LocationBackfillJob do
       |> repo().all()
 
     totals =
-      Enum.reduce(batch, totals, fn {_uuid, key}, acc ->
-        outcome = if locate(key, buckets) > 0, do: :recorded, else: :missing
+      Enum.reduce(batch, totals, fn {uuid, key}, acc ->
+        found = locate(key, buckets)
+        # Checked, found or not: a miss is remembered, so it is not work again.
+        Locations.mark_checked([uuid], found)
+        outcome = if found > 0, do: :recorded, else: :missing
         Map.update(acc, outcome, 1, &(&1 + 1))
       end)
 
@@ -155,24 +163,10 @@ defmodule PhoenixKit.Modules.Storage.Workers.LocationBackfillJob do
       false
   end
 
-  defp missing_query(cursor) do
-    base =
-      from(i in FileInstance,
-        as: :instance,
-        where:
-          not exists(
-            from(l in FileLocation,
-              where: l.file_instance_uuid == parent_as(:instance).uuid,
-              select: 1
-            )
-          )
-      )
+  defp missing_query(nil), do: Locations.unchecked_query()
 
-    case cursor do
-      nil -> base
-      after_uuid -> from(i in base, where: i.uuid > ^after_uuid)
-    end
-  end
+  defp missing_query(after_uuid),
+    do: from(i in Locations.unchecked_query(), where: i.uuid > ^after_uuid)
 
   defp repo, do: PhoenixKit.RepoHelper.repo()
 end
