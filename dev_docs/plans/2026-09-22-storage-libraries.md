@@ -8,11 +8,11 @@ location-truth moved ahead of storage profiles. Four gaps were added
 (G11–G14), and G3 and G8 were corrected. Later the same day, **variant sets**
 (per-library image and video sizes, §3.4, G15–G19) were added to V204, so they
 ship in the same release as storage profiles.
-**Status (2026-09-24):** Phase 1 **RELEASED in 2.38.0** (2026-09-23, tag
-`v2.38.0`, which includes the post-review fixes below). 2.38.1 changed
-nothing in Storage. **Phase 2 (V203) is released in 2.39.0** (2026-09-25),
-after the maintainer tested it in a host app: see "Phase 2 as built" below.
-Next: V204 (location-truth). Phase 1 shipped as **V202**, not V201: PR #860
+**Status (2026-09-25):** Phase 1 **RELEASED in 2.38.0** (2026-09-23, tag
+`v2.38.0`). **Phase 2 RELEASED in 2.39.0** (2026-09-25, tag `v2.39.0`),
+after the maintainer tested it in a host app and Grok reviewed it: see
+"Phase 2 as built" below. **Next: V204, location-truth** (see "Next: V204"
+below). Phase 1 shipped as **V202**, not V201: PR #860
 took V201 for per-user view preferences, so every phase below shifts by one
 (V202 partition, V203 private serving + user libraries, V204 location-truth,
 V205 profiles + variant sets, V206 user-owned storage). The version numbers in
@@ -133,11 +133,79 @@ the download case on public buckets, and it skips `cdn_url`.
 - **Security fix found on the way:** a `MediaBrowser` showing one library
   now refuses any event naming another library's file or folder. The scope
   check alone admits everything without a scope folder.
-- **Known limits, left for later:** a contributor can organise and trash any
-  file of the library through the browser, which has no per-file ownership
-  check (the API's `allows?/2` says only "upload"). Restoring a trashed user
-  library is not offered. The admin opening path covers live libraries only.
-  V200's user-keyed capture-date index is still there.
+- **A listing that names no library means the site's libraries** (every
+  library that is not private, `Libraries.exclude_private/1`), not "every
+  library". A user library is read only by passing its uuid. This is the
+  contract for every module: before Grok's review, `nil` meant everything,
+  so orphan cleanup (which names none) would have deleted user-library files
+  as unreferenced, and `/admin/media`, host embeds and the pickers listed
+  them. A private library's files are also never orphans when the library
+  *is* named. `/admin/media` now always passes its system library.
+- **Also from the review** (`dev_docs/reviews/2026-09-25-storage-libraries-v203/`):
+  the `/admin/media/:uuid` detail page needs `Libraries.can?/3` for a private
+  file (the `media` key alone no longer opens one); `get_public_url*` never
+  hands a private file a bucket object URL; a private file's tiles are
+  cached `private`; a viewer cannot open a library's member list.
+- **Orphan cleanup only trashes** (maintainer's request): "Move all orphaned
+  to trash" and `mix phoenix_kit.cleanup_orphaned_files --delete` go through
+  `DeleteOrphanedFileJob`, which now calls `Storage.trash_file/1`.
+- **`/admin/libraries` for an Owner/Admin** also lists every other user's
+  library below their own (found in the host-app test: the admin saw none).
+- **Known limits, left for later** (see "Next" below): a contributor can
+  organise and trash any file of the library through the browser, which has
+  no per-file ownership check (the API's `allows?/2` says only "upload").
+  Restoring a trashed user library is not offered. An Owner/Admin opening a
+  private file's detail page at `/admin/media/:uuid` is not audit-logged
+  (only opening the library is). V200's user-keyed capture-date index is
+  still there.
+
+### Next: V204, location-truth
+
+The original §9 "V203" list, renumbered. It is the load-bearing change for
+everything after it: per-library storage (V205) and user-owned buckets
+(V206) cannot work while reads try every enabled bucket by key. Order of
+work inside the release:
+
+1. **Location uniqueness (G7):** dedupe `phoenix_kit_file_locations`, then a
+   UNIQUE `(file_instance_uuid, bucket_uuid)` index. New manifest object.
+2. **Every writer records locations (§6.1, G13):** `store_file/2` (comment
+   attachments), `store_system_file/3` (Tessera tiles), and
+   `ApplyImageEditJob`'s outputs pinned to the original's buckets. Fix
+   `force_bucket_ids` being capped and reordered (§11).
+3. **Location backfill job (§6.2):** an Oban job, started by the release,
+   that probes system buckets by key once per instance with no location and
+   records what it finds. Never a migration step.
+4. **Reads, serving and deletes by location (§6.2):** `retrieve_file`,
+   `get_file_access`, `public_url`, `delete_file` resolve through the
+   instance's active locations (local first, then ascending priority, as
+   today), with a probe-and-record fallback for rows the backfill has not
+   reached, removed one release later.
+5. **Reference counting per `(bucket, key)` (G11):** an object on a bucket
+   is deleted only when no active location on that bucket names its key;
+   the delete touches only that bucket. Goes through
+   `Storage.delete_stored_objects/2`, which already re-checks under the
+   directory lock.
+6. **Bucket FK on locations → RESTRICT (G4):** a bucket that still holds
+   locations cannot be deleted (a `{204, ...}` constraint revision in the
+   manifest, the V203 replace pattern).
+7. **Bucket cache invalidation:** bucket edits apply at once instead of
+   after up to 5 minutes (`manager.ex`'s `:persistent_term` cache).
+8. **One checksum algorithm (G12):** `UploadController` hashes SHA-256 like
+   everything else; a job recomputes existing MD5 `file_checksum`s (32 hex)
+   by reading the original. Until recomputed, a row simply does not dedup.
+
+Questions to settle before starting: whether the backfill runs by itself
+after `mix phoenix_kit.update` or waits for an admin to start it (it reads
+every bucket once; on a large remote bucket that is real egress), and
+whether the probe fallback's one-release lifetime is enough for hosts that
+update rarely.
+
+Small follow-ups from phase 2 that can ride along or go first: the
+contributor per-file check in the browser, restoring a trashed user
+library, and audit-logging an admin's `/admin/media/:uuid` open of a private
+file. Outside core: `phoenix_kit_photos` builds its library switcher on
+`Libraries.list_user_libraries/1` and serves through
+`Storage.authorized_url/4`.
 
 **Scope:** phoenix_kit (core), Storage module, in five releases (V201–V205).
 First consumer: `phoenix_kit_photos`.
