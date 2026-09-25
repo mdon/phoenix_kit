@@ -31,8 +31,18 @@
     </div>
 
     <%= if @file_data do %>
-      <%!-- Main Layout: 3/4 Preview + 1/4 Info --%>
-      <div class="flex flex-col lg:flex-row gap-4 h-[calc(100vh-12rem)]">
+      <%!-- Main Layout: 3/4 Preview + 1/4 Info.
+           Side by side only when the window is wider than it is tall, and
+           only then a viewport-derived height. The same rule the popup
+           viewer runs, for the same reason: on a portrait screen a 3/4
+           column beside the info panel is a narrow slot for a landscape
+           picture, and the fixed height then leaves the bottom half of the
+           page empty under it. Stacked, the picture takes the full width
+           and the page is as tall as the picture plus the panel — the
+           embedded MediaCanvasViewer already sizes its own pane to the
+           picture, so the columns here only have to stop imposing a
+           height of their own. --%>
+      <div class="flex flex-col lg:landscape:flex-row gap-4 h-[calc(100vh-12rem)] lg:portrait:h-auto">
         <%!-- Left: Fresco canvas + Etcher annotations (3/4). The viewer       --%>
         <%!-- column from MediaCanvasViewer in `viewer_only` mode — gives us  --%>
         <%!-- the same Fresco + Etcher rendering, composer popover, and       --%>
@@ -52,7 +62,7 @@
         </div>
         <div
           :if={not (@image_editor_open and @image_editable)}
-          class="flex-[3] bg-base-200 rounded-lg overflow-hidden"
+          class="flex-[3] lg:portrait:flex-none bg-base-200 rounded-lg overflow-hidden"
         >
           <.live_component
             module={PhoenixKitWeb.Components.MediaCanvasViewer}
@@ -68,9 +78,13 @@
         </div>
 
         <%!-- Right: Info Panel (1/4) --%>
+        <%!-- Docked under the picture rather than beside it, this panel is
+             as tall as its own cards and the PAGE scrolls — a nested scroll
+             region inside a column that is already the right height just
+             hides the end of the metadata. --%>
         <div
           :if={not (@image_editor_open and @image_editable)}
-          class="flex-1 flex flex-col gap-4 overflow-y-auto overflow-x-hidden min-w-0"
+          class="flex-1 lg:portrait:flex-none flex flex-col gap-4 overflow-y-auto overflow-x-hidden min-w-0"
         >
           <%!-- File Title Card --%>
           <div class="card bg-base-100 shadow-xl">
