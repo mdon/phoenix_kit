@@ -31,7 +31,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
     bucket_file_counts = get_bucket_file_counts(buckets)
 
     # Load storage settings from database (using basic function to avoid cache issues)
-    redundancy_copies = Settings.get_setting("storage_redundancy_copies", "1")
+    redundancy_copies = to_string(Storage.redundancy_copies())
     auto_generate_variants = Settings.get_setting("storage_auto_generate_variants", "true")
     max_upload_size_mb = Settings.get_setting("storage_max_upload_size_mb", "500")
     tile_generation_enabled = Settings.get_setting("storage_tile_generation_enabled", "false")
@@ -109,7 +109,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
 
       {:noreply, socket}
     else
-      case Settings.update_setting("storage_redundancy_copies", copies) do
+      case Storage.set_redundancy_copies(requested_copies) do
         {:ok, _setting} ->
           # Settings.update_setting already handles cache invalidation
           socket =
@@ -249,8 +249,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
       {:noreply, socket}
     else
       # Update all settings
-      redundancy_result =
-        Settings.update_setting("storage_redundancy_copies", to_string(new_redundancy))
+      redundancy_result = Storage.set_redundancy_copies(new_redundancy)
 
       variants_result = Settings.update_setting("storage_auto_generate_variants", new_variants)
 
@@ -271,7 +270,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
       case {redundancy_result, variants_result} do
         {{:ok, _}, {:ok, _}} ->
           # Verify the settings were saved correctly by reading them back
-          saved_redundancy = Settings.get_setting("storage_redundancy_copies", "1")
+          saved_redundancy = to_string(Storage.redundancy_copies())
           saved_variants = Settings.get_setting("storage_auto_generate_variants", "true")
           saved_tile_generation = Settings.get_setting("storage_tile_generation_enabled", "false")
 
@@ -493,7 +492,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
     bucket_file_counts = get_bucket_file_counts(buckets)
 
     # Reload storage settings
-    redundancy_copies = Settings.get_setting("storage_redundancy_copies", "1")
+    redundancy_copies = to_string(Storage.redundancy_copies())
     auto_generate_variants = Settings.get_setting("storage_auto_generate_variants", "true")
     max_upload_size_mb = Settings.get_setting("storage_max_upload_size_mb", "500")
 

@@ -386,6 +386,24 @@ goes out once, after the maintainer tests it, like V203.
    built", a Grok review, then the maintainer's test on dev before
    publishing.
 
+**Progress** (`main`, not pushed until the V205 migration is final: a
+database that ran an earlier build of it through a git dependency would
+never get a later change, the #871 lesson):
+
+- Step 1 done (`b3724a5b6`). The migration, manifest, schemas, `Profiles`
+  and `VariantSets`. Bucket create/delete/priority already keep the
+  Default profile in step, because the profile's bucket FK is RESTRICT.
+- Step 2 done. `Manager.store_file/2` places by profile (`:profile`,
+  `:kind`); `Storage.store_by_profile/4` is the one entry for uploads,
+  tiles, variants, re-stores and the legacy `store_file/2`; a file records
+  its placement (`record_placement/2`), and an incomplete store marks it
+  stale (`placed_revision = 0`). The copy target is capped at the buckets
+  the profile can use right now, as in the migration's stamp: a profile
+  change bumps the revision, which makes the file stale again when more
+  buckets become usable. `Storage.redundancy_copies/0` and
+  `set_redundancy_copies/1` are the setting's alias. Until step 5, the
+  Health page's sync still copies to any enabled bucket.
+
 **Scope:** phoenix_kit (core), Storage module, in five releases (V201–V205).
 First consumer: `phoenix_kit_photos`.
 **Related:** `PhoenixKit.Modules.Storage.CaptureDate` and V200 (the capture-date

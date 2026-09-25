@@ -11,63 +11,190 @@ defmodule PhoenixKit.Modules.Storage.Manager do
   object's location rows name first (`PhoenixKit.Modules.Storage.Locations`),
   in the usual order: local buckets, then by priority. Only when none of
   them has it are the other enabled buckets tried, and a bucket found to
-  hold it that way is recorded as a location. Writes still pick buckets by
-  priority and redundancy; deletes still remove an unreferenced key from
-  every enabled bucket.
+  hold it that way is recorded as a location. Deletes still remove an
+  unreferenced key from every enabled bucket.
+
+  ## Where an object is written (V205)
+
+  By the storage profile of the file's library (`store_file/2`): its
+  buckets, their roles and write priorities, and its copy counts.
   """
 
   require Logger
 
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.Locations
+  alias PhoenixKit.Modules.Storage.ProfileBucket
+  alias PhoenixKit.Modules.Storage.Profiles
   alias PhoenixKit.Modules.Storage.ProviderRegistry
   alias PhoenixKit.Modules.Storage.Providers.Local
-  alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
   # Cache TTL for bucket list (5 minutes)
   @buckets_cache_ttl 300_000
 
   @doc """
-  Stores a file across multiple buckets based on redundancy settings.
+  Stores a file across buckets.
+
+  ## Where it goes (V205)
+
+  By a storage profile: `:profile` (a `StorageProfile` with its buckets
+  preloaded, `Storage.Profiles.for_library/1`), or the Default profile
+  when none is given. `:kind` says what the object is: `:original` (an
+  original upload, the default) or `:derived` (a size, a tile, a render),
+  which picks the profile's copy count and the buckets whose `stores`
+  allows it. Buckets that are enabled, `active` in the profile and not over
+  their `max_size_mb` are written, primaries before replicas before
+  backups, each group by fixed write priority and then in random order,
+  up to the copy count.
+
+  An original fails unless at least the profile's `min_copies_on_write`
+  copies were written (what was written is removed again). The result
+  says whether every copy the profile wants was made (`complete?`); the
+  rest are made by the reconciler.
 
   ## Options
 
-  - `:redundancy_copies` - Number of copies to store (default: from settings)
-  - `:priority_buckets` - List of specific bucket IDs to use (default: auto-select)
-  - `:force_bucket_ids` - List of specific bucket IDs to use (overrides priority_buckets)
-  - `:generate_variants` - Whether to generate variants (default: from settings)
+  - `:path_prefix` - the object key
+  - `:profile` / `:kind` - see above
+  - `:force_bucket_ids` - exactly these buckets (every one that is enabled,
+    in the order given), whatever any profile says
+  - `:redundancy_copies` / `:priority_buckets` - the pre-profile selection
+    (the enabled buckets by priority, up to the count), kept for callers
+    that ask for it
 
   ## Returns
 
-  - `{:ok, file_result}` - File stored successfully with locations
+  - `{:ok, file_result}` - `destination_path`, `bucket_ids` (the buckets
+    written), `stored_in`, `successful_storages`, `complete?`
   - `{:error, reason}` - Failed to store file
   """
   def store_file(source_path, opts \\ []) do
-    # Get redundancy settings
-    redundancy_copies = Keyword.get(opts, :redundancy_copies, get_redundancy_copies())
     force_bucket_ids = Keyword.get(opts, :force_bucket_ids, [])
-    priority_buckets = Keyword.get(opts, :priority_buckets, [])
-    _generate_variants = Keyword.get(opts, :generate_variants, get_auto_generate_variants())
 
-    # `force_bucket_ids` are exactly the buckets to write to (a variant goes
-    # where its original is): every one that is enabled, in the order given.
-    # They used to be capped at the redundancy setting and put in enabled-
-    # bucket order, so a variant could miss a bucket its original is in.
-    buckets =
-      if Enum.empty?(force_bucket_ids),
-        do: select_buckets_for_storage(redundancy_copies, priority_buckets),
-        else: forced_buckets(force_bucket_ids)
+    # `force_bucket_ids` are exactly the buckets to write to (an edit's
+    # output goes where the key it replaces is): every one that is enabled,
+    # in the order given.
+    {buckets, min_copies, target} =
+      cond do
+        force_bucket_ids != [] ->
+          forced = forced_buckets(force_bucket_ids)
+          {forced, 1, length(forced)}
+
+        legacy_selection?(opts) ->
+          redundancy = Keyword.get(opts, :redundancy_copies, 1)
+
+          selected =
+            select_buckets_for_storage(redundancy, Keyword.get(opts, :priority_buckets, []))
+
+          {selected, 1, length(selected)}
+
+        profile = Keyword.get(opts, :profile) || Profiles.default_profile() ->
+          profile_placement(profile, Keyword.get(opts, :kind, :original))
+
+        # No profiles on this database yet: the pre-V205 pool.
+        true ->
+          selected = select_buckets_for_storage(1, [])
+          {selected, 1, length(selected)}
+      end
 
     if Enum.empty?(buckets) do
       {:error, "No available storage buckets"}
     else
-      # Store file across selected buckets
-      store_across_buckets(source_path, buckets, opts)
+      with {:ok, info} <- store_across_buckets(source_path, buckets, opts) do
+        require_copies(info, min_copies, target)
+      end
     end
   rescue
     error -> {:error, "Error storing file: #{inspect(error)}"}
   end
+
+  defp legacy_selection?(opts),
+    do:
+      Keyword.has_key?(opts, :redundancy_copies) or Keyword.get(opts, :priority_buckets, []) != []
+
+  # The buckets `profile` writes an object of `kind` to, how many copies
+  # must succeed, and how many it wants (capped at the buckets it can use).
+  defp profile_placement(profile, kind) do
+    eligible = placement_candidates(profile, kind)
+    copies = Profiles.copies(profile, kind)
+    min_copies = if kind == :original, do: profile.min_copies_on_write, else: 1
+
+    {Enum.take(eligible, copies), min_copies, min(copies, length(eligible))}
+  end
+
+  @doc false
+  # The buckets `profile` may write an object of `kind` to, in write order:
+  # enabled, active in the profile, storing that kind, not over capacity;
+  # by role, then fixed write priority, then the shuffled pool.
+  def placement_candidates(profile, kind) do
+    stores = if kind == :original, do: "originals", else: "derived"
+
+    profile.buckets
+    |> Enum.filter(fn row ->
+      row.status == "active" and row.stores in ["all", stores] and
+        match?(%{enabled: true}, row.bucket) and not bucket_full?(row.bucket)
+    end)
+    |> Enum.group_by(& &1.role)
+    |> then(fn by_role ->
+      Enum.flat_map(ProfileBucket.roles(), fn role ->
+        {fixed, pool} = by_role |> Map.get(role, []) |> Enum.split_with(& &1.write_priority)
+        Enum.sort_by(fixed, & &1.write_priority) ++ Enum.shuffle(pool)
+      end)
+    end)
+    |> Enum.map(& &1.bucket)
+  end
+
+  # Fewer copies than an original needs undo the write; fewer than wanted
+  # are reported, for the reconciler.
+  defp require_copies(info, min_copies, target) do
+    written = info.successful_storages
+
+    if written < min_copies do
+      Enum.each(info.bucket_ids, fn bucket_uuid ->
+        with %{} = bucket <- Storage.get_bucket(bucket_uuid) do
+          safe_delete(bucket, info.destination_path)
+        end
+      end)
+
+      {:error, "Stored #{written} of the #{min_copies} copies required"}
+    else
+      {:ok, Map.put(info, :complete?, written >= target)}
+    end
+  end
+
+  defp safe_delete(bucket, key) do
+    get_provider_for_bucket(bucket).delete_file(bucket, key)
+  rescue
+    _ -> :error
+  end
+
+  # Capacity (G9): a bucket with a `max_size_mb` is full when what its
+  # active locations hold reaches it. The sum is cached for a minute per
+  # bucket; a bucket with no cap is never full.
+  @usage_ttl 60_000
+
+  defp bucket_full?(%{max_size_mb: max} = bucket) when is_integer(max) and max > 0 do
+    key = {:phoenix_kit_bucket_usage, to_string(bucket.uuid)}
+    now = System.monotonic_time(:millisecond)
+
+    used =
+      case :persistent_term.get(key, nil) do
+        {at, used} when now - at < @usage_ttl ->
+          used
+
+        _ ->
+          used = Storage.calculate_bucket_usage(bucket.uuid)
+          :persistent_term.put(key, {now, used})
+          used
+      end
+
+    used >= max
+  rescue
+    _ -> false
+  end
+
+  defp bucket_full?(_bucket), do: false
 
   @doc """
   Retrieves a file from storage with failover.
@@ -400,17 +527,6 @@ defmodule PhoenixKit.Modules.Storage.Manager do
         :persistent_term.put(cache_key, {current_time, buckets})
         buckets
     end
-  end
-
-  defp get_redundancy_copies do
-    Settings.get_setting_cached("storage_redundancy_copies", "1")
-    |> String.to_integer()
-    |> max(1)
-    |> min(5)
-  end
-
-  defp get_auto_generate_variants do
-    Settings.get_setting_cached("storage_auto_generate_variants", "true") == "true"
   end
 
   @doc """

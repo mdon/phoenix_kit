@@ -127,7 +127,7 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
                  process_variant(original_path, variant_path, file.mime_type, effective_dimension),
                {:ok, file_stats} <- get_variant_file_stats(variant_path),
                {:ok, storage_info} <-
-                 store_variant_file(variant_path, variant_name, variant_storage_path, file.uuid) do
+                 store_variant_file(variant_path, variant_name, variant_storage_path, file) do
             publish_variant(
               file,
               variant_name,
@@ -187,7 +187,7 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
     try do
       with {:ok, file_stats} <- get_variant_file_stats(prepared_path),
            {:ok, storage_info} <-
-             store_variant_file(prepared_path, variant_name, variant_storage_path, file.uuid) do
+             store_variant_file(prepared_path, variant_name, variant_storage_path, file) do
         publish_variant(
           file,
           variant_name,
@@ -215,39 +215,20 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
     end
   end
 
-  defp store_variant_file(variant_path, variant_name, storage_path, file_uuid) do
+  # A variant is a derived object: it goes where the file's library's
+  # storage profile puts derived files (V205), which need not be the
+  # original's buckets. Fewer copies than the profile wants leave the file
+  # stale for the reconciler.
+  defp store_variant_file(variant_path, variant_name, storage_path, file) do
     Logger.info("Storing variant #{variant_name} to storage buckets at path: #{storage_path}")
 
-    # Get the bucket IDs from the original file instance if available
-    opts =
-      case file_uuid do
-        nil ->
-          [generate_variants: false, path_prefix: storage_path]
-
-        file_uuid ->
-          # Get the original instance's bucket UUIDs
-          case Storage.get_file_instance_by_name(file_uuid, "original") do
-            %Storage.FileInstance{uuid: original_instance_uuid} ->
-              bucket_uuids = Storage.get_file_instance_bucket_uuids(original_instance_uuid)
-
-              if Enum.empty?(bucket_uuids) do
-                [generate_variants: false, path_prefix: storage_path]
-              else
-                [
-                  generate_variants: false,
-                  path_prefix: storage_path,
-                  force_bucket_ids: bucket_uuids
-                ]
-              end
-
-            nil ->
-              [generate_variants: false, path_prefix: storage_path]
-          end
-      end
-
-    case Manager.store_file(variant_path, opts) do
-      {:ok, _storage_info} = success ->
+    case Storage.store_by_profile(variant_path, file.library_uuid, :derived,
+           generate_variants: false,
+           path_prefix: storage_path
+         ) do
+      {:ok, storage_info} = success ->
         Logger.info("Variant #{variant_name} stored successfully in buckets")
+        unless storage_info.complete?, do: Storage.mark_placement_stale(file.uuid)
         success
 
       error ->

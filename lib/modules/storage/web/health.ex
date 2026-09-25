@@ -180,9 +180,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Health do
   def handle_info(_msg, socket), do: {:noreply, socket}
 
   defp load_health_report(socket) do
-    redundancy_target =
-      Settings.get_setting_cached("storage_redundancy_copies", "1")
-      |> String.to_integer()
+    redundancy_target = Storage.redundancy_copies()
 
     report = Storage.get_health_report(redundancy_target)
 

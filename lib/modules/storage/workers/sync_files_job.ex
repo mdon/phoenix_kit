@@ -17,7 +17,6 @@ defmodule PhoenixKit.Modules.Storage.Workers.SyncFilesJob do
 
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.PubSub.Manager, as: PubSubManager
-  alias PhoenixKit.Settings
 
   @sync_topic "media:sync_progress"
   @sync_state_key :phoenix_kit_media_sync_state
@@ -26,9 +25,7 @@ defmodule PhoenixKit.Modules.Storage.Workers.SyncFilesJob do
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
-    redundancy_target =
-      Settings.get_setting("storage_redundancy_copies", "1")
-      |> String.to_integer()
+    redundancy_target = Storage.redundancy_copies()
 
     clear_paused()
     clear_stopped()

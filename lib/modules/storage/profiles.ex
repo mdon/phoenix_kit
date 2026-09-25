@@ -59,6 +59,16 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
   def default_profile, do: get_profile(@default_uuid)
 
   @doc """
+  How many copies of an original the Default keeps (1 when there is no
+  Default yet, as `storage_redundancy_copies` defaulted to).
+  """
+  @spec default_copies() :: pos_integer()
+  def default_copies do
+    from(p in StorageProfile, where: p.uuid == ^@default_uuid, select: p.copies_originals)
+    |> repo().one() || 1
+  end
+
+  @doc """
   The uuid of the profile `library` uses: its own, or the Default. Takes a
   library, a library uuid, or nil (a file with no library is in Media).
   """

@@ -107,11 +107,13 @@ defmodule PhoenixKit.Modules.Storage do
   alias PhoenixKit.Modules.Storage.FolderLink
   alias PhoenixKit.Modules.Storage.ImageEditing
   alias PhoenixKit.Modules.Storage.Libraries
+  alias PhoenixKit.Modules.Storage.Library
   alias PhoenixKit.Modules.Storage.Locations
   alias PhoenixKit.Modules.Storage.Manager
   alias PhoenixKit.Modules.Storage.ProcessFileJob
   alias PhoenixKit.Modules.Storage.Profiles
   alias PhoenixKit.Modules.Storage.ProviderRegistry
+  alias PhoenixKit.Modules.Storage.StorageProfile
   # NOTE: Temporary helper for Publishing component system.
   # The dedicated storage/media APIs under development should replace this fallback once available.
   alias PhoenixKit.Modules.Storage.URLSigner
@@ -1130,7 +1132,7 @@ defmodule PhoenixKit.Modules.Storage do
 
   """
   def reset_settings_to_defaults do
-    Settings.update_setting("storage_redundancy_copies", "1")
+    set_redundancy_copies(1)
     Settings.update_setting("storage_auto_generate_variants", "true")
     Settings.update_setting("storage_default_bucket_uuid", nil)
     :ok
@@ -2678,8 +2680,10 @@ defmodule PhoenixKit.Modules.Storage do
         if Manager.file_exists?(key) do
           {:ok, %{file: file, instance: instance}}
         else
-          with {:ok, info} <- Manager.store_file(content_path, path_prefix: key) do
+          with {:ok, info} <-
+                 store_by_profile(content_path, file.library_uuid, :derived, path_prefix: key) do
             Locations.record_all(key, info.bucket_ids)
+            unless info.complete?, do: mark_placement_stale(file.uuid)
             {:ok, %{file: file, instance: instance}}
           end
         end
@@ -2690,7 +2694,12 @@ defmodule PhoenixKit.Modules.Storage do
   end
 
   defp do_store_system_file(content_path, key, parent_file_uuid, mime_type, file_type, opts) do
-    with {:ok, info} <- Manager.store_file(content_path, path_prefix: key),
+    # A tile or manifest is derived from its parent and follows the parent's
+    # library (G13).
+    library_uuid = parent_library_uuid(parent_file_uuid)
+
+    with {:ok, info} <-
+           store_by_profile(content_path, library_uuid, :derived, path_prefix: key),
          {:ok, size} <- file_size(content_path, opts),
          checksum <- calculate_file_hash(content_path),
          file_attrs = %{
@@ -2710,7 +2719,7 @@ defmodule PhoenixKit.Modules.Storage do
            system_managed: true,
            parent_file_uuid: parent_file_uuid
          },
-         file_attrs = put_library(file_attrs, parent_library_uuid(parent_file_uuid)),
+         file_attrs = put_library(file_attrs, library_uuid),
          {:ok, file} <- insert_or_fetch_system_file(file_attrs, parent_file_uuid, key),
          instance_attrs = %{
            variant_name: "original",
@@ -2726,6 +2735,7 @@ defmodule PhoenixKit.Modules.Storage do
          },
          {:ok, instance} <- insert_or_fetch_system_instance(instance_attrs, file.uuid) do
       Locations.record_all(key, info.bucket_ids)
+      record_placement(file.uuid, info)
       {:ok, %{file: file, instance: instance}}
     else
       # The object may be stored with no row for it (the parent went
@@ -3546,7 +3556,7 @@ defmodule PhoenixKit.Modules.Storage do
     %{
       module_enabled: true,
       default_path: get_default_path(),
-      redundancy_copies: get_redundancy_copies(),
+      redundancy_copies: redundancy_copies(),
       auto_generate_variants: get_auto_generate_variants(),
       default_bucket_uuid: get_default_bucket_uuid(),
       buckets_count: length(buckets),
@@ -4544,7 +4554,7 @@ defmodule PhoenixKit.Modules.Storage do
 
       nil ->
         # No per-user match — check for cross-user duplicate (same file uploaded by another user)
-        case get_active_file_by_checksum(file_checksum) do
+        case get_active_file_by_checksum(file_checksum, opts[:library_uuid]) do
           %PhoenixKit.Modules.Storage.File{} = donor_file ->
             Logger.info("=== CROSS-USER DUPLICATE DETECTED ===")
             Logger.info("Donor file: #{donor_file.uuid} (user: #{donor_file.user_uuid})")
@@ -4657,8 +4667,10 @@ defmodule PhoenixKit.Modules.Storage do
         # Store in buckets with redundancy - use MD5 hash for organized structure
         original_path = "#{file_path}/#{md5_hash}_original.#{ext}"
 
-        case Manager.store_file(source_path, path_prefix: original_path) do
+        case store_by_profile(source_path, library_uuid, :original, path_prefix: original_path) do
           {:ok, storage_info} ->
+            record_placement(file.uuid, storage_info)
+
             # Create file instance for original
             original_instance_attrs = %{
               variant_name: "original",
@@ -4703,14 +4715,29 @@ defmodule PhoenixKit.Modules.Storage do
   # Find any active file with the given checksum (regardless of user) for
   # cross-user dedup. Never a system-managed file (an edited image's hidden
   # backup, a tile chunk) and never a file whose edit is still rendering.
-  defp get_active_file_by_checksum(file_checksum) do
-    PhoenixKit.Modules.Storage.File
-    |> where(
-      [f],
-      f.file_checksum == ^file_checksum and f.status == "active" and
-        f.system_managed == false and is_nil(f.edit_state)
+  #
+  # Only a file whose library resolves to the same storage profile and
+  # variant set as `library_uuid`'s (V205, plan §6.4): a clone shares the
+  # donor's objects and variants, and must never make one library depend on
+  # another library's buckets or sizes.
+  defp get_active_file_by_checksum(file_checksum, library_uuid) do
+    profile_uuid = Profiles.profile_uuid_for(library_uuid)
+    set_uuid = VariantSets.set_uuid_for(library_uuid)
+
+    from(f in PhoenixKit.Modules.Storage.File,
+      join: l in Library,
+      on: l.uuid == f.library_uuid,
+      where:
+        f.file_checksum == ^file_checksum and f.status == "active" and
+          f.system_managed == false and is_nil(f.edit_state),
+      where:
+        coalesce(l.storage_profile_uuid, type(^Profiles.default_uuid(), UUIDv7)) ==
+          type(^profile_uuid, UUIDv7),
+      where:
+        coalesce(l.variant_set_uuid, type(^VariantSets.default_uuid(), UUIDv7)) ==
+          type(^set_uuid, UUIDv7),
+      limit: 1
     )
-    |> limit(1)
     |> repo().one()
   end
 
@@ -4729,6 +4756,46 @@ defmodule PhoenixKit.Modules.Storage do
   # out of the insert, so the column default (Media) applies.
   defp put_library(attrs, nil), do: attrs
   defp put_library(attrs, library_uuid), do: Map.put(attrs, :library_uuid, library_uuid)
+
+  # ===== PLACEMENT (V205) =====
+
+  @doc false
+  # Stores `source_path` by the storage profile of `library_uuid` (nil is
+  # Media) as an object of `kind` (`:original` or `:derived`). The result
+  # carries the profile it was placed by, for `record_placement/2`.
+  def store_by_profile(source_path, library_uuid, kind, opts \\ []) do
+    profile = Profiles.for_library(library_uuid)
+    placement = if profile, do: [profile: profile, kind: kind], else: [kind: kind]
+
+    with {:ok, info} <- Manager.store_file(source_path, placement ++ opts) do
+      {:ok, Map.put(info, :profile, profile)}
+    end
+  end
+
+  @doc false
+  # Records the profile (and its revision) that placed a file's original:
+  # every copy it wanted was made, or the file is stale (revision 0) and
+  # the reconciler makes the rest.
+  def record_placement(file_uuid, %{profile: %StorageProfile{} = profile} = info) do
+    revision = if Map.get(info, :complete?, true), do: profile.revision, else: 0
+
+    from(f in PhoenixKit.Modules.Storage.File, where: f.uuid == ^file_uuid)
+    |> repo().update_all(set: [placed_profile_uuid: profile.uuid, placed_revision: revision])
+
+    :ok
+  end
+
+  def record_placement(_file_uuid, _info), do: :ok
+
+  @doc false
+  # Marks a file stale for the reconciler: something of it (a variant, a
+  # tile) has fewer copies than its profile wants.
+  def mark_placement_stale(file_uuid) do
+    from(f in PhoenixKit.Modules.Storage.File, where: f.uuid == ^file_uuid)
+    |> repo().update_all(set: [placed_revision: 0])
+
+    :ok
+  end
 
   # Create a new File record for a different user, reusing the same storage path
   # (the donor's objects, whatever library it is in). The clone goes into the
@@ -4764,10 +4831,11 @@ defmodule PhoenixKit.Modules.Storage do
       lock_storage_paths([donor_file.file_path])
 
       with %PhoenixKit.Modules.Storage.File{} = donor <-
-             get_active_file_by_checksum(file_checksum),
+             get_active_file_by_checksum(file_checksum, opts[:library_uuid]),
            true <- donor.uuid == donor_file.uuid,
            {:ok, new_file} <- create_file(Map.merge(file_attrs, capture_date_copy(donor))) do
         clone_file_instances(donor.uuid, new_file.uuid)
+        copy_placement(donor, new_file.uuid)
         Logger.info("Cross-user clone created: #{new_file.uuid} from donor #{donor.uuid}")
         {new_file, :duplicate}
       else
@@ -4796,6 +4864,20 @@ defmodule PhoenixKit.Modules.Storage do
     Map.take(donor, CaptureDate.fields())
   end
 
+  # The clone holds the donor's objects and variants, so it is placed
+  # exactly as the donor is.
+  defp copy_placement(donor, file_uuid) do
+    from(f in PhoenixKit.Modules.Storage.File, where: f.uuid == ^file_uuid)
+    |> repo().update_all(
+      set: [
+        placed_profile_uuid: donor.placed_profile_uuid,
+        placed_revision: donor.placed_revision,
+        placed_variant_set_uuid: donor.placed_variant_set_uuid,
+        placed_variant_revision: donor.placed_variant_revision
+      ]
+    )
+  end
+
   # Copy all FileInstance records from one file to another (same storage paths)
   defp clone_file_instances(donor_file_uuid, new_file_uuid) do
     donor_instances = list_file_instances(donor_file_uuid)
@@ -4811,6 +4893,7 @@ defmodule PhoenixKit.Modules.Storage do
         width: instance.width,
         height: instance.height,
         processing_status: instance.processing_status,
+        spec_hash: instance.spec_hash,
         file_uuid: new_file_uuid
       }
 
@@ -4969,11 +5052,13 @@ defmodule PhoenixKit.Modules.Storage do
     )
 
     # First, store the file in buckets using Manager
-    case Manager.store_file(source_path, path_prefix: original_path) do
+    case store_by_profile(source_path, file.library_uuid, :original, path_prefix: original_path) do
       {:ok, storage_info} ->
         Logger.info(
           "File stored in buckets: #{original_path}, bucket_ids: #{inspect(storage_info.bucket_ids)}"
         )
+
+        record_placement(file.uuid, storage_info)
 
         # Now create the file instance record pointing to the stored file
         original_instance_attrs = %{
@@ -5201,11 +5286,34 @@ defmodule PhoenixKit.Modules.Storage do
     end
   end
 
-  defp get_redundancy_copies do
-    Settings.get_setting_cached("storage_redundancy_copies", "1")
-    |> String.to_integer()
-    |> max(1)
-    |> min(5)
+  @doc """
+  How many copies of an original the Default storage profile keeps: what
+  the `storage_redundancy_copies` setting was before profiles (V205).
+  """
+  @spec redundancy_copies() :: pos_integer()
+  def redundancy_copies, do: Profiles.default_copies()
+
+  @doc """
+  Sets the Default storage profile's copy count, for originals and
+  variants alike (as the one redundancy setting did), and keeps the
+  `storage_redundancy_copies` setting row in step for code that still
+  reads it.
+  """
+  @spec set_redundancy_copies(pos_integer() | String.t()) ::
+          {:ok, term()} | {:error, term()}
+  def set_redundancy_copies(copies) when is_binary(copies),
+    do: set_redundancy_copies(String.to_integer(copies))
+
+  def set_redundancy_copies(copies) when is_integer(copies) do
+    with %StorageProfile{} = profile <- Profiles.default_profile() || {:error, :no_default},
+         {:ok, _} <-
+           Profiles.update_profile(profile, %{
+             copies_originals: copies,
+             copies_variants: copies,
+             min_copies_on_write: min(profile.min_copies_on_write, copies)
+           }) do
+      Settings.update_setting("storage_redundancy_copies", to_string(copies))
+    end
   end
 
   def get_auto_generate_variants do
@@ -5282,7 +5390,7 @@ defmodule PhoenixKit.Modules.Storage do
          metadata
        ) do
     # Store file using manager
-    case Manager.store_file(source_path) do
+    case store_by_profile(source_path, nil, :original) do
       {:ok, storage_info} ->
         file_attrs =
           build_file_attrs(
@@ -5298,6 +5406,8 @@ defmodule PhoenixKit.Modules.Storage do
 
         case create_file(file_attrs) do
           {:ok, file} ->
+            record_placement(file.uuid, storage_info)
+
             # Create original instance and variants (non-critical operations)
             create_original_instance_and_variants(
               file,
