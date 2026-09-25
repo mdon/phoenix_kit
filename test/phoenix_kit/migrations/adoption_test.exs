@@ -1,3 +1,21 @@
+defmodule PhoenixKit.Migrations.AdoptionTest.FailingRepoStub do
+  @moduledoc """
+  A minimal stand-in for `Ecto.Repo` — `Adoption.marker_conflict/5` only
+  ever calls `repo.query/3` (never anything else on `repo`), so this only
+  needs to implement that one function, returning a real
+  `Postgrex.Error` struct the way a genuine backend failure would, without
+  depending on actually forcing one from a live connection (a
+  `statement_timeout`-based approach was tried and dropped for exactly
+  this reason — see the test that uses this module).
+  """
+  def query(_sql, _params, _opts) do
+    {:error,
+     %Postgrex.Error{
+       postgres: %{code: :query_canceled, message: "canceling statement due to statement timeout"}
+     }}
+  end
+end
+
 defmodule PhoenixKit.Migrations.AdoptionTest do
   @moduledoc """
   Real-DB coverage for `PhoenixKit.Migrations.Adoption` — the structural
@@ -295,7 +313,7 @@ defmodule PhoenixKit.Migrations.AdoptionTest do
                {:conflict, "do not touch, legacy billing export"}
     end
 
-    test "an empty own_marker_prefix raises rather than silently matching every comment (MINOR 9)",
+    test "an empty own_marker_prefix raises rather than silently matching every comment",
          %{table: table} do
       Repo.query!(~s(COMMENT ON TABLE #{table} IS 'do not touch, legacy billing export'))
 
@@ -304,7 +322,7 @@ defmodule PhoenixKit.Migrations.AdoptionTest do
       end
     end
 
-    test "a table that does not exist at all is :ok, not an error (MINOR 9 regression)" do
+    test "a table that does not exist at all is :ok, not an error" do
       assert Adoption.marker_conflict(
                Repo,
                @prefix,
@@ -314,12 +332,12 @@ defmodule PhoenixKit.Migrations.AdoptionTest do
     end
   end
 
-  describe "marker_conflict/5 — core's own pre-squash legacy comments (MAJOR 2)" do
+  describe "marker_conflict/5 — core's own pre-squash legacy comments" do
     # `@core_legacy_table_comments` is keyed by real core table names
     # (`phoenix_kit_currencies`, etc.), which already exist under `public`
     # in a fully-migrated test database — so this exercises the match
     # inside a scratch, non-`public` schema instead of colliding with (or
-    # having to drop) the real table. This doubles as MINOR 11's
+    # having to drop) the real table. This doubles as this file's
     # non-`public`-prefix coverage.
     setup do
       schema = unique_schema("pkadlg")
@@ -363,7 +381,7 @@ defmodule PhoenixKit.Migrations.AdoptionTest do
     end
   end
 
-  describe "verify_shape/3 — not_null drift Differ itself skips for repair's sake (MAJOR 1)" do
+  describe "verify_shape/3 — not_null drift Differ itself skips for repair's sake" do
     setup do
       table = unique_table("pk_adoption_test_notnull_gap")
       drop_on_exit(table)
@@ -402,7 +420,7 @@ defmodule PhoenixKit.Migrations.AdoptionTest do
     end
   end
 
-  describe "verify_shape/3 — malformed checks entries never raise (MINOR 7)" do
+  describe "verify_shape/3 — malformed checks entries never raise" do
     test "an expected map missing a field its class needs is reported as drift, not raised" do
       table = unique_table("pk_adoption_test_incomplete_expected")
       drop_on_exit(table)
@@ -494,7 +512,7 @@ defmodule PhoenixKit.Migrations.AdoptionTest do
     end
   end
 
-  describe "verify_shape/3 and marker_conflict/4 — non-public prefix (MINOR 11)" do
+  describe "verify_shape/3 and marker_conflict/5 — non-public prefix" do
     test "both work the same way against a scratch, non-public schema" do
       schema = unique_schema("pkadopt")
       Repo.query!("CREATE SCHEMA #{schema}")
@@ -526,7 +544,7 @@ defmodule PhoenixKit.Migrations.AdoptionTest do
     end
   end
 
-  describe "the full recommended pattern, end-to-end (MINOR 11)" do
+  describe "the full recommended pattern, end-to-end" do
     test "verify -> write marker on a clean shape; verify -> drift -> marker not written; idempotent" do
       table = unique_table("pk_adoption_test_e2e")
       drop_on_exit(table)
@@ -613,7 +631,7 @@ defmodule PhoenixKit.Migrations.AdoptionTest do
     end
   end
 
-  describe "verify_shape/3 — search_path is restored, not reset (Round 2 item 1)" do
+  describe "verify_shape/3 — search_path is restored, not reset" do
     test "a custom search_path set before the call is restored exactly, not replaced by the role default" do
       table = unique_table("pk_adoption_test_search_path")
       drop_on_exit(table)
@@ -647,7 +665,7 @@ defmodule PhoenixKit.Migrations.AdoptionTest do
     end
   end
 
-  describe "verify_shape/3 — malformed checks entries never crash or silently pass (Round 2 item 2)" do
+  describe "verify_shape/3 — malformed checks entries never crash or silently pass" do
     setup do
       table = unique_table("pk_adoption_test_malformed")
       drop_on_exit(table)
@@ -745,31 +763,75 @@ defmodule PhoenixKit.Migrations.AdoptionTest do
       assert {:drift, [%{reasons: reasons}]} = Adoption.verify_shape(Repo, @prefix, checks)
       assert Enum.any?(reasons, &(&1 =~ "invalid check"))
     end
+
+    test "a kind-correct catalog spec missing a required key for that kind does not raise" do
+      # {:catalog, %{kind: :column}} matches check_matches_class?/2's own
+      # kind == class check, but Probe.lookup/2's :column clause requires
+      # :table and :column to literally be present — without validating
+      # the catalog spec's own required keys per kind (not just kind
+      # itself), this would reach Probe.lookup/2 and raise
+      # FunctionClauseError there instead of reporting invalid check.
+      # `expected` is deliberately COMPLETE here (not `%{}`) — an
+      # incomplete `expected` would independently trigger
+      # `expected_shape_error/2`'s own validation, masking whether THIS
+      # check-spec-required-keys validation is doing anything at all.
+      checks = [
+        %{
+          class: :column,
+          check: {:catalog, %{kind: :column}},
+          expected: %{type: "text", not_null: true, default: nil}
+        }
+      ]
+
+      assert {:drift, [%{reasons: reasons}]} = Adoption.verify_shape(Repo, @prefix, checks)
+      assert Enum.any?(reasons, &(&1 =~ "invalid check"))
+    end
+
+    test "class: :seed is rejected outright, not silently reported as missing", %{table: table} do
+      # Probe.lookup/2 never resolves a :seed check via a snapshot at all
+      # (seed presence is decided by executing the check SQL live, via
+      # Probe.seed_present?/2) — it always returns nil for one, which
+      # verify_shape/3's own "observed == nil" branch would otherwise
+      # report as "missing: ..." unconditionally, true or not. Rejected
+      # instead, with a message explaining why, rather than silently
+      # asserting something never actually checked.
+      checks = [
+        %{class: :seed, check: "SELECT EXISTS (SELECT 1 FROM #{table})", expected: %{}}
+      ]
+
+      assert {:drift, [%{reasons: reasons}]} = Adoption.verify_shape(Repo, @prefix, checks)
+      assert Enum.any?(reasons, &(&1 =~ "invalid check"))
+      refute Enum.any?(reasons, &(&1 =~ "missing:"))
+    end
   end
 
-  describe "marker_conflict/5 — privilege-filtered existence check (Round 2 item 3)" do
-    test "a lower-privileged connection still detects a conflicting marker (not silently :ok)" do
+  describe "marker_conflict/5 — a low-privilege connection still detects a conflicting marker" do
+    test "not silently :ok, under a role created inline (portable — no dependency on a fixture role)" do
       table = unique_table("pk_adoption_test_privfilter")
       drop_on_exit(table)
 
       Repo.query!("CREATE TABLE #{table} (id serial PRIMARY KEY)")
       Repo.query!(~s(COMMENT ON TABLE #{table} IS 'otherns_schema:3'))
 
-      # Before the fix, the existence pre-check ran through
-      # information_schema.tables, which applies has_table_privilege-style
-      # filtering — a lower-privileged role could see ZERO rows there for
-      # this table even though it genuinely exists and genuinely carries
-      # a conflicting marker, falling through to :absent -> :ok. The fixed
-      # query reads pg_class/pg_namespace directly, which is readable for
+      # A throwaway role created (and, via the sandbox transaction rollback,
+      # implicitly dropped) entirely within this test — no dependency on a
+      # fixture role like `pk_test` that only exists in this container.
+      # `information_schema.tables` applies has_table_privilege-style
+      # filtering: a lower-privileged role sees ZERO rows there for a table
+      # it genuinely exists and genuinely carries a conflicting marker on,
+      # which the old two-query design collapsed to :absent -> :ok. The
+      # current query reads pg_class/pg_namespace directly, readable for
       # existence/metadata purposes regardless of table-level privilege.
-      Repo.query!("SET LOCAL ROLE pk_test", [])
+      role = "pk_adoption_test_role_#{System.unique_integer([:positive])}"
+      Repo.query!("CREATE ROLE #{role} NOLOGIN", [])
+      Repo.query!("SET LOCAL ROLE #{role}", [])
 
       assert Adoption.marker_conflict(Repo, @prefix, table, "myns_schema:") ==
                {:conflict, "otherns_schema:3"}
     end
   end
 
-  describe "marker_conflict/5 — the literal V43 consent_logs string (Round 2 tests)" do
+  describe "marker_conflict/5 — the literal V43 consent_logs string" do
     test "phoenix_kit_consent_logs' own pre-squash comment is :ok, not just currencies'" do
       schema = unique_schema("pkadv43")
       Repo.query!("CREATE SCHEMA #{schema}")
@@ -786,7 +848,7 @@ defmodule PhoenixKit.Migrations.AdoptionTest do
     end
   end
 
-  describe "verify_shape/3 — NOT NULL dropped from a column WITH a default (Round 2 'M2a')" do
+  describe "verify_shape/3 — NOT NULL dropped from a column WITH a default" do
     test "a column with a real default that had NOT NULL dropped is still caught, independent of the not_null_gap_reason compensation" do
       # Distinct from the `not_null: true, default: nil` case
       # `not_null_gap_reason/3` exists to compensate for — a column with a
@@ -818,21 +880,21 @@ defmodule PhoenixKit.Migrations.AdoptionTest do
     end
   end
 
-  describe "marker_conflict/5 — the {:error, _} path is real and distinct from :absent (Round 2 tests)" do
-    test "a genuine query failure returns {:error, _}, not :absent/:ok" do
-      table = unique_table("pk_adoption_test_query_failure")
-      drop_on_exit(table)
-
-      Repo.query!("CREATE TABLE #{table} (id serial PRIMARY KEY)")
-      Repo.query!(~s(COMMENT ON TABLE #{table} IS 'otherns_schema:3'))
-
-      # A statement_timeout small enough that the query cannot possibly
-      # complete forces a real backend error (query_canceled) rather than
-      # a query that just happens to return zero/odd rows — transaction-
-      # scoped (SET LOCAL), reverted automatically at rollback.
-      Repo.query!("SET LOCAL statement_timeout = 1", [])
-
-      assert {:error, _reason} = Adoption.marker_conflict(Repo, @prefix, table, "myns_schema:")
+  describe "marker_conflict/5 — a genuine query failure is {:error, _}, distinct from :absent/:ok" do
+    test "with a repo whose query/3 always fails" do
+      # A `SET LOCAL statement_timeout` approach was tried first and
+      # dropped: it does not reliably force a cancellation for a trivial
+      # pg_class/pg_namespace join (observed passing without erroring on a
+      # meaningful fraction of repeated runs) — this deterministic stub
+      # exercises the exact same `{:error, other} -> {:error, _}` branch
+      # without depending on real query timing at all.
+      assert {:error, {:comment_check_failed, %Postgrex.Error{}}} =
+               Adoption.marker_conflict(
+                 PhoenixKit.Migrations.AdoptionTest.FailingRepoStub,
+                 @prefix,
+                 "any_table_name",
+                 "myns_schema:"
+               )
     end
   end
 end

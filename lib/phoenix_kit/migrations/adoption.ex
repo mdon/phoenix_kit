@@ -192,8 +192,13 @@ defmodule PhoenixKit.Migrations.Adoption do
   ## The recommended pattern: verify, then decline-and-raise on drift — or,
   under an explicit operator opt-in, warn and adopt anyway
 
-  `verify_shape/3` and `marker_conflict/5` themselves never raise (see
-  above) and never *write* to the database — `verify_shape/3` does run a
+  `verify_shape/3` never raises on anything in its `checks` argument (see
+  "Never raises" above — that promise is `verify_shape/3`'s specifically;
+  `marker_conflict/5` DOES raise on a malformed CALL — an empty
+  `own_marker_prefix`, or a `prefix` `Helpers.validate_prefix!/1` rejects —
+  those are programmer errors in how the function was called, not data the
+  function is meant to report on the way `checks`/drift is). Neither
+  function ever *writes* to the database — `verify_shape/3` does run a
   real, read-only `Probe.snapshot/2` of the target server (which briefly
   sets `search_path = ''` on the connection for the duration of the
   snapshot; see `Probe`'s own moduledoc for why), but neither function ever
@@ -403,10 +408,9 @@ defmodule PhoenixKit.Migrations.Adoption do
   anything else — another module's marker, or an operator's own
   hand-written documentation comment on the table — so the caller can
   decline to overwrite it rather than silently stomping it.
-  `{:error, reason}` when the comment could not be read at all (a query
-  failure, or the table's existence could not be confirmed one way or the
-  other) — this is deliberately distinct from `:ok`; a caller that cannot
-  tell whether a conflict exists must not proceed as if there is none.
+  `{:error, reason}` when the query itself failed — this is deliberately
+  distinct from `:ok`; a caller that cannot tell whether a conflict exists
+  must not proceed as if there is none.
 
   `own_marker_prefix` must be non-empty (an empty string would make every
   comment match `String.starts_with?(comment, "")` and this function would
@@ -635,11 +639,23 @@ defmodule PhoenixKit.Migrations.Adoption do
   # See the moduledoc's "Never raises" section. Validates a `checks` entry
   # completely before it ever reaches `Probe.lookup/2` or `Differ.compare/3`:
   # the entry's own shape (a map carrying all three keys — anything else,
-  # including a non-map, falls to the catch-all clause below), `class`
+  # including a non-map, falls to the catch-all clause below), that `class`
+  # isn't `:seed` (see the note above `check_matches_class?/2`), `class`
   # against `@known_classes`, `class` against what `check` itself claims to
-  # be (`check_matches_class?/2` — the guard against the silent-`:ok` class
-  # of mistake described on `compare_check/2`), and finally `expected`'s own
-  # shape for that `class`.
+  # be INCLUDING the catalog spec's own required keys for that `kind`
+  # (`check_matches_class?/2` — the guard against the silent-`:ok` class of
+  # mistake described on `compare_check/2`, and against a `FunctionClauseError`
+  # from `Probe.lookup/2` on a `kind`-correct but incomplete spec, e.g.
+  # `{:catalog, %{kind: :column}}` missing `:table`/`:column`), and finally
+  # `expected`'s own shape for that `class`.
+  defp validate_checks_entry(%{class: :seed}) do
+    {:error,
+     "invalid check: :seed is not supported by verify_shape/3 — seed presence requires " <>
+       "executing the check SQL live (see Probe.seed_present?/2), never a snapshot lookup, " <>
+       "so it can never be answered from the one Probe.snapshot/2 this function takes " <>
+       "(every :seed check would otherwise report \"missing\" unconditionally, true or not)"}
+  end
+
   defp validate_checks_entry(%{class: class, check: check, expected: expected}) do
     cond do
       class not in @known_classes ->
@@ -665,14 +681,35 @@ defmodule PhoenixKit.Migrations.Adoption do
      "invalid check: expected a map with :class, :check, and :expected keys, got #{inspect(entry)}"}
   end
 
+  # The catalog-spec keys `Probe.lookup/2`'s own clauses actually
+  # pattern-match on, per `kind` — confirmed against `probe.ex` directly,
+  # not `Object.catalog_spec/0`'s documented (but not identically enforced)
+  # contract: `:index` genuinely only needs `:name` there (indexes are
+  # looked up by name alone, not table-scoped), everything else matches
+  # `Object.catalog_spec/0`'s own required-key table.
+  @required_catalog_keys %{
+    table: [:name],
+    extension: [:name],
+    sequence: [:name],
+    column: [:table, :column],
+    index: [:name],
+    constraint: [:table, :name],
+    function: [:name, :args]
+  }
+
   # `Object.check/0` is `{:catalog, %{kind: ..., ...}}` for every class but
-  # `:seed`, which is a raw SQL string instead (seed existence is checked by
-  # executing it, never a catalog lookup — see `Probe.lookup/2`'s own `:seed`
-  # clause). A malformed `check` — wrong shape, wrong kind, not a
-  # tuple/string at all — never matches either real clause below and falls
-  # through to `false`; this never raises, whatever `check` actually is.
-  defp check_matches_class?(:seed, check), do: is_binary(check)
-  defp check_matches_class?(class, {:catalog, %{kind: kind}}), do: kind == class
+  # `:seed` (rejected before this is ever called — see
+  # `validate_checks_entry/1`'s dedicated `:seed` clause). A malformed
+  # `check` — wrong shape, wrong `kind`, a `kind`-correct catalog spec
+  # missing a key that `kind` needs (`Probe.lookup/2` would otherwise raise
+  # `FunctionClauseError` on it directly), or not a tuple at all — never
+  # matches the real clause below and falls through to `false`; this never
+  # raises, whatever `check` actually is.
+  defp check_matches_class?(class, {:catalog, %{kind: kind} = spec}) do
+    kind == class and
+      Enum.all?(Map.get(@required_catalog_keys, kind, []), &Map.has_key?(spec, &1))
+  end
+
   defp check_matches_class?(_class, _check), do: false
 
   defp expected_shape_error(class, _expected) when class in [:table, :extension, :seed],
@@ -893,6 +930,14 @@ defmodule PhoenixKit.Migrations.Adoption do
     case repo.query(query, [table, prefix], log: false) do
       {:ok, %{rows: []}} -> :absent
       {:ok, %{rows: [[comment]]}} -> comment
+      # `repo.query/3`'s own failure return is already `{:error, reason}` —
+      # pass `reason` through unwrapped rather than re-wrapping the whole
+      # tuple (which `marker_conflict/5`'s own `{:error, reason} ->
+      # {:error, {:comment_check_failed, reason}}` would otherwise nest a
+      # second time, leaving a caller matching on `{:error, reason}` with
+      # `reason` itself shaped `{:error, actual_reason}` instead of just
+      # `actual_reason`).
+      {:error, reason} -> {:error, reason}
       other -> {:error, other}
     end
   end
