@@ -2983,9 +2983,10 @@ defmodule PhoenixKit.Modules.Storage do
   @doc """
   Queues a list of file UUIDs for orphan cleanup via Oban.
 
-  Each file is scheduled for deletion after a 60-second delay to protect
-  against race conditions (another entity may reference the file).
-  Only files that are still orphaned at job execution time will be deleted.
+  Each file is moved to the trash, never deleted, after a 60-second delay
+  that protects against race conditions (another entity may reference the
+  file), and only if it is still orphaned then. From the trash it can be
+  restored until the daily prune deletes it after `trash_retention_days`.
   """
   def queue_file_cleanup(file_uuids) when is_list(file_uuids) do
     alias PhoenixKit.Modules.Storage.Workers.DeleteOrphanedFileJob

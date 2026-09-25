@@ -6212,13 +6212,6 @@ msgid_plural "%{count} items moved"
 msgstr[0] "%{count} élément déplacé"
 msgstr[1] "%{count} éléments déplacés"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3011
-#, elixir-autogen, elixir-format
-msgid "%{count} orphaned file queued for deletion"
-msgid_plural "%{count} orphaned files queued for deletion"
-msgstr[0] "%{count} fichier orphelin mis en file d'attente pour suppression"
-msgstr[1] "%{count} fichiers orphelins mis en file d'attente pour suppression"
-
 #: lib/phoenix_kit_web/components/core/bulk_actions_bar.ex:101
 #: lib/phoenix_kit_web/components/media_browser.html.heex:789
 #: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:43
@@ -6324,18 +6317,6 @@ msgstr "Configurer les buckets de stockage"
 #, elixir-autogen, elixir-format
 msgid "Date"
 msgstr "Date"
-
-#: lib/phoenix_kit_web/components/media_browser.html.heex:1056
-#, elixir-autogen, elixir-format
-msgid "Delete %{count} orphaned file?"
-msgid_plural "Delete all %{count} orphaned files?"
-msgstr[0] "Supprimer %{count} fichier orphelin ?"
-msgstr[1] "Supprimer les %{count} fichiers orphelins ?"
-
-#: lib/phoenix_kit_web/components/media_browser.html.heex:1067
-#, elixir-autogen, elixir-format
-msgid "Delete all orphaned"
-msgstr "Supprimer tous les orphelins"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:844
 #: lib/phoenix_kit_web/components/media_browser.html.heex:851
@@ -16055,3 +16036,22 @@ msgstr "Vous ne pouvez pas mettre cette bibliothèque à la corbeille"
 #, elixir-autogen, elixir-format
 msgid "Other users' libraries"
 msgstr "Bibliothèques des autres utilisateurs"
+
+#: lib/phoenix_kit_web/components/media_browser.ex:3011
+#, elixir-autogen, elixir-format
+msgid "%{count} orphaned file will be moved to the trash"
+msgid_plural "%{count} orphaned files will be moved to the trash"
+msgstr[0] "%{count} fichier orphelin sera déplacé dans la corbeille"
+msgstr[1] "%{count} fichiers orphelins seront déplacés dans la corbeille"
+
+#: lib/phoenix_kit_web/components/media_browser.html.heex:1056
+#, elixir-autogen, elixir-format
+msgid "Move %{count} orphaned file to the trash?"
+msgid_plural "Move all %{count} orphaned files to the trash?"
+msgstr[0] "Déplacer %{count} fichier orphelin dans la corbeille ?"
+msgstr[1] "Déplacer les %{count} fichiers orphelins dans la corbeille ?"
+
+#: lib/phoenix_kit_web/components/media_browser.html.heex:1067
+#, elixir-autogen, elixir-format
+msgid "Move all orphaned to trash"
+msgstr "Mettre tous les orphelins à la corbeille"

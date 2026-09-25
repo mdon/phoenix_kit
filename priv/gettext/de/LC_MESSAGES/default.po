@@ -6212,13 +6212,6 @@ msgid_plural "%{count} items moved"
 msgstr[0] "%{count} Element verschoben"
 msgstr[1] "%{count} Elemente verschoben"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3011
-#, elixir-autogen, elixir-format
-msgid "%{count} orphaned file queued for deletion"
-msgid_plural "%{count} orphaned files queued for deletion"
-msgstr[0] "%{count} verwaiste Datei zum Löschen eingeplant"
-msgstr[1] "%{count} verwaiste Dateien zum Löschen eingeplant"
-
 #: lib/phoenix_kit_web/components/core/bulk_actions_bar.ex:101
 #: lib/phoenix_kit_web/components/media_browser.html.heex:789
 #: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:43
@@ -6324,18 +6317,6 @@ msgstr "Speicher-Buckets konfigurieren"
 #, elixir-autogen, elixir-format
 msgid "Date"
 msgstr "Datum"
-
-#: lib/phoenix_kit_web/components/media_browser.html.heex:1056
-#, elixir-autogen, elixir-format
-msgid "Delete %{count} orphaned file?"
-msgid_plural "Delete all %{count} orphaned files?"
-msgstr[0] "%{count} verwaiste Datei löschen?"
-msgstr[1] "Alle %{count} verwaisten Dateien löschen?"
-
-#: lib/phoenix_kit_web/components/media_browser.html.heex:1067
-#, elixir-autogen, elixir-format
-msgid "Delete all orphaned"
-msgstr "Alle verwaisten löschen"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:844
 #: lib/phoenix_kit_web/components/media_browser.html.heex:851
@@ -16055,3 +16036,22 @@ msgstr "Sie dürfen diese Bibliothek nicht in den Papierkorb verschieben"
 #, elixir-autogen, elixir-format
 msgid "Other users' libraries"
 msgstr "Bibliotheken anderer Benutzer"
+
+#: lib/phoenix_kit_web/components/media_browser.ex:3011
+#, elixir-autogen, elixir-format
+msgid "%{count} orphaned file will be moved to the trash"
+msgid_plural "%{count} orphaned files will be moved to the trash"
+msgstr[0] "%{count} verwaiste Datei wird in den Papierkorb verschoben"
+msgstr[1] "%{count} verwaiste Dateien werden in den Papierkorb verschoben"
+
+#: lib/phoenix_kit_web/components/media_browser.html.heex:1056
+#, elixir-autogen, elixir-format
+msgid "Move %{count} orphaned file to the trash?"
+msgid_plural "Move all %{count} orphaned files to the trash?"
+msgstr[0] "%{count} verwaiste Datei in den Papierkorb verschieben?"
+msgstr[1] "Alle %{count} verwaisten Dateien in den Papierkorb verschieben?"
+
+#: lib/phoenix_kit_web/components/media_browser.html.heex:1067
+#, elixir-autogen, elixir-format
+msgid "Move all orphaned to trash"
+msgstr "Alle verwaisten in den Papierkorb"

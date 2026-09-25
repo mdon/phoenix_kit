@@ -1,9 +1,14 @@
 defmodule PhoenixKit.Modules.Storage.Workers.DeleteOrphanedFileJob do
   @moduledoc """
-  Oban job for deleting a single orphaned file.
+  Oban job that moves a single orphaned file to the trash.
 
-  Verifies the file is still orphaned before deletion to protect against
-  race conditions where a file may be referenced again after being queued.
+  Never deletes: an orphan is a guess (nothing known references the file),
+  so it goes where a person can still restore it. The daily trash prune
+  (`PruneTrashJob`) deletes it for good after `trash_retention_days`. The
+  name is kept so jobs queued before this changed still run.
+
+  Verifies the file is still orphaned first, in case it was referenced
+  again after being queued.
   """
 
   use Oban.Worker, queue: :file_processing, max_attempts: 3
@@ -21,14 +26,14 @@ defmodule PhoenixKit.Modules.Storage.Workers.DeleteOrphanedFileJob do
 
       file ->
         if Storage.file_orphaned?(file_uuid) do
-          case Storage.delete_file_completely(file) do
+          case Storage.trash_file(file) do
             {:ok, _} ->
-              Logger.info("DeleteOrphanedFileJob: deleted file #{file_uuid}")
+              Logger.info("DeleteOrphanedFileJob: moved orphaned file #{file_uuid} to the trash")
               :ok
 
             {:error, reason} ->
               Logger.warning(
-                "DeleteOrphanedFileJob: failed to delete file #{file_uuid}: #{inspect(reason)}"
+                "DeleteOrphanedFileJob: failed to trash file #{file_uuid}: #{inspect(reason)}"
               )
 
               {:error, reason}

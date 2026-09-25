@@ -3009,8 +3009,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
        socket,
        :info,
        ngettext(
-         "%{count} orphaned file queued for deletion",
-         "%{count} orphaned files queued for deletion",
+         "%{count} orphaned file will be moved to the trash",
+         "%{count} orphaned files will be moved to the trash",
          length(orphan_uuids)
        )
      )}

@@ -6225,14 +6225,6 @@ msgstr[0] "%{count} объект перемещён"
 msgstr[1] "%{count} объекта перемещено"
 msgstr[2] "%{count} объектов перемещено"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:3011
-#, elixir-autogen, elixir-format
-msgid "%{count} orphaned file queued for deletion"
-msgid_plural "%{count} orphaned files queued for deletion"
-msgstr[0] "%{count} несвязанный файл поставлен в очередь на удаление"
-msgstr[1] "%{count} несвязанных файла поставлено в очередь на удаление"
-msgstr[2] "%{count} несвязанных файлов поставлено в очередь на удаление"
-
 #: lib/phoenix_kit_web/components/core/bulk_actions_bar.ex:101
 #: lib/phoenix_kit_web/components/media_browser.html.heex:789
 #: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:43
@@ -6340,19 +6332,6 @@ msgstr "Настроить хранилища"
 #, elixir-autogen, elixir-format
 msgid "Date"
 msgstr "Дата"
-
-#: lib/phoenix_kit_web/components/media_browser.html.heex:1056
-#, elixir-autogen, elixir-format
-msgid "Delete %{count} orphaned file?"
-msgid_plural "Delete all %{count} orphaned files?"
-msgstr[0] "Удалить %{count} несвязанный файл?"
-msgstr[1] "Удалить %{count} несвязанных файла?"
-msgstr[2] "Удалить все %{count} несвязанных файлов?"
-
-#: lib/phoenix_kit_web/components/media_browser.html.heex:1067
-#, elixir-autogen, elixir-format
-msgid "Delete all orphaned"
-msgstr "Удалить все несвязанные"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:844
 #: lib/phoenix_kit_web/components/media_browser.html.heex:851
@@ -16101,3 +16080,24 @@ msgstr "Вы не можете переместить эту библиотек�
 #, elixir-autogen, elixir-format
 msgid "Other users' libraries"
 msgstr "Библиотеки других пользователей"
+
+#: lib/phoenix_kit_web/components/media_browser.ex:3011
+#, elixir-autogen, elixir-format
+msgid "%{count} orphaned file will be moved to the trash"
+msgid_plural "%{count} orphaned files will be moved to the trash"
+msgstr[0] "%{count} файл-сирота будет перемещён в корзину"
+msgstr[1] "%{count} файла-сироты будут перемещены в корзину"
+msgstr[2] "%{count} файлов-сирот будут перемещены в корзину"
+
+#: lib/phoenix_kit_web/components/media_browser.html.heex:1056
+#, elixir-autogen, elixir-format
+msgid "Move %{count} orphaned file to the trash?"
+msgid_plural "Move all %{count} orphaned files to the trash?"
+msgstr[0] "Переместить %{count} файл-сироту в корзину?"
+msgstr[1] "Переместить все %{count} файла-сироты в корзину?"
+msgstr[2] "Переместить все %{count} файлов-сирот в корзину?"
+
+#: lib/phoenix_kit_web/components/media_browser.html.heex:1067
+#, elixir-autogen, elixir-format
+msgid "Move all orphaned to trash"
+msgstr "Все файлы-сироты в корзину"

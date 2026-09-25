@@ -41,6 +41,12 @@
 
 ### Changed
 
+- **Orphan cleanup moves files to the trash instead of deleting them.**
+  The media page's button is now **Move all orphaned to trash**, and
+  `mix phoenix_kit.cleanup_orphaned_files --delete` does the same. An
+  orphan is only a guess (nothing known references the file), so it can be
+  restored from the trash until the daily prune deletes it after
+  `trash_retention_days`.
 - **Deleting a user no longer deletes the files they uploaded.** Their
   uploads in the site's libraries and in other people's stay, with no
   uploader. The libraries they own are trashed and purged. Before, the

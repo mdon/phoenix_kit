@@ -32,6 +32,14 @@ spinner's `hidden`/`inline-block` classes; #873 moved it to an opacity
 cross-fade in a fixed box. The test failed on `main` before this recheck, and
 now asserts what #873 renders.
 
+## Changed at the maintainer's request
+
+Orphan cleanup ("Move all orphaned to trash", `mix
+phoenix_kit.cleanup_orphaned_files --delete`) moves files to the trash and
+never deletes them (`DeleteOrphanedFileJob` calls `Storage.trash_file/1`;
+the name is kept so jobs queued before the upgrade still run). Test:
+`orphan_cleanup_trash_test.exs`.
+
 ## Not changed, noted
 
 - An Owner/Admin opening a user-library file's detail page at

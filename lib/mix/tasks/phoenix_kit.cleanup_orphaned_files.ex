@@ -1,12 +1,15 @@
 defmodule Mix.Tasks.PhoenixKit.CleanupOrphanedFiles do
   @moduledoc """
-  Finds and optionally deletes orphaned media files in PhoenixKit Storage.
+  Finds orphaned media files in PhoenixKit Storage and optionally moves them
+  to the trash.
 
   An orphaned file is one not referenced by any known entity (products, posts,
   categories, users, publishing content, etc.).
 
-  By default this task runs in dry-run mode and only reports what would be deleted.
-  Use `--delete` to queue the actual deletion via Oban.
+  By default this task runs in dry-run mode and only reports what it found.
+  Use `--delete` to queue them, via Oban, to be moved to the trash. Nothing
+  is deleted outright: a trashed file can be restored until the daily trash
+  prune deletes it after `trash_retention_days`.
 
   ## Usage
 
@@ -15,14 +18,14 @@ defmodule Mix.Tasks.PhoenixKit.CleanupOrphanedFiles do
 
   ## Options
 
-    * `--delete` - Queue orphaned files for deletion (default: dry-run)
+    * `--delete` - Queue orphaned files to be moved to the trash (default: dry-run)
 
   ## Examples
 
-      # Dry-run: show orphaned files without deleting
+      # Dry-run: show orphaned files without touching them
       mix phoenix_kit.cleanup_orphaned_files
 
-      # Queue all orphaned files for deletion
+      # Move all orphaned files to the trash
       mix phoenix_kit.cleanup_orphaned_files --delete
 
   """
@@ -31,7 +34,7 @@ defmodule Mix.Tasks.PhoenixKit.CleanupOrphanedFiles do
 
   alias PhoenixKit.Modules.Storage
 
-  @shortdoc "Find and optionally delete orphaned media files"
+  @shortdoc "Find orphaned media files and optionally move them to the trash"
 
   @switches [delete: :boolean]
 
@@ -55,9 +58,11 @@ defmodule Mix.Tasks.PhoenixKit.CleanupOrphanedFiles do
       orphans = Storage.find_orphaned_files()
 
       if do_delete do
-        Mix.shell().info("Found #{count} orphaned file(s). Queuing for deletion...\n")
+        Mix.shell().info("Found #{count} orphaned file(s). Queuing them for the trash...\n")
       else
-        Mix.shell().info("Found #{count} orphaned file(s) (dry-run — use --delete to remove):\n")
+        Mix.shell().info(
+          "Found #{count} orphaned file(s) (dry-run — use --delete to move them to the trash):\n"
+        )
       end
 
       Enum.each(orphans, fn file ->
@@ -69,9 +74,9 @@ defmodule Mix.Tasks.PhoenixKit.CleanupOrphanedFiles do
       if do_delete do
         uuids = Enum.map(orphans, & &1.uuid)
         Storage.queue_file_cleanup(uuids)
-        Mix.shell().info("\n✓ #{count} file(s) queued for deletion (60s delay).")
+        Mix.shell().info("\n✓ #{count} file(s) queued to be moved to the trash (60s delay).")
       else
-        Mix.shell().info("\nRun with --delete to queue these files for deletion.")
+        Mix.shell().info("\nRun with --delete to move these files to the trash.")
       end
 
       :ok

@@ -1046,7 +1046,7 @@
                           </button>
                         <% end %>
 
-                        <%!-- Delete all orphaned (orphaned view, global root only) --%>
+                        <%!-- Move all orphaned to the trash (orphaned view, global root only) --%>
                         <%= if not @readonly and is_nil(@scope_folder_id) and @filter_orphaned and
                                @total_count > 0 do %>
                           <button
@@ -1054,8 +1054,8 @@
                             phx-target={@myself}
                             data-confirm={
                               ngettext(
-                                "Delete %{count} orphaned file?",
-                                "Delete all %{count} orphaned files?",
+                                "Move %{count} orphaned file to the trash?",
+                                "Move all %{count} orphaned files to the trash?",
                                 @total_count
                               )
                             }
@@ -1065,7 +1065,7 @@
                             ]}
                           >
                             <.icon name="hero-trash" class="w-4 h-4" /> {gettext(
-                              "Delete all orphaned"
+                              "Move all orphaned to trash"
                             )}
                           </button>
                         <% end %>
