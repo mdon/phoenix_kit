@@ -11,8 +11,9 @@ ship in the same release as storage profiles.
 **Status (2026-09-25):** Phase 1 **RELEASED in 2.38.0** (2026-09-23, tag
 `v2.38.0`). **Phase 2 RELEASED in 2.39.0** (2026-09-25, tag `v2.39.0`),
 after the maintainer tested it in a host app and Grok reviewed it: see
-"Phase 2 as built" below. **Next: V204, location-truth** (see "Next: V204"
-below). Phase 1 shipped as **V202**, not V201: PR #860
+"Phase 2 as built" below. **Phase 3 (V204, location-truth) is BUILT on
+`main`, unreleased**: see "Phase 3 as built" below. Next after it: V205,
+storage profiles and variant sets. Phase 1 shipped as **V202**, not V201: PR #860
 took V201 for per-user view preferences, so every phase below shifts by one
 (V202 partition, V203 private serving + user libraries, V204 location-truth,
 V205 profiles + variant sets, V206 user-owned storage). The version numbers in
@@ -159,7 +160,49 @@ the download case on public buckets, and it skips `cdn_url`.
   (only opening the library is). V200's user-keyed capture-date index is
   still there.
 
-### Next: V204, location-truth
+### Phase 3 as built (V204, unreleased)
+
+- **Migration:** duplicate location rows removed (the oldest of each
+  instance/bucket pair kept, by `inserted_at` then uuid), a UNIQUE
+  `(file_instance_uuid, bucket_uuid)` index, an index on `path` (reads look
+  a key up by it), and the location's bucket FK `CASCADE` → `RESTRICT`.
+  `Storage.delete_bucket/1` returns a changeset error for a bucket that
+  still holds files; the settings page says to disable it instead.
+- **Reads (§6.2):** `Storage.Locations` resolves a key to the buckets its
+  active rows name. `Manager`'s reads, `file_exists?`, `public_url`,
+  `get_local_file_path` and `get_file_access` try those first (in the usual
+  order), then the other enabled buckets, and record a bucket found that
+  way. Deletes are unchanged: an unreferenced key goes from every enabled
+  bucket, which is right while every library writes the same buckets.
+- **Writers:** `store_system_file/3` (tiles), `store_file/2` (comment
+  attachments) and the original-recreation path record their locations
+  (`Locations.record_all/2`, after the instance row exists).
+  `force_bucket_ids` is written exactly: no redundancy cap, no reorder.
+- **Backfill:** `LocationBackfillJob`, 50 instances per run, next run 5 s
+  later on `file_processing`, unique pending. Queued 30 s after boot and by
+  the daily trash prune while any instance has no row; the Health page
+  shows how many are left. The fallback probe stays (decided: until the
+  backfill finishes; in practice it only costs anything for keys that have
+  no row, i.e. genuinely missing objects once the backfill is done).
+- **Bucket cache:** `Manager.invalidate_bucket_cache/0` on every bucket
+  create/update/delete.
+- **One checksum (G12):** `UploadController` hashes SHA-256.
+  `ChecksumBackfillJob` recomputes the 32-hex MD5 rows from each original
+  (guarded on the old value; a row colliding with the uploader's own copy
+  is left). Queued like the location backfill.
+- **Moved to V205: G11, per-`(bucket, key)` reference counting.** While
+  every library writes the same buckets, a key's buckets are the same set
+  everywhere, so a global count is exact. It matters once profiles give
+  libraries different buckets and a bucket can be drained, which is what
+  V205's reconciler does, so it is built with it.
+- **Phase-2 follow-ups, done here:** a contributor changes only the files
+  they uploaded (`MediaBrowser` `own_files_only`, with the browser's write
+  events in one list held to its readonly clauses by a test); an owner
+  restores a trashed user library until it is purged
+  (`Libraries.restore_library/2`, the Media tab's Trash); an Owner/Admin
+  opening a user-library file's detail page is audit-logged.
+
+### Next: V204, location-truth (the work order it was built from)
 
 The original §9 "V203" list, renumbered. It is the load-bearing change for
 everything after it: per-library storage (V205) and user-owned buckets
