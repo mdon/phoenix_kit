@@ -198,6 +198,7 @@ defmodule PhoenixKit.Settings do
     registration_show_username
     site_icon_file_uuid
     show_admin_panel_label
+    show_page_descriptions
     default_tab_title
     auth_logo_file_uuid
     auth_background_image_file_uuid
@@ -260,6 +261,12 @@ defmodule PhoenixKit.Settings do
       # on every existing install, so `get_boolean_setting/2`'s default is what
       # they keep until an operator says otherwise.
       "show_admin_panel_label" => "true",
+      # The one-line description a page can put after its title in the admin
+      # header (`page_subtitle`) and under the in-page title
+      # (`admin_page_header`'s `subtitle`). Off by default: the trail and the
+      # title are what the header is for, and the descriptions repeated what
+      # the page already says.
+      "show_page_descriptions" => "false",
       "site_url" => "",
       # Local path of the site's home page, used as the anonymous "home"
       # destination. Empty = unset; core then falls back to its own

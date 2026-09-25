@@ -7,7 +7,7 @@ defmodule PhoenixKitWeb.Components.Core.AdminPageHeaderTest do
   - icon-only back button still carries an accessible label when `back_label`
     is omitted
   - no `back` attr → no back link at all
-  - title/subtitle still render as before
+  - the title renders; the subtitle only with `show_page_descriptions` on
   """
   use ExUnit.Case, async: true
 
@@ -145,15 +145,31 @@ defmodule PhoenixKitWeb.Components.Core.AdminPageHeaderTest do
       refute result =~ "hero-arrow-left"
     end
 
-    test "title and subtitle still render" do
+    test "the title renders; the subtitle waits for the show_page_descriptions setting" do
       assigns = %{}
 
+      # No row and no database here, so the setting reads its default: off.
       result =
         rendered_to_string(~H"""
         <.admin_page_header title="Send Profiles" subtitle="Manage send profiles" />
         """)
 
       assert result =~ "Send Profiles"
+      refute result =~ "Manage send profiles"
+    end
+
+    test "the subtitle renders when page descriptions are on" do
+      assigns = %{}
+
+      result =
+        rendered_to_string(~H"""
+        <.admin_page_header
+          title="Send Profiles"
+          subtitle="Manage send profiles"
+          show_description={true}
+        />
+        """)
+
       assert result =~ "Manage send profiles"
     end
   end

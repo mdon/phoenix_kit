@@ -96,6 +96,21 @@
               </.checkbox>
             </div>
 
+            <%!-- Page descriptions in the admin header --%>
+            <div class="fieldset w-full">
+              <.checkbox
+                name="settings[show_page_descriptions]"
+                checked={@settings["show_page_descriptions"] == "true"}
+                label={gettext("Show page descriptions in the admin header")}
+              >
+                <:description>
+                  {gettext(
+                    "A page can carry a one-line description; when this is on it appears after the page title in the admin header and under the in-page title. Off by default: the breadcrumb and the title say where you are."
+                  )}
+                </:description>
+              </.checkbox>
+            </div>
+
             <%!-- Project Logo --%>
             <div class="fieldset w-full">
               <label class="label">
