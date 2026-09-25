@@ -7,8 +7,12 @@
   page_crumbs={[
     %{label: gettext("Media"), path: PhoenixKit.Utils.Routes.path("/admin/settings/media")},
     %{
-      label: gettext("Dimensions"),
+      label: gettext("Variant sets"),
       path: PhoenixKit.Utils.Routes.path("/admin/settings/media/dimensions")
+    },
+    %{
+      label: @set.name,
+      path: PhoenixKitWeb.Live.Modules.Storage.Dimensions.set_path(@set)
     }
   ]}
   page_subtitle={gettext("Configure dimension presets for automatic file variant generation")}
@@ -17,7 +21,13 @@
   project_title={@project_title}
 >
   <div class="mx-auto px-4 py-8 max-w-3xl">
-    <.form for={@changeset} phx-change="validate" phx-submit="save" class="space-y-6">
+    <.form
+      for={@changeset}
+      id="dimension-form"
+      phx-change="validate"
+      phx-submit="save"
+      class="space-y-6"
+    >
       <%!-- Basic Information --%>
       <div class="card bg-base-100 shadow-sm">
         <div class="card-body gap-4">
@@ -224,7 +234,7 @@
       <%!-- Actions --%>
       <div class="flex justify-end gap-3">
         <.link
-          navigate={PhoenixKit.Utils.Routes.path("/admin/settings/media/dimensions")}
+          navigate={PhoenixKitWeb.Live.Modules.Storage.Dimensions.set_path(@set)}
           class="btn btn-ghost"
         >
           {gettext("Cancel")}

@@ -10,6 +10,10 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
   and any other library only once it holds nothing — the database refuses it
   otherwise too. Renaming keeps a library's URL (`/admin/media/library/<slug>`).
 
+  Each system library picks its storage profile (where its files are kept)
+  and variant set (which sizes its uploads get), V205. Changing either moves
+  or resizes its files in the background.
+
   ## User libraries (V203)
 
   A second card turns user libraries on for the install
@@ -23,7 +27,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
   """
   use PhoenixKitWeb, :live_component
 
-  alias PhoenixKit.Modules.Storage.Libraries
+  alias PhoenixKit.Modules.Storage.{Libraries, Profiles, VariantSets}
   alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Format
@@ -101,6 +105,25 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
     end
   end
 
+  def handle_event("set_storage", %{"uuid" => uuid, "storage" => params}, socket) do
+    with %{} = library <- find(socket, uuid),
+         {:ok, library} <- maybe_set_profile(library, params["profile"]),
+         {:ok, _library} <- maybe_set_variant_set(library, params["set"]) do
+      {:noreply,
+       socket
+       |> load()
+       |> flash(
+         :info,
+         gettext(
+           "Library storage saved. Its files are moved and resized in the background; the Health page shows what is left."
+         )
+       )}
+    else
+      nil -> {:noreply, socket}
+      {:error, _reason} -> {:noreply, flash(socket, :error, gettext("Could not save"))}
+    end
+  end
+
   def handle_event("save_user_libraries", %{"user_libraries" => params}, socket) do
     enabled? = params["enabled"] == "true"
 
@@ -125,6 +148,22 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
     end
   end
 
+  defp maybe_set_profile(library, uuid) when is_binary(uuid) and uuid != "" do
+    if Profiles.profile_uuid_for(library) == uuid,
+      do: {:ok, library},
+      else: Profiles.set_library_profile(library, uuid)
+  end
+
+  defp maybe_set_profile(library, _uuid), do: {:ok, library}
+
+  defp maybe_set_variant_set(library, uuid) when is_binary(uuid) and uuid != "" do
+    if VariantSets.set_uuid_for(library) == uuid,
+      do: {:ok, library},
+      else: VariantSets.set_library_variant_set(library, uuid)
+  end
+
+  defp maybe_set_variant_set(library, _uuid), do: {:ok, library}
+
   # Only a library this tab listed: the uuid arrives from the client.
   defp find(socket, uuid) do
     Enum.find_value(socket.assigns.rows, fn %{library: library} ->
@@ -139,6 +178,8 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
     |> assign(:user_libraries_enabled, Libraries.user_libraries_enabled?())
     |> assign(:user_library_limit, Libraries.user_library_limit())
     |> assign(:window_hours, div(URLSigner.private_url_window_seconds(), 3600))
+    |> assign(:profiles, Profiles.list_profiles())
+    |> assign(:variant_sets, VariantSets.list_variant_sets())
   end
 
   # A component's own `put_flash` reaches the page only when it also
@@ -220,6 +261,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
                   <th class="text-right">{gettext("Files")}</th>
                   <th class="text-right">{gettext("Folders")}</th>
                   <th class="text-right">{gettext("Size")}</th>
+                  <th>{gettext("Storage")}</th>
                   <th></th>
                 </tr>
               </thead>
@@ -269,6 +311,42 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
                   <td class="text-right">{row.files}</td>
                   <td class="text-right">{row.folders}</td>
                   <td class="text-right">{Format.bytes(row.bytes)}</td>
+                  <td>
+                    <form
+                      id={"#{@id}-storage-#{library.uuid}"}
+                      phx-change="set_storage"
+                      phx-target={@myself}
+                      class="flex flex-wrap gap-1"
+                    >
+                      <input type="hidden" name="uuid" value={library.uuid} />
+                      <select
+                        name="storage[profile]"
+                        class="select select-xs select-bordered"
+                        title={gettext("Storage profile")}
+                      >
+                        <option
+                          :for={profile <- @profiles}
+                          value={profile.uuid}
+                          selected={Profiles.profile_uuid_for(library) == to_string(profile.uuid)}
+                        >
+                          {profile.name}
+                        </option>
+                      </select>
+                      <select
+                        name="storage[set]"
+                        class="select select-xs select-bordered"
+                        title={gettext("Variant set")}
+                      >
+                        <option
+                          :for={set <- @variant_sets}
+                          value={set.uuid}
+                          selected={VariantSets.set_uuid_for(library) == to_string(set.uuid)}
+                        >
+                          {set.name}
+                        </option>
+                      </select>
+                    </form>
+                  </td>
                   <td class="text-right whitespace-nowrap">
                     <button
                       :if={@renaming != library.uuid}

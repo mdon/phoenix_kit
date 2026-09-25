@@ -421,11 +421,12 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
     end
   end
 
-  # The Libraries tab's messages (`LibrariesComponent`).
-  def handle_info(
-        {PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent, {:flash, kind, message}},
-        socket
-      ) do
+  # The Libraries and Storage profiles tabs' messages.
+  def handle_info({component, {:flash, kind, message}}, socket)
+      when component in [
+             PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent,
+             PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent
+           ] do
     {:noreply, put_flash(socket, kind, message)}
   end
 

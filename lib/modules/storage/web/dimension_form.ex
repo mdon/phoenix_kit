@@ -8,8 +8,10 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.DimensionForm do
   use Gettext, backend: PhoenixKitWeb.Gettext
 
   alias PhoenixKit.Modules.Storage
+  alias PhoenixKit.Modules.Storage.VariantSets
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKitWeb.Live.Modules.Storage.Dimensions
 
   def mount(params, _session, socket) do
     dimension_uuid = params["id"]
@@ -22,18 +24,28 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.DimensionForm do
       end
 
     mode = if dimension_uuid, do: :edit, else: :new
+    dimension = load_dimension_data(mode, dimension_uuid)
+
+    # The variant set the size is in: the edited size's own, or the one the
+    # new-size link named (V205); the Default when none is named.
+    set =
+      case dimension do
+        %Storage.Dimension{variant_set_uuid: uuid} -> VariantSets.get_variant_set(uuid)
+        nil -> params["set"] && VariantSets.get_variant_set(params["set"])
+      end || VariantSets.default_variant_set()
 
     # Get project title from settings
     project_title = Settings.get_project_title()
 
     socket =
       socket
+      |> assign(:set, set)
       |> assign(:mode, mode)
       |> assign(:dimension_uuid, dimension_uuid)
       |> assign(:current_locale, "en")
       |> assign(:current_path, Routes.path("/admin/settings/media/dimensions"))
       |> assign(:project_title, project_title)
-      |> assign(:dimension, load_dimension_data(mode, dimension_uuid))
+      |> assign(:dimension, dimension)
       |> assign(:dimension_type, dimension_type)
       |> assign_form()
 
@@ -71,12 +83,12 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.DimensionForm do
   end
 
   defp create_dimension(socket, dimension_params) do
-    case Storage.create_dimension(dimension_params) do
+    case Storage.create_dimension(dimension_params, socket.assigns.set.uuid) do
       {:ok, _dimension} ->
         socket =
           socket
           |> put_flash(:info, "Dimension created successfully")
-          |> push_navigate(to: Routes.path("/admin/settings/media/dimensions"))
+          |> push_navigate(to: Dimensions.set_path(socket.assigns.set))
 
         {:noreply, socket}
 
@@ -98,7 +110,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.DimensionForm do
         socket =
           socket
           |> put_flash(:info, "Dimension updated successfully")
-          |> push_navigate(to: Routes.path("/admin/settings/media/dimensions"))
+          |> push_navigate(to: Dimensions.set_path(socket.assigns.set))
 
         {:noreply, socket}
 

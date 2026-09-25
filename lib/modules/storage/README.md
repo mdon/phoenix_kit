@@ -319,42 +319,77 @@ All instances stored **next to original** in same directory:
   018e3c4a-9f6b-7890-large.jpg
 ```
 
-### Redundancy
-- Setting: `storage_redundancy_copies` (integer, 1-5, default: 1)
-- Each file + all variants replicated across N buckets
-- Example: redundancy = 2, file stored on 2 different buckets
+### Storage profiles: where a library's bytes live (V205)
 
-### Smart Volume Selection (Priority System)
+A library points at a **storage profile** (`Storage.Profiles`); a library
+with none uses the **Default**, seeded by V205 from the buckets and
+`storage_redundancy_copies` under a fixed uuid, so an install that never
+touches profiles behaves as before. A profile has:
 
-**Algorithm:**
-1. Get `storage_redundancy_copies` setting (e.g., 2)
-2. Query all enabled buckets
-3. Separate buckets:
-   - **Priority buckets** (priority > 0) → sorted by priority ASC
-   - **Random buckets** (priority = 0) → sorted by free space DESC
-4. Select buckets:
-   - Take priority buckets first (in priority order)
-   - Fill remaining slots with emptiest random buckets
-5. Upload file + all variants to selected buckets
+- `copies_originals` / `copies_variants` (1..5): copies of an original
+  upload, and of a derived file (a size, a tile, a render);
+- `min_copies_on_write`: an original upload fails (and what was written is
+  removed) unless this many copies succeed; the rest are made later;
+- per bucket (`ProfileBucket`): a `role` (`primary` is written and served,
+  `replica` is served when no primary has the copy, `backup` is written but
+  never served), what it `stores` (`all`, `originals`, `derived`), a fixed
+  `write_priority` (nil is the shuffled pool), a `serve_order`, and a
+  `status` (`active`; `read_only` serves but gets no new files; `draining`
+  has its files moved to the profile's other buckets).
 
-**Priority Values:**
-- `priority = 0` (default): Random selection, prefer most empty drive
-- `priority > 0`: Specific priority (1 = highest priority, 2 = second, etc.)
+**Writes** (`Manager.store_file/2` with `:profile` and `:kind`, reached
+through `Storage.store_by_profile/4`): the profile's buckets that are
+enabled, `active`, store that kind and are under their `max_size_mb`,
+primaries before replicas before backups, fixed write priority before the
+pool, up to the copy count. A file records the profile and revision that
+placed it (`placed_profile_uuid` / `placed_revision`; NULL is the Default at
+revision 1); fewer copies than wanted leave it stale (revision 0).
 
-**Free Space Calculation:**
-```elixir
-free_space = bucket.max_size_mb - sum(all file sizes in bucket)
-```
+**Serving** (`Locations.ranked/1`): a key's recorded buckets in its file's
+profile order — primaries, then replicas, then a bucket the profile no
+longer lists, each by `serve_order`. A backup is never served; processing
+may read it last. A bucket's `enabled` flag stays the emergency stop:
+a disabled bucket is neither written nor read, whatever its profile says.
 
-**Example with 5 buckets, redundancy = 2:**
-- Bucket A: Local SSD (priority 0, 500GB free)
-- Bucket B: AWS S3 (priority 0, 200GB free)
-- Bucket C: Backblaze B2 (priority 1)
-- Bucket D: Cloudflare R2 (priority 0, 800GB free)
-- Bucket E: Local HDD (priority 2)
+Every bucket joins the Default when it is created; a bucket's `priority` is
+its write priority there. `Storage.redundancy_copies/0` and
+`set_redundancy_copies/1` are the old setting, now the Default's copy count
+(the setting row is kept in step). Profiles are edited on Settings → Media →
+Storage profiles; a system library picks its profile on the Libraries tab.
 
-**Selection Result:** C (priority 1), E (priority 2)
-**If no priority buckets:** D (800GB free), A (500GB free)
+### Variant sets: which sizes a library gets (V205)
+
+A library points at a **variant set** (`Storage.VariantSets`; none is the
+Default, seeded with every size the install had). A set's sizes are its
+`phoenix_kit_storage_dimensions` rows, and size names are unique per set.
+Every set has the **standard sizes** `thumbnail`, `small`, `medium`,
+`large` and `video_thumbnail`: they cannot be deleted or renamed, and
+`small`/`medium`/`large` keep the aspect ratio. `generate_variants` and
+`generate_tiles` are the set's (the Default's are what
+`storage_auto_generate_variants` and `storage_tile_generation_enabled` were).
+
+- A generated variant records the `spec_hash` of the size that made it; a
+  file records the set and revision its variants were made by.
+- A missing image size is served as the nearest smaller size the file has,
+  then a placeholder — never a full original larger than the size (G17).
+- `Storage.variant_for(file, min_width: 300, aspect: :preserve)` picks a
+  size by purpose, against the file's set.
+- Sets are edited on Settings → Media → Variant sets; a user library may
+  pick a set an admin marked `selectable`.
+
+### The reconciler (V205)
+
+`Storage.Reconciler`, run by `Workers.ReconcileJob` (10 files a run, 2 s
+apart), makes every **stale** file (its placement or variant stamps differ
+from its library's profile and set) match: it copies an instance to the
+profile's buckets up to the copy count (checking each copy), then unlinks
+copies on buckets the profile no longer uses for it — the object goes from
+that bucket only, and only when no other active location there names the
+key (`Storage.unlink_location/2`). It never unlinks without a good copy
+elsewhere. It makes missing sizes, remakes those whose spec changed and
+deletes those the set dropped (a disabled size is kept). It is queued by
+every change to a profile or a set, a library moving, an incomplete upload,
+the daily prune and boot. The Health page lists what is waiting.
 
 ---
 
@@ -370,8 +405,9 @@ the object key (`path`). `Storage.Locations` is the lookup.
   counts as "not here", and the next is tried.
 - **Every writer records its locations** once its instance row exists
   (uploads, variants, tiles, comment attachments, image edits, clones), and
-  marks the instance checked. A variant and an edit render are written to
-  exactly the buckets their original is in (`force_bucket_ids`).
+  marks the instance checked. Variants and tiles are placed by the
+  library's storage profile as derived files (V205); an edit render goes
+  exactly where the key it replaces is (`force_bucket_ids`).
 - **Checks** (`phoenix_kit_file_location_checks`): that an instance was
   checked against every bucket, and how many held it. The
   `LocationBackfillJob` walks the unchecked ones (queued after boot and by
@@ -381,9 +417,9 @@ the object key (`path`). `Storage.Locations` is the lookup.
 - **A bucket that still holds files cannot be deleted** (the location FK is
   `RESTRICT`); disable it instead. Bucket edits apply at once (the manager's
   bucket cache is cleared on every change).
-- **Deletes** still remove an unreferenced key from every enabled bucket:
-  per-bucket reference counting comes with storage profiles (V205), when
-  libraries can use different buckets.
+- **Deletes**: deleting a file removes a key no instance references from
+  every enabled bucket; the reconciler's unlinks are per bucket (V205, see
+  above).
 - `Storage.list_files(bucket_uuid: uuid)` lists the files with a copy there.
 
 ## URL Structure & Security
@@ -681,8 +717,9 @@ trashed files, and formats ImageMagick cannot write back.
 New settings added in V18 migration:
 
 ```elixir
-storage_redundancy_copies: "1"           # How many bucket copies (1-5)
-storage_auto_generate_variants: "true"   # Auto-generate thumbnails/resizes
+storage_redundancy_copies: "1"           # The Default storage profile's copy count (V205 alias)
+storage_auto_generate_variants: "true"   # The Default variant set's generate_variants (V205 alias)
+storage_tile_generation_enabled: "false" # The Default variant set's generate_tiles (V205 alias)
 storage_max_upload_size_mb: "500"        # Per-file upload cap
 storage_user_libraries_enabled: "false"  # User libraries on/off (V203)
 storage_user_library_limit: "10"         # Libraries one user may own (V203)
@@ -690,9 +727,12 @@ storage_private_url_window_hours: "12"   # How long a private file's link lasts 
 storage_default_bucket_uuid: nil         # Unused: selection never read it; storage profiles (V205) replace the idea
 ```
 
-**Access in code:**
+**Access in code:** the three aliases are read and written through the
+Default profile and set, which keep the rows in step:
 ```elixir
-PhoenixKit.Settings.get_setting("storage_redundancy_copies", "1")
+Storage.redundancy_copies()            # Storage.set_redundancy_copies(2)
+Storage.get_auto_generate_variants()   # Storage.set_auto_generate_variants(true)
+Storage.tile_generation_enabled?()     # Storage.set_tile_generation(false)
 ```
 
 ---

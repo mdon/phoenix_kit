@@ -1,13 +1,13 @@
 <PhoenixKitWeb.Components.LayoutWrapper.app_layout
   flash={@flash}
   phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
-  page_title={gettext("Dimensions")}
+  page_title={gettext("Variant sets")}
   page_section={gettext("Settings")}
   page_section_path={PhoenixKit.Utils.Routes.path("/admin/settings")}
   page_crumbs={[
     %{label: gettext("Media"), path: PhoenixKit.Utils.Routes.path("/admin/settings/media")}
   ]}
-  page_subtitle={gettext("Manage dimension presets for automatic file instance generation")}
+  page_subtitle={gettext("Which sizes each library's uploads get")}
   current_path={@current_path}
   current_locale={@current_locale}
   project_title={@project_title}
@@ -29,10 +29,113 @@
       </div>
     </div>
 
+    <%!-- Variant sets: one tab each, and a new one --%>
+    <div class="flex flex-wrap items-end gap-4 mb-6">
+      <div role="tablist" class="tabs tabs-box">
+        <.link
+          :for={set <- @sets}
+          patch={set_path(set)}
+          role="tab"
+          class={["tab", set.uuid == @set.uuid && "tab-active"]}
+        >
+          {set.name}
+        </.link>
+      </div>
+      <.form
+        for={@new_set_form}
+        id="variant-set-new-form"
+        phx-submit="create_set"
+        class="flex items-end gap-2 ml-auto"
+      >
+        <.input
+          field={@new_set_form[:name]}
+          label={gettext("New variant set")}
+          placeholder={gettext("Name")}
+          required
+        />
+        <button type="submit" class="btn btn-primary btn-sm mb-2">
+          <.icon name="hero-plus" class="w-4 h-4" /> {gettext("Create")}
+        </button>
+      </.form>
+    </div>
+
+    <%!-- The set itself --%>
+    <div class="card bg-base-100 shadow-sm mb-6">
+      <div class="card-body">
+        <div :if={@missing_slots != []} id="variant-set-missing-slots" class="alert alert-warning">
+          <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
+          <span>
+            {gettext(
+              "This set is missing standard sizes: %{names}. Until they are added, those sizes are served as the nearest smaller size or a placeholder.",
+              names: Enum.join(@missing_slots, ", ")
+            )}
+          </span>
+        </div>
+        <.form
+          for={@set_form}
+          id={"variant-set-form-#{@set.uuid}"}
+          phx-submit="save_set"
+          class="grid grid-cols-1 md:grid-cols-2 gap-4"
+        >
+          <.input field={@set_form[:name]} label={gettext("Name")} required />
+          <div class="flex flex-col gap-2 pt-6">
+            <.checkbox
+              field={@set_form[:generate_variants]}
+              label={gettext("Make sizes automatically after an upload")}
+            />
+            <.checkbox
+              field={@set_form[:generate_tiles]}
+              label={gettext("Make zoomable tiles of images")}
+            />
+            <.checkbox
+              :if={not @set.is_default}
+              field={@set_form[:selectable]}
+              label={gettext("Users may choose it for their own libraries")}
+            />
+          </div>
+          <div class="md:col-span-2 flex flex-wrap items-center gap-2">
+            <button type="submit" class="btn btn-primary btn-sm">{gettext("Save")}</button>
+            <button
+              type="button"
+              phx-click="check_set"
+              data-confirm={
+                gettext(
+                  "Check every file of this variant set now? Sizes a file is missing are made in the background."
+                )
+              }
+              class="btn btn-outline btn-sm"
+            >
+              <.icon name="hero-arrow-path" class="w-4 h-4" /> {gettext("Check every file")}
+            </button>
+            <span class="text-sm text-base-content/60">
+              {ngettext(
+                "Used by %{count} library.",
+                "Used by %{count} libraries.",
+                @set_libraries
+              )}
+              <%= if @set.is_default do %>
+                {gettext("Every library without its own set uses this one.")}
+              <% end %>
+            </span>
+            <button
+              :if={not @set.is_default}
+              type="button"
+              phx-click="delete_set"
+              disabled={@set_libraries > 0}
+              data-confirm={gettext("Delete this variant set and its sizes?")}
+              class="btn btn-outline btn-error btn-sm ml-auto"
+            >
+              <.icon name="hero-trash" class="w-4 h-4" /> {gettext("Delete set")}
+            </button>
+          </div>
+        </.form>
+      </div>
+    </div>
+
     <%!-- Page-level actions. Deliberately NOT in the image table's
          `:toolbar_actions` slot: that table only renders when dimensions exist,
          and restoring the defaults is exactly what an empty list needs. --%>
-    <div class="flex flex-wrap items-center gap-2 justify-end mb-4">
+    <div :if={@set.is_default} class="flex flex-wrap items-center gap-2 justify-end mb-4">
       <button
         phx-click="reset_dimensions_to_defaults"
         data-confirm={
@@ -59,17 +162,13 @@
           >
             <div class="flex justify-center gap-4">
               <.link
-                navigate={
-                  PhoenixKit.Utils.Routes.path("/admin/settings/media/dimensions/new/image")
-                }
+                navigate={new_dimension_path(@set, "image")}
                 class="btn btn-primary"
               >
                 <.icon name="hero-plus" class="w-4 h-4 mr-1" /> {gettext("Add Image Dimension")}
               </.link>
               <.link
-                navigate={
-                  PhoenixKit.Utils.Routes.path("/admin/settings/media/dimensions/new/video")
-                }
+                navigate={new_dimension_path(@set, "video")}
                 class="btn btn-outline"
               >
                 <.icon name="hero-plus" class="w-4 h-4 mr-1" /> {gettext("Add Video Dimension")}
@@ -82,9 +181,7 @@
             <.section_header icon="hero-photo" title={gettext("Image Dimensions")} class="mb-4">
               <:actions>
                 <.link
-                  navigate={
-                    PhoenixKit.Utils.Routes.path("/admin/settings/media/dimensions/new/image")
-                  }
+                  navigate={new_dimension_path(@set, "image")}
                   class="btn btn-primary btn-sm"
                 >
                   <.icon name="hero-plus" class="w-4 h-4 mr-1" /> {gettext("Add Image Dimension")}
@@ -156,6 +253,12 @@
                   <.table_default_row>
                     <.table_default_cell>
                       <div class="font-bold">{dimension.name}</div>
+                      <span
+                        :if={Dimension.standard_slot?(dimension)}
+                        class="badge badge-ghost badge-xs"
+                      >
+                        {gettext("standard")}
+                      </span>
                     </.table_default_cell>
                     <.table_default_cell>
                       <span class="font-mono text-sm">
@@ -229,6 +332,7 @@
                           }
                         />
                         <.table_row_menu_button
+                          :if={not Dimension.standard_slot?(dimension)}
                           phx-click="delete_dimension"
                           phx-debounce="1000"
                           phx-value-id={dimension.uuid}
@@ -265,6 +369,7 @@
                   {if dimension.enabled, do: gettext("Disable"), else: gettext("Enable")}
                 </button>
                 <button
+                  :if={not Dimension.standard_slot?(dimension)}
                   phx-click="delete_dimension"
                   phx-debounce="1000"
                   phx-value-id={dimension.uuid}
@@ -286,9 +391,7 @@
             >
               <:actions>
                 <.link
-                  navigate={
-                    PhoenixKit.Utils.Routes.path("/admin/settings/media/dimensions/new/video")
-                  }
+                  navigate={new_dimension_path(@set, "video")}
                   class="btn btn-primary btn-sm"
                 >
                   <.icon name="hero-plus" class="w-4 h-4 mr-1" /> {gettext("Add Video Dimension")}
@@ -357,6 +460,12 @@
                   <.table_default_row>
                     <.table_default_cell>
                       <div class="font-bold">{dimension.name}</div>
+                      <span
+                        :if={Dimension.standard_slot?(dimension)}
+                        class="badge badge-ghost badge-xs"
+                      >
+                        {gettext("standard")}
+                      </span>
                     </.table_default_cell>
                     <.table_default_cell>
                       <span class="font-mono text-sm">
@@ -430,6 +539,7 @@
                           }
                         />
                         <.table_row_menu_button
+                          :if={not Dimension.standard_slot?(dimension)}
                           phx-click="delete_dimension"
                           phx-debounce="1000"
                           phx-value-id={dimension.uuid}
@@ -466,6 +576,7 @@
                   {if dimension.enabled, do: gettext("Disable"), else: gettext("Enable")}
                 </button>
                 <button
+                  :if={not Dimension.standard_slot?(dimension)}
                   phx-click="delete_dimension"
                   phx-debounce="1000"
                   phx-value-id={dimension.uuid}

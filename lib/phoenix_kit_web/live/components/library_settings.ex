@@ -7,6 +7,8 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
     * rename, make the default, trash (the owner; a manager may rename)
     * members: add by email, change a role, remove (the owner or a manager)
     * leave a library someone else shared
+    * pick the variant set of a library they own, among the ones an admin
+      made selectable (V205): which sizes its uploads get
 
   Browsing and uploading are `/admin/libraries`. Every action goes through
   `PhoenixKit.Modules.Storage.Libraries`, which re-checks who may do it;
@@ -17,7 +19,7 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
   """
   use PhoenixKitWeb, :live_component
 
-  alias PhoenixKit.Modules.Storage.{Libraries, Library, LibraryMember}
+  alias PhoenixKit.Modules.Storage.{Libraries, Library, LibraryMember, VariantSets}
   alias PhoenixKit.Users.Auth.Scope
 
   @impl true
@@ -50,6 +52,7 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
     |> assign(:can_create, Libraries.may_create_library?(scope))
     |> assign(:limit, Libraries.user_library_limit())
     |> assign(:managed_uuids, Enum.map(managed, & &1.library.uuid))
+    |> assign(:variant_sets, VariantSets.list_selectable())
     |> assign(
       :members,
       if(open, do: open |> library_of(owned ++ shared) |> members(), else: [])
@@ -96,6 +99,19 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
 
       _ ->
         reply(socket, :error, gettext("You may not rename this library"))
+    end
+  end
+
+  def handle_event("set_variant_set", %{"uuid" => uuid, "set" => set_uuid}, socket) do
+    with %{library: library, role: :owner} <- entry(socket, uuid),
+         {:ok, _} <- VariantSets.set_library_variant_set(library, set_uuid) do
+      reply(
+        socket,
+        :success,
+        gettext("Sizes changed. Existing files are resized in the background.")
+      )
+    else
+      _ -> reply(socket, :error, gettext("You may not change this library"))
     end
   end
 
@@ -310,6 +326,28 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
             <button type="submit" class="btn btn-sm btn-ghost">{gettext("Rename")}</button>
           </form>
           <span :if={library.is_default} class="badge badge-primary badge-sm">{gettext("Default")}</span>
+          <form
+            :if={length(@variant_sets) > 1}
+            id={"#{@id}-sizes-#{library.uuid}"}
+            phx-change="set_variant_set"
+            phx-target={@myself}
+          >
+            <input type="hidden" name="uuid" value={library.uuid} />
+            <select
+              name="set"
+              class="select select-sm select-bordered"
+              aria-label={gettext("Sizes")}
+              title={gettext("Which sizes this library's uploads get")}
+            >
+              <option
+                :for={set <- @variant_sets}
+                value={set.uuid}
+                selected={VariantSets.set_uuid_for(library) == to_string(set.uuid)}
+              >
+                {set.name}
+              </option>
+            </select>
+          </form>
           <button
             :if={not library.is_default}
             type="button"

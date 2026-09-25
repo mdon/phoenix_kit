@@ -68,6 +68,7 @@
       variant={:border}
       tabs={[
         %{id: "buckets", label: gettext("Buckets"), icon: "hero-inbox-stack"},
+        %{id: "profiles", label: gettext("Storage profiles"), icon: "hero-server-stack"},
         %{id: "libraries", label: gettext("Libraries"), icon: "hero-rectangle-stack"},
         %{id: "configuration", label: gettext("Configuration"), icon: "hero-cog-6-tooth"},
         %{id: "quick_actions", label: gettext("Quick Actions"), icon: "hero-bolt"}
@@ -307,6 +308,13 @@
       </div>
     </div>
 
+    <div id="media-tab-profiles" class={@active_tab != "profiles" && "hidden"}>
+      <.live_component
+        module={PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent}
+        id="media-profiles"
+      />
+    </div>
+
     <div id="media-tab-libraries" class={@active_tab != "libraries" && "hidden"}>
       <.live_component
         module={PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent}
@@ -333,7 +341,9 @@
               <div class="mb-2">
                 <span class="fieldset-legend font-semibold">{gettext("Redundancy Copies")}</span>
                 <span class="block text-xs text-base-content/60">
-                  {gettext("Number of copies to store")}
+                  {gettext(
+                    "Copies of each file in the Default storage profile. A library on another profile uses that profile's copies (Storage profiles tab)."
+                  )}
                 </span>
               </div>
               <%= if @active_buckets_count == 0 do %>
@@ -391,7 +401,9 @@
                 label={gettext("Auto-Generate Variants")}
               >
                 <:description>
-                  {gettext("Automatically resize images and videos to configured dimensions")}
+                  {gettext(
+                    "Automatically resize images and videos to the sizes of the Default variant set. A library on another variant set follows that set."
+                  )}
                 </:description>
               </.checkbox>
             </div>
@@ -407,6 +419,9 @@
                 <:description>
                   {gettext(
                     "Lazily generate DZI tile pyramids when users zoom deeply into images. With this off the MediaBrowser still swaps between medium/large variants while zooming, but never generates tiles or hits the lazy tile endpoint. ImageMagick is required when enabled."
+                  )}
+                  {gettext(
+                    "This is the Default variant set's setting; a library on another variant set follows that set."
                   )}
                 </:description>
               </.checkbox>
@@ -536,12 +551,12 @@
           affordance.
         --%>
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <%!-- Manage Dimensions --%>
+            <%!-- Variant sets --%>
             <div
               class="tooltip tooltip-bottom"
               data-tip={
                 gettext(
-                  "Create and edit the image/video size presets used to generate variants of uploaded media."
+                  "Create and edit variant sets: the image and video sizes each library's uploads get."
                 )
               }
             >
@@ -549,7 +564,7 @@
                 navigate={PhoenixKit.Utils.Routes.path("/admin/settings/media/dimensions")}
                 class="btn btn-outline w-full"
               >
-                <.icon name="hero-photo" class="w-4 h-4 mr-2" /> {gettext("Manage Dimensions")}
+                <.icon name="hero-photo" class="w-4 h-4 mr-2" /> {gettext("Variant sets")}
                 <.icon name="hero-information-circle" class="w-4 h-4 ml-1 opacity-50" />
               </.link>
             </div>
@@ -571,7 +586,7 @@
               class="tooltip tooltip-bottom"
               data-tip={
                 gettext(
-                  "Open the media health dashboard to check file redundancy and re-sync files across storage locations."
+                  "Open the media health dashboard: the files not yet stored or sized as their library wants."
                 )
               }
             >
@@ -579,7 +594,7 @@
                 navigate={PhoenixKit.Utils.Routes.path("/admin/settings/media/health")}
                 class="btn btn-outline w-full"
               >
-                <.icon name="hero-arrow-path" class="w-4 h-4 mr-2" /> {gettext("Sync Files")}
+                <.icon name="hero-arrow-path" class="w-4 h-4 mr-2" /> {gettext("Health")}
                 <.icon name="hero-information-circle" class="w-4 h-4 ml-1 opacity-50" />
               </.link>
             </div>

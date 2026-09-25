@@ -5083,14 +5083,12 @@ defmodule PhoenixKit.Modules.Storage do
     do: set_redundancy_copies(String.to_integer(copies))
 
   def set_redundancy_copies(copies) when is_integer(copies) do
-    with %StorageProfile{} = profile <- Profiles.default_profile() || {:error, :no_default},
-         {:ok, _} <-
-           Profiles.update_profile(profile, %{
-             copies_originals: copies,
-             copies_variants: copies,
-             min_copies_on_write: min(profile.min_copies_on_write, copies)
-           }) do
-      Settings.update_setting("storage_redundancy_copies", to_string(copies))
+    with %StorageProfile{} = profile <- Profiles.default_profile() || {:error, :no_default} do
+      Profiles.update_profile(profile, %{
+        copies_originals: copies,
+        copies_variants: copies,
+        min_copies_on_write: min(profile.min_copies_on_write, copies)
+      })
     end
   end
 
@@ -5119,19 +5117,18 @@ defmodule PhoenixKit.Modules.Storage do
   `storage_auto_generate_variants` setting row in step.
   """
   def set_auto_generate_variants(enabled?) when is_boolean(enabled?),
-    do: set_default_flag(:generate_variants, "storage_auto_generate_variants", enabled?)
+    do: set_default_flag(:generate_variants, enabled?)
 
   @doc """
   Turns the Default variant set's tiles on or off, and keeps the
   `storage_tile_generation_enabled` setting row in step.
   """
   def set_tile_generation(enabled?) when is_boolean(enabled?),
-    do: set_default_flag(:generate_tiles, "storage_tile_generation_enabled", enabled?)
+    do: set_default_flag(:generate_tiles, enabled?)
 
-  defp set_default_flag(flag, setting, enabled?) do
-    with %VariantSet{} = set <- VariantSets.default_variant_set() || {:error, :no_default},
-         {:ok, _} <- VariantSets.update_variant_set(set, %{flag => enabled?}) do
-      Settings.update_setting(setting, to_string(enabled?))
+  defp set_default_flag(flag, enabled?) do
+    with %VariantSet{} = set <- VariantSets.default_variant_set() || {:error, :no_default} do
+      VariantSets.update_variant_set(set, %{flag => enabled?})
     end
   end
 

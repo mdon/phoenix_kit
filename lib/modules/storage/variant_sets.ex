@@ -35,6 +35,7 @@ defmodule PhoenixKit.Modules.Storage.VariantSets do
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
   alias PhoenixKit.Modules.Storage.Libraries
   alias PhoenixKit.Modules.Storage.Workers.ReconcileJob
+  alias PhoenixKit.Settings
 
   @default_uuid "00000000-0000-7000-8000-000000000003"
 
@@ -198,9 +199,21 @@ defmodule PhoenixKit.Modules.Storage.VariantSets do
       end
     end)
     |> case do
-      {:ok, uuid} -> {:ok, get_variant_set(uuid)}
-      error -> error
+      {:ok, uuid} ->
+        set = get_variant_set(uuid)
+        if set.is_default, do: sync_settings(set)
+        {:ok, set}
+
+      error ->
+        error
     end
+  end
+
+  # The Default's flags are what two settings were before variant sets; the
+  # rows are kept in step for code that still reads them.
+  defp sync_settings(%VariantSet{} = set) do
+    Settings.update_setting("storage_auto_generate_variants", to_string(set.generate_variants))
+    Settings.update_setting("storage_tile_generation_enabled", to_string(set.generate_tiles))
   end
 
   @doc """

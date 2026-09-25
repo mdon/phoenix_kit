@@ -63,7 +63,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.SettingsTabsTest do
     refute tab_visible?(html, "media-tab-buckets")
     refute tab_visible?(html, "media-tab-configuration")
     assert tab_visible?(html, "media-tab-quick-actions")
-    assert html =~ "Manage Dimensions"
+    assert html =~ "Variant sets"
     assert html =~ "Repair Media Module"
   end
 

@@ -426,7 +426,7 @@ never get a later change, the #871 lesson):
   purpose; moving core call sites that want a size rather than a slot
   (`ImageSet`'s `"medium"`, grids) onto it is left as a follow-up. `mix
   phoenix_kit.doctor` warns about a set missing a standard size.
-- Step 5 done. `Storage.Reconciler` (the service) and
+- Step 5 done (`21019482b`). `Storage.Reconciler` (the service) and
   `Storage.Workers.ReconcileJob` (10 files a run, 2 s apart, one pending
   run; queued by every revision bump, a library's profile or set change, an
   incomplete upload or variant run, the daily prune and boot). Per file,
@@ -444,8 +444,22 @@ never get a later change, the #871 lesson):
   matches, at the revisions read at the start. The Health page lists the
   stale files and queues a pass; `SyncFilesJob` is a shim that queues the
   reconciler (remove next release) and the `sync_under_replicated*`
-  functions and `get_health_report/1` are gone. New UI strings are not
-  translated yet (with step 6's).
+  functions and `get_health_report/1` are gone.
+- Step 6 done. Settings → Media gets a **Storage profiles** tab
+  (`ProfilesComponent`: copy counts, and per bucket role/stores/write
+  priority/serve order/status saved on change, add/remove, create/delete).
+  The dimensions page is now **Variant sets** (a tab per set via `?set=`,
+  its flags, "Check every file", create/delete; sizes are created in the
+  set; standard sizes are pinned first with no Delete). The Libraries tab
+  picks each system library's profile and set; the user's Media tab picks a
+  selectable set for a library they own. The Configuration tab keeps the
+  copies / automatic sizes / tiles controls, relabelled as the Default
+  profile's and set's (they are the same aliases), rather than removing
+  them. The setting rows are kept in step inside `Profiles.update_profile/2`
+  and `VariantSets.update_variant_set/2`, whichever screen edits the
+  Default. All new strings translated in the seven locales (77 each: 59 new
+  and 18 fuzzy carry-overs rewritten); the untranslated backlog is
+  unchanged (de/fr 50, et/ru 71, es/it/pl 74).
 
 **Scope:** phoenix_kit (core), Storage module, in five releases (V201–V205).
 First consumer: `phoenix_kit_photos`.

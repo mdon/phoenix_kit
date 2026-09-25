@@ -24,6 +24,7 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
   alias PhoenixKit.Modules.Storage.Libraries
   alias PhoenixKit.Modules.Storage.{Library, ProfileBucket, StorageProfile}
   alias PhoenixKit.Modules.Storage.Workers.ReconcileJob
+  alias PhoenixKit.Settings
 
   @default_uuid "00000000-0000-7000-8000-000000000002"
 
@@ -311,7 +312,18 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
     repo().preload(profile_or_profiles, buckets: {rows, :bucket})
   end
 
-  defp reload({:ok, uuid}), do: {:ok, get_profile(uuid)}
+  defp reload({:ok, uuid}) do
+    profile = get_profile(uuid)
+
+    # The Default's copy count is what `storage_redundancy_copies` was; the
+    # row is kept in step for code that still reads it.
+    if profile.is_default,
+      do:
+        Settings.update_setting("storage_redundancy_copies", to_string(profile.copies_originals))
+
+    {:ok, profile}
+  end
+
   defp reload(error), do: error
 
   defp transact(fun) do

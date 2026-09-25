@@ -9,7 +9,7 @@ defmodule PhoenixKitWeb.Live.Users.UserLibrariesUITest do
 
   alias PhoenixKit.AuditLog.Entry
   alias PhoenixKit.Modules.Storage
-  alias PhoenixKit.Modules.Storage.Libraries
+  alias PhoenixKit.Modules.Storage.{Libraries, VariantSets}
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.Scope
@@ -245,6 +245,28 @@ defmodule PhoenixKitWeb.Live.Users.UserLibrariesUITest do
       assert html =~ "Member added"
       assert html =~ member.email
       assert Libraries.role(library, member.uuid) == :contributor
+    end
+
+    test "the owner picks a selectable variant set; others are not offered", %{
+      conn: conn,
+      role: role
+    } do
+      user = user!(role)
+      library = library!(user, "Sized")
+      n = System.unique_integer([:positive])
+      {:ok, open} = VariantSets.create_variant_set(%{name: "Open #{n}", selectable: true})
+      {:ok, hidden} = VariantSets.create_variant_set(%{name: "Hidden #{n}"})
+
+      {:ok, view, html} = live(log_in_user(conn, user), Routes.path("/profile/settings/media"))
+
+      assert html =~ open.name
+      refute html =~ hidden.name
+
+      view
+      |> form("#profile-library-settings-sizes-#{library.uuid}", %{set: open.uuid})
+      |> render_change()
+
+      assert Libraries.get_library(library.uuid).variant_set_uuid == open.uuid
     end
 
     test "a viewer cannot open the member list", %{role: role} do
