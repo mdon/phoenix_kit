@@ -14,8 +14,9 @@ after the maintainer tested it in a host app and Grok reviewed it: see
 "Phase 2 as built" below. **Phase 3 (V204, location-truth) RELEASED in 2.40.0** (2026-09-25,
 published without a host-app test at the maintainer's call; Grok reviewed
 it): see "Phase 3 as built" below. **2.40.1** is a cleanup of the §11
-leftovers (see the status list at the end of §11). Next after it: V205,
-storage profiles and variant sets. Phase 1 shipped as **V202**, not V201: PR #860
+leftovers (see the status list at the end of §11). **Next: V205,
+storage profiles and variant sets, in progress on `main`**: see "Next: V205"
+below for its work order. Phase 1 shipped as **V202**, not V201: PR #860
 took V201 for per-user view preferences, so every phase below shifts by one
 (V202 partition, V203 private serving + user libraries, V204 location-truth,
 V205 profiles + variant sets, V206 user-owned storage). The version numbers in
@@ -212,7 +213,7 @@ the download case on public buckets, and it skips `cdn_url`.
   (`Libraries.restore_library/2`, the Media tab's Trash); an Owner/Admin
   opening a user-library file's detail page is audit-logged.
 
-### Next: V204, location-truth (the work order it was built from)
+### V204, location-truth: the work order it was built from
 
 The original §9 "V203" list, renumbered. It is the load-bearing change for
 everything after it: per-library storage (V205) and user-owned buckets
@@ -259,6 +260,131 @@ library, and audit-logging an admin's `/admin/media/:uuid` open of a private
 file. Outside core: `phoenix_kit_photos` builds its library switcher on
 `Libraries.list_user_libraries/1` and serves through
 `Storage.authorized_url/4`.
+
+### Next: V205, storage profiles and variant sets (work order)
+
+Written 2026-09-25, before any code. The body's "V204" sections (§3.2, §3.4,
+§4, G1–G6, G9, G10, G15–G19, §6.1, §6.3) are this release. It is built on
+`main` in the steps below. Each step keeps the suite green and changes
+nothing a user can see until the editors land (step 6), and the release
+goes out once, after the maintainer tests it, like V203.
+
+**Where this differs from the body, decided while writing this:**
+
+- **Fixed uuids for the two defaults,** like Media: the Default profile is
+  `00000000-0000-7000-8000-000000000002` and the Default variant set is
+  `…0003`. `phoenix_kit_storage_dimensions.variant_set_uuid` gets the Default
+  set's uuid as its column DEFAULT, so a writer that names no set (a sibling
+  module seeding a size) keeps working, the same trick as `library_uuid`.
+- **Every bucket goes into the Default profile, not only enabled ones.**
+  `enabled` stays the emergency stop, and placement and serving skip a
+  disabled bucket whatever its profile says. Re-enabling a bucket then works
+  as it does today. A bucket created later joins the Default profile, since
+  today every new bucket joins the pool.
+- **`generate_variants`, not `generate_video`.** `storage_auto_generate_variants`
+  switches off every automatic variant today, not only video transcodes, so
+  the set's flag means the same thing. Which video sizes exist is already
+  decided by the set's `applies_to: "video"` rows.
+- **The file records its variant set too.** G6 gives a file
+  `placed_profile_uuid` + `placed_revision`. Variants need the same, or a set
+  change would mean scanning every instance. So there are also
+  `placed_variant_set_uuid` + `placed_variant_revision`. `spec_hash` (G16)
+  then says, within a stale file, *which* instances to regenerate.
+- **`spec_hash` only on instances generated from a size.** An annotated
+  thumbnail, a burned render or an edit's backup has none, so the reconciler
+  never deletes it as "a size the set no longer has". The migration stamps
+  the instances whose name matches a current size (or one of its alternative
+  formats) with that size's hash. The hash is `md5` over a canonical text of
+  the spec, so SQL and Elixir compute the same value.
+- **Left for V206:** `owner_uuid` on profiles and buckets and
+  `buckets.shareable` (they only matter for user-owned storage), quotas, and
+  the cached usage table (G9). V205 does the other half of G9: placement
+  skips a bucket over its `max_size_mb`. Its usage comes from the existing
+  `SUM` query, cached for a few minutes.
+
+**Steps, in order:**
+
+1. **V205 migration + schemas + contexts. No behaviour change.**
+   - Tables `phoenix_kit_storage_profiles` (name unique, `is_default` unique
+     when true, `copies_originals`/`copies_variants` 1..5,
+     `min_copies_on_write` 1..`copies_originals`, `revision`) and
+     `phoenix_kit_storage_profile_buckets` (PK `(profile_uuid, bucket_uuid)`,
+     profile FK CASCADE, bucket FK RESTRICT, `role`/`stores`/`status`
+     checks, `write_priority`, `serve_order`, and the G10 columns
+     `storage_class` + `encryption`, which nothing reads yet).
+   - Table `phoenix_kit_variant_sets` (`is_default`, `selectable`,
+     `generate_variants`, `generate_tiles`, `revision`).
+   - `libraries.storage_profile_uuid` / `variant_set_uuid` (NULL = the
+     default, FK RESTRICT). `files.placed_profile_uuid`, `placed_revision`,
+     `placed_variant_set_uuid`, `placed_variant_revision`.
+     `file_instances.spec_hash`. `storage_dimensions.variant_set_uuid`
+     (NOT NULL, DEFAULT the Default set, FK CASCADE), and the name index
+     reshaped to UNIQUE `(variant_set_uuid, name)` by a `{205, …}` revision
+     (G18).
+   - Seeds (§4): the Default profile from `storage_redundancy_copies` and a
+     row per bucket (`write_priority` = `NULLIF(priority, 0)`, `serve_order`
+     = local first, then priority); the Default set from
+     `storage_auto_generate_variants` / `storage_tile_generation_enabled`;
+     every dimension into it; `spec_hash` stamped; `placed_*` stamped on
+     every file whose completed instances each have at least the Default
+     copy count of active locations (today's health rule), and the variant
+     set stamp on every file.
+   - Manifest declarations (catalog-exact, from `Repair.Probe.snapshot/2`),
+     `chain_hash` restamp, a `v205_test.exs` like V204's.
+   - `Storage.Profiles` and `Storage.VariantSets`: CRUD, every change bumps
+     `revision`, `resolve/1` from a library (cached, dropped on any change).
+     `Storage.spec_hash/1`, proven equal to the SQL stamp by a test.
+2. **Placement follows the profile (§6.1, G1, G2, G5, G9 half, G13).**
+   `Manager.store_file/2` takes the profile and whether the object is an
+   original or derived. It picks active rows whose `stores` fits and whose
+   bucket is enabled and not full, primary before replica before backup,
+   fixed `write_priority` first and then the shuffled pool, up to the copy
+   count. Fewer than `min_copies_on_write` successes fail the write and
+   remove what was written; fewer than the copy count queue the reconciler
+   for the file. Variants are placed by the profile as derived objects, no
+   longer forced onto the original's buckets (image-edit outputs keep
+   following the key they replace). A cross-user clone needs the donor's
+   library to resolve to the same profile and set (§6.4). Creating a bucket
+   adds it to the Default profile; deleting an empty one removes its rows.
+   `storage_redundancy_copies` reads and writes the Default profile.
+3. **Serving by role and `serve_order` (G1, G3).** `Locations` returns a
+   key's buckets with their role and order in the file's profile. Serving
+   (`get_file_access`, `public_url`, `get_local_file_path`) never uses a
+   `backup`; primaries come before replicas, in `serve_order`; a location on
+   a bucket the profile no longer lists comes last. `retrieve_file` (reading
+   bytes to process them) may use a backup last.
+4. **Variants follow the set (G15–G19).** The generator reads the file's
+   set, records `spec_hash`, and honours the set's `generate_*` flags (the
+   two settings become read-through aliases for the Default set). The
+   standard slots (`thumbnail`, `small`, `medium`, `large`,
+   `video_thumbnail`) cannot be deleted or renamed, and `small`/`medium`/
+   `large` keep the aspect ratio. A missing variant is served as the
+   nearest smaller one, then a placeholder, never the original for a
+   thumbnail-class request (G17). `Storage.variant_for/2` (G19).
+   `mix phoenix_kit.doctor` reports a set missing a standard slot.
+5. **The reconciler (§6.3, G4, G6, G11, G15).** `Storage.Workers.ReconcileJob`
+   walks stale files in batches, by uuid. For each instance it keeps the
+   good locations, copies to more eligible buckets until the copy count is
+   met (verified), then unlinks locations on buckets that are draining or
+   no longer in the profile. An unlink deletes the object from that bucket
+   only, and only when no other active location on that bucket names the
+   key (G11, under the directory lock). Then it generates missing sizes,
+   regenerates those whose `spec_hash` differs, and deletes those the set no
+   longer has. A fully compliant file is stamped, and a failure leaves it
+   stale for the next pass. Instances not yet location-checked are skipped.
+   Queued by profile/set/library changes, by under-replicated uploads and
+   daily by the prune job. The Health page shows it, and `SyncFilesJob` and
+   the `sync_under_replicated*` functions go.
+6. **Editors (§8).** Settings → Media: a profiles section (copies, and per
+   bucket its role, stores, priority, serve order and status) that replaces
+   the redundancy input, and variant sets replacing the dimensions list
+   (one tab per set, standard slots pinned, "regenerate" bumps the
+   revision). Settings → Media → Libraries: profile and set pickers per
+   system library. The user's Media tab: a set picker among `selectable`
+   sets (the profile stays Default until V206).
+7. **Docs, CHANGELOG, review.** Storage README, the plan's "Phase 4 as
+   built", a Grok review, then the maintainer's test on dev before
+   publishing.
 
 **Scope:** phoenix_kit (core), Storage module, in five releases (V201–V205).
 First consumer: `phoenix_kit_photos`.
