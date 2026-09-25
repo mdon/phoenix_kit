@@ -19,7 +19,16 @@ defmodule PhoenixKit.Modules.Storage.Locations do
 
   require Logger
 
-  alias PhoenixKit.Modules.Storage.{FileInstance, FileLocation, LocationCheck}
+  alias PhoenixKit.Modules.Storage.File, as: StorageFile
+
+  alias PhoenixKit.Modules.Storage.{
+    FileInstance,
+    FileLocation,
+    Library,
+    LocationCheck,
+    ProfileBucket,
+    Profiles
+  }
 
   @doc "The uuids of the buckets the active location rows of `key` name."
   @spec bucket_uuids(String.t()) :: [String.t()]
@@ -40,6 +49,54 @@ defmodule PhoenixKit.Modules.Storage.Locations do
   end
 
   def bucket_uuids(_key), do: []
+
+  # How a copy is ranked for serving (V205): primaries, then replicas, then
+  # a copy on a bucket its profile no longer lists (the reconciler has not
+  # moved it yet), then backups, which are never served.
+  @role_rank %{"primary" => 0, "replica" => 1, nil => 2, "backup" => 3}
+
+  @doc """
+  The buckets the active location rows of `key` name, each with the role
+  and serve order its file's storage profile gives it (V205), best first:
+  primaries, then replicas, then buckets the profile no longer lists, then
+  backups; each group by `serve_order`. `role` is nil for a bucket not in
+  the profile. Never raises: a failed lookup is `[]`, as for `bucket_uuids/1`.
+  """
+  @spec ranked(String.t()) :: [%{bucket_uuid: String.t(), role: String.t() | nil}]
+  def ranked(key) when is_binary(key) do
+    default = Profiles.default_uuid()
+
+    from(l in FileLocation,
+      join: i in FileInstance,
+      on: i.uuid == l.file_instance_uuid,
+      join: f in StorageFile,
+      on: f.uuid == i.file_uuid,
+      left_join: lib in Library,
+      on: lib.uuid == f.library_uuid,
+      left_join: pb in ProfileBucket,
+      on:
+        pb.bucket_uuid == l.bucket_uuid and
+          pb.profile_uuid == coalesce(lib.storage_profile_uuid, type(^default, UUIDv7)),
+      where: l.path == ^key and l.status == "active",
+      select: {l.bucket_uuid, pb.role, pb.serve_order}
+    )
+    |> repo().all()
+    |> Enum.map(fn {bucket_uuid, role, serve_order} ->
+      {to_string(bucket_uuid), role, {Map.fetch!(@role_rank, role), serve_order || 0}}
+    end)
+    # Instances sharing a key (a cross-user copy) name the same buckets;
+    # each bucket once, at its best rank.
+    |> Enum.group_by(&elem(&1, 0))
+    |> Enum.map(fn {_bucket, rows} -> Enum.min_by(rows, &elem(&1, 2)) end)
+    |> Enum.sort_by(&elem(&1, 2))
+    |> Enum.map(fn {bucket_uuid, role, _rank} -> %{bucket_uuid: bucket_uuid, role: role} end)
+  rescue
+    error ->
+      Logger.warning("Storage: location lookup for #{key} failed: #{Exception.message(error)}")
+      []
+  end
+
+  def ranked(_key), do: []
 
   @doc """
   Records that `bucket_uuid` holds the object at `key`: an active location
@@ -161,16 +218,6 @@ defmodule PhoenixKit.Modules.Storage.Locations do
     from(i in FileInstance, where: i.file_name == ^key, select: i.uuid) |> repo().all()
   rescue
     _ -> []
-  end
-
-  @doc """
-  Orders `buckets` so the ones in `located` come first, each group keeping
-  its own order. The first group is where the rows say the object is; the
-  second is the fallback.
-  """
-  @spec located_first([map()], [String.t()]) :: {[map()], [map()]}
-  def located_first(buckets, located) do
-    Enum.split_with(buckets, &(to_string(&1.uuid) in located))
   end
 
   @doc "How many instances have not been checked against every bucket yet."

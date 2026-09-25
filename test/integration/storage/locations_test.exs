@@ -122,11 +122,8 @@ defmodule PhoenixKit.Modules.Storage.LocationsTest do
 
     Locations.record(key, ctx.b.uuid)
 
-    {located, fallback} =
-      Locations.located_first([ctx.a, ctx.b], Locations.bucket_uuids(key))
-
-    assert Enum.map(located, & &1.uuid) == [ctx.b.uuid]
-    assert Enum.map(fallback, & &1.uuid) == [ctx.a.uuid]
+    b_uuid = to_string(ctx.b.uuid)
+    assert [%{bucket_uuid: ^b_uuid, role: "primary"}] = Locations.ranked(key)
     assert {:local, path} = Manager.get_file_access(key)
     assert String.starts_with?(path, ctx.b.endpoint)
   end

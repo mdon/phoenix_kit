@@ -393,7 +393,7 @@ never get a later change, the #871 lesson):
 - Step 1 done (`b3724a5b6`). The migration, manifest, schemas, `Profiles`
   and `VariantSets`. Bucket create/delete/priority already keep the
   Default profile in step, because the profile's bucket FK is RESTRICT.
-- Step 2 done. `Manager.store_file/2` places by profile (`:profile`,
+- Step 2 done (`fd6eab9f7`). `Manager.store_file/2` places by profile (`:profile`,
   `:kind`); `Storage.store_by_profile/4` is the one entry for uploads,
   tiles, variants, re-stores and the legacy `store_file/2`; a file records
   its placement (`record_placement/2`), and an incomplete store marks it
@@ -403,6 +403,13 @@ never get a later change, the #871 lesson):
   buckets become usable. `Storage.redundancy_copies/0` and
   `set_redundancy_copies/1` are the setting's alias. Until step 5, the
   Health page's sync still copies to any enabled bucket.
+- Step 3 done. `Locations.ranked/1` gives a key's buckets with the role
+  and serve order its file's profile gives them (a bucket the profile no
+  longer lists ranks after its buckets, backups last). Serving
+  (`get_file_access`, `public_url`) follows that order strictly, so a
+  remote copy can come before a local one, and never uses a backup; reads
+  for processing (`retrieve_file`, `file_exists?`) may use a backup last.
+  A key with no rows yet keeps today's rule (local first).
 
 **Scope:** phoenix_kit (core), Storage module, in five releases (V201–V205).
 First consumer: `phoenix_kit_photos`.
