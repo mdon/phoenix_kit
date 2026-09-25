@@ -290,6 +290,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       # featured toggle, image editor. Navigation, the viewer and downloads
       # stay live. See the moduledoc's `readonly` attribute.
       |> assign_new(:readonly, fn -> false end)
+      # A user uuid: every write may touch only files that user uploaded
+      # (a user library's contributor). Folders stay shared. nil: no limit.
+      |> assign_new(:own_files_only, fn -> nil end)
       # Restricts the browser to ONE file type for its whole lifetime: the
       # listing is filtered to it, the type-filter control is hidden, and an
       # off-type upload is refused, so there is no way to reach the other
@@ -1382,6 +1385,59 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # ──────────────────────────────────────────────────────────────
   # Event handlers
   # ──────────────────────────────────────────────────────────────
+
+  # Every event that changes something: exactly the ones that refuse to run
+  # when the browser is `readonly` (a test holds the two lists together).
+  @write_events ~w(
+    change_folder_color delete_all_orphaned delete_file delete_folder delete_selected
+    empty_trash folder_description_input folder_header_input long_press_select
+    move_file_to_folder move_folder_to_folder move_selected_to_folder new_folder_input
+    open_cover_picker open_image_editor open_logo_picker open_new_folder_modal
+    prepare_move_file prepare_move_folder remove_folder_cover remove_folder_logo
+    rename_folder rename_folder_input restore_selected rotate_file save_folder_description
+    save_folder_header select_all set_featured set_header_size show_move_modal show_upload
+    start_edit_folder_description start_edit_folder_header start_rename_folder
+    submit_new_folder toggle_header_option toggle_move_folder toggle_select
+    toggle_select_folder toggle_select_mode toggle_upload trash_file trash_folder
+    unset_featured
+  )
+
+  @doc false
+  def write_events, do: @write_events
+
+  # The actions that work on the selection, not on what their params name.
+  @selection_events ~w(delete_selected move_selected_to_folder restore_selected)
+
+  # The actions that work on every file of the view at once.
+  @every_file_events ~w(empty_trash delete_all_orphaned)
+
+  # A contributor changes only the files they uploaded (`own_files_only`):
+  # a write that names someone else's file, or works on a selection holding
+  # one, is refused before any handler below sees it.
+  def handle_event(event, params, socket)
+      when is_binary(socket.assigns.own_files_only) and event in @write_events and
+             not is_map_key(socket.private, :own_files_checked) do
+    uuids =
+      param_uuids(params, []) ++
+        if(event in @selection_events,
+          do: Enum.to_list(socket.assigns.selected_files),
+          else: []
+        )
+
+    # Emptying the trash and clearing orphans act on every file at once.
+    if event in @every_file_events or others_file?(uuids, socket.assigns.own_files_only) do
+      Logger.warning(
+        "MediaBrowser id=#{socket.assigns.id}: #{event} refused — it names a file " <>
+          "#{socket.assigns.own_files_only} did not upload"
+      )
+
+      {:noreply, put_flash(socket, :error, gettext("You can only change files you uploaded"))}
+    else
+      socket = %{socket | private: Map.put(socket.private, :own_files_checked, true)}
+      {:noreply, socket} = handle_event(event, params, socket)
+      {:noreply, %{socket | private: Map.delete(socket.private, :own_files_checked)}}
+    end
+  end
 
   # A browser that shows one library acts only on that library's files and
   # folders. The listings are filtered already; this is the boundary for
@@ -4698,6 +4754,21 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # markup, is what a consumer can actually trust — so it's refused here too
   # (mirrors the `only_file_type` lock on `set_file_filter` above).
   defp unchecked(socket), do: %{socket | private: Map.delete(socket.private, :library_checked)}
+
+  # Whether any of `uuids` is a file someone other than `user_uuid` uploaded.
+  defp others_file?([], _user_uuid), do: false
+
+  defp others_file?(uuids, user_uuid) do
+    uuids = Enum.uniq(uuids)
+
+    PhoenixKit.Config.get_repo().exists?(
+      from(f in Storage.File,
+        where:
+          f.uuid in ^uuids and
+            (is_nil(f.user_uuid) or f.user_uuid != type(^user_uuid, UUIDv7))
+      )
+    )
+  end
 
   # Whether any uuid in `params` (at any depth) is a file or folder of a
   # library other than `library_uuid`. A uuid that is neither (a variant, a

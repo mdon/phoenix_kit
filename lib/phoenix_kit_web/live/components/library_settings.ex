@@ -44,6 +44,7 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
     open = socket.assigns.open_members
 
     socket
+    |> assign(:trashed, Libraries.list_trashed_user_libraries(Scope.user_uuid(scope)))
     |> assign(:owned, owned)
     |> assign(:shared, shared)
     |> assign(:can_create, Libraries.may_create_library?(scope))
@@ -118,6 +119,22 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
       reply(socket, :success, gettext("Library moved to the trash"))
     else
       _ -> reply(socket, :error, gettext("You may not trash this library"))
+    end
+  end
+
+  def handle_event("restore", %{"uuid" => uuid}, socket) do
+    with %Library{} = library <- Enum.find(socket.assigns.trashed, &(&1.uuid == uuid)),
+         {:ok, restored} <- Libraries.restore_library(socket.assigns.scope, library) do
+      reply(socket, :success, gettext("Library “%{name}” restored", name: restored.name))
+    else
+      {:error, :limit_reached} ->
+        reply(socket, :error, gettext("You have reached the number of libraries you may own"))
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        reply(socket, :error, changeset_message(changeset))
+
+      _ ->
+        reply(socket, :error, gettext("The library could not be restored"))
     end
   end
 
@@ -377,6 +394,31 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
             roles={@roles}
             myself={@myself}
           />
+        </div>
+      </div>
+
+      <div :if={@trashed != []} id={"#{@id}-trash"} class="flex flex-col gap-2">
+        <h3 class="font-semibold">{gettext("Trash")}</h3>
+        <p class="text-sm text-base-content/60">
+          {gettext(
+            "A library in the trash is deleted for good, with its files, after the trash period."
+          )}
+        </p>
+        <div
+          :for={library <- @trashed}
+          id={"trashed-library-#{library.uuid}"}
+          class="rounded-lg border border-base-300 p-3 flex flex-wrap items-center gap-2"
+        >
+          <span class="grow truncate text-base-content/70">{library.name}</span>
+          <button
+            type="button"
+            phx-click="restore"
+            phx-value-uuid={library.uuid}
+            phx-target={@myself}
+            class="btn btn-sm btn-ghost"
+          >
+            <.icon name="hero-arrow-uturn-left" class="w-4 h-4" /> {gettext("Restore")}
+          </button>
         </div>
       </div>
     </div>

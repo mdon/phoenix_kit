@@ -258,6 +258,45 @@ defmodule PhoenixKit.Modules.Storage.UserLibrariesTest do
     end
   end
 
+  describe "restoring" do
+    test "the owner restores a trashed library with a slug, as the default if none", ctx do
+      owner = user!(ctx.role)
+      library = library!(owner, "Comeback")
+      {:ok, trashed} = Libraries.trash_library(scope(owner), library)
+
+      assert [%Library{uuid: uuid}] = Libraries.list_trashed_user_libraries(owner.uuid)
+      assert uuid == library.uuid
+
+      assert {:error, :not_allowed} =
+               Libraries.restore_library(scope(user!(ctx.role)), trashed)
+
+      assert {:ok, restored} = Libraries.restore_library(scope(owner), trashed)
+      assert restored.trashed_at == nil
+      assert restored.slug == "comeback"
+      assert restored.is_default
+      assert Libraries.list_trashed_user_libraries(owner.uuid) == []
+    end
+
+    test "a name taken meanwhile, or the limit, refuses it", ctx do
+      owner = user!(ctx.role)
+      library = library!(owner, "Taken")
+      {:ok, trashed} = Libraries.trash_library(scope(owner), library)
+      _new = library!(owner, "Taken")
+
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Libraries.restore_library(scope(owner), trashed)
+
+      assert changeset.errors[:name]
+
+      other = library!(owner, "Other")
+      {:ok, other_trashed} = Libraries.trash_library(scope(owner), other)
+      library!(owner, "Fill 1")
+      library!(owner, "Fill 2")
+
+      assert {:error, :limit_reached} = Libraries.restore_library(scope(owner), other_trashed)
+    end
+  end
+
   describe "deleting a user" do
     test "trashes the libraries they own and keeps their uploads elsewhere", ctx do
       {admin, _} = create_admin!()

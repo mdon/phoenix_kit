@@ -308,6 +308,31 @@ defmodule PhoenixKitWeb.Live.Users.UserLibrariesUITest do
     end
   end
 
+  describe "an Admin opening a user-library file's detail page" do
+    test "is written to the audit log, once", %{conn: conn, role: role} do
+      owner = user!(role)
+      library = library!(owner, "Detail Audited")
+      private = stored!(owner, "AUDITED-FILE", library.uuid)
+      {admin, _token} = create_admin_user()
+
+      {:ok, view, _html} =
+        live(log_in_user(conn, admin), Routes.path("/admin/media/#{private.uuid}"))
+
+      _ = render(view)
+
+      assert [entry] =
+               Repo.all(
+                 from(e in Entry,
+                   where:
+                     e.action == "storage.library_opened" and e.admin_user_uuid == ^admin.uuid
+                 )
+               )
+
+      assert entry.metadata["file_uuid"] == private.uuid
+      assert entry.target_user_uuid == owner.uuid
+    end
+  end
+
   describe "Settings → Media → Libraries" do
     test "turns user libraries off and lists them as metadata", %{conn: conn, role: role} do
       owner = user!(role)

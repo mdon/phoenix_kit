@@ -12,6 +12,7 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
   import Ecto.Query
 
   alias Phoenix.LiveView.JS
+  alias PhoenixKit.AuditLog
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.File
   alias PhoenixKit.Modules.Storage.FileDetails
@@ -22,8 +23,10 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
   alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.Modules.Storage.VariantGenerator
   alias PhoenixKit.Settings
+  alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Format
+  alias PhoenixKit.Utils.IpAddress
   alias PhoenixKit.Utils.Multilang
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Components.ImageEditor
@@ -278,9 +281,46 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
           |> assign(:file, nil)
           |> assign(:file_data, nil)
         else
-          load_file_details(socket, file, file_uuid, repo)
+          socket
+          |> audit_admin_opening(file)
+          |> load_file_details(file, file_uuid, repo)
         end
     end
+  end
+
+  # An Owner/Admin opening a file of someone's user library, as neither its
+  # uploader nor one of the library's people: written to the audit log once
+  # per page, the same as opening the library at `/admin/libraries/<uuid>`.
+  defp audit_admin_opening(%{assigns: %{audited_opening: true}} = socket, _file), do: socket
+
+  defp audit_admin_opening(socket, file) do
+    scope = socket.assigns[:phoenix_kit_current_scope]
+    user_uuid = Scope.user_uuid(scope)
+
+    with true <- connected?(socket) and Libraries.private_file?(file),
+         true <- to_string(file.user_uuid) != user_uuid,
+         %{} = library <- Libraries.get_library(file.library_uuid),
+         nil <- Libraries.role(library, user_uuid) do
+      AuditLog.create_log_entry(%{
+        admin_user_uuid: user_uuid,
+        target_user_uuid: library.owner_uuid,
+        action: "storage.library_opened",
+        ip_address: IpAddress.extract_from_socket(socket),
+        metadata: %{
+          "library_uuid" => library.uuid,
+          "library_name" => library.name,
+          "file_uuid" => file.uuid
+        }
+      })
+
+      assign(socket, :audited_opening, true)
+    else
+      _ -> socket
+    end
+  rescue
+    error ->
+      Logger.error("MediaDetail: audit entry failed: #{Exception.message(error)}")
+      socket
   end
 
   defp load_file_details(socket, file, file_uuid, repo) do

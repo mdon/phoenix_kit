@@ -17,6 +17,17 @@
 
 ### Changed
 
+- **A user library's contributor changes only the files they uploaded.**
+  The media browser refuses their change to anyone else's file, a bulk
+  action on a selection holding one, and emptying the trash; folders stay
+  shared. Before, the browser had no per-file check.
+- **A trashed user library can be restored** by its owner until it is
+  purged, from a Trash section on the profile's Media tab
+  (`Libraries.restore_library/2`). It gets a URL slug again, counts toward
+  the per-user limit, and is refused while a live library has its name.
+- **An Owner or Admin opening a user-library file's detail page** at
+  `/admin/media/:uuid` is written to the audit log
+  (`storage.library_opened`), like opening the library itself.
 - **`phoenix_kit_templates` 0.2.0** (pin `~> 0.1.0` → `~> 0.2.0`). A host
   override's `html` part now HTML-escapes a bound `{{variable}}`; a variable
   that already holds markup must use `{{{variable}}}`. Core's own defaults are

@@ -188,4 +188,10 @@ defmodule PhoenixKitWeb.Live.Users.Libraries do
   # Only a viewer looks without touching; an Owner/Admin who opened it can
   # act on it (a takedown is the reason to open one).
   def readonly?(role), do: role == :viewer
+
+  @doc false
+  # A contributor changes only the files they uploaded; everyone else who
+  # may write changes any file of the library.
+  def own_files_only(:contributor, %{uuid: uuid}), do: uuid
+  def own_files_only(_role, _user), do: nil
 end
