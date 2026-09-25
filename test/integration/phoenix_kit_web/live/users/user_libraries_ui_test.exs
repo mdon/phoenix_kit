@@ -16,6 +16,7 @@ defmodule PhoenixKitWeb.Live.Users.UserLibrariesUITest do
   alias PhoenixKit.Users.Permissions
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Components.MediaBrowser
+  alias PhoenixKitWeb.Live.Components.LibrarySettings
 
   setup do
     {:ok, _} = Settings.update_boolean_setting("storage_user_libraries_enabled", true)
@@ -45,6 +46,35 @@ defmodule PhoenixKitWeb.Live.Users.UserLibrariesUITest do
   defp library!(user, name) do
     {:ok, library} = Libraries.create_user_library(scope(user), %{"name" => name})
     library
+  end
+
+  defp media_role! do
+    n = System.unique_integer([:positive])
+    {:ok, role} = Roles.create_role(%{name: "Media holders #{n}"})
+    {:ok, _} = Permissions.grant_permission(role.uuid, "media")
+    role
+  end
+
+  defp stored!(user, name, library_uuid) do
+    n = System.unique_integer([:positive])
+
+    attrs = %{
+      original_file_name: name,
+      file_name: "f-#{n}.png",
+      file_path: "x/#{n}.png",
+      mime_type: "image/png",
+      file_type: "image",
+      ext: "png",
+      file_checksum: Ecto.UUID.generate(),
+      user_file_checksum: Ecto.UUID.generate(),
+      size: 1,
+      status: "active",
+      user_uuid: user.uuid
+    }
+
+    attrs = if library_uuid, do: Map.put(attrs, :library_uuid, library_uuid), else: attrs
+    {:ok, file} = Storage.create_file(attrs)
+    file
   end
 
   describe "/admin/libraries" do
@@ -91,6 +121,25 @@ defmodule PhoenixKitWeb.Live.Users.UserLibrariesUITest do
                live(log_in_user(conn, user), Routes.path("/admin/libraries"))
 
       assert to == Routes.path("/profile/settings")
+    end
+
+    test "an Admin sees other users' libraries below their own; a user does not",
+         %{conn: conn, role: role} do
+      owner = user!(role)
+      library = library!(owner, "Someone Elses")
+      {admin, _token} = create_admin_user()
+
+      {:ok, _view, html} = live(log_in_user(conn, admin), Routes.path("/admin/libraries"))
+
+      assert html =~ "libraries-others"
+      assert html =~ "Someone Elses"
+      assert html =~ owner.email
+      assert html =~ ~s(href="#{Routes.path("/admin/libraries/#{library.uuid}")}")
+
+      {:ok, _view, html} =
+        live(log_in_user(build_conn(), user!(role)), Routes.path("/admin/libraries"))
+
+      refute html =~ "Someone Elses"
     end
 
     test "an Admin opening a user's library is written to the audit log", %{
@@ -196,6 +245,91 @@ defmodule PhoenixKitWeb.Live.Users.UserLibrariesUITest do
       assert html =~ "Member added"
       assert html =~ member.email
       assert Libraries.role(library, member.uuid) == :contributor
+    end
+
+    test "a viewer cannot open the member list", %{role: role} do
+      owner = user!(role)
+      library = library!(owner, "Shared")
+      viewer = user!(role)
+      other = user!(role)
+      {:ok, _} = Libraries.add_member(scope(owner), library, viewer.email, "viewer")
+      {:ok, _} = Libraries.add_member(scope(owner), library, other.email, "contributor")
+
+      {:ok, socket} =
+        LibrarySettings.update(
+          %{id: "profile-library-settings", scope: scope(viewer)},
+          %Phoenix.LiveView.Socket{}
+        )
+
+      {:noreply, socket} =
+        LibrarySettings.handle_event("toggle_members", %{"uuid" => library.uuid}, socket)
+
+      assert socket.assigns.open_members == nil
+      assert socket.assigns.members == []
+    end
+  end
+
+  describe "site media" do
+    test "a media holder does not see or open another user's library", %{conn: conn, role: role} do
+      owner = user!(role)
+      library = library!(owner, "Hidden")
+      private = stored!(owner, "PRIVATE-LIBRARY-FILE", library.uuid)
+      site = stored!(owner, "SITE-MEDIA-FILE", nil)
+
+      media_role = media_role!()
+      holder = user!(media_role)
+
+      {:ok, _view, html} = live(log_in_user(conn, holder), Routes.path("/admin/media?view=all"))
+
+      # The grid card does not print the filename; the file uuid is in the
+      # card. The site file is there, the user-library file is not.
+      assert html =~ site.uuid
+      refute html =~ private.uuid
+
+      {:ok, _view, html} =
+        live(log_in_user(build_conn(), holder), Routes.path("/admin/media/#{private.uuid}"))
+
+      assert html =~ "File Not Found"
+      refute html =~ "PRIVATE-LIBRARY-FILE"
+
+      {admin, _token} = create_admin_user()
+
+      {:ok, _view, html} =
+        live(log_in_user(build_conn(), admin), Routes.path("/admin/media/#{private.uuid}"))
+
+      assert html =~ "PRIVATE-LIBRARY-FILE"
+      refute html =~ "File Not Found"
+
+      # The site file is still a normal media detail page.
+      {:ok, _view, html} =
+        live(log_in_user(build_conn(), holder), Routes.path("/admin/media/#{site.uuid}"))
+
+      assert html =~ "SITE-MEDIA-FILE"
+    end
+  end
+
+  describe "an Admin opening a user-library file's detail page" do
+    test "is written to the audit log, once", %{conn: conn, role: role} do
+      owner = user!(role)
+      library = library!(owner, "Detail Audited")
+      private = stored!(owner, "AUDITED-FILE", library.uuid)
+      {admin, _token} = create_admin_user()
+
+      {:ok, view, _html} =
+        live(log_in_user(conn, admin), Routes.path("/admin/media/#{private.uuid}"))
+
+      _ = render(view)
+
+      assert [entry] =
+               Repo.all(
+                 from(e in Entry,
+                   where:
+                     e.action == "storage.library_opened" and e.admin_user_uuid == ^admin.uuid
+                 )
+               )
+
+      assert entry.metadata["file_uuid"] == private.uuid
+      assert entry.target_user_uuid == owner.uuid
     end
   end
 

@@ -19,7 +19,8 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   When the install turns them on (`user_libraries_enabled?/0`), a user with
   the `"storage"` permission uses the libraries they own or are a member of
   (`list_user_libraries/1`), and one with `"storage.create_library"` creates
-  them (`create_user_library/2`, up to `user_library_limit/0`). A user
+  them (`create_user_library/2`, up to `user_library_limit/0`). A trashed
+  one can be restored by its owner until it is purged (`restore_library/2`). A user
   library is `private` and has an owner and members
   (`PhoenixKit.Modules.Storage.LibraryMember`: manager, contributor,
   viewer; `allows?/2` says who does what). Trashing one frees its name at
@@ -331,6 +332,21 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   @spec private_file?(map()) :: boolean()
   def private_file?(%{library_uuid: library_uuid}), do: private?(library_uuid)
   def private_file?(_file), do: false
+
+  @doc """
+  Drops rows whose library is private.
+
+  The file or folder is the query's first binding. Site listings
+  (`/admin/media`, the media pickers, orphan cleanup) use this so a user
+  library is not mixed into the site's media; pass that library's uuid to
+  read it. A private library's files are not orphans: nothing in the site
+  references them, and treating them as unreferenced would delete them.
+  """
+  @spec exclude_private(Ecto.Query.t()) :: Ecto.Query.t()
+  def exclude_private(query) do
+    private = from(l in Library, where: l.visibility == "private", select: l.uuid)
+    where(query, [row], row.library_uuid not in subquery(private))
+  end
 
   @doc """
   Whether `scope` may do `action` to `file`. One predicate for every
@@ -710,6 +726,102 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   end
 
   @doc """
+  The user libraries `user_uuid` owns that are in the trash and not purged
+  yet, newest first.
+  """
+  @spec list_trashed_user_libraries(term()) :: [Library.t()]
+  def list_trashed_user_libraries(user_uuid) when is_binary(user_uuid) do
+    from(l in Library,
+      where: l.kind == "user" and l.owner_uuid == ^user_uuid and not is_nil(l.trashed_at),
+      order_by: [desc: l.trashed_at]
+    )
+    |> repo().all()
+  end
+
+  def list_trashed_user_libraries(_user_uuid), do: []
+
+  @doc """
+  Takes a trashed user library out of the trash, for its owner, until it is
+  purged. It gets a URL slug again (the old one may have been taken), and
+  becomes the default when the owner has none. A live library of the owner
+  that has taken its name meanwhile refuses it (`{:error, changeset}`).
+  """
+  @spec restore_library(Scope.t() | nil, Library.t()) ::
+          {:ok, Library.t()} | {:error, :not_allowed | :limit_reached | Ecto.Changeset.t()}
+  def restore_library(%Scope{} = scope, %Library{kind: "user", trashed_at: trashed} = library)
+      when not is_nil(trashed) do
+    user_uuid = Scope.user_uuid(scope)
+
+    if is_binary(user_uuid) and library.owner_uuid == user_uuid do
+      repo().transaction(fn ->
+        lock_user(user_uuid)
+        current = locked_library(library.uuid)
+
+        cond do
+          # Purged, being purged, or restored meanwhile.
+          is_nil(current) or is_nil(current.trashed_at) or
+              Map.get(current.settings || %{}, "purging") == true ->
+            repo().rollback(:not_allowed)
+
+          count_owned(user_uuid) >= user_library_limit() ->
+            repo().rollback(:limit_reached)
+
+          true ->
+            restore_owned(current, user_uuid)
+        end
+      end)
+    else
+      {:error, :not_allowed}
+    end
+  end
+
+  def restore_library(_scope, _library), do: {:error, :not_allowed}
+
+  defp locked_library(uuid),
+    do: repo().one(from(l in Library, where: l.uuid == ^uuid, lock: "FOR UPDATE"))
+
+  defp restore_owned(library, user_uuid) do
+    default? = is_nil(default_user_library(user_uuid))
+
+    case restore_with_free_slug(library, Library.slugify(library.name), 1, default?) do
+      {:ok, restored} -> restored
+      {:error, changeset} -> repo().rollback(changeset)
+    end
+  end
+
+  defp restore_with_free_slug(library, base, n, default?) do
+    slug = if n == 1, do: base, else: "#{base}-#{n}"
+
+    result =
+      repo().transaction(fn ->
+        library
+        |> Ecto.Changeset.change(trashed_at: nil, slug: slug, is_default: default?)
+        |> Ecto.Changeset.unique_constraint(:slug,
+          name: :phoenix_kit_storage_libraries_owner_slug_index
+        )
+        |> Ecto.Changeset.unique_constraint(:name,
+          name: :phoenix_kit_storage_libraries_owner_name_index,
+          message: "is already the name of another library"
+        )
+        |> repo().update()
+        |> case do
+          {:ok, restored} -> restored
+          {:error, changeset} -> repo().rollback(changeset)
+        end
+      end)
+
+    case result do
+      {:error, %Ecto.Changeset{errors: errors} = changeset} ->
+        if Keyword.has_key?(errors, :slug) and not Keyword.has_key?(errors, :name) and n < 100,
+          do: restore_with_free_slug(library, base, n + 1, default?),
+          else: {:error, changeset}
+
+      other ->
+        other
+    end
+  end
+
+  @doc """
   Trashes every live library `user_uuid` owns and queues their purge — the
   step `Auth.delete_user/2` takes before deleting the user. The database
   refuses to delete a user whose live library still names them (V203), so
@@ -864,6 +976,37 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   def purge_library(%Library{trashed_at: nil}), do: {:error, :not_trashed}
 
   def purge_library(%Library{uuid: uuid} = library) do
+    # Claimed first, in one statement that sees the row as it is now: a
+    # restore that committed after the caller loaded `library` makes it
+    # live, and the claim then finds nothing to purge. Once claimed, a
+    # restore refuses (`restore_library/2` checks the mark under a lock).
+    case claim_for_purge(uuid) do
+      :claimed -> do_purge(library)
+      :not_trashed -> {:error, :not_trashed}
+    end
+  end
+
+  def purge_library(uuid) do
+    case get_library(uuid) do
+      nil -> {:error, :not_found}
+      library -> purge_library(library)
+    end
+  end
+
+  defp claim_for_purge(uuid) do
+    {count, _} =
+      from(l in Library,
+        where: l.uuid == ^uuid and not is_nil(l.trashed_at),
+        update: [
+          set: [settings: fragment("? || jsonb_build_object('purging', true)", l.settings)]
+        ]
+      )
+      |> repo().update_all([])
+
+    if count == 1, do: :claimed, else: :not_trashed
+  end
+
+  defp do_purge(%Library{uuid: uuid} = library) do
     # Parents first: a parent's delete takes its system-managed children
     # (tiles, edit backups) with it.
     from(f in StorageFile,
@@ -891,13 +1034,6 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
     error ->
       Logger.error("Storage: purging library #{uuid} failed: #{Exception.message(error)}")
       reraise error, __STACKTRACE__
-  end
-
-  def purge_library(uuid) do
-    case get_library(uuid) do
-      nil -> {:error, :not_found}
-      library -> purge_library(library)
-    end
   end
 
   defp folder_depth(%Folder{} = folder), do: folder_depth(folder, 0)

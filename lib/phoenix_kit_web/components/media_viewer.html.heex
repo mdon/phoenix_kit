@@ -1,6 +1,6 @@
 <dialog
   id={@id}
-  class="modal"
+  class="modal lg:portrait:items-start"
   phx-hook="MediaViewerDialog"
   phx-target={@myself}
   aria-labelledby={"#{@id}-title"}
@@ -8,7 +8,7 @@
   <% preview_idx = Enum.find_index(@files, &(&1 == @current_uuid)) %>
   <% has_prev = is_integer(preview_idx) and preview_idx > 0 %>
   <% has_next = is_integer(preview_idx) and preview_idx < length(@files) - 1 %>
-  <div class="modal-box !fixed !inset-0 !w-auto !h-auto !min-w-0 !max-w-none !max-h-none !m-0 !rounded-none lg:!relative lg:!inset-auto lg:!w-[95vw] lg:!h-[90vh] lg:!rounded-2xl lg:!m-auto p-0 !overflow-hidden">
+  <div class="modal-box !fixed !inset-0 !w-auto !h-auto !min-w-0 !max-w-none !max-h-none !m-0 !rounded-none lg:!relative lg:!inset-auto lg:!w-[95vw] lg:landscape:!h-[90vh] lg:portrait:!max-h-[90vh] lg:!rounded-2xl lg:!m-auto lg:portrait:!mt-[4vh] lg:portrait:!mb-auto p-0 !overflow-hidden">
     <%= if @current_file do %>
       <%!-- Per-file content (close button, prev/next chevrons, canvas/   --%>
       <%!-- video/pdf/icon renderer, composer popover, sidebar with       --%>

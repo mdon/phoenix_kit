@@ -1,4 +1,12 @@
-<div id={@id} class="contents">
+<%!-- ViewerPaneFit corrects the stacked pane's shape from the bitmap the --%>
+<%!-- browser actually paints. `pane_aspect/2` is the server's prediction    --%>
+<%!-- and is right for the picture as uploaded, but the viewer opens on a    --%>
+<%!-- burned copy wherever one exists, and a burn is not always composed at  --%>
+<%!-- the picture's ratio — so the pane would hold a shape the picture does  --%>
+<%!-- not have and leave bands of empty canvas down its sides. The element   --%>
+<%!-- the hook measures is the one on screen, so it is right about rotation, --%>
+<%!-- edits and whatever the burn did.                                       --%>
+<div id={@id} class="contents" phx-hook="ViewerPaneFit">
   <%!-- A board (no file): an empty canvas with the drawing tools, nothing --%>
   <%!-- else — see the moduledoc's "A board instead of a file".            --%>
   <%= if @board do %>
@@ -38,16 +46,58 @@
         <.icon name="hero-x-mark" class="w-4 h-4" />
       </button>
 
-      <div class="flex flex-col lg:flex-row h-full overflow-hidden">
+      <%!-- Side by side only when the popup is genuinely wider than it is  --%>
+      <%!-- tall. `lg:` alone was the old rule, and it reads width only: a   --%>
+      <%!-- tall window that happens to be ≥1024px — a portrait monitor, a   --%>
+      <%!-- half-screen split — kept the side split and squeezed a landscape --%>
+      <%!-- picture into what was left of a column beside a 280-416px panel. --%>
+      <%!-- `landscape:` adds the shape test, so a portrait popup falls back --%>
+      <%!-- to the stacked layout mobile already used: picture on top, the   --%>
+      <%!-- details docked along the bottom, same collapse toggle. Every     --%>
+      <%!-- `lg:landscape:` below is part of this one rule — keep them in    --%>
+      <%!-- step or the halves disagree about which layout is running.       --%>
+      <div class="flex flex-col lg:landscape:flex-row h-full overflow-hidden">
         <%!-- Viewer column (image / video / pdf / icon). Carries the         --%>
         <%!-- EtcherTooltipActions hook: Etcher re-dispatches tooltip action  --%>
         <%!-- buttons as a bubbling `etcher:tooltip-action` DOM event, and    --%>
         <%!-- this ancestor routes them — Reply to this LiveComponent, Edit   --%>
         <%!-- straight back into Etcher's label editor client-side.           --%>
+        <%!-- Stacked, the pane takes the height the PICTURE needs, not a    --%>
+        <%!-- share of the popup's. On a 1080×2840 window that share is       --%>
+        <%!-- 1700px for a photograph that wants 480, and the rest was empty   --%>
+        <%!-- canvas with the panel stranded at the bottom of it. `aspect-`    --%>
+        <%!-- `[var(--pk-pane-aspect)]` is the picture's own ratio, handed     --%>
+        <%!-- down as a custom property so the rule lives in the stylesheet    --%>
+        <%!-- and only the number is per-file; the clamp keeps a panorama      --%>
+        <%!-- from becoming a letterbox slot and a tall picture from taking    --%>
+        <%!-- the whole popup. `flex-none` because a flex share and an aspect  --%>
+        <%!-- cannot both decide the height — and in an auto-height popup a    --%>
+        <%!-- `flex-[7]` with a zero basis collapses to nothing.               --%>
+        <%!--                                                                  --%>
+        <%!-- A picture always gets the aspect rule, even when nothing is on  --%>
+        <%!-- file about its size: the browser knows the shape as soon as the  --%>
+        <%!-- bitmap decodes and ViewerPaneFit writes it in, so an unprobed    --%>
+        <%!-- upload ends up sized like every other picture. The 1.5 in the    --%>
+        <%!-- fallback is only what the first paint uses until then. Anything  --%>
+        <%!-- that is not a picture (a PDF, an audio file) has no bitmap to    --%>
+        <%!-- measure and keeps the fixed 60vh every file got before.          --%>
+        <%!--                                                                  --%>
+        <%!-- Side by side is unchanged either way: there the popup's height   --%>
+        <%!-- is definite and the pane fills it.                               --%>
+        <% aspect = pane_aspect(f, @viewer_rotation) %>
         <div
           id={"pk-annotation-actions-" <> f.file_uuid}
           phx-hook="EtcherTooltipActions"
-          class="flex-[7] relative flex items-center justify-center bg-base-200 overflow-hidden p-0 lg:p-2 min-h-[40vh] lg:min-h-0"
+          data-viewer-pane
+          style={aspect && "--pk-pane-aspect: #{aspect}"}
+          class={[
+            "flex-[7] relative flex items-center justify-center bg-base-200 overflow-hidden p-0 lg:landscape:p-2 max-lg:min-h-[40vh]",
+            "lg:portrait:flex-none lg:portrait:max-h-[60vh]",
+            if(aspect || f.file_type == "image",
+              do: "lg:portrait:aspect-[var(--pk-pane-aspect,1.5)] lg:portrait:min-h-[18rem]",
+              else: "lg:portrait:h-[60vh]"
+            )
+          ]}
         >
           <%!-- Keeps a copy of the picture with the annotations drawn into  --%>
           <%!-- it, so a grid card and a list row carry the markup. Composes --%>
@@ -345,7 +395,7 @@
             phx-target={@myself}
             class={[
               "btn btn-ghost btn-sm btn-circle absolute top-3 z-30 bg-base-100 hover:bg-base-200 shadow-lg ring-1 ring-base-300",
-              if(@sidebar_collapsed, do: "right-14", else: "right-14 lg:hidden")
+              if(@sidebar_collapsed, do: "right-14", else: "right-14 lg:landscape:hidden")
             ]}
             title={
               if @sidebar_collapsed, do: gettext("Show details"), else: gettext("Hide details")
@@ -356,7 +406,7 @@
           >
             <.icon
               name={if @sidebar_collapsed, do: "hero-chevron-left", else: "hero-chevron-right"}
-              class="w-4 h-4 rotate-90 lg:rotate-0"
+              class="w-4 h-4 rotate-90 lg:landscape:rotate-0"
             />
           </button>
 
@@ -425,7 +475,7 @@
         <%!-- the in-viewer button above.                                     --%>
         <div
           :if={not @viewer_only and not @sidebar_collapsed}
-          class="relative w-0 z-30 hidden lg:block"
+          class="relative w-0 z-30 hidden lg:landscape:block"
         >
           <button
             type="button"
@@ -451,7 +501,7 @@
         <div
           :if={not @viewer_only and not @sidebar_collapsed}
           data-viewer-sidebar
-          class="flex-[3] flex flex-col gap-3 p-4 overflow-y-auto lg:min-w-[280px] lg:max-w-[26rem] bg-base-100"
+          class="flex-[3] flex flex-col gap-3 p-4 overflow-y-auto lg:landscape:min-w-[280px] lg:landscape:max-w-[26rem] lg:portrait:flex-initial lg:portrait:max-h-[32vh] bg-base-100"
         >
           <h2 class="text-base font-bold break-all leading-tight pr-10">
             {f.filename}

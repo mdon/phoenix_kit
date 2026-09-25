@@ -846,6 +846,53 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   """
   def sidebar_open?(user), do: not load_sidebar_collapsed(user)
 
+  @doc """
+  The picture's shape as a CSS `aspect-ratio` value, or `nil` for a file that
+  has no shape to give.
+
+  The stacked layout sizes the picture pane to this instead of to a share of
+  the popup's height. A 1080×2840 window makes the popup 2556px tall and a
+  landscape photograph needs about 480 of them: the rest was empty canvas
+  above and below the picture, with the details panel pushed to the far
+  bottom of a popup the picture had no use for. Sized to the picture, the
+  pane asks for the height it needs, the panel sits directly under it, and
+  the popup is as tall as the two of them together.
+
+  Rotation is part of the shape. A quarter turn swaps the axes, so the pane
+  has to turn with it or a sideways photograph gets a pane the wrong way
+  round — taller than the picture and narrower than it needs. A half turn
+  leaves the shape alone.
+
+  `nil` for anything with no dimensions recorded — a PDF, an audio file, a
+  picture whose probe failed — and the pane falls back to a fixed share of
+  the popup, which is what every file used to get.
+  """
+  def pane_aspect(file, rotation \\ 0) when is_map(file) do
+    with w when is_integer(w) <- positive_dimension(Map.get(file, :width)),
+         h when is_integer(h) <- positive_dimension(Map.get(file, :height)) do
+      if quarter_turn?(rotation), do: "#{h} / #{w}", else: "#{w} / #{h}"
+    else
+      _ -> nil
+    end
+  end
+
+  @doc """
+  The same shape, for a file nobody is looking at yet.
+
+  Stepping prev/next inside the viewer repaints the instant stand-in with the
+  neighbour's bitmap, and the popup is sized to the picture now — so a
+  neighbour whose shape nobody announced would hand over by resizing the
+  whole box. The browser reads these off the modal's dataset; rotation comes
+  from the row, since no viewer has loaded that file's metadata yet.
+  """
+  def neighbor_pane_aspect(file) when is_map(file),
+    do: pane_aspect(file, Map.get(file, :rotation))
+
+  defp positive_dimension(n) when is_integer(n) and n > 0, do: n
+  defp positive_dimension(_), do: nil
+
+  defp quarter_turn?(deg), do: Integer.mod(normalize_rotation(deg), 180) == 90
+
   # Merge into a freshly-read copy so a concurrent custom_fields change
   # elsewhere isn't clobbered. No user → session-local only (the assign
   # still toggles; it just won't survive a remount).
@@ -1980,13 +2027,15 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   # otherwise classify as a document and never show a player.
   @audio_extensions ~w(.mp3 .wav .ogg .oga .m4a .aac .flac .opus .weba .mid .midi)
 
+  # One caller, `audio?(f)` in the cond that picks the player, where `f` is the
+  # file the template has already dereferenced a dozen times over — so there is
+  # no non-map to fall back for. The clause that used to be here was dead, and
+  # dialyzer says so now that `pane_aspect/2` states the same thing in a guard.
   defp audio?(%{} = f) do
     (is_binary(f.mime_type) and String.starts_with?(f.mime_type, "audio/")) or
       f.file_type == "audio" or
       (is_binary(f.filename) and String.ends_with?(String.downcase(f.filename), @audio_extensions))
   end
-
-  defp audio?(_), do: false
 
   @doc """
   Runtime check for whether the optional `phoenix_kit_comments` package

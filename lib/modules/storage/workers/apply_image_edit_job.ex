@@ -45,6 +45,7 @@ defmodule PhoenixKit.Modules.Storage.ApplyImageEditJob do
   alias PhoenixKit.Modules.Storage.ImageEdit
   alias PhoenixKit.Modules.Storage.ImageEditing
   alias PhoenixKit.Modules.Storage.ImageProcessor
+  alias PhoenixKit.Modules.Storage.Locations
   alias PhoenixKit.Modules.Storage.Manager
   alias PhoenixKit.Modules.Storage.VariantGenerator
 
@@ -229,7 +230,7 @@ defmodule PhoenixKit.Modules.Storage.ApplyImageEditJob do
     with {:ok, rendered} <- render(file, file.edits) do
       key = "#{file.file_path}/#{rendered.md5}_original.#{file.ext}"
 
-      case Manager.store_file(rendered.path, path_prefix: key) do
+      case Manager.store_file(rendered.path, [path_prefix: key] ++ where_the_original_is(file)) do
         {:ok, %{bucket_ids: bucket_ids}} ->
           File.rm(rendered.path)
           rendered = Map.merge(rendered, %{key: key, bucket_ids: bucket_ids, copies: %{}})
@@ -296,11 +297,29 @@ defmodule PhoenixKit.Modules.Storage.ApplyImageEditJob do
 
     try do
       with {:ok, _} <- Manager.retrieve_file(key, destination_path: temp),
-           {:ok, %{bucket_ids: bucket_ids}} <- Manager.store_file(temp, path_prefix: copy_key) do
+           {:ok, %{bucket_ids: bucket_ids}} <-
+             Manager.store_file(temp, [path_prefix: copy_key] ++ same_buckets_as(key)) do
         {:ok, %{key: copy_key, bucket_ids: bucket_ids}}
       end
     after
       File.rm(temp)
+    end
+  end
+
+  # The edited bytes go where the picture is now, not to whatever buckets
+  # the pool would pick today: the buckets its current original's key is
+  # recorded in (V204). With nothing recorded, the usual selection.
+  defp where_the_original_is(file) do
+    case Storage.get_file_instance_by_name(file.uuid, "original") do
+      %{file_name: key} when is_binary(key) -> same_buckets_as(key)
+      _ -> []
+    end
+  end
+
+  defp same_buckets_as(key) do
+    case Locations.bucket_uuids(key) do
+      [] -> []
+      bucket_uuids -> [force_bucket_ids: bucket_uuids]
     end
   end
 

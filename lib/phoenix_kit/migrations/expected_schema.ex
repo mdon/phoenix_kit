@@ -202,6 +202,20 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # access to; the real-database integration suite re-ran clean against a DB
   # migrated through V196, which is the property s7/s8 exist to prove.
   #
+  # V204 (2026-09-25, storage location-truth) DECLARES eight objects here and
+  # RESHAPES one. New: `index:phoenix_kit_file_locations_instance_bucket_index`,
+  # UNIQUE `(file_instance_uuid, bucket_uuid)`,
+  # `index:phoenix_kit_file_locations_path_index` on `path`, and
+  # `table:phoenix_kit_file_location_checks` with its three columns, pkey
+  # and instance FK (`ON DELETE CASCADE`), added after Grok's review. Reshaped, with an APPENDED
+  # `{204, ...}` revision and its `create` following it:
+  # `phoenix_kit_file_locations_bucket_id_fkey`, now `ON DELETE RESTRICT`.
+  # Shapes are CATALOG-EXACT, read with `Repair.Probe.snapshot/2` on a test
+  # database migrated through V204. `chain_hash` restamped over the shipped
+  # file set (which also covers `V203.replace_constraint/7` and
+  # `prefix_str/1` becoming public: the same statements, proven by hashing
+  # V203's up and down statements before and after).
+  #
   # V203 (2026-09-24, storage libraries, user libraries) DECLARES 10 objects
   # here and RESHAPES five. New: `table:phoenix_kit_storage_library_members`
   # with its 5 columns, its pkey `(library_uuid, user_uuid)`, the role CHECK,
@@ -475,7 +489,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "f8c893ac5d62379fcf66f874585a600c6179274206498395eb22c028d9bb083f"
+  @chain_hash "8ce3428f7ba2f3052ad0ed37f174f79943b9b760ee7137b0de916ad4b550ee02"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -6861,7 +6875,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              kind: :constraint
            }},
         create:
-          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_file_locations_bucket_id_fkey'\n      AND t.relname = 'phoenix_kit_file_locations'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_file_locations ADD CONSTRAINT phoenix_kit_file_locations_bucket_id_fkey FOREIGN KEY (bucket_uuid) REFERENCES __SCHEMA__.phoenix_kit_buckets(uuid) ON DELETE CASCADE;\n  END IF;\nEND\n$$",
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_file_locations_bucket_id_fkey'\n      AND t.relname = 'phoenix_kit_file_locations'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_file_locations ADD CONSTRAINT phoenix_kit_file_locations_bucket_id_fkey FOREIGN KEY (bucket_uuid) REFERENCES __SCHEMA__.phoenix_kit_buckets(uuid) ON DELETE RESTRICT;\n  END IF;\nEND\n$$",
         since: 20,
         class: :constraint,
         revisions: [
@@ -6900,6 +6914,18 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              foreign_columns: ["uuid"],
              on_delete: "c",
              on_update: "a"
+           }},
+          {204,
+           %{
+             type: "f",
+             columns: ["bucket_uuid"],
+             on_delete: "r",
+             definition:
+               "FOREIGN KEY (bucket_uuid) REFERENCES __SCHEMA__.phoenix_kit_buckets(uuid) ON DELETE RESTRICT",
+             on_update: "a",
+             name_template: nil,
+             foreign_columns: ["uuid"],
+             foreign_table: "phoenix_kit_buckets"
            }}
         ],
         presence: :required,
@@ -73393,6 +73419,190 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              name_template: nil,
              opclasses: ["uuid_ops"],
              predicate: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_file_locations_instance_bucket_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_file_locations_instance_bucket_index",
+             table: "phoenix_kit_file_locations",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_file_locations_instance_bucket_index ON __SCHEMA__.phoenix_kit_file_locations USING btree (file_instance_uuid, bucket_uuid)",
+        since: 204,
+        class: :index,
+        revisions: [
+          {204,
+           %{
+             table: "phoenix_kit_file_locations",
+             keys: ["file_instance_uuid", "bucket_uuid"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_file_locations_instance_bucket_index ON __SCHEMA__.phoenix_kit_file_locations USING btree (file_instance_uuid, bucket_uuid)",
+             name_template: nil,
+             opclasses: ["uuid_ops", "uuid_ops"],
+             predicate: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_file_locations_path_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_file_locations_path_index",
+             table: "phoenix_kit_file_locations",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_file_locations_path_index ON __SCHEMA__.phoenix_kit_file_locations USING btree (path)",
+        since: 204,
+        class: :index,
+        revisions: [
+          {204,
+           %{
+             table: "phoenix_kit_file_locations",
+             keys: ["path"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_file_locations_path_index ON __SCHEMA__.phoenix_kit_file_locations USING btree (path)",
+             name_template: nil,
+             opclasses: ["text_ops"],
+             predicate: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "table:phoenix_kit_file_location_checks",
+        owner: :core,
+        check: {:catalog, %{name: "phoenix_kit_file_location_checks", kind: :table}},
+        create: "CREATE TABLE IF NOT EXISTS __SCHEMA__.phoenix_kit_file_location_checks ()",
+        since: 204,
+        class: :table,
+        revisions: [{204, %{}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_file_location_checks.file_instance_uuid",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             table: "phoenix_kit_file_location_checks",
+             column: "file_instance_uuid",
+             kind: :column
+           }},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_file_location_checks ADD COLUMN IF NOT EXISTS \"file_instance_uuid\" uuid",
+        since: 204,
+        class: :column,
+        revisions: [{204, %{default: nil, type: "uuid", pos: 1, not_null: true}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_file_location_checks.checked_at",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_file_location_checks", column: "checked_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_file_location_checks ADD COLUMN IF NOT EXISTS \"checked_at\" timestamp(0) without time zone DEFAULT now() NOT NULL",
+        since: 204,
+        class: :column,
+        revisions: [
+          {204,
+           %{default: "now()", type: "timestamp(0) without time zone", pos: 2, not_null: true}}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_file_location_checks.found_in",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_file_location_checks", column: "found_in", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_file_location_checks ADD COLUMN IF NOT EXISTS \"found_in\" integer DEFAULT 0 NOT NULL",
+        since: 204,
+        class: :column,
+        revisions: [{204, %{default: "0", type: "integer", pos: 3, not_null: true}}],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "constraint:phoenix_kit_file_location_checks.phoenix_kit_file_location_checks_pkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_file_location_checks_pkey",
+             table: "phoenix_kit_file_location_checks",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_file_location_checks_pkey'\n      AND t.relname = 'phoenix_kit_file_location_checks'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_file_location_checks ADD CONSTRAINT phoenix_kit_file_location_checks_pkey PRIMARY KEY (file_instance_uuid);\n  END IF;\nEND\n$$",
+        since: 204,
+        class: :constraint,
+        revisions: [
+          {204,
+           %{
+             type: "p",
+             columns: ["file_instance_uuid"],
+             on_delete: nil,
+             on_update: nil,
+             definition: "PRIMARY KEY (file_instance_uuid)",
+             name_template: nil,
+             foreign_columns: nil,
+             foreign_table: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id:
+          "constraint:phoenix_kit_file_location_checks.phoenix_kit_file_location_checks_instance_fkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_file_location_checks_instance_fkey",
+             table: "phoenix_kit_file_location_checks",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_file_location_checks_instance_fkey'\n      AND t.relname = 'phoenix_kit_file_location_checks'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_file_location_checks ADD CONSTRAINT phoenix_kit_file_location_checks_instance_fkey FOREIGN KEY (file_instance_uuid) REFERENCES __SCHEMA__.phoenix_kit_file_instances(uuid) ON DELETE CASCADE;\n  END IF;\nEND\n$$",
+        since: 204,
+        class: :constraint,
+        revisions: [
+          {204,
+           %{
+             type: "f",
+             columns: ["file_instance_uuid"],
+             on_delete: "c",
+             on_update: "a",
+             definition:
+               "FOREIGN KEY (file_instance_uuid) REFERENCES __SCHEMA__.phoenix_kit_file_instances(uuid) ON DELETE CASCADE",
+             name_template: nil,
+             foreign_columns: ["uuid"],
+             foreign_table: "phoenix_kit_file_instances"
            }}
         ],
         presence: :required,

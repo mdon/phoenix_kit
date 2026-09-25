@@ -55,6 +55,38 @@ defmodule PhoenixKit.Modules.Storage.UserLibrariesTest do
     member
   end
 
+  describe "site listings" do
+    test "a user library's file is not site media and not an orphan", %{role: role} do
+      user = user!(role)
+      library = library!(user, "Private")
+      private_id = file!(user, library.uuid)
+      media_id = file!(user, nil)
+
+      refute Storage.file_orphaned?(private_id)
+      assert Storage.file_orphaned?(media_id)
+
+      {listed, _} = Storage.list_files_in_scope(nil, page: 1, per_page: 100)
+      ids = Enum.map(listed, & &1.uuid)
+      refute private_id in ids
+      assert media_id in ids
+
+      refute private_id in (Storage.find_orphaned_files() |> Enum.map(& &1.uuid))
+    end
+
+    test "inside a user library nothing is an orphan, so nothing is bulk-deleted as one",
+         %{role: role} do
+      user = user!(role)
+      library = library!(user, "Root Files")
+      file!(user, library.uuid)
+
+      # A root file in a user library is referenced by nothing in the site,
+      # which is exactly what an orphan looks like; the browser's "Delete all
+      # orphaned" inside the library would have deleted it.
+      assert Storage.find_orphaned_files(library_uuid: library.uuid) == []
+      assert Storage.count_orphaned_files(nil, library_uuid: library.uuid) == 0
+    end
+  end
+
   describe "who may have libraries" do
     test "nobody while user libraries are off", %{role: role} do
       user = user!(role)
@@ -223,6 +255,68 @@ defmodule PhoenixKit.Modules.Storage.UserLibrariesTest do
       assert Libraries.list_user_libraries(member.uuid) == []
       assert Libraries.role(trashed, member.uuid) == nil
       assert %Library{slug: "alpha"} = library!(owner, "Alpha")
+    end
+  end
+
+  describe "restoring" do
+    test "the owner restores a trashed library with a slug, as the default if none", ctx do
+      owner = user!(ctx.role)
+      library = library!(owner, "Comeback")
+      {:ok, trashed} = Libraries.trash_library(scope(owner), library)
+
+      assert [%Library{uuid: uuid}] = Libraries.list_trashed_user_libraries(owner.uuid)
+      assert uuid == library.uuid
+
+      assert {:error, :not_allowed} =
+               Libraries.restore_library(scope(user!(ctx.role)), trashed)
+
+      assert {:ok, restored} = Libraries.restore_library(scope(owner), trashed)
+      assert restored.trashed_at == nil
+      assert restored.slug == "comeback"
+      assert restored.is_default
+      assert Libraries.list_trashed_user_libraries(owner.uuid) == []
+    end
+
+    test "restore and purge cannot both win", ctx do
+      owner = user!(ctx.role)
+      library = library!(owner, "Raced")
+      {:ok, trashed} = Libraries.trash_library(scope(owner), library)
+
+      # A purge that loaded the row before a restore committed: the restore
+      # wins, and the purge's stale struct no longer deletes anything.
+      {:ok, _restored} = Libraries.restore_library(scope(owner), trashed)
+      assert {:error, :not_trashed} = Libraries.purge_library(trashed)
+      assert Repo.get(Library, library.uuid)
+
+      # A purge that claimed the library first: a restore then refuses.
+      {:ok, trashed_again} =
+        Libraries.trash_library(scope(owner), Repo.get!(Library, library.uuid))
+
+      Repo.update_all(
+        from(l in Library, where: l.uuid == ^library.uuid),
+        set: [settings: %{"purging" => true}]
+      )
+
+      assert {:error, :not_allowed} = Libraries.restore_library(scope(owner), trashed_again)
+    end
+
+    test "a name taken meanwhile, or the limit, refuses it", ctx do
+      owner = user!(ctx.role)
+      library = library!(owner, "Taken")
+      {:ok, trashed} = Libraries.trash_library(scope(owner), library)
+      _new = library!(owner, "Taken")
+
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Libraries.restore_library(scope(owner), trashed)
+
+      assert changeset.errors[:name]
+
+      other = library!(owner, "Other")
+      {:ok, other_trashed} = Libraries.trash_library(scope(owner), other)
+      library!(owner, "Fill 1")
+      library!(owner, "Fill 2")
+
+      assert {:error, :limit_reached} = Libraries.restore_library(scope(owner), other_trashed)
     end
   end
 

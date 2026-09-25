@@ -4,11 +4,22 @@ defmodule PhoenixKit.Modules.Storage.Manager do
 
   This module coordinates file storage across multiple buckets with automatic
   redundancy, failover, and variant generation.
+
+  ## Where an object is read from (V204)
+
+  Reads, existence checks, public URLs and serving go to the buckets the
+  object's location rows name first (`PhoenixKit.Modules.Storage.Locations`),
+  in the usual order: local buckets, then by priority. Only when none of
+  them has it are the other enabled buckets tried, and a bucket found to
+  hold it that way is recorded as a location. Writes still pick buckets by
+  priority and redundancy; deletes still remove an unreferenced key from
+  every enabled bucket.
   """
 
   require Logger
 
   alias PhoenixKit.Modules.Storage
+  alias PhoenixKit.Modules.Storage.Locations
   alias PhoenixKit.Modules.Storage.ProviderRegistry
   alias PhoenixKit.Modules.Storage.Providers.Local
   alias PhoenixKit.Settings
@@ -39,12 +50,14 @@ defmodule PhoenixKit.Modules.Storage.Manager do
     priority_buckets = Keyword.get(opts, :priority_buckets, [])
     _generate_variants = Keyword.get(opts, :generate_variants, get_auto_generate_variants())
 
-    # Use force_bucket_ids if provided, otherwise use priority_buckets
-    buckets_to_use =
-      if Enum.empty?(force_bucket_ids), do: priority_buckets, else: force_bucket_ids
-
-    # Select buckets for storage
-    buckets = select_buckets_for_storage(redundancy_copies, buckets_to_use)
+    # `force_bucket_ids` are exactly the buckets to write to (a variant goes
+    # where its original is): every one that is enabled, in the order given.
+    # They used to be capped at the redundancy setting and put in enabled-
+    # bucket order, so a variant could miss a bucket its original is in.
+    buckets =
+      if Enum.empty?(force_bucket_ids),
+        do: select_buckets_for_storage(redundancy_copies, priority_buckets),
+        else: forced_buckets(force_bucket_ids)
 
     if Enum.empty?(buckets) do
       {:error, "No available storage buckets"}
@@ -62,10 +75,22 @@ defmodule PhoenixKit.Modules.Storage.Manager do
   Tries each bucket in priority order until the file is found.
   """
   def retrieve_file(file_path, opts \\ []) do
-    priority_buckets = Keyword.get(opts, :priority_buckets, [])
-    buckets = select_buckets_for_retrieval(priority_buckets)
+    {located, fallback} = read_order(file_path, Keyword.get(opts, :priority_buckets, []))
 
-    retrieve_with_failover(file_path, buckets, opts)
+    case retrieve_with_failover(file_path, located, opts) do
+      {:ok, path, _bucket} ->
+        {:ok, path}
+
+      {:error, _} ->
+        case retrieve_with_failover(file_path, fallback, opts) do
+          {:ok, path, bucket} ->
+            Locations.record(file_path, bucket.uuid)
+            {:ok, path}
+
+          error ->
+            error
+        end
+    end
   end
 
   @doc """
@@ -94,31 +119,36 @@ defmodule PhoenixKit.Modules.Storage.Manager do
   Checks if a file exists in any storage bucket.
   """
   def file_exists?(file_path, opts \\ []) do
-    priority_buckets = Keyword.get(opts, :priority_buckets, [])
-    buckets = select_buckets_for_retrieval(priority_buckets)
+    {located, fallback} = read_order(file_path, Keyword.get(opts, :priority_buckets, []))
 
-    Enum.any?(buckets, fn bucket ->
-      provider = get_provider_for_bucket(bucket)
-      provider.file_exists?(bucket, file_path)
-    end)
+    holds? = fn bucket -> bucket_holds?(bucket, file_path) end
+
+    Enum.any?(located, holds?) or
+      case Enum.find(fallback, holds?) do
+        nil ->
+          false
+
+        bucket ->
+          Locations.record(file_path, bucket.uuid)
+          true
+      end
   end
 
   @doc """
   Gets a public URL for a file from the highest priority bucket that has it.
   """
   def public_url(file_path, opts \\ []) do
-    priority_buckets = Keyword.get(opts, :priority_buckets, [])
-    buckets = select_buckets_for_retrieval(priority_buckets)
+    {located, fallback} = read_order(file_path, Keyword.get(opts, :priority_buckets, []))
 
-    Enum.find_value(buckets, fn bucket ->
-      provider = get_provider_for_bucket(bucket)
-
-      if provider.file_exists?(bucket, file_path) do
-        provider.public_url(bucket, file_path)
-      else
-        nil
+    url_from = fn bucket, record? ->
+      if bucket_holds?(bucket, file_path) do
+        if record?, do: Locations.record(file_path, bucket.uuid)
+        get_provider_for_bucket(bucket).public_url(bucket, file_path)
       end
-    end)
+    end
+
+    Enum.find_value(located, &url_from.(&1, false)) ||
+      Enum.find_value(fallback, &url_from.(&1, true))
   end
 
   @doc """
@@ -173,6 +203,30 @@ defmodule PhoenixKit.Modules.Storage.Manager do
     end
   end
 
+  # Whether `bucket` has the object. A bucket that raises (credentials, a
+  # timeout) does not have it, for this request: the next bucket is tried
+  # instead of the whole read failing. The recorded buckets are tried first
+  # now, so a sick one must not take a file down that another copy serves.
+  defp bucket_holds?(bucket, file_path) do
+    get_provider_for_bucket(bucket).file_exists?(bucket, file_path)
+  rescue
+    error ->
+      Logger.warning(
+        "Storage: could not check #{file_path} on bucket #{bucket.name}: #{Exception.message(error)}"
+      )
+
+      false
+  end
+
+  defp forced_buckets(bucket_uuids) do
+    enabled = Map.new(Storage.list_enabled_buckets(), &{to_string(&1.uuid), &1})
+
+    bucket_uuids
+    |> Enum.map(&to_string/1)
+    |> Enum.uniq()
+    |> Enum.flat_map(&List.wrap(Map.get(enabled, &1)))
+  end
+
   defp select_buckets_for_retrieval(priority_buckets) do
     if Enum.empty?(priority_buckets) do
       # Use all enabled buckets ordered by priority (simple sort, no usage calculation needed for retrieval)
@@ -184,6 +238,28 @@ defmodule PhoenixKit.Modules.Storage.Manager do
       |> Enum.filter(&(&1.uuid in priority_buckets))
     end
   end
+
+  # The buckets to read `file_path` from: `{located, fallback}`. With no
+  # buckets named, the ones its location rows name come first and every
+  # other enabled bucket is the fallback; each group keeps the retrieval
+  # order (by priority). Named buckets are used as they are, with no
+  # fallback.
+  defp read_order(file_path, []) do
+    case Locations.bucket_uuids(file_path) do
+      # Checked and found in no bucket: not asked about again on every
+      # request (the backfill remembered the miss).
+      [] ->
+        if Locations.known_missing?(file_path),
+          do: {[], []},
+          else: {[], select_buckets_for_retrieval([])}
+
+      located ->
+        Locations.located_first(select_buckets_for_retrieval([]), located)
+    end
+  end
+
+  defp read_order(_file_path, priority_buckets),
+    do: {select_buckets_for_retrieval(priority_buckets), []}
 
   defp store_across_buckets(source_path, buckets, opts) do
     # Use path_prefix if provided, otherwise generate a path
@@ -229,9 +305,9 @@ defmodule PhoenixKit.Modules.Storage.Manager do
     destination_path =
       Keyword.get(opts, :destination_path, generate_temp_path() <> temp_extension(file_path))
 
-    case provider.retrieve_file(bucket, file_path, destination_path) do
+    case safe_retrieve(provider, bucket, file_path, destination_path) do
       :ok ->
-        {:ok, destination_path}
+        {:ok, destination_path, bucket}
 
       {:error, reason} ->
         Logger.debug(
@@ -240,6 +316,13 @@ defmodule PhoenixKit.Modules.Storage.Manager do
 
         retrieve_with_failover(file_path, remaining_buckets, opts)
     end
+  end
+
+  # A bucket that raises while reading fails over like one that errors.
+  defp safe_retrieve(provider, bucket, file_path, destination_path) do
+    provider.retrieve_file(bucket, file_path, destination_path)
+  rescue
+    error -> {:error, Exception.message(error)}
   end
 
   defp get_provider_for_bucket(bucket) do
@@ -288,6 +371,17 @@ defmodule PhoenixKit.Modules.Storage.Manager do
     end
   end
 
+  @doc """
+  Drops the cached list of enabled buckets, so the next read sees the
+  database. Called whenever a bucket is created, updated or deleted. The
+  cache only spares a query per file request; it expires on its own after
+  five minutes, which is how long a bucket edit used to take to apply.
+  """
+  def invalidate_bucket_cache do
+    :persistent_term.erase(:phoenix_kit_buckets_cache)
+    :ok
+  end
+
   defp get_enabled_buckets do
     # Cache bucket list to avoid querying on every file request
     cache_key = :phoenix_kit_buckets_cache
@@ -329,23 +423,25 @@ defmodule PhoenixKit.Modules.Storage.Manager do
   - `{:ok, path}` - File exists at the local path
   - `{:error, :not_local}` - No local bucket contains the file
   """
-  def get_local_file_path(file_path) do
-    buckets = get_enabled_buckets() |> Enum.sort_by(& &1.priority)
+  def get_local_file_path(file_path), do: local_path(file_path, read_order(file_path, []))
 
-    Enum.find_value(buckets, {:error, :not_local}, fn bucket ->
-      if bucket.provider == "local" do
-        full_path = Path.join(Local.root(bucket), file_path)
-
-        if File.exists?(full_path) do
-          {:ok, full_path}
-        else
-          nil
-        end
-      else
-        nil
-      end
-    end)
+  defp local_path(file_path, {located, fallback}) do
+    Enum.find_value(located, &local_hit(&1, file_path, false)) ||
+      Enum.find_value(fallback, {:error, :not_local}, &local_hit(&1, file_path, true))
   end
+
+  # `{:ok, path}` when `bucket` is local and holds `file_path`; a hit found
+  # by probing (`record?`) is recorded as a location.
+  defp local_hit(%{provider: "local"} = bucket, file_path, record?) do
+    full_path = Path.join(Local.root(bucket), file_path)
+
+    if File.exists?(full_path) do
+      if record?, do: Locations.record(file_path, bucket.uuid)
+      {:ok, full_path}
+    end
+  end
+
+  defp local_hit(_bucket, _file_path, _record?), do: nil
 
   @doc """
   Returns file access info based on bucket access_type.
@@ -373,29 +469,33 @@ defmodule PhoenixKit.Modules.Storage.Manager do
     proxied when its provider cannot sign one.
   """
   def get_file_access(file_name, opts \\ []) do
-    case get_local_file_path(file_name) do
+    order = read_order(file_name, [])
+
+    case local_path(file_name, order) do
       {:ok, path} ->
         {:local, path}
 
       {:error, :not_local} ->
-        get_remote_file_access(file_name, Keyword.get(opts, :download))
+        get_remote_file_access(file_name, order, Keyword.get(opts, :download))
     end
   end
 
-  defp get_remote_file_access(file_name, download) do
-    buckets = get_enabled_buckets() |> Enum.sort_by(& &1.priority)
-
-    Enum.find_value(buckets, {:error, :not_found}, fn bucket ->
-      check_bucket_for_file(bucket, file_name, download)
-    end)
+  defp get_remote_file_access(file_name, {located, fallback}, download) do
+    Enum.find_value(located, &check_bucket_for_file(&1, file_name, download, false)) ||
+      Enum.find_value(
+        fallback,
+        {:error, :not_found},
+        &check_bucket_for_file(&1, file_name, download, true)
+      )
   end
 
-  defp check_bucket_for_file(%{provider: "local"}, _file_name, _download), do: nil
+  defp check_bucket_for_file(%{provider: "local"}, _file_name, _download, _record?), do: nil
 
-  defp check_bucket_for_file(bucket, file_name, download) do
+  defp check_bucket_for_file(bucket, file_name, download, record?) do
     provider = get_provider_for_bucket(bucket)
 
-    if provider.file_exists?(bucket, file_name) do
+    if bucket_holds?(bucket, file_name) do
+      if record?, do: Locations.record(file_name, bucket.uuid)
       bucket_access(bucket, file_name, provider, download)
     end
   end

@@ -515,7 +515,9 @@ A file in a private library (every user library) is served only with a
 **time-window token**: an HMAC over the file, the variant and an expiry
 rounded up to a window (`storage_private_url_window_hours`, default 12). The
 file and tile routes refuse its permanent token, answer an expired one with
-403, never redirect to a public object URL, and send `private` cache headers.
+403, never redirect to a public object URL, and send `private` cache headers
+(`private, max-age=3600`, tiles included). `get_public_url*` does not return
+a bucket's object URL for one.
 
 - ⚠️ **Mint a private file's URL after an access check:**
   `Storage.authorized_url(scope, file, variant)` checks

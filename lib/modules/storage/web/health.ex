@@ -9,6 +9,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Health do
   use Gettext, backend: PhoenixKitWeb.Gettext
 
   alias PhoenixKit.Modules.Storage
+  alias PhoenixKit.Modules.Storage.Workers.LocationBackfillJob
   alias PhoenixKit.Modules.Storage.Workers.SyncFilesJob
   alias PhoenixKit.PubSub.Manager, as: PubSubManager
   alias PhoenixKit.Settings
@@ -185,7 +186,12 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Health do
 
     report = Storage.get_health_report(redundancy_target)
 
-    assign(socket, :report, report)
+    socket
+    |> assign(:report, report)
+    # Stored objects with no location row yet (V204): the background
+    # backfill is finding them; they are served meanwhile by checking the
+    # buckets.
+    |> assign(:unlocated, LocationBackfillJob.pending_count())
   end
 
   defp apply_sync_state(socket, nil) do

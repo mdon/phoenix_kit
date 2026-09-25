@@ -13,6 +13,16 @@
   project_title={@project_title}
 >
   <div class="px-4 py-8">
+    <div :if={@unlocated > 0} id="storage-unlocated" class="alert alert-info mb-6">
+      <.icon name="hero-map-pin" class="w-5 h-5" />
+      <span>
+        {ngettext(
+          "%{count} stored object has no recorded location yet. It is being found in the background, and is served meanwhile.",
+          "%{count} stored objects have no recorded location yet. They are being found in the background, and are served meanwhile.",
+          @unlocated
+        )}
+      </span>
+    </div>
     <%!-- Stats --%>
     <div class="stats stats-vertical lg:stats-horizontal shadow w-full mb-6">
       <div class="stat">

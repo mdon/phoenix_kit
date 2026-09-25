@@ -1,4 +1,90 @@
-## Unreleased
+## 2.40.0 - 2026-09-25
+
+### Added
+
+- **`PhoenixKit.Migrations.Adoption`** (#868, refs #862). A public,
+  stability-committed API for module migration chains that adopt a
+  core-baseline table. `verify_shape/3` checks the table's real shape
+  (column type/nullability/default, indexes, constraints, sequences,
+  functions) before the module writes its ownership marker, and reports
+  every drifted or missing object in one pass; `format_drift/1` renders
+  that report. `marker_conflict/5` refuses to overwrite another module's
+  marker or an operator's own table comment, while treating core's
+  pre-squash descriptive comments as safe to overwrite. It never writes
+  anything. Recommended use (raise on drift by default, or log and adopt
+  under an explicit per-host `:warn` opt-in) is in the moduledoc and the
+  module table extraction guide.
+
+### Changed
+
+- **A user library's contributor changes only the files they uploaded.**
+  The media browser refuses their change to anyone else's file, a folder
+  trash, delete or move whose subtree holds one, a bulk action on a
+  selection holding either, and emptying the trash; folder names and looks
+  stay shared. Before, the browser had no per-file check.
+- **A trashed user library can be restored** by its owner until it is
+  purged, from a Trash section on the profile's Media tab
+  (`Libraries.restore_library/2`). It gets a URL slug again, counts toward
+  the per-user limit, and is refused while a live library has its name.
+- **An Owner or Admin opening a user-library file's detail page** at
+  `/admin/media/:uuid` is written to the audit log
+  (`storage.library_opened`), like opening the library itself.
+- **`phoenix_kit_templates` 0.2.0** (pin `~> 0.1.0` → `~> 0.2.0`). A host
+  override's `html` part now HTML-escapes a bound `{{variable}}`; a variable
+  that already holds markup must use `{{{variable}}}`. Core's own defaults are
+  text-only, so core's messages don't change. Database templates keep their
+  own `{{var}}` substitution. Check any hand-written or exported `html.html`
+  override that uses `{{line_items_html}}` (or another markup variable).
+- Dependency updates: `phoenix_live_reload` 1.7.0 (dev; pin `~> 1.6.1` →
+  `~> 1.7`), `mdex` 0.14.0, `hackney` 4.8.1, `lazy_html` 0.1.13 (test).
+- **Storage reads follow where a file actually is (V204, location-truth).**
+  Reading, serving and checking a stored object go first to the buckets its
+  location rows name, local first, then by priority. Only when none has it
+  are the other enabled buckets tried, and a bucket found to hold it that
+  way is recorded. Every writer now records where it stored: Tessera tiles
+  and comment attachments did not. A variant is written to exactly the
+  buckets its original is in; before, that list was capped at the
+  redundancy setting and reordered.
+- **Files stored before location-truth are located in the background.**
+  `Storage.Workers.LocationBackfillJob` checks each enabled bucket once for
+  every stored object not checked yet, records every bucket that has it,
+  and remembers the check, a miss included (a new
+  `phoenix_kit_file_location_checks` table), so a missing object is not
+  asked about on every request. It queues itself shortly after boot and
+  from the daily trash prune while any are left, runs one batch every few
+  seconds, and Settings → Media → Health shows how many are left. Those
+  files are served meanwhile.
+- **One checksum for every upload path.** The upload API hashed files with
+  MD5 while everything else used SHA-256, so the same file uploaded both
+  ways was stored twice. It uses SHA-256 now, and
+  `Storage.Workers.ChecksumBackfillJob` (queued like the location
+  backfill) recomputes the MD5 checksums already stored from each file's
+  bytes. A file whose uploader already has the same bytes is left as it is.
+- **A bucket that still holds files cannot be deleted.** Deleting one used
+  to drop its location rows silently and leave its objects behind. The
+  settings page says to disable the bucket instead.
+- **Bucket changes apply at once.** Adding, editing or removing a bucket
+  used to take up to five minutes to reach file serving (a cache).
+
+### Fixed
+
+- **The media viewer lays itself out by the window's shape, not its width
+  (#874).** A tall window that happened to be wide (a portrait monitor, a
+  half-screen split) kept the side-by-side split and squeezed a landscape
+  picture into a narrow column: at 1100×1500 the picture got 688×318 before,
+  1031×477 now. A portrait window gets the stacked layout, with the picture
+  pane sized to the picture and the popup hugging the two.
+
+### Migration notes
+
+- **V204** removes duplicate `phoenix_kit_file_locations` rows (keeping the
+  oldest of each instance and bucket), adds a unique index on that pair and
+  an index on `path`, and moves the location's bucket FK from
+  `ON DELETE CASCADE` to `RESTRICT`. It adds
+  `phoenix_kit_file_location_checks` and marks every instance that already
+  has a location row as checked, so only the rest are probed.
+
+## 2.39.0 - 2026-09-25
 
 ### Added
 
@@ -22,8 +108,9 @@
   settings (`/profile/settings/media`). `/admin/libraries` lists and
   browses them, for holders of `storage`. It is meant for moderation and
   testing; `phoenix_kit_photos` is the end-user surface. An Owner or Admin
-  may open any user's library there; every opening is written to the audit
-  log (`storage.library_opened`).
+  also sees every other user's library there, below their own, and may open
+  any of them; every opening is written to the audit log
+  (`storage.library_opened`).
 - **Private serving for user libraries.** A file in a private library is
   served only with a time-window token: an HMAC over the file, the variant
   and an expiry rounded up to a window (`storage_private_url_window_hours`,
@@ -40,6 +127,12 @@
 
 ### Changed
 
+- **Orphan cleanup moves files to the trash instead of deleting them.**
+  The media page's button is now **Move all orphaned to trash**, and
+  `mix phoenix_kit.cleanup_orphaned_files --delete` does the same. An
+  orphan is only a guess (nothing known references the file), so it can be
+  restored from the trash until the daily prune deletes it after
+  `trash_retention_days`.
 - **Deleting a user no longer deletes the files they uploaded.** Their
   uploads in the site's libraries and in other people's stay, with no
   uploader. The libraries they own are trashed and purged. Before, the
@@ -68,6 +161,27 @@
   and the annotated copies in separate groups, with every other variant
   after the standard sizes (review fix). A download link whose image was
   edited in the meantime stays a download (review fix).
+- **A locale redirect can no longer turn a request into a 500 (#863).**
+  The locale plug's redirect target is now checked whole, with Phoenix's
+  own rules, and a segment it builds must be letters, digits, `-` or `_`.
+  Before, an address like `/%2509-x/…` or `/zz/%09evil/shop` made the
+  redirect raise. A target that fails the check renders in the default
+  language instead.
+- **The media folder tree no longer shifts on every click (#873).** The
+  loading spinner sits in the icon's own box, shows only when a reply takes
+  longer than 300 ms, and the tree and the file column keep their scrollbar
+  space, so nothing jumps when a folder opens.
+- **A user library stays out of the site's media (review).** `/admin/media`
+  and the media pickers no longer list a user library's files, and the file
+  detail page uses the same read check as the file info API, so holding
+  `media` is not enough to open one. `get_public_url` no longer returns a
+  public bucket's object URL for a private file. Deep-zoom tiles of a
+  private file are cached `private`, the same as the file itself, so a
+  shared cache cannot keep them after the link expires. Orphan cleanup
+  leaves a user library's files alone, and so does "Delete all orphaned"
+  inside a user library: nothing in the site references them, so they
+  looked unreferenced and would have been deleted. A viewer of a shared
+  library can no longer open its member list by sending the event.
 
 ### Migration notes
 

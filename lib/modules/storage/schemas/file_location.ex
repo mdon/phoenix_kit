@@ -134,6 +134,9 @@ defmodule PhoenixKit.Modules.Storage.FileLocation do
       name: :phoenix_kit_file_locations_file_instance_id_fkey
     )
     |> foreign_key_constraint(:bucket_uuid, name: :phoenix_kit_file_locations_bucket_id_fkey)
+    |> unique_constraint([:file_instance_uuid, :bucket_uuid],
+      name: :phoenix_kit_file_locations_instance_bucket_index
+    )
   end
 
   @doc """

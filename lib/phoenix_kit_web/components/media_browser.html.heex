@@ -1046,7 +1046,7 @@
                           </button>
                         <% end %>
 
-                        <%!-- Delete all orphaned (orphaned view, global root only) --%>
+                        <%!-- Move all orphaned to the trash (orphaned view, global root only) --%>
                         <%= if not @readonly and is_nil(@scope_folder_id) and @filter_orphaned and
                                @total_count > 0 do %>
                           <button
@@ -1054,8 +1054,8 @@
                             phx-target={@myself}
                             data-confirm={
                               ngettext(
-                                "Delete %{count} orphaned file?",
-                                "Delete all %{count} orphaned files?",
+                                "Move %{count} orphaned file to the trash?",
+                                "Move all %{count} orphaned files to the trash?",
                                 @total_count
                               )
                             }
@@ -1065,7 +1065,7 @@
                             ]}
                           >
                             <.icon name="hero-trash" class="w-4 h-4" /> {gettext(
-                              "Delete all orphaned"
+                              "Move all orphaned to trash"
                             )}
                           </button>
                         <% end %>
@@ -2628,11 +2628,11 @@
         )
       )
     }
-    class="modal modal-open"
+    class="modal modal-open lg:portrait:items-start"
     style="display:none; z-index: 1000; pointer-events: none; transition: none"
     aria-hidden="true"
   >
-    <div class="modal-box !fixed !inset-0 !w-auto !h-auto !min-w-0 !max-w-none !max-h-none !m-0 !rounded-none lg:!relative lg:!inset-auto lg:!w-[95vw] lg:!h-[90vh] lg:!rounded-2xl lg:!m-auto p-0 !overflow-hidden">
+    <div class="modal-box !fixed !inset-0 !w-auto !h-auto !min-w-0 !max-w-none !max-h-none !m-0 !rounded-none lg:!relative lg:!inset-auto lg:!w-[95vw] lg:landscape:!h-[90vh] lg:portrait:!max-h-[90vh] lg:!rounded-2xl lg:!m-auto lg:portrait:!mt-[4vh] lg:portrait:!mb-auto p-0 !overflow-hidden">
       <%!-- Mirror of the real viewer's split: flex-[7] image column,        --%>
       <%!-- flex-[3] info sidebar (open by default). Painting the image over --%>
       <%!-- the full popup and shrinking it when the sidebar mounts is its   --%>
@@ -2640,8 +2640,18 @@
       <%!-- prediction before each open. The pane stays empty — its content  --%>
       <%!-- is the server's to render — but it holds the sidebar's ground    --%>
       <%!-- so the image column starts at its final size.                    --%>
-      <div class="flex flex-col lg:flex-row h-full overflow-hidden">
-        <div class="flex-[7] relative flex items-center justify-center bg-base-200 overflow-hidden p-0 lg:p-2 min-h-[40vh] lg:min-h-0">
+      <%!-- `lg:landscape:` throughout, matching the real viewer: it docks  --%>
+      <%!-- the panel along the bottom on a portrait popup, and a stand-in   --%>
+      <%!-- that predicted a side split there would hand over with the jump  --%>
+      <%!-- it exists to prevent.                                            --%>
+      <div class="flex flex-col lg:landscape:flex-row h-full overflow-hidden">
+        <%!-- `--pk-pane-aspect` is set by the hook before each open, off the --%>
+        <%!-- card's own bitmap (`naturalWidth`/`naturalHeight` — the grid has --%>
+        <%!-- already decoded it), because the stacked pane is sized to the    --%>
+        <%!-- picture and a stand-in that guessed a different shape would hand --%>
+        <%!-- over with the jump it exists to prevent. The 3/2 in the fallback --%>
+        <%!-- is only ever seen if the bitmap has no dimensions to give.       --%>
+        <div class="flex-[7] relative flex items-center justify-center bg-base-200 overflow-hidden p-0 lg:landscape:p-2 max-lg:min-h-[40vh] lg:portrait:flex-none lg:portrait:aspect-[var(--pk-pane-aspect,1.5)] lg:portrait:min-h-[18rem] lg:portrait:max-h-[60vh]">
           <%!-- `w-full h-full`, not `max-w-full`: max-* constrains but never   --%>
           <%!-- scales UP, so a 300px thumbnail sat at 300px in the middle of a --%>
           <%!-- 95vw box — which reads as the viewer having opened wrong rather --%>
@@ -2679,7 +2689,7 @@
         <%!-- every host's compiled CSS.                                      --%>
         <div
           data-pane="sidebar"
-          class="flex-[3] lg:min-w-[280px] lg:max-w-[26rem] bg-base-100 p-4 space-y-3"
+          class="flex-[3] lg:landscape:min-w-[280px] lg:landscape:max-w-[26rem] lg:portrait:flex-initial lg:portrait:max-h-[32vh] bg-base-100 p-4 space-y-3"
           style="display:none"
         >
           <div class="skeleton h-4" style="width: 70%"></div>
@@ -2743,7 +2753,7 @@
       |> Enum.join(" ") %>
     <div
       id={"#{@id}-viewer-modal"}
-      class="modal modal-open"
+      class="modal modal-open lg:portrait:items-start"
       phx-hook="ViewerKeydown"
       phx-target={@myself}
       data-neighbor-prefetch={neighbor_prefetch}
@@ -2766,6 +2776,22 @@
       }
       data-step-prev-rot={has_prev && rotation_class(Enum.at(siblings, viewer_idx - 1))}
       data-step-next-rot={has_next && rotation_class(Enum.at(siblings, viewer_idx + 1))}
+      data-step-prev-aspect={
+        with true <- has_prev,
+             %{file_type: "image"} = p <- Enum.at(siblings, viewer_idx - 1) do
+          PhoenixKitWeb.Components.MediaCanvasViewer.neighbor_pane_aspect(p)
+        else
+          _ -> nil
+        end
+      }
+      data-step-next-aspect={
+        with true <- has_next,
+             %{file_type: "image"} = n <- Enum.at(siblings, viewer_idx + 1) do
+          PhoenixKitWeb.Components.MediaCanvasViewer.neighbor_pane_aspect(n)
+        else
+          _ -> nil
+        end
+      }
     >
       <%!-- Mobile: pin the modal-box directly to the viewport via          --%>
       <%!--   position: fixed; inset: 0;                                    --%>
@@ -2782,7 +2808,7 @@
       <%!-- .modal-box defaults (width: calc(11/12 * 100%), max-width:     --%>
       <%!-- 32rem, max-height: 100vh) win the cascade over plain Tailwind  --%>
       <%!-- utilities.                                                     --%>
-      <div class="modal-box !fixed !inset-0 !w-auto !h-auto !min-w-0 !max-w-none !max-h-none !m-0 !rounded-none lg:!relative lg:!inset-auto lg:!w-[95vw] lg:!h-[90vh] lg:!rounded-2xl lg:!m-auto p-0 !overflow-hidden">
+      <div class="modal-box !fixed !inset-0 !w-auto !h-auto !min-w-0 !max-w-none !max-h-none !m-0 !rounded-none lg:!relative lg:!inset-auto lg:!w-[95vw] lg:landscape:!h-[90vh] lg:portrait:!max-h-[90vh] lg:!rounded-2xl lg:!m-auto lg:portrait:!mt-[4vh] lg:portrait:!mb-auto p-0 !overflow-hidden">
         <%!-- Per-file content (close button, prev/next chevrons,        --%>
         <%!-- canvas/video/pdf/icon renderer, composer popover, sidebar  --%>
         <%!-- with filename + Download + metadata + comments thread) is  --%>

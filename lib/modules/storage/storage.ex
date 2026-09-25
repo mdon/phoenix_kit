@@ -107,6 +107,7 @@ defmodule PhoenixKit.Modules.Storage do
   alias PhoenixKit.Modules.Storage.FolderLink
   alias PhoenixKit.Modules.Storage.ImageEditing
   alias PhoenixKit.Modules.Storage.Libraries
+  alias PhoenixKit.Modules.Storage.Locations
   alias PhoenixKit.Modules.Storage.Manager
   alias PhoenixKit.Modules.Storage.ProcessFileJob
   alias PhoenixKit.Modules.Storage.ProviderRegistry
@@ -353,6 +354,7 @@ defmodule PhoenixKit.Modules.Storage do
     %Bucket{}
     |> Bucket.changeset(attrs)
     |> repo().insert()
+    |> tap(&bucket_changed/1)
   end
 
   @doc """
@@ -371,6 +373,7 @@ defmodule PhoenixKit.Modules.Storage do
     bucket
     |> Bucket.changeset(attrs)
     |> repo().update()
+    |> tap(&bucket_changed/1)
   end
 
   @doc """
@@ -386,8 +389,23 @@ defmodule PhoenixKit.Modules.Storage do
 
   """
   def delete_bucket(%Bucket{} = bucket) do
-    repo().delete(bucket)
+    # A bucket that still holds files is refused (V204: the location FK is
+    # RESTRICT); before, deleting it dropped every location row it had and
+    # left its objects behind.
+    bucket
+    |> Ecto.Changeset.change()
+    |> Ecto.Changeset.no_assoc_constraint(:file_locations,
+      name: :phoenix_kit_file_locations_bucket_id_fkey,
+      message: "still holds files"
+    )
+    |> repo().delete()
+    |> tap(&bucket_changed/1)
   end
+
+  # The manager keeps the enabled buckets in a cache; a bucket that was
+  # added, edited or removed must apply at once, not when it expires.
+  defp bucket_changed({:ok, _bucket}), do: Manager.invalidate_bucket_cache()
+  defp bucket_changed(_result), do: :ok
 
   @doc """
   Returns an `%Ecto.Changeset{}` for tracking bucket changes.
@@ -1168,7 +1186,8 @@ defmodule PhoenixKit.Modules.Storage do
   scope_folder_id instead of real root.
 
   `opts[:library_uuid]` narrows the real root to one storage library (a
-  folder's children are always in its library).
+  folder's children are always in its library). Omitted leaves out private
+  libraries.
   """
   def list_folders(parent_uuid \\ nil, scope_folder_id \\ nil, opts \\ [])
 
@@ -1895,7 +1914,8 @@ defmodule PhoenixKit.Modules.Storage do
       `include_orphaned: true` is ignored when `scope_folder_id` is non-nil (orphans are always outside any scope).
     - `:page` — page number (default 1).
     - `:per_page` — page size (default 20).
-    - `:library_uuid` — only files in this storage library.
+    - `:library_uuid` — only files in this storage library. Omitted means
+      every library that is not private (`Libraries.exclude_private/1`).
 
   ## Returns
     `{files, total_count}` or `{:error, :out_of_scope}`.
@@ -2435,12 +2455,19 @@ defmodule PhoenixKit.Modules.Storage do
     |> repo().all()
   end
 
-  # Narrows a file or folder query to one storage library; nil leaves it
-  # unfiltered (every library — what every caller that names none gets).
-  defp where_library(query, nil), do: query
+  # Narrows a file or folder query to one storage library. nil is every
+  # library that is not private: a private library (every user library) is
+  # read by passing its uuid. Leaving nil unfiltered put those files on
+  # /admin/media, in host embeds that name no library, and in orphan
+  # cleanup — which would then delete them, since nothing in the site
+  # references a user library's files.
+  defp where_library(query, nil), do: Libraries.exclude_private(query)
   defp where_library(query, library_uuid), do: where(query, [r], r.library_uuid == ^library_uuid)
 
-  defp in_library(folders, nil), do: folders
+  defp in_library(folders, nil) do
+    private = folders |> Enum.map(& &1.library_uuid) |> Libraries.private_among()
+    Enum.reject(folders, &(to_string(&1.library_uuid) in private))
+  end
 
   defp in_library(folders, library_uuid) do
     library_uuid = to_string(library_uuid)
@@ -2593,8 +2620,10 @@ defmodule PhoenixKit.Modules.Storage do
         if Manager.file_exists?(key) do
           {:ok, %{file: file, instance: instance}}
         else
-          with {:ok, _} <- Manager.store_file(content_path, path_prefix: key),
-               do: {:ok, %{file: file, instance: instance}}
+          with {:ok, info} <- Manager.store_file(content_path, path_prefix: key) do
+            Locations.record_all(key, info.bucket_ids)
+            {:ok, %{file: file, instance: instance}}
+          end
         end
 
       :not_found ->
@@ -2603,7 +2632,7 @@ defmodule PhoenixKit.Modules.Storage do
   end
 
   defp do_store_system_file(content_path, key, parent_file_uuid, mime_type, file_type, opts) do
-    with {:ok, _info} <- Manager.store_file(content_path, path_prefix: key),
+    with {:ok, info} <- Manager.store_file(content_path, path_prefix: key),
          {:ok, size} <- file_size(content_path, opts),
          checksum <- calculate_file_hash(content_path),
          file_attrs = %{
@@ -2638,6 +2667,7 @@ defmodule PhoenixKit.Modules.Storage do
            file_uuid: file.uuid
          },
          {:ok, instance} <- insert_or_fetch_system_instance(instance_attrs, file.uuid) do
+      Locations.record_all(key, info.bucket_ids)
       {:ok, %{file: file, instance: instance}}
     else
       # The object may be stored with no row for it (the parent went
@@ -2965,6 +2995,7 @@ defmodule PhoenixKit.Modules.Storage do
   Returns true if the given file UUID is not referenced by any known entity.
   """
   def file_orphaned?(file_uuid) when is_binary(file_uuid) do
+    # `orphaned_files_query/0` already leaves private libraries out.
     orphaned_files_query()
     |> where([f], f.uuid == ^file_uuid)
     |> repo().exists?()
@@ -2973,9 +3004,10 @@ defmodule PhoenixKit.Modules.Storage do
   @doc """
   Queues a list of file UUIDs for orphan cleanup via Oban.
 
-  Each file is scheduled for deletion after a 60-second delay to protect
-  against race conditions (another entity may reference the file).
-  Only files that are still orphaned at job execution time will be deleted.
+  Each file is moved to the trash, never deleted, after a 60-second delay
+  that protects against race conditions (another entity may reference the
+  file), and only if it is still orphaned then. From the trash it can be
+  restored until the daily prune deletes it after `trash_retention_days`.
   """
   def queue_file_cleanup(file_uuids) when is_list(file_uuids) do
     alias PhoenixKit.Modules.Storage.Workers.DeleteOrphanedFileJob
@@ -3005,6 +3037,12 @@ defmodule PhoenixKit.Modules.Storage do
               f.uuid
             )
       )
+
+    # A private library's files (every user library) are never orphans,
+    # whatever library a caller names: nothing in the site references them,
+    # so every file at a user library's root would look unreferenced and
+    # "Delete all orphaned" inside that library would delete them all.
+    base = Libraries.exclude_private(base)
 
     # Exclude UUIDs that the parent app has explicitly marked as protected
     base =
@@ -4105,6 +4143,10 @@ defmodule PhoenixKit.Modules.Storage do
   original is never handed out). While an image edit is rendering or has
   failed, the signed route is returned even for a public bucket: it answers
   a placeholder, where the bucket would serve the bytes the edit replaces.
+
+  A file in a private library has no public object URL. This returns the
+  permanent app token, which the file route refuses; a viewer who may see
+  the file uses `authorized_url/4`.
   """
   def get_public_url(%PhoenixKit.Modules.Storage.File{} = file),
     do: public_instance_url(file, "original")
@@ -4115,15 +4157,36 @@ defmodule PhoenixKit.Modules.Storage do
   defp public_instance_url(%PhoenixKit.Modules.Storage.File{} = file, variant_name) do
     case get_file_instance_by_name(file.uuid, variant_name) do
       %FileInstance{} = instance ->
-        if ImageEditing.edit_in_progress?(file) do
-          signed_file_url(file.uuid, variant_name, nil)
-        else
-          Manager.public_url(instance.file_name) ||
-            signed_file_url(file.uuid, variant_name, instance)
-        end
+        # Skip the bucket lookup when its URL cannot be used: a private
+        # file must not be handed the object URL, and an edit in progress
+        # must be served by the app (the placeholder).
+        bucket_url =
+          if ImageEditing.edit_in_progress?(file) or Libraries.private_file?(file),
+            do: nil,
+            else: Manager.public_url(instance.file_name)
+
+        public_listing_url(file, variant_name, instance, bucket_url)
 
       nil ->
         nil
+    end
+  end
+
+  @doc false
+  # `bucket_url` is what the bucket would hand out (`Manager.public_url/1`).
+  # A private library never uses it, even when the caller already has one:
+  # the permanent app token is what the file route refuses. Public so the
+  # decision is testable without a bucket that answers `public_url`.
+  def public_listing_url(file, variant_name, instance, bucket_url) do
+    cond do
+      ImageEditing.edit_in_progress?(file) ->
+        signed_file_url(file.uuid, variant_name, nil)
+
+      Libraries.private_file?(file) ->
+        signed_file_url(file.uuid, variant_name, instance)
+
+      true ->
+        bucket_url || signed_file_url(file.uuid, variant_name, instance)
     end
   end
 
@@ -4726,6 +4789,12 @@ defmodule PhoenixKit.Modules.Storage do
           })
           |> repo().insert()
         end)
+
+        # The copy is where the donor is: checked if the donor was.
+        case repo().get(PhoenixKit.Modules.Storage.LocationCheck, donor_inst.uuid) do
+          nil -> :ok
+          check -> Locations.mark_checked([new_inst.uuid], check.found_in)
+        end
       end
     end)
   end
@@ -4862,6 +4931,8 @@ defmodule PhoenixKit.Modules.Storage do
 
         case create_file_instance(original_instance_attrs) do
           {:ok, _instance} ->
+            Locations.record_all(original_path, storage_info.bucket_ids)
+
             Logger.info(
               "Recreated original instance for file: #{file.uuid}, path: #{original_path}"
             )
@@ -5160,7 +5231,13 @@ defmodule PhoenixKit.Modules.Storage do
         case create_file(file_attrs) do
           {:ok, file} ->
             # Create original instance and variants (non-critical operations)
-            create_original_instance_and_variants(file, file_checksum, size_bytes)
+            create_original_instance_and_variants(
+              file,
+              file_checksum,
+              size_bytes,
+              storage_info.bucket_ids
+            )
+
             {:ok, record_new_capture_date(file, source_path, storage_info.destination_path)}
 
           {:error, changeset} ->
@@ -5246,7 +5323,7 @@ defmodule PhoenixKit.Modules.Storage do
 
   defp record_new_capture_date(file, _source_path, _key), do: file
 
-  defp create_original_instance_and_variants(file, file_checksum, size_bytes) do
+  defp create_original_instance_and_variants(file, file_checksum, size_bytes, bucket_ids) do
     original_instance_attrs = %{
       variant_name: "original",
       file_name: file.file_name,
@@ -5263,7 +5340,10 @@ defmodule PhoenixKit.Modules.Storage do
     }
 
     case create_file_instance(original_instance_attrs) do
-      {:ok, _original_instance} ->
+      {:ok, original_instance} ->
+        # Where the object went, now that its instance exists (V204).
+        Locations.record_all(original_instance.file_name, bucket_ids)
+
         # Generate variants if enabled (failure is non-critical)
         case VariantGenerator.generate_variants(file) do
           {:ok, _variants} -> :ok
@@ -5414,6 +5494,8 @@ defmodule PhoenixKit.Modules.Storage do
 
     if errors == [] do
       locations = Enum.map(results, fn {:ok, loc} -> loc end)
+      # The writer knows every bucket it stored in: the instance is checked.
+      Locations.mark_checked([file_instance_uuid], length(Enum.uniq(bucket_uuids)))
       {:ok, locations}
     else
       error_details =

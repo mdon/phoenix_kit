@@ -12,6 +12,7 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
   import Ecto.Query
 
   alias Phoenix.LiveView.JS
+  alias PhoenixKit.AuditLog
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.File
   alias PhoenixKit.Modules.Storage.FileDetails
@@ -22,11 +23,14 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
   alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.Modules.Storage.VariantGenerator
   alias PhoenixKit.Settings
+  alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Format
+  alias PhoenixKit.Utils.IpAddress
   alias PhoenixKit.Utils.Multilang
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Components.ImageEditor
+  alias PhoenixKitWeb.Components.MediaBrowser
   alias PhoenixKitWeb.Components.MediaCanvasViewer
 
   def mount(params, _session, socket) do
@@ -55,6 +59,10 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
 
     socket =
       socket
+      # For the audit entry of an Owner/Admin opening a user-library file:
+      # connect info is only readable while mounting.
+      |> assign(:client_ip, IpAddress.extract_from_socket(socket))
+      |> assign(:user_agent, connected_user_agent(socket))
       |> assign(:page_title, "Media Detail")
       |> assign(:project_title, settings["project_title"])
       |> assign(:current_locale, locale)
@@ -269,42 +277,119 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
         |> assign(:file_data, nil)
 
       file ->
-        instances = load_file_instances(file_uuid, repo)
+        # The page is gated by the "media" permission. That must not open a
+        # user library: the same read check as the file info API. Owner/Admin
+        # and the library's members still pass (`Libraries.can?/3`).
+        if Libraries.private_file?(file) and
+             not Libraries.can?(socket.assigns[:phoenix_kit_current_scope], file, :read) do
+          socket
+          |> assign(:file, nil)
+          |> assign(:file_data, nil)
+        else
+          socket
+          |> audit_admin_opening(file)
+          |> load_file_details(file, file_uuid, repo)
+        end
+    end
+  end
 
-        urls =
-          generate_urls_from_instances(
-            instances,
-            file_uuid,
-            file.mime_type,
-            Libraries.private_file?(file)
-          )
+  defp connected_user_agent(socket) do
+    if connected?(socket), do: get_connect_info(socket, :user_agent)
+  rescue
+    _ -> nil
+  end
 
-        variant_dimensions = build_variant_dimensions(instances)
-        locations = load_original_locations(instances, repo)
-        tags = (file.metadata || %{})["tags"] || []
-        user_name = get_user_name(file.user_uuid, repo)
+  # An Owner/Admin opening a file of someone's user library, as neither its
+  # uploader nor one of the library's people: written to the audit log once
+  # per page, the same as opening the library at `/admin/libraries/<uuid>`.
+  defp audit_admin_opening(%{assigns: %{audited_opening: true}} = socket, _file), do: socket
 
-        variant_dimensions = put_original_fallbacks(variant_dimensions, file)
+  defp audit_admin_opening(socket, file) do
+    scope = socket.assigns[:phoenix_kit_current_scope]
+    user_uuid = Scope.user_uuid(scope)
 
-        file_data =
-          build_file_data(
-            file,
-            urls,
-            variant_dimensions,
-            locations,
-            tags,
-            user_name
-          )
+    with true <- connected?(socket) and Libraries.private_file?(file),
+         true <- to_string(file.user_uuid) != user_uuid,
+         %{} = library <- Libraries.get_library(file.library_uuid),
+         nil <- Libraries.role(library, user_uuid) do
+      AuditLog.create_log_entry(%{
+        admin_user_uuid: user_uuid,
+        target_user_uuid: library.owner_uuid,
+        action: "storage.library_opened",
+        ip_address: socket.assigns[:client_ip] || IpAddress.extract_from_socket(socket),
+        user_agent: socket.assigns[:user_agent],
+        metadata: %{
+          "library_uuid" => library.uuid,
+          "library_name" => library.name,
+          "file_uuid" => file.uuid
+        }
+      })
 
-        socket
-        |> assign(:file, file)
-        |> assign(:file_data, file_data)
-        |> assign_details(file)
-        |> assign(:edit_mode, socket.assigns[:edit_mode] || false)
-        |> assign(:image_editable, ImageEditing.editable?(file))
-        # The canvas keeps its own state; a new original (an edit) must
-        # remount it with the new image and dimensions.
-        |> assign(:canvas_id, "media-detail-canvas-#{file_uuid}-#{canvas_version(instances)}")
+      assign(socket, :audited_opening, true)
+    else
+      _ -> socket
+    end
+  rescue
+    error ->
+      Logger.error("MediaDetail: audit entry failed: #{Exception.message(error)}")
+      socket
+  catch
+    # A dead pool exits rather than raises; the page must still show.
+    :exit, reason ->
+      Logger.error("MediaDetail: audit entry failed: #{inspect(reason)}")
+      socket
+  end
+
+  defp load_file_details(socket, file, file_uuid, repo) do
+    instances = load_file_instances(file_uuid, repo)
+
+    urls =
+      generate_urls_from_instances(
+        instances,
+        file_uuid,
+        file.mime_type,
+        Libraries.private_file?(file)
+      )
+
+    variant_dimensions = build_variant_dimensions(instances)
+    locations = load_original_locations(instances, repo)
+    tags = (file.metadata || %{})["tags"] || []
+    user_name = get_user_name(file.user_uuid, repo)
+
+    variant_dimensions = put_original_fallbacks(variant_dimensions, file)
+
+    file_data =
+      build_file_data(
+        file,
+        urls,
+        variant_dimensions,
+        locations,
+        tags,
+        user_name,
+        instances
+      )
+
+    socket
+    |> assign(:file, file)
+    |> assign(:file_data, file_data)
+    |> assign_details(file)
+    |> assign(:edit_mode, socket.assigns[:edit_mode] || false)
+    |> assign(:image_editable, ImageEditing.editable?(file))
+    # The canvas keeps its own state; a new original (an edit) must
+    # remount it with the new image and dimensions — and so must a newer
+    # burned copy, now that this page opens on one: same file, same original,
+    # different picture in front of you.
+    |> assign(
+      :canvas_id,
+      "media-detail-canvas-#{file_uuid}-#{canvas_version(instances)}-" <>
+        burn_version(file, instances)
+    )
+  end
+
+  defp burn_version(file, instances) do
+    case MediaBrowser.burn_fingerprint(file, instances) do
+      fingerprint when is_binary(fingerprint) -> String.slice(fingerprint, 0, 12)
+      _ -> "none"
     end
   end
 
@@ -362,7 +447,8 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
          variant_dimensions,
          locations,
          tags,
-         user_name
+         user_name,
+         instances
        ) do
     %{
       file_uuid: file.uuid,
@@ -379,6 +465,18 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
       # background on the sides).
       width: file.width,
       height: file.height,
+      # The two fields that decide whether the embedded viewer opens on the
+      # burned copy — the picture with its markup already in it — or on the
+      # live layer with Etcher drawing over the top. Without them
+      # `MediaCanvasViewer.burned?/1` says no and this page showed the live
+      # layer while the popup showed the burn, for the same file.
+      #
+      # `burn_size` carries the burned copy's OWN extent, which is not the
+      # picture's: a burn takes in ink drawn past the edges. `burn_fingerprint`
+      # is what it was rendered from, so the viewer can tell an already-burned
+      # drawing from one still to do.
+      burn_fingerprint: MediaBrowser.burn_fingerprint(file, instances),
+      burn_size: MediaBrowser.burn_size(instances),
       urls: urls,
       variant_dimensions: variant_dimensions,
       tags: tags,

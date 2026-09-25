@@ -117,8 +117,8 @@ defmodule PhoenixKit.Migrations.Postgres.V203Test do
     value
   end
 
-  test "the chain is at 203 with the new rules" do
-    assert marker() == "203"
+  test "the chain is at 203 or later, with the new rules" do
+    assert String.to_integer(marker()) >= 203
 
     assert {"n", _} = constraint("phoenix_kit_files", "fk_files_user_uuid")
 

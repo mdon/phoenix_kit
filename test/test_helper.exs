@@ -146,7 +146,35 @@ case Process.whereis(PhoenixKitWeb.Endpoint) do
   _pid -> :ok
 end
 
+# Tests that `CREATE ROLE` inside their sandbox transaction need CREATEROLE
+# (or superuser). A shared or managed test database often grants neither;
+# excluding them is visible in the summary, where a failure would read as a
+# regression.
+can_create_role =
+  repo_available and
+    Ecto.Adapters.SQL.Sandbox.unboxed_run(PhoenixKit.Test.Repo, fn ->
+      match?(
+        %{rows: [[true]]},
+        PhoenixKit.Test.Repo.query!(
+          "SELECT rolcreaterole OR rolsuper FROM pg_roles WHERE rolname = current_user",
+          [],
+          log: false
+        )
+      )
+    end)
+
+if repo_available and not can_create_role do
+  IO.puts("""
+  \n⚠  The test database role lacks CREATEROLE — tests tagged :requires_createrole are excluded.
+  """)
+end
+
 # Exclude integration tests when DB is not available
-exclude = if repo_available, do: [], else: [:integration]
+exclude =
+  cond do
+    not repo_available -> [:integration]
+    not can_create_role -> [:requires_createrole]
+    true -> []
+  end
 
 ExUnit.start(exclude: exclude)
