@@ -194,11 +194,11 @@ work inside the release:
    everything else; a job recomputes existing MD5 `file_checksum`s (32 hex)
    by reading the original. Until recomputed, a row simply does not dedup.
 
-Questions to settle before starting: whether the backfill runs by itself
-after `mix phoenix_kit.update` or waits for an admin to start it (it reads
-every bucket once; on a large remote bucket that is real egress), and
-whether the probe fallback's one-release lifetime is enough for hosts that
-update rarely.
+Decided (2026-09-25): **the backfill runs by itself, throttled**: queued
+after the update, small batches on `file_processing`, progress on the
+Health page. **The probe fallback stays until the backfill reports every
+instance done**, not for a fixed number of releases, so a host that updates
+rarely is never left with files nothing can find.
 
 Small follow-ups from phase 2 that can ride along or go first: the
 contributor per-file check in the browser, restoring a trashed user

@@ -203,8 +203,11 @@ defmodule PhoenixKit.Migrations.Postgres.V203 do
   # picks up where it left off: steps 2 and 3 act on the temporary one
   # whenever it exists. Checked by name through pg_class + pg_namespace,
   # never `'…'::regclass`, which raises when the relation is missing.
-  defp replace_constraint(p, prefix, table, name, definition, stale) do
-    tmp = String.slice(name, 0, 50) <> "_v203"
+  @doc false
+  # Public so later versions replace constraints the same way (V204 passes
+  # its own `suffix` for the temporary name).
+  def replace_constraint(p, prefix, table, name, definition, stale, suffix \\ "_v203") do
+    tmp = String.slice(name, 0, 50) <> suffix
 
     [
       """
@@ -259,6 +262,7 @@ defmodule PhoenixKit.Migrations.Postgres.V203 do
       "WHERE c.conname = '#{name}' AND t.relname = '#{table}' AND n.nspname = '#{prefix}')"
   end
 
-  defp prefix_str("public"), do: "public."
-  defp prefix_str(prefix), do: "#{prefix}."
+  @doc false
+  def prefix_str("public"), do: "public."
+  def prefix_str(prefix), do: "#{prefix}."
 end

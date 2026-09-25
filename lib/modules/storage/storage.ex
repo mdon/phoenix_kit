@@ -353,6 +353,7 @@ defmodule PhoenixKit.Modules.Storage do
     %Bucket{}
     |> Bucket.changeset(attrs)
     |> repo().insert()
+    |> tap(&bucket_changed/1)
   end
 
   @doc """
@@ -371,6 +372,7 @@ defmodule PhoenixKit.Modules.Storage do
     bucket
     |> Bucket.changeset(attrs)
     |> repo().update()
+    |> tap(&bucket_changed/1)
   end
 
   @doc """
@@ -386,8 +388,23 @@ defmodule PhoenixKit.Modules.Storage do
 
   """
   def delete_bucket(%Bucket{} = bucket) do
-    repo().delete(bucket)
+    # A bucket that still holds files is refused (V204: the location FK is
+    # RESTRICT); before, deleting it dropped every location row it had and
+    # left its objects behind.
+    bucket
+    |> Ecto.Changeset.change()
+    |> Ecto.Changeset.no_assoc_constraint(:file_locations,
+      name: :phoenix_kit_file_locations_bucket_id_fkey,
+      message: "still holds files"
+    )
+    |> repo().delete()
+    |> tap(&bucket_changed/1)
   end
+
+  # The manager keeps the enabled buckets in a cache; a bucket that was
+  # added, edited or removed must apply at once, not when it expires.
+  defp bucket_changed({:ok, _bucket}), do: Manager.invalidate_bucket_cache()
+  defp bucket_changed(_result), do: :ok
 
   @doc """
   Returns an `%Ecto.Changeset{}` for tracking bucket changes.

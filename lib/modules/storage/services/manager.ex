@@ -288,6 +288,17 @@ defmodule PhoenixKit.Modules.Storage.Manager do
     end
   end
 
+  @doc """
+  Drops the cached list of enabled buckets, so the next read sees the
+  database. Called whenever a bucket is created, updated or deleted. The
+  cache only spares a query per file request; it expires on its own after
+  five minutes, which is how long a bucket edit used to take to apply.
+  """
+  def invalidate_bucket_cache do
+    :persistent_term.erase(:phoenix_kit_buckets_cache)
+    :ok
+  end
+
   defp get_enabled_buckets do
     # Cache bucket list to avoid querying on every file request
     cache_key = :phoenix_kit_buckets_cache

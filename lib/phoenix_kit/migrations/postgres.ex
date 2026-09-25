@@ -7,7 +7,16 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V203 - Storage libraries (user libraries) ⚡ LATEST
+  ### V204 - Storage location-truth ⚡ LATEST
+
+  One `phoenix_kit_file_locations` row per instance per bucket: duplicates
+  are removed and a unique `(file_instance_uuid, bucket_uuid)` index added.
+  The location's bucket FK moves from `ON DELETE CASCADE` to `RESTRICT`, so
+  a bucket that still holds files cannot be deleted. Instances with no
+  location rows are found by `Storage.Workers.LocationBackfillJob`, queued
+  on boot. Phase 3 of `dev_docs/plans/2026-09-22-storage-libraries.md`.
+
+  ### V203 - Storage libraries (user libraries)
 
   Adds `phoenix_kit_storage_library_members` (a user library's other
   users, as `manager`, `contributor` or `viewer`). Deleting a user no
@@ -871,7 +880,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 203
+  @current_version 204
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

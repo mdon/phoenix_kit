@@ -401,8 +401,16 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
 
         {:noreply, socket}
 
-      {:error, _changeset} ->
-        socket = put_flash(socket, :error, gettext("Failed to delete bucket"))
+      {:error, changeset} ->
+        message =
+          if Keyword.has_key?(changeset.errors, :file_locations),
+            do:
+              gettext(
+                "This bucket still holds files, so it cannot be deleted. Disable it to stop storing new files there."
+              ),
+            else: gettext("Failed to delete bucket")
+
+        socket = put_flash(socket, :error, message)
         {:noreply, socket}
     end
   end
