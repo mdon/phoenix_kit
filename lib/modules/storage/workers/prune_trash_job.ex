@@ -13,10 +13,14 @@ defmodule PhoenixKit.Modules.Storage.Workers.PruneTrashJob do
 
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.Libraries
+  alias PhoenixKit.Modules.Storage.Workers.LocationBackfillJob
 
   @impl Oban.Worker
   def perform(_job) do
     days = Storage.trash_retention_days()
+
+    # Records where objects stored before V204 are, while any are left.
+    _ = LocationBackfillJob.maybe_enqueue()
 
     case Libraries.queue_expired_purges(days) do
       0 -> :ok

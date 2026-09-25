@@ -145,7 +145,7 @@ msgstr "E-post"
 msgid "Email logs & analytics"
 msgstr "E-posti logid ja analüütika"
 
-#: lib/modules/storage/web/health.html.heex:75
+#: lib/modules/storage/web/health.html.heex:85
 #: lib/phoenix_kit_web/components/core/dashboard_overview.ex:204
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:39
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:301
@@ -1910,8 +1910,8 @@ msgstr "Maakond/provints"
 #: lib/modules/storage/web/dimensions.html.heex:150
 #: lib/modules/storage/web/dimensions.html.heex:333
 #: lib/modules/storage/web/dimensions.html.heex:351
-#: lib/modules/storage/web/health.html.heex:202
-#: lib/modules/storage/web/health.html.heex:221
+#: lib/modules/storage/web/health.html.heex:212
+#: lib/modules/storage/web/health.html.heex:231
 #: lib/modules/storage/web/settings.html.heex:145
 #: lib/modules/storage/web/settings.html.heex:158
 #: lib/phoenix_kit/users/table_columns.ex:291
@@ -2018,8 +2018,8 @@ msgstr "Kokku"
 msgid "Total Roles"
 msgstr "Rolle kokku"
 
-#: lib/modules/storage/web/health.html.heex:196
-#: lib/modules/storage/web/health.html.heex:219
+#: lib/modules/storage/web/health.html.heex:206
+#: lib/modules/storage/web/health.html.heex:229
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1902
 #: lib/phoenix_kit_web/live/activity/index.html.heex:240
 #: lib/phoenix_kit_web/live/activity/show.html.heex:113
@@ -2351,7 +2351,7 @@ msgstr "Määra vaikimisi"
 msgid "Size"
 msgstr "Suurus"
 
-#: lib/modules/storage/web/health.html.heex:67
+#: lib/modules/storage/web/health.html.heex:77
 #, elixir-autogen, elixir-format
 msgid "Syncing..."
 msgstr "Sünkroonimine..."
@@ -3760,7 +3760,7 @@ msgstr "Teenuse tingimused"
 msgid "Used for personalized advertising and measuring ad effectiveness."
 msgstr "Kasutatakse personaliseeritud reklaami ja reklaamiefektiivsuse mõõtmiseks."
 
-#: lib/modules/storage/web/health.html.heex:34
+#: lib/modules/storage/web/health.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "%{count}+ locations each"
 msgstr "%{count}+ asukoha igaüks"
@@ -3770,17 +3770,17 @@ msgstr "%{count}+ asukoha igaüks"
 msgid "%{language} (Disabled — %{status})"
 msgstr "%{language} (Keelatud — %{status})"
 
-#: lib/modules/storage/web/health.html.heex:157
+#: lib/modules/storage/web/health.html.heex:167
 #, elixir-autogen, elixir-format
 msgid "%{n} errors"
 msgstr "%{n} viga"
 
-#: lib/modules/storage/web/health.html.heex:121
+#: lib/modules/storage/web/health.html.heex:131
 #, elixir-autogen, elixir-format
 msgid "%{n} failed"
 msgstr "%{n} ebaõnnestus"
 
-#: lib/modules/storage/web/health.html.heex:119
+#: lib/modules/storage/web/health.html.heex:129
 #, elixir-autogen, elixir-format
 msgid "%{n} synced"
 msgstr "%{n} sünkroonitud"
@@ -3900,12 +3900,12 @@ msgstr "Lisa üks Seaded → Integratsioonid alt"
 msgid "Admin Preview"
 msgstr "Administraatori eelvaade"
 
-#: lib/modules/storage/web/health.html.heex:178
+#: lib/modules/storage/web/health.html.heex:188
 #, elixir-autogen, elixir-format
 msgid "All Healthy"
 msgstr "Kõik terved"
 
-#: lib/modules/storage/web/health.html.heex:180
+#: lib/modules/storage/web/health.html.heex:190
 #, elixir-autogen, elixir-format
 msgid "All files meet the redundancy target of %{n} copies."
 msgstr "Kõik failid vastavad redundantsuse eesmärgile %{n} koopiat."
@@ -3965,7 +3965,7 @@ msgstr "Backblaze lõpp-punkt"
 msgid "Backblaze Region"
 msgstr "Backblaze piirkond"
 
-#: lib/modules/storage/web/health.html.heex:44
+#: lib/modules/storage/web/health.html.heex:54
 #, elixir-autogen, elixir-format
 msgid "Below redundancy target"
 msgstr "Alla redundantsuse eesmärgi"
@@ -4350,7 +4350,7 @@ msgstr "Kutse saatmine ebaõnnestus"
 msgid "Failed to update avatar"
 msgstr "Avatari uuendamine ebaõnnestus"
 
-#: lib/modules/storage/web/health.html.heex:218
+#: lib/modules/storage/web/health.html.heex:228
 #, elixir-autogen, elixir-format
 msgid "File"
 msgstr "Fail"
@@ -4360,7 +4360,7 @@ msgstr "Fail"
 msgid "Files are tracked in PostgreSQL with support for multiple media locations (local, S3, remote servers)."
 msgstr "Faile jälgitakse PostgreSQL-is mitme meediumiasukoha toega (kohalik, S3, kaugserverid)."
 
-#: lib/modules/storage/web/health.html.heex:24
+#: lib/modules/storage/web/health.html.heex:34
 #, elixir-autogen, elixir-format
 msgid "Files with completed variants"
 msgstr "Failid lõpetatud variantidega"
@@ -4450,14 +4450,14 @@ msgstr "Google kuvab hoiatuse \"Kontrollimata rakendus\" — jätkamiseks klõps
 msgid "Grant access to Google Docs and Google Drive"
 msgstr "Anna juurdepääs Google Docs'ile ja Google Drive'ile"
 
-#: lib/modules/storage/web/health.ex:34
-#: lib/modules/storage/web/health.html.heex:51
+#: lib/modules/storage/web/health.ex:35
+#: lib/modules/storage/web/health.html.heex:61
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:356
 #, elixir-autogen, elixir-format
 msgid "Health"
 msgstr "Seisund"
 
-#: lib/modules/storage/web/health.html.heex:31
+#: lib/modules/storage/web/health.html.heex:41
 #, elixir-autogen, elixir-format
 msgid "Healthy"
 msgstr "Korras"
@@ -4532,8 +4532,8 @@ msgstr "Jäta tühjaks algse failivormingu säilitamiseks"
 msgid "Local Storage"
 msgstr "Kohalik salvestus"
 
-#: lib/modules/storage/web/health.html.heex:198
-#: lib/modules/storage/web/health.html.heex:220
+#: lib/modules/storage/web/health.html.heex:208
+#: lib/modules/storage/web/health.html.heex:230
 #: lib/phoenix_kit_web/live/modules.ex:136
 #, elixir-autogen, elixir-format
 msgid "Locations"
@@ -4609,12 +4609,12 @@ msgstr "Liikmed"
 msgid "Missing"
 msgstr "Puudub"
 
-#: lib/modules/storage/web/health.html.heex:249
+#: lib/modules/storage/web/health.html.heex:259
 #, elixir-autogen, elixir-format
 msgid "Missing %{n}"
 msgstr "Puudub %{n}"
 
-#: lib/modules/storage/web/health.html.heex:207
+#: lib/modules/storage/web/health.html.heex:217
 #, elixir-autogen, elixir-format
 msgid "Missing %{n} copies"
 msgstr "Puudub %{n} koopiat"
@@ -4639,8 +4639,8 @@ msgstr "Meedia bucketid pole konfigureeritud"
 msgid "No access token"
 msgstr "Juurdepääsutokenit pole"
 
-#: lib/modules/storage/web/health.html.heex:205
-#: lib/modules/storage/web/health.html.heex:246
+#: lib/modules/storage/web/health.html.heex:215
+#: lib/modules/storage/web/health.html.heex:256
 #, elixir-autogen, elixir-format
 msgid "No copies"
 msgstr "Koopiaid pole"
@@ -4763,7 +4763,7 @@ msgstr "Organisatsiooni liikmed"
 msgid "Organization Name"
 msgstr "Organisatsiooni nimi"
 
-#: lib/modules/storage/web/health.html.heex:98
+#: lib/modules/storage/web/health.html.heex:108
 #, elixir-autogen, elixir-format
 msgid "Pause"
 msgstr "Peata"
@@ -4832,7 +4832,7 @@ msgstr "Avalik (otselink)"
 msgid "Quality & Format"
 msgstr "Kvaliteet ja vorming"
 
-#: lib/modules/storage/web/health.html.heex:56
+#: lib/modules/storage/web/health.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "Redundancy target: %{n} copies"
 msgstr "Redundantsuse eesmärk: %{n} koopiat"
@@ -4853,7 +4853,7 @@ msgstr "Eemaldada see liige organisatsioonist?"
 msgid "Repair Media Module"
 msgstr "Paranda meediamoodul"
 
-#: lib/modules/storage/web/health.html.heex:94
+#: lib/modules/storage/web/health.html.heex:104
 #, elixir-autogen, elixir-format
 msgid "Resume"
 msgstr "Jätka"
@@ -4941,47 +4941,47 @@ msgstr "Samm 2"
 msgid "Still on Audience — while the app is in **Testing** status, add the Google account you will connect as a **Test user** (this must be the same account whose Drive will store your files)"
 msgstr "Ikka Sihtrühm lehel — kuni rakendus on **Testimine** olekus, lisage Google konto, mille ühendate, kui **Testkasutaja** (see peab olema sama konto, mille Drive salvestab teie failid)"
 
-#: lib/modules/storage/web/health.html.heex:106
+#: lib/modules/storage/web/health.html.heex:116
 #, elixir-autogen, elixir-format
 msgid "Stop"
 msgstr "Peata"
 
-#: lib/modules/storage/web/health.html.heex:103
+#: lib/modules/storage/web/health.html.heex:113
 #, elixir-autogen, elixir-format
 msgid "Stop the sync? Files already synced will be kept."
 msgstr "Kas peatada sünkroonimine? Juba sünkroonitud failid säilitatakse."
 
-#: lib/modules/storage/web/health.html.heex:70
+#: lib/modules/storage/web/health.html.heex:80
 #, elixir-autogen, elixir-format
 msgid "Sync All"
 msgstr "Sünkrooni kõik"
 
-#: lib/modules/storage/web/health.html.heex:155
+#: lib/modules/storage/web/health.html.heex:165
 #, elixir-autogen, elixir-format
 msgid "Sync Log"
 msgstr "Sünkroonimise logi"
 
-#: lib/modules/storage/web/health.ex:151
+#: lib/modules/storage/web/health.ex:152
 #, elixir-autogen, elixir-format
 msgid "Sync complete: %{synced} synced, %{failed} failed"
 msgstr "Sünkroonimine lõpetatud: %{synced} sünkroonitud, %{failed} ebaõnnestus"
 
-#: lib/modules/storage/web/health.ex:52
+#: lib/modules/storage/web/health.ex:53
 #, elixir-autogen, elixir-format
 msgid "Sync is already running"
 msgstr "Sünkroonimine on juba käimas"
 
-#: lib/modules/storage/web/health.html.heex:87
+#: lib/modules/storage/web/health.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "Sync paused"
 msgstr "Sünkroonimine peatatud"
 
-#: lib/modules/storage/web/health.ex:170
+#: lib/modules/storage/web/health.ex:171
 #, elixir-autogen, elixir-format
 msgid "Sync stopped: %{synced} synced, %{failed} failed"
 msgstr "Sünkroonimine peatatud: %{synced} sünkroonitud, %{failed} ebaõnnestus"
 
-#: lib/modules/storage/web/health.html.heex:89
+#: lib/modules/storage/web/health.html.heex:99
 #, elixir-autogen, elixir-format
 msgid "Syncing files..."
 msgstr "Failide sünkroonimine..."
@@ -5063,7 +5063,7 @@ msgstr "Tigris lõpp-punkt"
 msgid "Tigris Region"
 msgstr "Tigris piirkond"
 
-#: lib/modules/storage/web/health.html.heex:22
+#: lib/modules/storage/web/health.html.heex:32
 #, elixir-autogen, elixir-format
 msgid "Total Files"
 msgstr "Faile kokku"
@@ -5073,7 +5073,7 @@ msgstr "Faile kokku"
 msgid "Under **Authorized redirect URIs**, add: `{redirect_uri}`"
 msgstr "**Volitatud ümbersuunamise URL-id** all lisage: `{redirect_uri}`"
 
-#: lib/modules/storage/web/health.html.heex:42
+#: lib/modules/storage/web/health.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Under-replicated"
 msgstr "Ebapiisav replikatsioon"
@@ -9595,12 +9595,12 @@ msgstr "Praegune seade (%{count} koopiat) ületab saadaolevad salvestuskohad (%{
 msgid "Default bucket updated"
 msgstr "Vaikimisi bucket uuendatud"
 
-#: lib/modules/storage/web/settings.ex:405
+#: lib/modules/storage/web/settings.ex:411
 #, elixir-autogen, elixir-format
 msgid "Failed to delete bucket"
 msgstr "Bucketi kustutamine ebaõnnestus"
 
-#: lib/modules/storage/web/settings.ex:430
+#: lib/modules/storage/web/settings.ex:438
 #, elixir-autogen, elixir-format
 msgid "Failed to repair: %{reason}"
 msgstr "Parandamine ebaõnnestus: %{reason}"
@@ -9639,7 +9639,7 @@ msgid_plural "Redundancy settings updated to %{count} copies"
 msgstr[0] "Liiasuse seaded uuendatud: %{count} koopia"
 msgstr[1] "Liiasuse seaded uuendatud: %{count} koopiat"
 
-#: lib/modules/storage/web/settings.ex:420
+#: lib/modules/storage/web/settings.ex:428
 #, elixir-autogen, elixir-format
 msgid "Storage module repaired: %{summary}"
 msgstr "Salvestusmoodul parandatud: %{summary}"
@@ -16064,3 +16064,15 @@ msgstr[1] "Kas teisaldada kõik %{count} orbfaili prügikasti?"
 #, elixir-autogen, elixir-format
 msgid "Move all orphaned to trash"
 msgstr "Teisalda kõik orbfailid prügikasti"
+
+#: lib/modules/storage/web/health.html.heex:19
+#, elixir-autogen, elixir-format
+msgid "%{count} stored object has no recorded location yet. It is being found in the background, and is served meanwhile."
+msgid_plural "%{count} stored objects have no recorded location yet. They are being found in the background, and are served meanwhile."
+msgstr[0] "%{count} salvestatud objektil pole veel salvestatud asukohta. Seda otsitakse taustal ja seni jagatakse seda edasi."
+msgstr[1] "%{count} salvestatud objektil pole veel salvestatud asukohta. Neid otsitakse taustal ja seni jagatakse neid edasi."
+
+#: lib/modules/storage/web/settings.ex:408
+#, elixir-autogen, elixir-format
+msgid "This bucket still holds files, so it cannot be deleted. Disable it to stop storing new files there."
+msgstr "Selles bucketis on veel faile, seega seda ei saa kustutada. Keelake see, et sinna enam uusi faile ei salvestataks."

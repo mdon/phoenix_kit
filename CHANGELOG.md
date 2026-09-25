@@ -33,6 +33,12 @@
   and comment attachments did not. A variant is written to exactly the
   buckets its original is in; before, that list was capped at the
   redundancy setting and reordered.
+- **Files stored before location-truth are located in the background.**
+  `Storage.Workers.LocationBackfillJob` checks each enabled bucket once for
+  every stored object with no location row and records where it is. It
+  queues itself shortly after boot and from the daily trash prune while any
+  are left, runs one batch every few seconds, and Settings → Media →
+  Health shows how many are left. Those files are served meanwhile.
 - **A bucket that still holds files cannot be deleted.** Deleting one used
   to drop its location rows silently and leave its objects behind. The
   settings page says to disable the bucket instead.

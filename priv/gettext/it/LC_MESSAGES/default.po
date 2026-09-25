@@ -144,7 +144,7 @@ msgstr "Email"
 msgid "Email logs & analytics"
 msgstr "Log e analisi delle email"
 
-#: lib/modules/storage/web/health.html.heex:75
+#: lib/modules/storage/web/health.html.heex:85
 #: lib/phoenix_kit_web/components/core/dashboard_overview.ex:204
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:39
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:301
@@ -1906,8 +1906,8 @@ msgstr "Stato/Provincia"
 #: lib/modules/storage/web/dimensions.html.heex:150
 #: lib/modules/storage/web/dimensions.html.heex:333
 #: lib/modules/storage/web/dimensions.html.heex:351
-#: lib/modules/storage/web/health.html.heex:202
-#: lib/modules/storage/web/health.html.heex:221
+#: lib/modules/storage/web/health.html.heex:212
+#: lib/modules/storage/web/health.html.heex:231
 #: lib/modules/storage/web/settings.html.heex:145
 #: lib/modules/storage/web/settings.html.heex:158
 #: lib/phoenix_kit/users/table_columns.ex:291
@@ -2014,8 +2014,8 @@ msgstr "Totale"
 msgid "Total Roles"
 msgstr "Ruoli totali"
 
-#: lib/modules/storage/web/health.html.heex:196
-#: lib/modules/storage/web/health.html.heex:219
+#: lib/modules/storage/web/health.html.heex:206
+#: lib/modules/storage/web/health.html.heex:229
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1902
 #: lib/phoenix_kit_web/live/activity/index.html.heex:240
 #: lib/phoenix_kit_web/live/activity/show.html.heex:113
@@ -2347,7 +2347,7 @@ msgstr "Imposta come predefinito"
 msgid "Size"
 msgstr "Dimensione"
 
-#: lib/modules/storage/web/health.html.heex:67
+#: lib/modules/storage/web/health.html.heex:77
 #, elixir-autogen, elixir-format
 msgid "Syncing..."
 msgstr "Sincronizzazione…"
@@ -3755,7 +3755,7 @@ msgstr "Termini di servizio"
 msgid "Used for personalized advertising and measuring ad effectiveness."
 msgstr "Utilizzati per pubblicità personalizzata e per misurarne l'efficacia."
 
-#: lib/modules/storage/web/health.html.heex:34
+#: lib/modules/storage/web/health.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "%{count}+ locations each"
 msgstr "%{count}+ posizioni ciascuno"
@@ -3765,17 +3765,17 @@ msgstr "%{count}+ posizioni ciascuno"
 msgid "%{language} (Disabled — %{status})"
 msgstr "%{language} (disattivato — %{status})"
 
-#: lib/modules/storage/web/health.html.heex:157
+#: lib/modules/storage/web/health.html.heex:167
 #, elixir-autogen, elixir-format
 msgid "%{n} errors"
 msgstr "%{n} errori"
 
-#: lib/modules/storage/web/health.html.heex:121
+#: lib/modules/storage/web/health.html.heex:131
 #, elixir-autogen, elixir-format
 msgid "%{n} failed"
 msgstr "%{n} non riusciti"
 
-#: lib/modules/storage/web/health.html.heex:119
+#: lib/modules/storage/web/health.html.heex:129
 #, elixir-autogen, elixir-format
 msgid "%{n} synced"
 msgstr "%{n} sincronizzati"
@@ -3895,12 +3895,12 @@ msgstr "Aggiungine una in Impostazioni → Integrazioni"
 msgid "Admin Preview"
 msgstr "Anteprima amministratore"
 
-#: lib/modules/storage/web/health.html.heex:178
+#: lib/modules/storage/web/health.html.heex:188
 #, elixir-autogen, elixir-format
 msgid "All Healthy"
 msgstr "Tutto integro"
 
-#: lib/modules/storage/web/health.html.heex:180
+#: lib/modules/storage/web/health.html.heex:190
 #, elixir-autogen, elixir-format
 msgid "All files meet the redundancy target of %{n} copies."
 msgstr "Tutti i file soddisfano l'obiettivo di ridondanza di %{n} copie."
@@ -3960,7 +3960,7 @@ msgstr "Endpoint Backblaze"
 msgid "Backblaze Region"
 msgstr "Regione Backblaze"
 
-#: lib/modules/storage/web/health.html.heex:44
+#: lib/modules/storage/web/health.html.heex:54
 #, elixir-autogen, elixir-format
 msgid "Below redundancy target"
 msgstr "Sotto l'obiettivo di ridondanza"
@@ -4345,7 +4345,7 @@ msgstr "Impossibile inviare l'invito"
 msgid "Failed to update avatar"
 msgstr "Impossibile aggiornare l'avatar"
 
-#: lib/modules/storage/web/health.html.heex:218
+#: lib/modules/storage/web/health.html.heex:228
 #, elixir-autogen, elixir-format
 msgid "File"
 msgstr "File"
@@ -4355,7 +4355,7 @@ msgstr "File"
 msgid "Files are tracked in PostgreSQL with support for multiple media locations (local, S3, remote servers)."
 msgstr "I file sono tracciati in PostgreSQL con supporto per più posizioni multimediali (locale, S3, server remoti)."
 
-#: lib/modules/storage/web/health.html.heex:24
+#: lib/modules/storage/web/health.html.heex:34
 #, elixir-autogen, elixir-format
 msgid "Files with completed variants"
 msgstr "File con varianti completate"
@@ -4445,14 +4445,14 @@ msgstr "Google mostrerà un avviso «app non verificata» — fai clic su **Avan
 msgid "Grant access to Google Docs and Google Drive"
 msgstr "Concedi l'accesso a Google Documenti e Google Drive"
 
-#: lib/modules/storage/web/health.ex:34
-#: lib/modules/storage/web/health.html.heex:51
+#: lib/modules/storage/web/health.ex:35
+#: lib/modules/storage/web/health.html.heex:61
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:356
 #, elixir-autogen, elixir-format
 msgid "Health"
 msgstr "Integrità"
 
-#: lib/modules/storage/web/health.html.heex:31
+#: lib/modules/storage/web/health.html.heex:41
 #, elixir-autogen, elixir-format
 msgid "Healthy"
 msgstr "Integro"
@@ -4527,8 +4527,8 @@ msgstr "Lascia vuoto per mantenere il formato originale del file"
 msgid "Local Storage"
 msgstr "Archiviazione locale"
 
-#: lib/modules/storage/web/health.html.heex:198
-#: lib/modules/storage/web/health.html.heex:220
+#: lib/modules/storage/web/health.html.heex:208
+#: lib/modules/storage/web/health.html.heex:230
 #: lib/phoenix_kit_web/live/modules.ex:136
 #, elixir-autogen, elixir-format
 msgid "Locations"
@@ -4604,12 +4604,12 @@ msgstr "Membri"
 msgid "Missing"
 msgstr "Mancanti"
 
-#: lib/modules/storage/web/health.html.heex:249
+#: lib/modules/storage/web/health.html.heex:259
 #, elixir-autogen, elixir-format
 msgid "Missing %{n}"
 msgstr "Mancanti %{n}"
 
-#: lib/modules/storage/web/health.html.heex:207
+#: lib/modules/storage/web/health.html.heex:217
 #, elixir-autogen, elixir-format
 msgid "Missing %{n} copies"
 msgstr "Mancano %{n} copie"
@@ -4634,8 +4634,8 @@ msgstr "Nessun bucket multimediale configurato"
 msgid "No access token"
 msgstr "Nessun token di accesso"
 
-#: lib/modules/storage/web/health.html.heex:205
-#: lib/modules/storage/web/health.html.heex:246
+#: lib/modules/storage/web/health.html.heex:215
+#: lib/modules/storage/web/health.html.heex:256
 #, elixir-autogen, elixir-format
 msgid "No copies"
 msgstr "Nessuna copia"
@@ -4758,7 +4758,7 @@ msgstr "Membri dell'organizzazione"
 msgid "Organization Name"
 msgstr "Nome dell'organizzazione"
 
-#: lib/modules/storage/web/health.html.heex:98
+#: lib/modules/storage/web/health.html.heex:108
 #, elixir-autogen, elixir-format
 msgid "Pause"
 msgstr "Pausa"
@@ -4827,7 +4827,7 @@ msgstr "Pubblico (URL diretto)"
 msgid "Quality & Format"
 msgstr "Qualità e formato"
 
-#: lib/modules/storage/web/health.html.heex:56
+#: lib/modules/storage/web/health.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "Redundancy target: %{n} copies"
 msgstr "Obiettivo di ridondanza: %{n} copie"
@@ -4848,7 +4848,7 @@ msgstr "Rimuovere questo membro dall'organizzazione?"
 msgid "Repair Media Module"
 msgstr "Ripara il modulo multimediale"
 
-#: lib/modules/storage/web/health.html.heex:94
+#: lib/modules/storage/web/health.html.heex:104
 #, elixir-autogen, elixir-format
 msgid "Resume"
 msgstr "Riprendi"
@@ -4936,47 +4936,47 @@ msgstr "Passaggio 2"
 msgid "Still on Audience — while the app is in **Testing** status, add the Google account you will connect as a **Test user** (this must be the same account whose Drive will store your files)"
 msgstr "Sempre in Pubblico — finché l'app è in stato **Test**, aggiungi l'account Google che collegherai come **utente di test** (deve essere lo stesso account il cui Drive conserverà i tuoi file)"
 
-#: lib/modules/storage/web/health.html.heex:106
+#: lib/modules/storage/web/health.html.heex:116
 #, elixir-autogen, elixir-format
 msgid "Stop"
 msgstr "Interrompi"
 
-#: lib/modules/storage/web/health.html.heex:103
+#: lib/modules/storage/web/health.html.heex:113
 #, elixir-autogen, elixir-format
 msgid "Stop the sync? Files already synced will be kept."
 msgstr "Interrompere la sincronizzazione? I file già sincronizzati verranno mantenuti."
 
-#: lib/modules/storage/web/health.html.heex:70
+#: lib/modules/storage/web/health.html.heex:80
 #, elixir-autogen, elixir-format
 msgid "Sync All"
 msgstr "Sincronizza tutto"
 
-#: lib/modules/storage/web/health.html.heex:155
+#: lib/modules/storage/web/health.html.heex:165
 #, elixir-autogen, elixir-format
 msgid "Sync Log"
 msgstr "Log di sincronizzazione"
 
-#: lib/modules/storage/web/health.ex:151
+#: lib/modules/storage/web/health.ex:152
 #, elixir-autogen, elixir-format
 msgid "Sync complete: %{synced} synced, %{failed} failed"
 msgstr "Sincronizzazione completata: %{synced} sincronizzati, %{failed} non riusciti"
 
-#: lib/modules/storage/web/health.ex:52
+#: lib/modules/storage/web/health.ex:53
 #, elixir-autogen, elixir-format
 msgid "Sync is already running"
 msgstr "La sincronizzazione è già in corso"
 
-#: lib/modules/storage/web/health.html.heex:87
+#: lib/modules/storage/web/health.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "Sync paused"
 msgstr "Sincronizzazione in pausa"
 
-#: lib/modules/storage/web/health.ex:170
+#: lib/modules/storage/web/health.ex:171
 #, elixir-autogen, elixir-format
 msgid "Sync stopped: %{synced} synced, %{failed} failed"
 msgstr "Sincronizzazione interrotta: %{synced} sincronizzati, %{failed} non riusciti"
 
-#: lib/modules/storage/web/health.html.heex:89
+#: lib/modules/storage/web/health.html.heex:99
 #, elixir-autogen, elixir-format
 msgid "Syncing files..."
 msgstr "Sincronizzazione dei file…"
@@ -5058,7 +5058,7 @@ msgstr "Endpoint Tigris"
 msgid "Tigris Region"
 msgstr "Regione Tigris"
 
-#: lib/modules/storage/web/health.html.heex:22
+#: lib/modules/storage/web/health.html.heex:32
 #, elixir-autogen, elixir-format
 msgid "Total Files"
 msgstr "File totali"
@@ -5068,7 +5068,7 @@ msgstr "File totali"
 msgid "Under **Authorized redirect URIs**, add: `{redirect_uri}`"
 msgstr "In **URI di reindirizzamento autorizzati**, aggiungi: `{redirect_uri}`"
 
-#: lib/modules/storage/web/health.html.heex:42
+#: lib/modules/storage/web/health.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Under-replicated"
 msgstr "Replicazione insufficiente"
@@ -9588,12 +9588,12 @@ msgstr "L'impostazione attuale (%{count} copie) supera i bucket disponibili (%{m
 msgid "Default bucket updated"
 msgstr "Bucket predefinito aggiornato"
 
-#: lib/modules/storage/web/settings.ex:405
+#: lib/modules/storage/web/settings.ex:411
 #, elixir-autogen, elixir-format
 msgid "Failed to delete bucket"
 msgstr "Impossibile eliminare il bucket"
 
-#: lib/modules/storage/web/settings.ex:430
+#: lib/modules/storage/web/settings.ex:438
 #, elixir-autogen, elixir-format
 msgid "Failed to repair: %{reason}"
 msgstr "Riparazione non riuscita: %{reason}"
@@ -9632,7 +9632,7 @@ msgid_plural "Redundancy settings updated to %{count} copies"
 msgstr[0] "Impostazioni di ridondanza aggiornate: %{count} copia"
 msgstr[1] "Impostazioni di ridondanza aggiornate: %{count} copie"
 
-#: lib/modules/storage/web/settings.ex:420
+#: lib/modules/storage/web/settings.ex:428
 #, elixir-autogen, elixir-format
 msgid "Storage module repaired: %{summary}"
 msgstr "Modulo di archiviazione riparato: %{summary}"
@@ -16055,3 +16055,15 @@ msgstr[1] "Spostare tutti i %{count} file orfani nel cestino?"
 #, elixir-autogen, elixir-format
 msgid "Move all orphaned to trash"
 msgstr "Sposta tutti gli orfani nel cestino"
+
+#: lib/modules/storage/web/health.html.heex:19
+#, elixir-autogen, elixir-format
+msgid "%{count} stored object has no recorded location yet. It is being found in the background, and is served meanwhile."
+msgid_plural "%{count} stored objects have no recorded location yet. They are being found in the background, and are served meanwhile."
+msgstr[0] "%{count} oggetto archiviato non ha ancora una posizione registrata. Viene cercato in background e nel frattempo continua a essere servito."
+msgstr[1] "%{count} oggetti archiviati non hanno ancora una posizione registrata. Vengono cercati in background e nel frattempo continuano a essere serviti."
+
+#: lib/modules/storage/web/settings.ex:408
+#, elixir-autogen, elixir-format
+msgid "This bucket still holds files, so it cannot be deleted. Disable it to stop storing new files there."
+msgstr "Questo bucket contiene ancora file, quindi non può essere eliminato. Disattivalo per non salvarci più nuovi file."
