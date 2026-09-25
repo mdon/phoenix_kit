@@ -57,7 +57,7 @@
       </div>
 
       <div
-        :if={@libraries == []}
+        :if={@libraries == [] and @others == []}
         id="libraries-empty"
         class="text-center text-base-content/60 py-12"
       >
@@ -87,6 +87,50 @@
             </div>
           </div>
         </.link>
+      </div>
+
+      <div :if={@others != []} id="libraries-others" class="flex flex-col gap-2 mt-4">
+        <h2 class="font-semibold">{gettext("Other users' libraries")}</h2>
+        <p class="text-sm text-base-content/60">
+          {gettext("Opening a user's library is recorded in the audit log.")}
+        </p>
+        <div class="overflow-x-auto">
+          <table class="table table-zebra">
+            <thead>
+              <tr>
+                <th>{gettext("Name")}</th>
+                <th>{gettext("Owner")}</th>
+                <th class="text-right">{gettext("Members")}</th>
+                <th class="text-right">{gettext("Files")}</th>
+                <th class="text-right">{gettext("Size")}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr :for={%{library: library} = row <- @others} id={"other-library-#{library.uuid}"}>
+                <td>
+                  <span class="font-medium">{library.name}</span>
+                  <span :if={library.trashed_at} class="badge badge-sm badge-warning ml-2">
+                    {gettext("Trashed")}
+                  </span>
+                </td>
+                <td class="text-sm">{(library.owner && library.owner.email) || "—"}</td>
+                <td class="text-right">{row.members}</td>
+                <td class="text-right">{row.files}</td>
+                <td class="text-right">{PhoenixKit.Utils.Format.bytes(row.bytes)}</td>
+                <td class="text-right">
+                  <.link
+                    :if={is_nil(library.trashed_at)}
+                    patch={library_path(library, @phoenix_kit_current_user.uuid)}
+                    class="btn btn-xs btn-ghost"
+                  >
+                    <.icon name="hero-eye" class="w-4 h-4" /> {gettext("Open")}
+                  </.link>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   <% end %>

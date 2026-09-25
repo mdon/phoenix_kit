@@ -93,6 +93,25 @@ defmodule PhoenixKitWeb.Live.Users.UserLibrariesUITest do
       assert to == Routes.path("/profile/settings")
     end
 
+    test "an Admin sees other users' libraries below their own; a user does not",
+         %{conn: conn, role: role} do
+      owner = user!(role)
+      library = library!(owner, "Someone Elses")
+      {admin, _token} = create_admin_user()
+
+      {:ok, _view, html} = live(log_in_user(conn, admin), Routes.path("/admin/libraries"))
+
+      assert html =~ "libraries-others"
+      assert html =~ "Someone Elses"
+      assert html =~ owner.email
+      assert html =~ ~s(href="#{Routes.path("/admin/libraries/#{library.uuid}")}")
+
+      {:ok, _view, html} =
+        live(log_in_user(build_conn(), user!(role)), Routes.path("/admin/libraries"))
+
+      refute html =~ "Someone Elses"
+    end
+
     test "an Admin opening a user's library is written to the audit log", %{
       conn: conn,
       role: role

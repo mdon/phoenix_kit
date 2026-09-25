@@ -22,8 +22,9 @@
   settings (`/profile/settings/media`). `/admin/libraries` lists and
   browses them, for holders of `storage`. It is meant for moderation and
   testing; `phoenix_kit_photos` is the end-user surface. An Owner or Admin
-  may open any user's library there; every opening is written to the audit
-  log (`storage.library_opened`).
+  also sees every other user's library there, below their own, and may open
+  any of them; every opening is written to the audit log
+  (`storage.library_opened`).
 - **Private serving for user libraries.** A file in a private library is
   served only with a time-window token: an HMAC over the file, the variant
   and an expiry rounded up to a window (`storage_private_url_window_hours`,

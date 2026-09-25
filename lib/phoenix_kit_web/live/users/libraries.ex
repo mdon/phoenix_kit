@@ -13,8 +13,9 @@ defmodule PhoenixKitWeb.Live.Users.Libraries do
 
   ## Owner and Admin
 
-  An Owner or Admin who is not a member can open a user library by its uuid
-  (from `/admin/storage/libraries`). Every such opening is written to the
+  An Owner or Admin sees every other user's libraries on `/admin/libraries`
+  too, below their own (metadata only: owner, files, size), and can open one
+  by its uuid. Every such opening is written to the
   audit log (`"storage.library_opened"`: who, which library, when, the IP
   address and the user agent). The `"storage"` permission alone never opens
   someone else's library.
@@ -39,6 +40,7 @@ defmodule PhoenixKitWeb.Live.Users.Libraries do
      |> assign(:current_locale, params["locale"] || socket.assigns[:current_locale])
      |> assign(:url_path, Routes.path("/admin/libraries"))
      |> assign(:libraries, nil)
+     |> assign(:others, [])
      |> assign(:library, nil)
      |> assign(:role, nil)
      # Read here: connect info is only available while mounting.
@@ -73,10 +75,18 @@ defmodule PhoenixKitWeb.Live.Users.Libraries do
     end
   end
 
-  defp open(socket, _scope, nil) do
+  # The list, read afresh on every visit: a library created or shared in
+  # the meantime shows up. An Owner/Admin also sees every other user's
+  # libraries (metadata only; opening one is audit-logged).
+  defp open(socket, scope, nil) do
+    mine = Libraries.list_user_libraries(Scope.user_uuid(scope))
+
     socket
+    |> assign(:libraries, mine)
+    |> assign(:others, others(scope, mine))
     |> assign(:library, nil)
     |> assign(:role, nil)
+    |> assign(:page_title, gettext("Libraries"))
     |> assign(:url_path, Routes.path("/admin/libraries"))
   end
 
@@ -111,6 +121,15 @@ defmodule PhoenixKitWeb.Live.Users.Libraries do
     |> assign(:role, role)
     |> assign(:page_title, library.name)
     |> assign(:url_path, library_path(library, socket))
+  end
+
+  defp others(scope, mine) do
+    if Scope.system_role?(scope) do
+      listed = Enum.map(mine, & &1.library.uuid)
+      Enum.reject(Libraries.list_user_libraries_for_admin(), &(&1.library.uuid in listed))
+    else
+      []
+    end
   end
 
   # An Owner/Admin opening someone else's live user library, by uuid only.
