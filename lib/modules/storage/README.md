@@ -22,7 +22,8 @@ Storage provider configurations (local disk, AWS S3, Backblaze B2, Cloudflare R2
 - name (string, required) - Display name
 - provider (string, required) - "local", "s3", "b2", "r2"
 - region (string, nullable) - AWS region or equivalent
-- endpoint (string, nullable) - Custom S3-compatible endpoint
+- endpoint (string, nullable) - Custom S3-compatible endpoint: a bare host (`s3.us-west-002.backblazeb2.com`), host:port, or a full URL (`http://minio.local:9000`); read in one place (`S3.endpoint/1`) for both requests and public URLs
+- access_type (string, default "public") - How a remote bucket serves files: "public" (redirect to the object URL, or cdn_url), "private" (proxied through the app), "signed" (redirect to a presigned URL made for the request, 5 minutes)
 - bucket_name (string, nullable) - S3 bucket name
 - access_key_id (string, nullable) - Credentials identifier, not a secret — not encrypted
 - secret_access_key (string, nullable) - Encrypted at rest
@@ -289,7 +290,7 @@ The V18 migration will add 3 new settings:
 ```elixir
 %{key: "storage_redundancy_copies", value: "1"}           # Store files on 2 buckets
 %{key: "storage_auto_generate_variants", value: "true"}  # Auto-generate thumbnails/resizes
-%{key: "storage_default_bucket_id", value: nil}          # No default bucket (use selection algorithm)
+%{key: "storage_default_bucket_uuid", value: nil}        # Never read by bucket selection; no longer shown (2.40.1)
 ```
 
 ---
@@ -356,6 +357,34 @@ free_space = bucket.max_size_mb - sum(all file sizes in bucket)
 **If no priority buckets:** D (800GB free), A (500GB free)
 
 ---
+
+### Where a file is (V204)
+
+A file's bytes are where its `phoenix_kit_file_locations` rows say: one row
+per instance per bucket that holds the object (unique on the pair), keyed by
+the object key (`path`). `Storage.Locations` is the lookup.
+
+- **Reads, serving, `file_exists?`, `public_url`** try the buckets the rows
+  name first (local, then by priority), then the other enabled buckets. A
+  bucket found to hold the key that way is recorded. A bucket that raises
+  counts as "not here", and the next is tried.
+- **Every writer records its locations** once its instance row exists
+  (uploads, variants, tiles, comment attachments, image edits, clones), and
+  marks the instance checked. A variant and an edit render are written to
+  exactly the buckets their original is in (`force_bucket_ids`).
+- **Checks** (`phoenix_kit_file_location_checks`): that an instance was
+  checked against every bucket, and how many held it. The
+  `LocationBackfillJob` walks the unchecked ones (queued after boot and by
+  the daily prune, 50 every 5 s), records every copy, and remembers a miss so
+  a missing object is not probed on every request. Health shows how many
+  are left. A read's fallback record is not a check.
+- **A bucket that still holds files cannot be deleted** (the location FK is
+  `RESTRICT`); disable it instead. Bucket edits apply at once (the manager's
+  bucket cache is cleared on every change).
+- **Deletes** still remove an unreferenced key from every enabled bucket:
+  per-bucket reference counting comes with storage profiles (V205), when
+  libraries can use different buckets.
+- `Storage.list_files(bucket_uuid: uuid)` lists the files with a copy there.
 
 ## URL Structure & Security
 
@@ -654,7 +683,11 @@ New settings added in V18 migration:
 ```elixir
 storage_redundancy_copies: "1"           # How many bucket copies (1-5)
 storage_auto_generate_variants: "true"   # Auto-generate thumbnails/resizes
-storage_default_bucket_id: nil           # Default bucket for uploads (optional)
+storage_max_upload_size_mb: "500"        # Per-file upload cap
+storage_user_libraries_enabled: "false"  # User libraries on/off (V203)
+storage_user_library_limit: "10"         # Libraries one user may own (V203)
+storage_private_url_window_hours: "12"   # How long a private file's link lasts (V203)
+storage_default_bucket_uuid: nil         # Unused: selection never read it; storage profiles (V205) replace the idea
 ```
 
 **Access in code:**

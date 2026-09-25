@@ -1,3 +1,26 @@
+## Unreleased
+
+### Fixed
+
+- **`Storage.list_files(bucket_uuid: …)` no longer raises.** It filtered on
+  a column files never had; it now lists the files with a copy in that
+  bucket.
+- **A bucket with a custom S3 endpoint (Backblaze B2, Cloudflare R2, MinIO,
+  Wasabi) gets working public URLs.** `public_url` built an amazonaws.com
+  address whatever the endpoint was. An endpoint may now also be typed with
+  a scheme or a port (`http://minio.local:9000`); requests and URLs read it
+  the same way.
+- **A bucket set to "signed" access is served by presigned URLs.** It used
+  to fall through to a public redirect. Each request now gets a 5-minute
+  signed URL (proxied when the provider cannot sign), and neither a private
+  nor a signed bucket hands out a plain object URL.
+
+### Removed
+
+- **The "Default Bucket" card on Settings → Media**, which always said
+  "None": bucket selection never read that setting. Storage profiles (next
+  phase of the storage plan) replace the idea.
+
 ## 2.40.0 - 2026-09-25
 
 ### Added

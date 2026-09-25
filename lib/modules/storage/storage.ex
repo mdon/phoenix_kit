@@ -2438,7 +2438,8 @@ defmodule PhoenixKit.Modules.Storage do
 
   ## Options
 
-  - `:bucket_uuid` - Filter by bucket UUID
+  - `:bucket_uuid` - Only files with a copy in this bucket (an active location
+    of any of their instances)
   - `:limit` - Maximum number of results
   - `:offset` - Number of results to skip
   - `:order_by` - Ordering (default: `[desc: :inserted_at]`)
@@ -5188,8 +5189,19 @@ defmodule PhoenixKit.Modules.Storage do
   # Query builders for file listing
   defp maybe_filter_by_bucket(query, nil), do: query
 
+  # A file is in a bucket when one of its instances has an active location
+  # there. It used to filter on `f.bucket_uuid`, a column files never had,
+  # so the option raised.
   defp maybe_filter_by_bucket(query, bucket_uuid) do
-    where(query, [f], f.bucket_uuid == ^bucket_uuid)
+    in_bucket =
+      from(fl in FileLocation,
+        join: fi in FileInstance,
+        on: fi.uuid == fl.file_instance_uuid,
+        where: fl.bucket_uuid == ^bucket_uuid and fl.status == "active",
+        select: fi.file_uuid
+      )
+
+    where(query, [f], f.uuid in subquery(in_bucket))
   end
 
   defp maybe_order_by(query, nil), do: order_by(query, [f], desc: f.inserted_at)

@@ -208,6 +208,18 @@ defmodule PhoenixKit.Modules.Storage.LocationsTest do
     refute Manager.file_exists?(key)
   end
 
+  test "list_files(bucket_uuid:) lists the files with a copy in that bucket", ctx do
+    key = key()
+    instance = instance!(key)
+    Locations.record(key, ctx.a.uuid)
+
+    in_a = Storage.list_files(bucket_uuid: ctx.a.uuid) |> Enum.map(& &1.uuid)
+    in_b = Storage.list_files(bucket_uuid: ctx.b.uuid) |> Enum.map(& &1.uuid)
+
+    assert instance.file_uuid in in_a
+    refute instance.file_uuid in in_b
+  end
+
   test "missing_count/0 counts instances not checked yet" do
     before = Locations.missing_count()
     key = key()

@@ -301,18 +301,6 @@
                 </div>
                 <div class="stat-desc">{gettext("Currently in use")}</div>
               </div>
-
-              <div class="stat">
-                <div class="stat-title">{gettext("Default Bucket")}</div>
-                <div class="stat-value text-2xl">
-                  <%= if @default_bucket_uuid do %>
-                    <span class="text-success">{gettext("Set")}</span>
-                  <% else %>
-                    <span class="text-warning">{gettext("None")}</span>
-                  <% end %>
-                </div>
-                <div class="stat-desc">{gettext("Primary media location")}</div>
-              </div>
             </div>
           <% end %>
         </div>

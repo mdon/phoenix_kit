@@ -53,4 +53,15 @@ defmodule PhoenixKit.Modules.Storage.ManagerBucketAccessTest do
                {:proxy, "k"}
     end
   end
+
+  test "a signed bucket is served by a short presigned URL, never the plain one" do
+    for download <- [nil, @download] do
+      assert {:signed_redirect, "https://signed/k" <> _} =
+               Manager.bucket_access(%{access_type: "signed"}, "k", Signing, download)
+    end
+
+    for provider <- [FailingSigner, NoSigning] do
+      assert Manager.bucket_access(%{access_type: "signed"}, "k", provider, nil) == {:proxy, "k"}
+    end
+  end
 end

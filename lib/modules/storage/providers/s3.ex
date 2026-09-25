@@ -79,13 +79,51 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3 do
 
   @impl true
   def public_url(bucket, file_path) do
-    if bucket.cdn_url do
-      "#{bucket.cdn_url}/#{file_path}"
-    else
-      region = bucket.region || "us-east-1"
-      "https://#{bucket.bucket_name}.s3.#{region}.amazonaws.com/#{file_path}"
+    cond do
+      bucket.cdn_url ->
+        "#{String.trim_trailing(bucket.cdn_url, "/")}/#{file_path}"
+
+      # A custom S3-compatible endpoint (B2, R2, MinIO, Wasabi…) is where the
+      # object is, not amazonaws.com: path style, the way ExAws addresses it.
+      endpoint(bucket) ->
+        %{scheme: scheme, host: host, port: port} = endpoint(bucket)
+        "#{scheme}://#{host}#{port_suffix(scheme, port)}/#{bucket.bucket_name}/#{file_path}"
+
+      true ->
+        region = bucket.region || "us-east-1"
+        "https://#{bucket.bucket_name}.s3.#{region}.amazonaws.com/#{file_path}"
     end
   end
+
+  @doc """
+  A bucket's endpoint, parsed: `%{scheme:, host:, port:}`, or nil for none
+  (plain AWS). The one place an endpoint is read, so the host requests go
+  to and the host a public URL names cannot disagree. Accepts a bare host
+  (`s3.us-west-002.backblazeb2.com`), one with a port, or a full URL; a
+  trailing path or slash is dropped, and the scheme defaults to https.
+  """
+  @spec endpoint(map()) :: %{scheme: String.t(), host: String.t(), port: pos_integer()} | nil
+  def endpoint(%{endpoint: endpoint}) when is_binary(endpoint) do
+    trimmed = String.trim(endpoint)
+
+    with_scheme =
+      if trimmed =~ ~r{\A[a-zA-Z][a-zA-Z0-9+.-]*://}, do: trimmed, else: "https://" <> trimmed
+
+    case URI.parse(with_scheme) do
+      %URI{scheme: scheme, host: host, port: port}
+      when scheme in ["http", "https"] and is_binary(host) and host != "" ->
+        %{scheme: scheme, host: host, port: port}
+
+      _ ->
+        nil
+    end
+  end
+
+  def endpoint(_bucket), do: nil
+
+  defp port_suffix("https", 443), do: ""
+  defp port_suffix("http", 80), do: ""
+  defp port_suffix(_scheme, port), do: ":#{port}"
 
   @impl true
   def signed_download_url(bucket, file_path, opts) do
@@ -185,10 +223,12 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3 do
       region: bucket.region || "us-east-1"
     ]
 
-    if bucket.endpoint do
-      config ++ [host: bucket.endpoint, scheme: "https://"]
-    else
-      config
+    case endpoint(bucket) do
+      nil ->
+        config
+
+      %{scheme: scheme, host: host, port: port} ->
+        config ++ [host: host, scheme: scheme <> "://", port: port]
     end
   end
 

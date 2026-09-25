@@ -141,7 +141,9 @@ defmodule PhoenixKit.Modules.Storage.Manager do
     {located, fallback} = read_order(file_path, Keyword.get(opts, :priority_buckets, []))
 
     url_from = fn bucket, record? ->
-      if bucket_holds?(bucket, file_path) do
+      # Only a public bucket hands out a plain object URL: a private or
+      # signed one answers it with a denial, so it is not a URL to give out.
+      if public_bucket?(bucket) and bucket_holds?(bucket, file_path) do
         if record?, do: Locations.record(file_path, bucket.uuid)
         get_provider_for_bucket(bucket).public_url(bucket, file_path)
       end
@@ -500,11 +502,32 @@ defmodule PhoenixKit.Modules.Storage.Manager do
     end
   end
 
+  defp public_bucket?(%{access_type: type}) when type in ["private", "signed"], do: false
+  defp public_bucket?(_bucket), do: true
+
+  # How long a `"signed"` bucket's URL for one request lives.
+  @signed_url_seconds 300
+
   @doc false
   # How a remote bucket that holds `file_name` serves it. Public and
   # `@doc false` only so the decision is testable without a live bucket.
   def bucket_access(%{access_type: "private"}, file_name, _provider, _download) do
     {:proxy, file_name}
+  end
+
+  # A `"signed"` bucket is served by a short-lived presigned URL made for
+  # this request, never by its plain object URL; proxied when the provider
+  # cannot sign. It used to fall through to the public redirect.
+  def bucket_access(%{access_type: "signed"} = bucket, file_name, provider, download) do
+    opts = Keyword.put(download || [], :expires_in, @signed_url_seconds)
+
+    with true <- Code.ensure_loaded?(provider),
+         true <- function_exported?(provider, :signed_download_url, 3),
+         {:ok, url} <- provider.signed_download_url(bucket, file_name, opts) do
+      {:signed_redirect, url}
+    else
+      _ -> {:proxy, file_name}
+    end
   end
 
   # "public" or nil (default), for a file that must download.
