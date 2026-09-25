@@ -1,4 +1,4 @@
-## Unreleased
+## 2.39.0 - 2026-09-25
 
 ### Added
 
@@ -69,6 +69,16 @@
   and the annotated copies in separate groups, with every other variant
   after the standard sizes (review fix). A download link whose image was
   edited in the meantime stays a download (review fix).
+- **A locale redirect can no longer turn a request into a 500 (#863).**
+  The locale plug's redirect target is now checked whole, with Phoenix's
+  own rules, and a segment it builds must be letters, digits, `-` or `_`.
+  Before, an address like `/%2509-x/…` or `/zz/%09evil/shop` made the
+  redirect raise. A target that fails the check renders in the default
+  language instead.
+- **The media folder tree no longer shifts on every click (#873).** The
+  loading spinner sits in the icon's own box, shows only when a reply takes
+  longer than 300 ms, and the tree and the file column keep their scrollbar
+  space, so nothing jumps when a folder opens.
 
 ### Migration notes
 

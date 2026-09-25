@@ -10,9 +10,9 @@ location-truth moved ahead of storage profiles. Four gaps were added
 ship in the same release as storage profiles.
 **Status (2026-09-24):** Phase 1 **RELEASED in 2.38.0** (2026-09-23, tag
 `v2.38.0`, which includes the post-review fixes below). 2.38.1 changed
-nothing in Storage. **Phase 2 (V203) is BUILT on `main`, unreleased**, to be
-tested on dev before it is published: see "Phase 2 as built" below. Next
-after it: V204 (location-truth). Phase 1 shipped as **V202**, not V201: PR #860
+nothing in Storage. **Phase 2 (V203) is released in 2.39.0** (2026-09-25),
+after the maintainer tested it in a host app: see "Phase 2 as built" below.
+Next: V204 (location-truth). Phase 1 shipped as **V202**, not V201: PR #860
 took V201 for per-user view preferences, so every phase below shifts by one
 (V202 partition, V203 private serving + user libraries, V204 location-truth,
 V205 profiles + variant sets, V206 user-owned storage). The version numbers in
@@ -92,7 +92,7 @@ must not render in place are redirected to a one-hour **presigned** URL
 when a provider cannot sign). This is the presigning that §6.7 needs for
 private libraries. It is not yet the `"signed"` access type: it only covers
 the download case on public buckets, and it skips `cdn_url`.
-### Phase 2 as built (V203, unreleased)
+### Phase 2 as built (V203, released in 2.39.0)
 
 - **Migration:** `phoenix_kit_storage_library_members` (`manager` |
   `contributor` | `viewer`; the owner is `owner_uuid`, never a member row).
