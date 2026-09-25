@@ -95,6 +95,7 @@ defmodule PhoenixKit.Modules.Storage.FileInstance do
           width: integer() | nil,
           height: integer() | nil,
           processing_status: String.t(),
+          spec_hash: String.t() | nil,
           file_uuid: UUIDv7.t() | nil,
           file: PhoenixKit.Modules.Storage.File.t() | Ecto.Association.NotLoaded.t(),
           locations:
@@ -113,6 +114,10 @@ defmodule PhoenixKit.Modules.Storage.FileInstance do
     field :width, :integer
     field :height, :integer
     field :processing_status, :string, default: "pending"
+    # Which spec of a size made this instance (V205,
+    # `Storage.VariantSets.spec_hash/2`); nil for one not made from a size
+    # (the original, an annotated thumbnail, a render).
+    field :spec_hash, :string
 
     belongs_to :file, PhoenixKit.Modules.Storage.File, foreign_key: :file_uuid, references: :uuid
     has_many :locations, PhoenixKit.Modules.Storage.FileLocation, foreign_key: :file_instance_uuid
@@ -152,7 +157,8 @@ defmodule PhoenixKit.Modules.Storage.FileInstance do
       :width,
       :height,
       :processing_status,
-      :file_uuid
+      :file_uuid,
+      :spec_hash
     ])
     |> validate_required([
       :variant_name,

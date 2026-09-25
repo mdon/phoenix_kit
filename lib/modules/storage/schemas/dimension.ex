@@ -76,6 +76,23 @@ defmodule PhoenixKit.Modules.Storage.Dimension do
   @primary_key {:uuid, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
 
+  @type t :: %__MODULE__{
+          uuid: UUIDv7.t() | nil,
+          name: String.t() | nil,
+          width: integer() | nil,
+          height: integer() | nil,
+          quality: integer() | nil,
+          format: String.t() | nil,
+          applies_to: String.t() | nil,
+          enabled: boolean(),
+          maintain_aspect_ratio: boolean(),
+          alternative_formats: [String.t()],
+          order: integer(),
+          variant_set_uuid: UUIDv7.t() | nil,
+          inserted_at: DateTime.t() | nil,
+          updated_at: DateTime.t() | nil
+        }
+
   schema "phoenix_kit_storage_dimensions" do
     field :name, :string
     field :width, :integer
@@ -87,6 +104,11 @@ defmodule PhoenixKit.Modules.Storage.Dimension do
     field :maintain_aspect_ratio, :boolean, default: true
     field :alternative_formats, {:array, :string}, default: []
     field :order, :integer, default: 0
+
+    # The variant set the size belongs to (V205). The column defaults to the
+    # Default set, so a writer that names none lands there;
+    # `read_after_writes` reads the default back.
+    field :variant_set_uuid, UUIDv7, read_after_writes: true
 
     timestamps(type: :utc_datetime)
   end

@@ -129,7 +129,6 @@ defmodule PhoenixKitWeb.Components.MediaBrowserOwnFilesTest do
   end
 
   test "reading is not a write, so viewing someone else's file is not refused" do
-    contributor = user!()
     others = file!(user!())
 
     refute "click_file" in MediaBrowser.write_events()

@@ -202,6 +202,22 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # access to; the real-database integration suite re-ran clean against a DB
   # migrated through V196, which is the property s7/s8 exist to prove.
   #
+  # V205 (2026-09-25, storage profiles and variant sets) DECLARES 59 objects
+  # here and RESHAPES one. New: `table:phoenix_kit_storage_profiles`,
+  # `table:phoenix_kit_storage_profile_buckets` and
+  # `table:phoenix_kit_variant_sets` with every column, constraint and index;
+  # the two seed rows (the Default profile, fixed uuid
+  # `00000000-0000-7000-8000-000000000002`, and the Default variant set,
+  # `…0003`); `storage_profile_uuid` / `variant_set_uuid` on libraries with
+  # their FKs (`ON DELETE RESTRICT`); the four `placed_*` columns on files;
+  # `spec_hash` on file instances; and `variant_set_uuid` on dimensions (NOT
+  # NULL, DEFAULT the Default set's uuid) with its FK (`ON DELETE CASCADE`).
+  # Reshaped, with an APPENDED `{205, ...}` revision and its `create`
+  # following it: `index:phoenix_kit_storage_dimensions_name_index`, now
+  # UNIQUE `(variant_set_uuid, name)`. Shapes are CATALOG-EXACT, emitted from
+  # `Repair.Probe.snapshot/2` on a test database migrated through V205.
+  # `chain_hash` restamped over the shipped file set.
+  #
   # V204 (2026-09-25, storage location-truth) DECLARES eight objects here and
   # RESHAPES one. New: `index:phoenix_kit_file_locations_instance_bucket_index`,
   # UNIQUE `(file_instance_uuid, bucket_uuid)`,
@@ -489,7 +505,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "8ce3428f7ba2f3052ad0ed37f174f79943b9b760ee7137b0de916ad4b550ee02"
+  @chain_hash "bffd512507acbe12c53f0ce2e988a15c76fbbf91e9ae1c90cf563a95de038586"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -6561,7 +6577,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              kind: :index
            }},
         create:
-          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_storage_dimensions_name_index ON __SCHEMA__.phoenix_kit_storage_dimensions USING btree (name)",
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_storage_dimensions_name_index ON __SCHEMA__.phoenix_kit_storage_dimensions USING btree (variant_set_uuid, name)",
         since: 20,
         class: :index,
         revisions: [
@@ -6576,6 +6592,18 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              predicate: nil,
              opclasses: ["text_ops"],
              name_template: nil
+           }},
+          {205,
+           %{
+             table: "phoenix_kit_storage_dimensions",
+             keys: ["variant_set_uuid", "name"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_storage_dimensions_name_index ON __SCHEMA__.phoenix_kit_storage_dimensions USING btree (variant_set_uuid, name)",
+             name_template: nil,
+             opclasses: ["uuid_ops", "text_ops"],
+             predicate: nil
            }}
         ],
         presence: :required,
@@ -73603,6 +73631,1193 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              name_template: nil,
              foreign_columns: ["uuid"],
              foreign_table: "phoenix_kit_file_instances"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "table:phoenix_kit_storage_profiles",
+        owner: :core,
+        check: {:catalog, %{name: "phoenix_kit_storage_profiles", kind: :table}},
+        create: "CREATE TABLE IF NOT EXISTS __SCHEMA__.phoenix_kit_storage_profiles ()",
+        since: 205,
+        class: :table,
+        revisions: [{205, %{}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_storage_profiles.uuid",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_storage_profiles", column: "uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_profiles ADD COLUMN IF NOT EXISTS \"uuid\" uuid DEFAULT __SCHEMA__.uuid_generate_v7() NOT NULL",
+        since: 205,
+        class: :column,
+        revisions: [
+          {205, %{default: "__SCHEMA__.uuid_generate_v7()", type: "uuid", pos: 1, not_null: true}}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_storage_profiles.name",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_storage_profiles", column: "name", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_profiles ADD COLUMN IF NOT EXISTS \"name\" character varying(255)",
+        since: 205,
+        class: :column,
+        revisions: [
+          {205, %{default: nil, type: "character varying(255)", pos: 2, not_null: true}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_storage_profiles.is_default",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_profiles", column: "is_default", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_profiles ADD COLUMN IF NOT EXISTS \"is_default\" boolean DEFAULT false NOT NULL",
+        since: 205,
+        class: :column,
+        revisions: [{205, %{default: "false", type: "boolean", pos: 3, not_null: true}}],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_storage_profiles.copies_originals",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_profiles", column: "copies_originals", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_profiles ADD COLUMN IF NOT EXISTS \"copies_originals\" integer DEFAULT 1 NOT NULL",
+        since: 205,
+        class: :column,
+        revisions: [{205, %{default: "1", type: "integer", pos: 4, not_null: true}}],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_storage_profiles.copies_variants",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_profiles", column: "copies_variants", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_profiles ADD COLUMN IF NOT EXISTS \"copies_variants\" integer DEFAULT 1 NOT NULL",
+        since: 205,
+        class: :column,
+        revisions: [{205, %{default: "1", type: "integer", pos: 5, not_null: true}}],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_storage_profiles.min_copies_on_write",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_profiles", column: "min_copies_on_write", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_profiles ADD COLUMN IF NOT EXISTS \"min_copies_on_write\" integer DEFAULT 1 NOT NULL",
+        since: 205,
+        class: :column,
+        revisions: [{205, %{default: "1", type: "integer", pos: 6, not_null: true}}],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_storage_profiles.revision",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_storage_profiles", column: "revision", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_profiles ADD COLUMN IF NOT EXISTS \"revision\" integer DEFAULT 1 NOT NULL",
+        since: 205,
+        class: :column,
+        revisions: [{205, %{default: "1", type: "integer", pos: 7, not_null: true}}],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_storage_profiles.inserted_at",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_profiles", column: "inserted_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_profiles ADD COLUMN IF NOT EXISTS \"inserted_at\" timestamp(0) without time zone DEFAULT now() NOT NULL",
+        since: 205,
+        class: :column,
+        revisions: [
+          {205,
+           %{default: "now()", type: "timestamp(0) without time zone", pos: 8, not_null: true}}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_storage_profiles.updated_at",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_profiles", column: "updated_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_profiles ADD COLUMN IF NOT EXISTS \"updated_at\" timestamp(0) without time zone DEFAULT now() NOT NULL",
+        since: 205,
+        class: :column,
+        revisions: [
+          {205,
+           %{default: "now()", type: "timestamp(0) without time zone", pos: 9, not_null: true}}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "constraint:phoenix_kit_storage_profiles.phoenix_kit_storage_profiles_pkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_profiles_pkey",
+             table: "phoenix_kit_storage_profiles",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_storage_profiles_pkey'\n      AND t.relname = 'phoenix_kit_storage_profiles'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_storage_profiles ADD CONSTRAINT phoenix_kit_storage_profiles_pkey PRIMARY KEY (uuid);\n  END IF;\nEND\n$$",
+        since: 205,
+        class: :constraint,
+        revisions: [
+          {205,
+           %{
+             type: "p",
+             columns: ["uuid"],
+             definition: "PRIMARY KEY (uuid)",
+             on_delete: nil,
+             on_update: nil,
+             name_template: nil,
+             foreign_columns: nil,
+             foreign_table: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "constraint:phoenix_kit_storage_profiles.phoenix_kit_storage_profiles_copies_check",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_profiles_copies_check",
+             table: "phoenix_kit_storage_profiles",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_storage_profiles_copies_check'\n      AND t.relname = 'phoenix_kit_storage_profiles'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_storage_profiles ADD CONSTRAINT phoenix_kit_storage_profiles_copies_check CHECK ((((copies_originals >= 1) AND (copies_originals <= 5)) AND ((copies_variants >= 1) AND (copies_variants <= 5)) AND ((min_copies_on_write >= 1) AND (min_copies_on_write <= copies_originals))));\n  END IF;\nEND\n$$",
+        since: 205,
+        class: :constraint,
+        revisions: [
+          {205,
+           %{
+             type: "c",
+             columns: ["copies_originals", "copies_variants", "min_copies_on_write"],
+             definition:
+               "CHECK ((((copies_originals >= 1) AND (copies_originals <= 5)) AND ((copies_variants >= 1) AND (copies_variants <= 5)) AND ((min_copies_on_write >= 1) AND (min_copies_on_write <= copies_originals))))",
+             on_delete: nil,
+             on_update: nil,
+             name_template: nil,
+             foreign_columns: nil,
+             foreign_table: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_storage_profiles_default_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_profiles_default_index",
+             table: "phoenix_kit_storage_profiles",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_storage_profiles_default_index ON __SCHEMA__.phoenix_kit_storage_profiles USING btree (is_default) WHERE is_default",
+        since: 205,
+        class: :index,
+        revisions: [
+          {205,
+           %{
+             table: "phoenix_kit_storage_profiles",
+             keys: ["is_default"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_storage_profiles_default_index ON __SCHEMA__.phoenix_kit_storage_profiles USING btree (is_default) WHERE is_default",
+             name_template: nil,
+             opclasses: ["bool_ops"],
+             predicate: "is_default"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_storage_profiles_name_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_profiles_name_index",
+             table: "phoenix_kit_storage_profiles",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_storage_profiles_name_index ON __SCHEMA__.phoenix_kit_storage_profiles USING btree (lower((name)::text))",
+        since: 205,
+        class: :index,
+        revisions: [
+          {205,
+           %{
+             table: "phoenix_kit_storage_profiles",
+             keys: ["lower(name::text)"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_storage_profiles_name_index ON __SCHEMA__.phoenix_kit_storage_profiles USING btree (lower((name)::text))",
+             name_template: nil,
+             opclasses: ["text_ops"],
+             predicate: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "table:phoenix_kit_storage_profile_buckets",
+        owner: :core,
+        check: {:catalog, %{name: "phoenix_kit_storage_profile_buckets", kind: :table}},
+        create: "CREATE TABLE IF NOT EXISTS __SCHEMA__.phoenix_kit_storage_profile_buckets ()",
+        since: 205,
+        class: :table,
+        revisions: [{205, %{}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_storage_profile_buckets.profile_uuid",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_profile_buckets", column: "profile_uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_profile_buckets ADD COLUMN IF NOT EXISTS \"profile_uuid\" uuid",
+        since: 205,
+        class: :column,
+        revisions: [{205, %{default: nil, type: "uuid", pos: 1, not_null: true}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_storage_profile_buckets.bucket_uuid",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_profile_buckets", column: "bucket_uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_profile_buckets ADD COLUMN IF NOT EXISTS \"bucket_uuid\" uuid",
+        since: 205,
+        class: :column,
+        revisions: [{205, %{default: nil, type: "uuid", pos: 2, not_null: true}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_storage_profile_buckets.role",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_profile_buckets", column: "role", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_profile_buckets ADD COLUMN IF NOT EXISTS \"role\" character varying(20) DEFAULT 'primary'::character varying NOT NULL",
+        since: 205,
+        class: :column,
+        revisions: [
+          {205,
+           %{
+             default: "'primary'::character varying",
+             type: "character varying(20)",
+             pos: 3,
+             not_null: true
+           }}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_storage_profile_buckets.stores",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_profile_buckets", column: "stores", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_profile_buckets ADD COLUMN IF NOT EXISTS \"stores\" character varying(20) DEFAULT 'all'::character varying NOT NULL",
+        since: 205,
+        class: :column,
+        revisions: [
+          {205,
+           %{
+             default: "'all'::character varying",
+             type: "character varying(20)",
+             pos: 4,
+             not_null: true
+           }}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_storage_profile_buckets.write_priority",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             table: "phoenix_kit_storage_profile_buckets",
+             column: "write_priority",
+             kind: :column
+           }},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_profile_buckets ADD COLUMN IF NOT EXISTS \"write_priority\" integer",
+        since: 205,
+        class: :column,
+        revisions: [{205, %{default: nil, type: "integer", pos: 5, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_storage_profile_buckets.serve_order",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_profile_buckets", column: "serve_order", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_profile_buckets ADD COLUMN IF NOT EXISTS \"serve_order\" integer DEFAULT 0 NOT NULL",
+        since: 205,
+        class: :column,
+        revisions: [{205, %{default: "0", type: "integer", pos: 6, not_null: true}}],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_storage_profile_buckets.status",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_profile_buckets", column: "status", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_profile_buckets ADD COLUMN IF NOT EXISTS \"status\" character varying(20) DEFAULT 'active'::character varying NOT NULL",
+        since: 205,
+        class: :column,
+        revisions: [
+          {205,
+           %{
+             default: "'active'::character varying",
+             type: "character varying(20)",
+             pos: 7,
+             not_null: true
+           }}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_storage_profile_buckets.storage_class",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_profile_buckets", column: "storage_class", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_profile_buckets ADD COLUMN IF NOT EXISTS \"storage_class\" character varying(64)",
+        since: 205,
+        class: :column,
+        revisions: [
+          {205, %{default: nil, type: "character varying(64)", pos: 8, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_storage_profile_buckets.encryption",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_profile_buckets", column: "encryption", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_profile_buckets ADD COLUMN IF NOT EXISTS \"encryption\" jsonb",
+        since: 205,
+        class: :column,
+        revisions: [{205, %{default: nil, type: "jsonb", pos: 9, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_storage_profile_buckets.inserted_at",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_profile_buckets", column: "inserted_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_profile_buckets ADD COLUMN IF NOT EXISTS \"inserted_at\" timestamp(0) without time zone DEFAULT now() NOT NULL",
+        since: 205,
+        class: :column,
+        revisions: [
+          {205,
+           %{default: "now()", type: "timestamp(0) without time zone", pos: 10, not_null: true}}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_storage_profile_buckets.updated_at",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_profile_buckets", column: "updated_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_profile_buckets ADD COLUMN IF NOT EXISTS \"updated_at\" timestamp(0) without time zone DEFAULT now() NOT NULL",
+        since: 205,
+        class: :column,
+        revisions: [
+          {205,
+           %{default: "now()", type: "timestamp(0) without time zone", pos: 11, not_null: true}}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id:
+          "constraint:phoenix_kit_storage_profile_buckets.phoenix_kit_storage_profile_buckets_pkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_profile_buckets_pkey",
+             table: "phoenix_kit_storage_profile_buckets",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_storage_profile_buckets_pkey'\n      AND t.relname = 'phoenix_kit_storage_profile_buckets'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_storage_profile_buckets ADD CONSTRAINT phoenix_kit_storage_profile_buckets_pkey PRIMARY KEY (profile_uuid, bucket_uuid);\n  END IF;\nEND\n$$",
+        since: 205,
+        class: :constraint,
+        revisions: [
+          {205,
+           %{
+             type: "p",
+             columns: ["profile_uuid", "bucket_uuid"],
+             definition: "PRIMARY KEY (profile_uuid, bucket_uuid)",
+             on_delete: nil,
+             on_update: nil,
+             name_template: nil,
+             foreign_columns: nil,
+             foreign_table: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id:
+          "constraint:phoenix_kit_storage_profile_buckets.phoenix_kit_storage_profile_buckets_bucket_fkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_profile_buckets_bucket_fkey",
+             table: "phoenix_kit_storage_profile_buckets",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_storage_profile_buckets_bucket_fkey'\n      AND t.relname = 'phoenix_kit_storage_profile_buckets'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_storage_profile_buckets ADD CONSTRAINT phoenix_kit_storage_profile_buckets_bucket_fkey FOREIGN KEY (bucket_uuid) REFERENCES __SCHEMA__.phoenix_kit_buckets(uuid) ON DELETE RESTRICT;\n  END IF;\nEND\n$$",
+        since: 205,
+        class: :constraint,
+        revisions: [
+          {205,
+           %{
+             type: "f",
+             columns: ["bucket_uuid"],
+             definition:
+               "FOREIGN KEY (bucket_uuid) REFERENCES __SCHEMA__.phoenix_kit_buckets(uuid) ON DELETE RESTRICT",
+             on_delete: "r",
+             on_update: "a",
+             name_template: nil,
+             foreign_columns: ["uuid"],
+             foreign_table: "phoenix_kit_buckets"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id:
+          "constraint:phoenix_kit_storage_profile_buckets.phoenix_kit_storage_profile_buckets_profile_fkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_profile_buckets_profile_fkey",
+             table: "phoenix_kit_storage_profile_buckets",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_storage_profile_buckets_profile_fkey'\n      AND t.relname = 'phoenix_kit_storage_profile_buckets'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_storage_profile_buckets ADD CONSTRAINT phoenix_kit_storage_profile_buckets_profile_fkey FOREIGN KEY (profile_uuid) REFERENCES __SCHEMA__.phoenix_kit_storage_profiles(uuid) ON DELETE CASCADE;\n  END IF;\nEND\n$$",
+        since: 205,
+        class: :constraint,
+        revisions: [
+          {205,
+           %{
+             type: "f",
+             columns: ["profile_uuid"],
+             definition:
+               "FOREIGN KEY (profile_uuid) REFERENCES __SCHEMA__.phoenix_kit_storage_profiles(uuid) ON DELETE CASCADE",
+             on_delete: "c",
+             on_update: "a",
+             name_template: nil,
+             foreign_columns: ["uuid"],
+             foreign_table: "phoenix_kit_storage_profiles"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id:
+          "constraint:phoenix_kit_storage_profile_buckets.phoenix_kit_storage_profile_buckets_role_check",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_profile_buckets_role_check",
+             table: "phoenix_kit_storage_profile_buckets",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_storage_profile_buckets_role_check'\n      AND t.relname = 'phoenix_kit_storage_profile_buckets'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_storage_profile_buckets ADD CONSTRAINT phoenix_kit_storage_profile_buckets_role_check CHECK (((role)::text = ANY ((ARRAY['primary'::character varying, 'replica'::character varying, 'backup'::character varying])::text[])));\n  END IF;\nEND\n$$",
+        since: 205,
+        class: :constraint,
+        revisions: [
+          {205,
+           %{
+             type: "c",
+             columns: ["role"],
+             definition:
+               "CHECK (((role)::text = ANY ((ARRAY['primary'::character varying, 'replica'::character varying, 'backup'::character varying])::text[])))",
+             on_delete: nil,
+             on_update: nil,
+             name_template: nil,
+             foreign_columns: nil,
+             foreign_table: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id:
+          "constraint:phoenix_kit_storage_profile_buckets.phoenix_kit_storage_profile_buckets_status_check",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_profile_buckets_status_check",
+             table: "phoenix_kit_storage_profile_buckets",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_storage_profile_buckets_status_check'\n      AND t.relname = 'phoenix_kit_storage_profile_buckets'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_storage_profile_buckets ADD CONSTRAINT phoenix_kit_storage_profile_buckets_status_check CHECK (((status)::text = ANY ((ARRAY['active'::character varying, 'read_only'::character varying, 'draining'::character varying])::text[])));\n  END IF;\nEND\n$$",
+        since: 205,
+        class: :constraint,
+        revisions: [
+          {205,
+           %{
+             type: "c",
+             columns: ["status"],
+             definition:
+               "CHECK (((status)::text = ANY ((ARRAY['active'::character varying, 'read_only'::character varying, 'draining'::character varying])::text[])))",
+             on_delete: nil,
+             on_update: nil,
+             name_template: nil,
+             foreign_columns: nil,
+             foreign_table: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id:
+          "constraint:phoenix_kit_storage_profile_buckets.phoenix_kit_storage_profile_buckets_stores_check",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_profile_buckets_stores_check",
+             table: "phoenix_kit_storage_profile_buckets",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_storage_profile_buckets_stores_check'\n      AND t.relname = 'phoenix_kit_storage_profile_buckets'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_storage_profile_buckets ADD CONSTRAINT phoenix_kit_storage_profile_buckets_stores_check CHECK (((stores)::text = ANY ((ARRAY['all'::character varying, 'originals'::character varying, 'derived'::character varying])::text[])));\n  END IF;\nEND\n$$",
+        since: 205,
+        class: :constraint,
+        revisions: [
+          {205,
+           %{
+             type: "c",
+             columns: ["stores"],
+             definition:
+               "CHECK (((stores)::text = ANY ((ARRAY['all'::character varying, 'originals'::character varying, 'derived'::character varying])::text[])))",
+             on_delete: nil,
+             on_update: nil,
+             name_template: nil,
+             foreign_columns: nil,
+             foreign_table: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_storage_profile_buckets_bucket_uuid_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_profile_buckets_bucket_uuid_index",
+             table: "phoenix_kit_storage_profile_buckets",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_storage_profile_buckets_bucket_uuid_index ON __SCHEMA__.phoenix_kit_storage_profile_buckets USING btree (bucket_uuid)",
+        since: 205,
+        class: :index,
+        revisions: [
+          {205,
+           %{
+             table: "phoenix_kit_storage_profile_buckets",
+             keys: ["bucket_uuid"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_storage_profile_buckets_bucket_uuid_index ON __SCHEMA__.phoenix_kit_storage_profile_buckets USING btree (bucket_uuid)",
+             name_template: nil,
+             opclasses: ["uuid_ops"],
+             predicate: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "table:phoenix_kit_variant_sets",
+        owner: :core,
+        check: {:catalog, %{name: "phoenix_kit_variant_sets", kind: :table}},
+        create: "CREATE TABLE IF NOT EXISTS __SCHEMA__.phoenix_kit_variant_sets ()",
+        since: 205,
+        class: :table,
+        revisions: [{205, %{}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_variant_sets.uuid",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_variant_sets", column: "uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_variant_sets ADD COLUMN IF NOT EXISTS \"uuid\" uuid DEFAULT __SCHEMA__.uuid_generate_v7() NOT NULL",
+        since: 205,
+        class: :column,
+        revisions: [
+          {205, %{default: "__SCHEMA__.uuid_generate_v7()", type: "uuid", pos: 1, not_null: true}}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_variant_sets.name",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_variant_sets", column: "name", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_variant_sets ADD COLUMN IF NOT EXISTS \"name\" character varying(255)",
+        since: 205,
+        class: :column,
+        revisions: [
+          {205, %{default: nil, type: "character varying(255)", pos: 2, not_null: true}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_variant_sets.is_default",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_variant_sets", column: "is_default", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_variant_sets ADD COLUMN IF NOT EXISTS \"is_default\" boolean DEFAULT false NOT NULL",
+        since: 205,
+        class: :column,
+        revisions: [{205, %{default: "false", type: "boolean", pos: 3, not_null: true}}],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_variant_sets.selectable",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_variant_sets", column: "selectable", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_variant_sets ADD COLUMN IF NOT EXISTS \"selectable\" boolean DEFAULT false NOT NULL",
+        since: 205,
+        class: :column,
+        revisions: [{205, %{default: "false", type: "boolean", pos: 4, not_null: true}}],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_variant_sets.generate_variants",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_variant_sets", column: "generate_variants", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_variant_sets ADD COLUMN IF NOT EXISTS \"generate_variants\" boolean DEFAULT true NOT NULL",
+        since: 205,
+        class: :column,
+        revisions: [{205, %{default: "true", type: "boolean", pos: 5, not_null: true}}],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_variant_sets.generate_tiles",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_variant_sets", column: "generate_tiles", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_variant_sets ADD COLUMN IF NOT EXISTS \"generate_tiles\" boolean DEFAULT false NOT NULL",
+        since: 205,
+        class: :column,
+        revisions: [{205, %{default: "false", type: "boolean", pos: 6, not_null: true}}],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_variant_sets.revision",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_variant_sets", column: "revision", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_variant_sets ADD COLUMN IF NOT EXISTS \"revision\" integer DEFAULT 1 NOT NULL",
+        since: 205,
+        class: :column,
+        revisions: [{205, %{default: "1", type: "integer", pos: 7, not_null: true}}],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_variant_sets.inserted_at",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_variant_sets", column: "inserted_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_variant_sets ADD COLUMN IF NOT EXISTS \"inserted_at\" timestamp(0) without time zone DEFAULT now() NOT NULL",
+        since: 205,
+        class: :column,
+        revisions: [
+          {205,
+           %{default: "now()", type: "timestamp(0) without time zone", pos: 8, not_null: true}}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_variant_sets.updated_at",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_variant_sets", column: "updated_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_variant_sets ADD COLUMN IF NOT EXISTS \"updated_at\" timestamp(0) without time zone DEFAULT now() NOT NULL",
+        since: 205,
+        class: :column,
+        revisions: [
+          {205,
+           %{default: "now()", type: "timestamp(0) without time zone", pos: 9, not_null: true}}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "constraint:phoenix_kit_variant_sets.phoenix_kit_variant_sets_pkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_variant_sets_pkey",
+             table: "phoenix_kit_variant_sets",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_variant_sets_pkey'\n      AND t.relname = 'phoenix_kit_variant_sets'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_variant_sets ADD CONSTRAINT phoenix_kit_variant_sets_pkey PRIMARY KEY (uuid);\n  END IF;\nEND\n$$",
+        since: 205,
+        class: :constraint,
+        revisions: [
+          {205,
+           %{
+             type: "p",
+             columns: ["uuid"],
+             definition: "PRIMARY KEY (uuid)",
+             on_delete: nil,
+             on_update: nil,
+             name_template: nil,
+             foreign_columns: nil,
+             foreign_table: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_variant_sets_default_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_variant_sets_default_index",
+             table: "phoenix_kit_variant_sets",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_variant_sets_default_index ON __SCHEMA__.phoenix_kit_variant_sets USING btree (is_default) WHERE is_default",
+        since: 205,
+        class: :index,
+        revisions: [
+          {205,
+           %{
+             table: "phoenix_kit_variant_sets",
+             keys: ["is_default"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_variant_sets_default_index ON __SCHEMA__.phoenix_kit_variant_sets USING btree (is_default) WHERE is_default",
+             name_template: nil,
+             opclasses: ["bool_ops"],
+             predicate: "is_default"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_variant_sets_name_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_variant_sets_name_index",
+             table: "phoenix_kit_variant_sets",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_variant_sets_name_index ON __SCHEMA__.phoenix_kit_variant_sets USING btree (lower((name)::text))",
+        since: 205,
+        class: :index,
+        revisions: [
+          {205,
+           %{
+             table: "phoenix_kit_variant_sets",
+             keys: ["lower(name::text)"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_variant_sets_name_index ON __SCHEMA__.phoenix_kit_variant_sets USING btree (lower((name)::text))",
+             name_template: nil,
+             opclasses: ["text_ops"],
+             predicate: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "seed:phoenix_kit_storage_profiles:00000000-0000-7000-8000-000000000002",
+        owner: :core,
+        check:
+          "SELECT EXISTS (SELECT 1 FROM __SCHEMA__.phoenix_kit_storage_profiles WHERE \"uuid\" = '00000000-0000-7000-8000-000000000002')",
+        create:
+          "INSERT INTO __SCHEMA__.phoenix_kit_storage_profiles (\"uuid\", \"name\", \"is_default\", \"inserted_at\", \"updated_at\")\nVALUES ('00000000-0000-7000-8000-000000000002', 'Default', TRUE, NOW(), NOW())\nON CONFLICT (\"uuid\") DO NOTHING",
+        since: 205,
+        class: :seed,
+        revisions: [
+          {205,
+           %{
+             values: %{
+               "is_default" => true,
+               "name" => "Default",
+               "uuid" => "00000000-0000-7000-8000-000000000002"
+             },
+             key_value: "00000000-0000-7000-8000-000000000002",
+             key_column: "uuid"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "seed:phoenix_kit_variant_sets:00000000-0000-7000-8000-000000000003",
+        owner: :core,
+        check:
+          "SELECT EXISTS (SELECT 1 FROM __SCHEMA__.phoenix_kit_variant_sets WHERE \"uuid\" = '00000000-0000-7000-8000-000000000003')",
+        create:
+          "INSERT INTO __SCHEMA__.phoenix_kit_variant_sets (\"uuid\", \"name\", \"is_default\", \"selectable\", \"inserted_at\", \"updated_at\")\nVALUES ('00000000-0000-7000-8000-000000000003', 'Default', TRUE, TRUE, NOW(), NOW())\nON CONFLICT (\"uuid\") DO NOTHING",
+        since: 205,
+        class: :seed,
+        revisions: [
+          {205,
+           %{
+             values: %{
+               "is_default" => true,
+               "name" => "Default",
+               "selectable" => true,
+               "uuid" => "00000000-0000-7000-8000-000000000003"
+             },
+             key_value: "00000000-0000-7000-8000-000000000003",
+             key_column: "uuid"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_storage_libraries.storage_profile_uuid",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             table: "phoenix_kit_storage_libraries",
+             column: "storage_profile_uuid",
+             kind: :column
+           }},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_libraries ADD COLUMN IF NOT EXISTS \"storage_profile_uuid\" uuid",
+        since: 205,
+        class: :column,
+        revisions: [{205, %{default: nil, type: "uuid", pos: 13, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_storage_libraries.variant_set_uuid",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_libraries", column: "variant_set_uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_libraries ADD COLUMN IF NOT EXISTS \"variant_set_uuid\" uuid",
+        since: 205,
+        class: :column,
+        revisions: [{205, %{default: nil, type: "uuid", pos: 14, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_files.placed_profile_uuid",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_files", column: "placed_profile_uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_files ADD COLUMN IF NOT EXISTS \"placed_profile_uuid\" uuid",
+        since: 205,
+        class: :column,
+        revisions: [{205, %{default: nil, type: "uuid", pos: 34, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_files.placed_revision",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_files", column: "placed_revision", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_files ADD COLUMN IF NOT EXISTS \"placed_revision\" integer",
+        since: 205,
+        class: :column,
+        revisions: [{205, %{default: nil, type: "integer", pos: 35, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_files.placed_variant_set_uuid",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_files", column: "placed_variant_set_uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_files ADD COLUMN IF NOT EXISTS \"placed_variant_set_uuid\" uuid",
+        since: 205,
+        class: :column,
+        revisions: [{205, %{default: nil, type: "uuid", pos: 36, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_files.placed_variant_revision",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_files", column: "placed_variant_revision", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_files ADD COLUMN IF NOT EXISTS \"placed_variant_revision\" integer",
+        since: 205,
+        class: :column,
+        revisions: [{205, %{default: nil, type: "integer", pos: 37, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_file_instances.spec_hash",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_file_instances", column: "spec_hash", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_file_instances ADD COLUMN IF NOT EXISTS \"spec_hash\" character varying(32)",
+        since: 205,
+        class: :column,
+        revisions: [
+          {205, %{default: nil, type: "character varying(32)", pos: 14, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_storage_dimensions.variant_set_uuid",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_storage_dimensions", column: "variant_set_uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_dimensions ADD COLUMN IF NOT EXISTS \"variant_set_uuid\" uuid DEFAULT '00000000-0000-7000-8000-000000000003'::uuid NOT NULL",
+        since: 205,
+        class: :column,
+        revisions: [
+          {205,
+           %{
+             default: "'00000000-0000-7000-8000-000000000003'::uuid",
+             type: "uuid",
+             pos: 14,
+             not_null: true
+           }}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "constraint:phoenix_kit_storage_libraries.phoenix_kit_storage_libraries_profile_fkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_libraries_profile_fkey",
+             table: "phoenix_kit_storage_libraries",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_storage_libraries_profile_fkey'\n      AND t.relname = 'phoenix_kit_storage_libraries'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_storage_libraries ADD CONSTRAINT phoenix_kit_storage_libraries_profile_fkey FOREIGN KEY (storage_profile_uuid) REFERENCES __SCHEMA__.phoenix_kit_storage_profiles(uuid) ON DELETE RESTRICT;\n  END IF;\nEND\n$$",
+        since: 205,
+        class: :constraint,
+        revisions: [
+          {205,
+           %{
+             type: "f",
+             columns: ["storage_profile_uuid"],
+             definition:
+               "FOREIGN KEY (storage_profile_uuid) REFERENCES __SCHEMA__.phoenix_kit_storage_profiles(uuid) ON DELETE RESTRICT",
+             on_delete: "r",
+             on_update: "a",
+             name_template: nil,
+             foreign_columns: ["uuid"],
+             foreign_table: "phoenix_kit_storage_profiles"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id:
+          "constraint:phoenix_kit_storage_libraries.phoenix_kit_storage_libraries_variant_set_fkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_libraries_variant_set_fkey",
+             table: "phoenix_kit_storage_libraries",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_storage_libraries_variant_set_fkey'\n      AND t.relname = 'phoenix_kit_storage_libraries'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_storage_libraries ADD CONSTRAINT phoenix_kit_storage_libraries_variant_set_fkey FOREIGN KEY (variant_set_uuid) REFERENCES __SCHEMA__.phoenix_kit_variant_sets(uuid) ON DELETE RESTRICT;\n  END IF;\nEND\n$$",
+        since: 205,
+        class: :constraint,
+        revisions: [
+          {205,
+           %{
+             type: "f",
+             columns: ["variant_set_uuid"],
+             definition:
+               "FOREIGN KEY (variant_set_uuid) REFERENCES __SCHEMA__.phoenix_kit_variant_sets(uuid) ON DELETE RESTRICT",
+             on_delete: "r",
+             on_update: "a",
+             name_template: nil,
+             foreign_columns: ["uuid"],
+             foreign_table: "phoenix_kit_variant_sets"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id:
+          "constraint:phoenix_kit_storage_dimensions.phoenix_kit_storage_dimensions_variant_set_fkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_dimensions_variant_set_fkey",
+             table: "phoenix_kit_storage_dimensions",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_storage_dimensions_variant_set_fkey'\n      AND t.relname = 'phoenix_kit_storage_dimensions'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_storage_dimensions ADD CONSTRAINT phoenix_kit_storage_dimensions_variant_set_fkey FOREIGN KEY (variant_set_uuid) REFERENCES __SCHEMA__.phoenix_kit_variant_sets(uuid) ON DELETE CASCADE;\n  END IF;\nEND\n$$",
+        since: 205,
+        class: :constraint,
+        revisions: [
+          {205,
+           %{
+             type: "f",
+             columns: ["variant_set_uuid"],
+             definition:
+               "FOREIGN KEY (variant_set_uuid) REFERENCES __SCHEMA__.phoenix_kit_variant_sets(uuid) ON DELETE CASCADE",
+             on_delete: "c",
+             on_update: "a",
+             name_template: nil,
+             foreign_columns: ["uuid"],
+             foreign_table: "phoenix_kit_variant_sets"
            }}
         ],
         presence: :required,

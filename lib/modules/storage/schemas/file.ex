@@ -126,6 +126,10 @@ defmodule PhoenixKit.Modules.Storage.File do
           folder_uuid: UUIDv7.t() | nil,
           parent_file_uuid: UUIDv7.t() | nil,
           library_uuid: UUIDv7.t() | nil,
+          placed_profile_uuid: UUIDv7.t() | nil,
+          placed_revision: integer() | nil,
+          placed_variant_set_uuid: UUIDv7.t() | nil,
+          placed_variant_revision: integer() | nil,
           user: PhoenixKit.Users.Auth.User.t() | Ecto.Association.NotLoaded.t(),
           parent_file: t() | Ecto.Association.NotLoaded.t() | nil,
           instances:
@@ -220,6 +224,16 @@ defmodule PhoenixKit.Modules.Storage.File do
       references: :uuid,
       type: UUIDv7,
       define_field: false
+
+    # What placed the file's bytes and made its variants (V205): a storage
+    # profile and a variant set, each at a revision. NULL means the Default
+    # at revision 1, which is what every file stored before V205 is. The
+    # reconciler brings a file whose stamps differ from its library's up to
+    # date and stamps it (`Storage.Profiles`, `Storage.VariantSets`).
+    field :placed_profile_uuid, UUIDv7
+    field :placed_revision, :integer
+    field :placed_variant_set_uuid, UUIDv7
+    field :placed_variant_revision, :integer
 
     has_many :instances, PhoenixKit.Modules.Storage.FileInstance, foreign_key: :file_uuid
     has_many :folder_links, PhoenixKit.Modules.Storage.FolderLink, foreign_key: :file_uuid

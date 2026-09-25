@@ -7,7 +7,18 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V204 - Storage location-truth ⚡ LATEST
+  ### V205 - Storage profiles and variant sets ⚡ LATEST
+
+  A library points at a storage profile (where its bytes live: buckets with
+  a role, what they store, write priority, serve order and status, and copy
+  counts) and a variant set (which sizes it gets). Both default to the
+  seeded Default, built from today's buckets, redundancy and dimension
+  settings; size names become unique per set. Files record what placed them
+  and instances which size spec made them, so the reconciler can find what
+  is stale. Nothing is copied or regenerated. Phase 4 of
+  `dev_docs/plans/2026-09-22-storage-libraries.md`.
+
+  ### V204 - Storage location-truth
 
   One `phoenix_kit_file_locations` row per instance per bucket: duplicates
   are removed and a unique `(file_instance_uuid, bucket_uuid)` index added.
@@ -880,7 +891,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 204
+  @current_version 205
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

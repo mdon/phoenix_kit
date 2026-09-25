@@ -110,11 +110,13 @@ defmodule PhoenixKit.Modules.Storage do
   alias PhoenixKit.Modules.Storage.Locations
   alias PhoenixKit.Modules.Storage.Manager
   alias PhoenixKit.Modules.Storage.ProcessFileJob
+  alias PhoenixKit.Modules.Storage.Profiles
   alias PhoenixKit.Modules.Storage.ProviderRegistry
   # NOTE: Temporary helper for Publishing component system.
   # The dedicated storage/media APIs under development should replace this fallback once available.
   alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.Modules.Storage.VariantGenerator
+  alias PhoenixKit.Modules.Storage.VariantSets
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.TreeQuery
 
@@ -351,9 +353,18 @@ defmodule PhoenixKit.Modules.Storage do
 
   """
   def create_bucket(attrs \\ %{}) do
-    %Bucket{}
-    |> Bucket.changeset(attrs)
-    |> repo().insert()
+    # A new bucket joins the Default storage profile, as every new bucket
+    # joined the one pool before profiles (V205).
+    repo().transaction(fn ->
+      case %Bucket{} |> Bucket.changeset(attrs) |> repo().insert() do
+        {:ok, bucket} ->
+          :ok = Profiles.add_to_default(bucket)
+          bucket
+
+        {:error, changeset} ->
+          repo().rollback(changeset)
+      end
+    end)
     |> tap(&bucket_changed/1)
   end
 
@@ -370,10 +381,36 @@ defmodule PhoenixKit.Modules.Storage do
 
   """
   def update_bucket(%Bucket{} = bucket, attrs) do
-    bucket
-    |> Bucket.changeset(attrs)
-    |> repo().update()
+    changeset = Bucket.changeset(bucket, attrs)
+
+    repo().transaction(fn ->
+      case repo().update(changeset) do
+        {:ok, updated} ->
+          # Until profiles have their own editor, a bucket's priority is its
+          # write priority in the Default profile.
+          if Map.has_key?(changeset.changes, :priority), do: sync_default_priority(updated)
+          updated
+
+        {:error, changeset} ->
+          repo().rollback(changeset)
+      end
+    end)
     |> tap(&bucket_changed/1)
+  end
+
+  defp sync_default_priority(%Bucket{} = bucket) do
+    case Profiles.default_profile() do
+      %{buckets: rows} = profile ->
+        if Enum.any?(rows, &(&1.bucket_uuid == bucket.uuid)) do
+          {:ok, _} =
+            Profiles.put_bucket(profile, bucket.uuid, %{
+              write_priority: Profiles.write_priority(bucket.priority)
+            })
+        end
+
+      nil ->
+        :ok
+    end
   end
 
   @doc """
@@ -391,14 +428,24 @@ defmodule PhoenixKit.Modules.Storage do
   def delete_bucket(%Bucket{} = bucket) do
     # A bucket that still holds files is refused (V204: the location FK is
     # RESTRICT); before, deleting it dropped every location row it had and
-    # left its objects behind.
-    bucket
-    |> Ecto.Changeset.change()
-    |> Ecto.Changeset.no_assoc_constraint(:file_locations,
-      name: :phoenix_kit_file_locations_bucket_id_fkey,
-      message: "still holds files"
-    )
-    |> repo().delete()
+    # left its objects behind. An empty bucket leaves the storage profiles
+    # that use it first (their bucket FK is RESTRICT too); a refused delete
+    # rolls that back.
+    repo().transaction(fn ->
+      :ok = Profiles.remove_bucket_everywhere(bucket.uuid)
+
+      bucket
+      |> Ecto.Changeset.change()
+      |> Ecto.Changeset.no_assoc_constraint(:file_locations,
+        name: :phoenix_kit_file_locations_bucket_id_fkey,
+        message: "still holds files"
+      )
+      |> repo().delete()
+      |> case do
+        {:ok, deleted} -> deleted
+        {:error, changeset} -> repo().rollback(changeset)
+      end
+    end)
     |> tap(&bucket_changed/1)
   end
 
@@ -813,25 +860,32 @@ defmodule PhoenixKit.Modules.Storage do
   # ===== DIMENSIONS =====
 
   @doc """
-  Returns a list of all dimensions, ordered by size (width x height).
+  Returns the dimensions (sizes) of a variant set, the Default when none is
+  given, ordered by size (width x height).
   """
-  def list_dimensions do
+  def list_dimensions(variant_set_uuid \\ VariantSets.default_uuid()) do
     Dimension
+    |> where([d], d.variant_set_uuid == ^variant_set_uuid)
     |> order_by(asc: :width, asc: :height)
     |> repo().all()
   end
 
   @doc """
-  Returns enabled dimensions for a specific file type.
+  Returns the enabled dimensions of a variant set (the Default when none is
+  given) for a specific file type.
   """
-  def list_dimensions_for_type(file_type) when file_type in ["image", "video"] do
+  def list_dimensions_for_type(file_type, variant_set_uuid \\ VariantSets.default_uuid())
+
+  def list_dimensions_for_type(file_type, variant_set_uuid)
+      when file_type in ["image", "video"] do
     Dimension
+    |> where([d], d.variant_set_uuid == ^variant_set_uuid)
     |> where([d], d.enabled == true and (d.applies_to == ^file_type or d.applies_to == "both"))
     |> order_by(asc: :width, asc: :height)
     |> repo().all()
   end
 
-  def list_dimensions_for_type(_), do: []
+  def list_dimensions_for_type(_, _), do: []
 
   @doc """
   Gets a single dimension by ID.
@@ -839,20 +893,23 @@ defmodule PhoenixKit.Modules.Storage do
   def get_dimension(id), do: repo().get(Dimension, id)
 
   @doc """
-  Gets a dimension by name.
+  Gets a dimension by name in a variant set (the Default when none is given).
   """
-  def get_dimension_by_name(name) do
-    repo().get_by(Dimension, name: name)
+  def get_dimension_by_name(name, variant_set_uuid \\ VariantSets.default_uuid()) do
+    repo().get_by(Dimension, name: name, variant_set_uuid: variant_set_uuid)
   end
 
   @doc """
-  Resets all dimensions to default seeded values.
-  Deletes all current dimensions and recreates the 8 default ones.
+  Resets the Default variant set's dimensions to the seeded values.
+  Deletes its current dimensions and recreates the 8 default ones. Other
+  variant sets are left alone.
   """
   def reset_dimensions_to_defaults do
     repo().transaction(fn ->
-      # Delete all existing dimensions
-      repo().delete_all(Dimension)
+      # Delete the Default set's dimensions
+      Dimension
+      |> where([d], d.variant_set_uuid == ^VariantSets.default_uuid())
+      |> repo().delete_all()
 
       # Insert default dimensions
       now = UtilsDate.utc_now()

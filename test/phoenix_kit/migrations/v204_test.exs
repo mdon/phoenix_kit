@@ -105,8 +105,8 @@ defmodule PhoenixKit.Migrations.Postgres.V204Test do
     n
   end
 
-  test "the chain is at 204: one row per pair, and a bucket with files is kept" do
-    assert marker() == "204"
+  test "the chain is at 204 or later: one row per pair, and a bucket with files is kept" do
+    assert String.to_integer(marker()) >= 204
     assert on_delete() == "r"
 
     instance = instance!()

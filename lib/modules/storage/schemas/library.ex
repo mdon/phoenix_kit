@@ -38,6 +38,8 @@ defmodule PhoenixKit.Modules.Storage.Library do
           settings: map(),
           is_default: boolean(),
           trashed_at: DateTime.t() | nil,
+          storage_profile_uuid: UUIDv7.t() | nil,
+          variant_set_uuid: UUIDv7.t() | nil,
           inserted_at: DateTime.t() | nil,
           updated_at: DateTime.t() | nil
         }
@@ -54,6 +56,11 @@ defmodule PhoenixKit.Modules.Storage.Library do
     field :settings, :map, default: %{}
     field :is_default, :boolean, default: false
     field :trashed_at, :utc_datetime
+    # Where the library's bytes live and which sizes its uploads get (V205).
+    # nil means the Default of each; set through `Storage.Profiles` and
+    # `Storage.VariantSets`, never cast by the changesets here.
+    field :storage_profile_uuid, UUIDv7
+    field :variant_set_uuid, UUIDv7
 
     belongs_to :owner, PhoenixKit.Users.Auth.User,
       foreign_key: :owner_uuid,
