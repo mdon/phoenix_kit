@@ -27,15 +27,19 @@ settings.
   for a library they own, a set an admin marked selectable.
 - **The reconciler** (`Storage.Workers.ReconcileJob`) moves files to where
   their library's profile wants them, copying first and removing a copy
-  only once enough good ones exist elsewhere (never the last one); it
-  deletes an object from a bucket only when nothing else there still needs
-  it. It also makes missing sizes, remakes sizes whose spec changed, and
-  removes sizes a set no longer has. It runs by itself, throttled, after
-  any change and daily; the **Health** page lists the files still waiting
-  and can queue a pass.
-- **A missing size is no longer served as the full original.** Until it
-  exists, the nearest smaller size the file has stands in, else a
-  placeholder.
+  only once the copies that stay are checked to be really there (never the
+  last one); it deletes an object from a bucket only when nothing else
+  there still needs it. It also makes missing sizes, remakes sizes whose
+  spec changed, and removes sizes a set no longer has; a thumbnail with an
+  annotation burned into it is never made over. It runs by itself,
+  throttled, after any change and daily; a file it cannot finish is tried
+  again ten minutes later. The **Health** page lists the files still
+  waiting and can queue a pass.
+- **A missing size is no longer served as the full original.** Until a
+  size that is being made exists, the nearest smaller size the file has
+  stands in, else a placeholder; neither is cached. A size that will not
+  be made (the set makes none, the size is disabled) still serves the
+  original, as before.
 - `Storage.variant_for(file, min_width: 300, aspect: :preserve)` picks a
   size by purpose against the file's own set.
 - `mix phoenix_kit.doctor` warns about a variant set missing a standard
@@ -55,6 +59,19 @@ settings.
   libraries use the same profile and variant set.
 - Deleting an empty bucket takes it out of every storage profile; a new
   bucket joins the Default profile, as it joined the pool before.
+- An upload whose write fails on one bucket tries the next eligible one
+  before giving up a copy.
+
+### Fixed
+
+- **A failed upload no longer deletes bytes another file uses.** Keys are
+  content-addressed, so a second upload of the same bytes writes the same
+  key; undoing a failed one now happens under the key's lock and only when
+  nothing else references the key or is still writing it.
+- **Bucket usage counts small files.** Each file was rounded down to whole
+  megabytes before summing, so files under 1 MB counted as nothing and a
+  bucket's `max_size_mb` never tripped; a key shared by cross-user copies
+  is now counted once.
 
 ### Removed
 
