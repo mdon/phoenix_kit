@@ -341,14 +341,22 @@ touches profiles behaves as before. A profile has:
 through `Storage.store_by_profile/4`): the profile's buckets that are
 enabled, `active`, store that kind and are under their `max_size_mb`,
 primaries before replicas before backups, fixed write priority before the
-pool, up to the copy count. A file records the profile and revision that
-placed it (`placed_profile_uuid` / `placed_revision`; NULL is the Default at
-revision 1); fewer copies than wanted leave it stale (revision 0).
+pool, up to the copy count; a bucket whose write fails is replaced by the
+next one. A file records the profile and revision that placed it
+(`placed_profile_uuid` / `placed_revision`; NULL is the Default at revision
+1); fewer copies than wanted leave it stale (revision 0). An original with
+fewer than `min_copies_on_write` copies fails, and what it wrote is removed
+(`Storage.undo_store/3`, under the key's directory lock, and only when no
+row names the key and no other upload into its directory is in flight:
+keys are content-addressed).
 
-**Serving** (`Locations.ranked/1`): a key's recorded buckets in its file's
-profile order — primaries, then replicas, then a bucket the profile no
-longer lists, each by `serve_order`. A backup is never served; processing
-may read it last. A bucket's `enabled` flag stays the emergency stop:
+**Serving** (`Locations.ranked/2`): a key's recorded buckets in the
+**served file's own** profile order (`file_uuid:` on `get_file_access/2`
+and `public_url/2`; a key shared with a cross-user copy in another library
+is not ranked by that library's profile) — primaries, then replicas, then a
+bucket the profile no longer lists, each by `serve_order`. A backup is
+never served, and never probed as a fallback for that file either;
+processing may read it last. A bucket's `enabled` flag stays the emergency stop:
 a disabled bucket is neither written nor read, whatever its profile says.
 
 Every bucket joins the Default when it is created; a bucket's `priority` is
@@ -370,8 +378,13 @@ Every set has the **standard sizes** `thumbnail`, `small`, `medium`,
 
 - A generated variant records the `spec_hash` of the size that made it; a
   file records the set and revision its variants were made by.
-- A missing image size is served as the nearest smaller size the file has,
-  then a placeholder — never a full original larger than the size (G17).
+- A missing image size that is being made is served as the nearest smaller
+  size the file has, then a placeholder — never a full original larger than
+  the size (G17). Neither is cached, a private file's either. A size that
+  will not be made (the set makes none, the size is disabled or for the
+  other kind of file) serves the original, as before.
+- A thumbnail with an annotation burned into it has no `spec_hash` (V205
+  did not stamp one), so nothing ever makes over it.
 - `Storage.variant_for(file, min_width: 300, aspect: :preserve)` picks a
   size by purpose, against the file's set.
 - Sets are edited on Settings → Media → Variant sets; a user library may
@@ -380,16 +393,38 @@ Every set has the **standard sizes** `thumbnail`, `small`, `medium`,
 ### The reconciler (V205)
 
 `Storage.Reconciler`, run by `Workers.ReconcileJob` (10 files a run, 2 s
-apart), makes every **stale** file (its placement or variant stamps differ
-from its library's profile and set) match: it copies an instance to the
-profile's buckets up to the copy count (checking each copy), then unlinks
-copies on buckets the profile no longer uses for it — the object goes from
-that bucket only, and only when no other active location there names the
-key (`Storage.unlink_location/2`). It never unlinks without a good copy
-elsewhere. It makes missing sizes, remakes those whose spec changed and
-deletes those the set dropped (a disabled size is kept). It is queued by
-every change to a profile or a set, a library moving, an incomplete upload,
-the daily prune and boot. The Health page lists what is waiting.
+apart, one file at a time under a session advisory lock), makes every
+**stale** file match its library's profile and set. A file is stale when
+its placement stamp differs from its profile, or — for an active file only
+— its variant stamp differs from its set; trashed and unfinished files keep
+their size stamp until they are active again.
+
+- **Copies:** each checked, completed instance (an original upload is an
+  original; sizes, tiles and renders are derived; an edit's hidden backup
+  is an original) gets copies on the profile's buckets up to the copy
+  count, capped at buckets that hold one or can take one. Each copy is
+  made, checked with `Manager.holds?/2` and recorded under the key's
+  directory lock. A file whose only copies are on backups gets one on a
+  primary or replica.
+- **Unlinks:** a copy on a bucket the profile no longer uses for it
+  (draining, taken out, storing the other kind) goes only after the copies
+  that stay are checked to be really there, never the last one. The object
+  leaves that bucket only when no other active location there names the
+  key, no instance under it is unchecked, and no upload into its directory
+  is in flight (`Storage.unlink_location/2`, G11).
+- **Sizes:** missing ones are made, ones with another `spec_hash` remade (a
+  key shared with a cross-user copy is remade under a key of its own),
+  ones the set dropped deleted; a disabled size, and an instance with no
+  spec hash in a size slot (a burned thumbnail), are kept.
+- A file is stamped only with what it now matches, and only while nothing
+  marked it stale meanwhile. One that cannot be finished waits ten minutes
+  (`reconcile_attempted_at`); a file stuck in `processing` for an hour, or
+  `failed`, is placed like any other.
+- Queued by every revision bump (a profile's copies or a bucket row's
+  stores, status or role — not serve order, write priority or storage
+  class; a set's flags or sizes), a library moving, an incomplete upload, a
+  restore, the daily prune and boot; a queued pass restarts from the
+  beginning. The Health page lists what is waiting and can queue a pass.
 
 ---
 
@@ -421,6 +456,17 @@ the object key (`path`). `Storage.Locations` is the lookup.
   every enabled bucket; the reconciler's unlinks are per bucket (V205, see
   above).
 - `Storage.list_files(bucket_uuid: uuid)` lists the files with a copy there.
+
+### Trash and restore
+
+- A trashed file keeps its bytes and its placement; its sizes are checked
+  again when it is restored.
+- Restoring a file whose folder is trashed too brings it back into the
+  nearest folder that is still there, or the root (2.41.0, #876).
+- In the media browser, Restore is on the file menu, the row menu, the
+  folder menu and the bulk bar, and dragging a trashed file into a folder
+  restores it there. A folder holds a file once, as its home or through a
+  link, so a move no longer leaves a file in two folders.
 
 ## URL Structure & Security
 
@@ -463,7 +509,7 @@ instance's checksum (`URLSigner.signed_url(uuid, variant, version: instance)`,
 | `v` names other bytes | `302` to the current `v`, `no-store` |
 | no `v`, file never edited | `public, max-age=86400` + ETag |
 | no `v`, file edited before | `public, no-cache` + ETag (revalidated on every use) |
-| variant not generated yet (the original stands in) | `no-store`, `x-variant-status: pending` |
+| variant not generated yet (a smaller size, a placeholder, or — for a size that will not be made — the original stands in) | `no-store`, `x-variant-status: pending` |
 | an image edit is rendering, or failed | a grey SVG placeholder, `no-store` (also `cdn-cache-control`), `x-variant-status: editing` / `edit-failed` |
 | a system-managed file (tile chunk, an edited image's unedited original) | `404` |
 

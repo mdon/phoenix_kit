@@ -8,15 +8,18 @@ location-truth moved ahead of storage profiles. Four gaps were added
 (G11–G14), and G3 and G8 were corrected. Later the same day, **variant sets**
 (per-library image and video sizes, §3.4, G15–G19) were added to V204, so they
 ship in the same release as storage profiles.
-**Status (2026-09-25):** Phase 1 **RELEASED in 2.38.0** (2026-09-23, tag
+**Status (2026-09-26):** Phase 1 **RELEASED in 2.38.0** (2026-09-23, tag
 `v2.38.0`). **Phase 2 RELEASED in 2.39.0** (2026-09-25, tag `v2.39.0`),
 after the maintainer tested it in a host app and Grok reviewed it: see
 "Phase 2 as built" below. **Phase 3 (V204, location-truth) RELEASED in 2.40.0** (2026-09-25,
 published without a host-app test at the maintainer's call; Grok reviewed
 it): see "Phase 3 as built" below. **2.40.1** is a cleanup of the §11
-leftovers (see the status list at the end of §11). **Next: V205,
-storage profiles and variant sets, in progress on `main`**: see "Next: V205"
-below for its work order. Phase 1 shipped as **V202**, not V201: PR #860
+leftovers (see the status list at the end of §11). **Phase 4 (V205,
+storage profiles, variant sets and the reconciler) RELEASED in 2.41.0**
+(2026-09-26, tag `v2.41.0`), after two internal reviews and Grok's (see
+"Phase 4 as built" below); the maintainer published it without a host-app
+test. **Next: V206, user-owned storage** (§7, quotas, and the §11
+integration-ownership check). Phase 1 shipped as **V202**, not V201: PR #860
 took V201 for per-user view preferences, so every phase below shifts by one
 (V202 partition, V203 private serving + user libraries, V204 location-truth,
 V205 profiles + variant sets, V206 user-owned storage). The version numbers in
@@ -261,9 +264,10 @@ file. Outside core: `phoenix_kit_photos` builds its library switcher on
 `Libraries.list_user_libraries/1` and serves through
 `Storage.authorized_url/4`.
 
-### Next: V205, storage profiles and variant sets (work order)
+### Phase 4 as built (V205, released in 2.41.0): the work order and what changed
 
-Written 2026-09-25, before any code. The body's "V204" sections (§3.2, §3.4,
+Written 2026-09-25, before any code, as the work order; the "Progress" list
+at its end records what was built and changed, step by step. The body's "V204" sections (§3.2, §3.4,
 §4, G1–G6, G9, G10, G15–G19, §6.1, §6.3) are this release. It is built on
 `main` in the steps below. Each step keeps the suite green and changes
 nothing a user can see until the editors land (step 6), and the release
@@ -386,9 +390,10 @@ goes out once, after the maintainer tests it, like V203.
    built", a Grok review, then the maintainer's test on dev before
    publishing.
 
-**Progress** (`main`, not pushed until the V205 migration is final: a
-database that ran an earlier build of it through a git dependency would
-never get a later change, the #871 lesson):
+**Progress** (built on `main` and held back from `origin` until the V205
+migration was final — a database that ran an earlier build of it through a
+git dependency would never get a later change, the #871 lesson — then
+pushed and published together):
 
 - Step 1 done (`b3724a5b6`). The migration, manifest, schemas, `Profiles`
   and `VariantSets`. Bucket create/delete/priority already keep the
@@ -469,8 +474,19 @@ never get a later change, the #871 lesson):
   pushed yet). Grok's review then filed ten more (shared keys across
   libraries, burned thumbnails stamped by the migration, the rollback
   outside the lock, revision bumps for serve-order edits); all fixed, see
-  `CLAUDE_RECHECK.md` there. Left: the maintainer's test on dev, then push
-  and publish.
+  `CLAUDE_RECHECK.md` there.
+- Released as **2.41.0** on 2026-09-26 (`0167cd1f9` the bump, tag
+  `v2.41.0`), with PR #876 merged in (a file no longer ends up in two
+  folders after a move; trash can be restored from the browser, and a file
+  whose folder is trashed comes back to the nearest live one). Its four
+  restore messages were never extracted and three had picked up wrong
+  fuzzy translations; translated before publishing (`9aa915979`).
+- Known, left open: a contributor can restore a trashed folder whose
+  subtree holds other uploaders' files (`restore_folder` is not among the
+  browser's folder-content events). A draining bucket is served at its
+  role until the reconciler moves its copies. The stale walk scans files in
+  uuid order (no index for it yet). Moving core call sites that want a
+  size rather than a slot onto `Storage.variant_for/2` is still to do.
 
 **Scope:** phoenix_kit (core), Storage module, in five releases (V201–V205).
 First consumer: `phoenix_kit_photos`.
