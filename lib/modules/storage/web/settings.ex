@@ -234,7 +234,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
     # Validate redundancy doesn't exceed available buckets
     max_redundancy = socket.assigns.max_redundancy
 
-    if new_redundancy > max_redundancy do
+    if new_redundancy != socket.assigns.redundancy_copies and new_redundancy > max_redundancy do
       socket =
         socket
         |> put_flash(
@@ -249,7 +249,12 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
       {:noreply, socket}
     else
       # Update all settings
-      redundancy_result = Storage.set_redundancy_copies(new_redundancy)
+      # Only a changed count is saved: saving it rewrites the Default
+      # storage profile (and every file of it is checked again).
+      redundancy_result =
+        if new_redundancy == socket.assigns.redundancy_copies,
+          do: {:ok, :unchanged},
+          else: Storage.set_redundancy_copies(new_redundancy)
 
       variants_result = Storage.set_auto_generate_variants(new_variants == "true")
 

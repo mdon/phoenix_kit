@@ -370,9 +370,9 @@ defmodule PhoenixKit.Modules.Storage.VariantSets do
   now (`complete?`), or that some are missing (the file is stale for the
   reconciler: `placed_variant_revision = 0`).
   """
-  @spec record_variants(StorageFile.t(), boolean()) :: :ok
-  def record_variants(%StorageFile{} = file, complete?) do
-    set = for_file(file)
+  @spec record_variants(StorageFile.t(), boolean(), VariantSet.t() | nil | :current) :: :ok
+  def record_variants(%StorageFile{} = file, complete?, set \\ :current) do
+    set = if set == :current, do: for_file(file), else: set
 
     changes =
       if set && complete?,
@@ -405,10 +405,15 @@ defmodule PhoenixKit.Modules.Storage.VariantSets do
   @spec stand_in(StorageFile.t(), String.t(), [struct()]) ::
           {:instance, struct()} | :placeholder | :original
   def stand_in(%StorageFile{} = file, variant, instances) do
-    set_uuid = set_uuid_for(file.library_uuid)
+    set = for_library(file.library_uuid)
 
-    with %Dimension{width: width} = dimension when is_integer(width) <-
-           size_named(set_uuid, variant),
+    # Only a size that will be made: with the set making no sizes, a
+    # disabled size, or one for the other kind of file, nothing is coming,
+    # and the original is what was always served.
+    with %VariantSet{generate_variants: true} <- set,
+         %Dimension{width: width, enabled: true} = dimension when is_integer(width) <-
+           size_named(set.uuid, variant),
+         true <- dimension.applies_to in [file_kind(file), "both"],
          true <- image_output?(file, dimension, variant) do
       smaller =
         instances
@@ -439,6 +444,9 @@ defmodule PhoenixKit.Modules.Storage.VariantSets do
       end)
   end
 
+  defp file_kind(%StorageFile{file_type: "video"}), do: "video"
+  defp file_kind(_file), do: "image"
+
   defp image_output?(file, dimension, variant) do
     alt_format =
       Enum.find(dimension.alternative_formats || [], &(variant == "#{dimension.name}_#{&1}"))
@@ -457,7 +465,9 @@ defmodule PhoenixKit.Modules.Storage.VariantSets do
 
     * `:min_width` — the smallest width that will do (default 0);
     * `:aspect` — `:preserve` (the aspect ratio is kept), `:crop`, or
-      `:any` (the default).
+      `:any` (the default);
+    * `:output` — `:image` (the default: a still, a video's poster
+      included) or `:video` (a transcode, for a video file).
 
   The narrowest enabled size of the file's kind that is at least
   `:min_width` wide; the widest one when none is; `"original"` when the set
@@ -467,7 +477,8 @@ defmodule PhoenixKit.Modules.Storage.VariantSets do
   def variant_for(%StorageFile{} = file, opts \\ []) do
     min_width = Keyword.get(opts, :min_width, 0)
     aspect = Keyword.get(opts, :aspect, :any)
-    kind = if file.file_type == "video", do: "video", else: "image"
+    output = Keyword.get(opts, :output, :image)
+    kind = file_kind(file)
 
     candidates =
       file.library_uuid
@@ -475,7 +486,8 @@ defmodule PhoenixKit.Modules.Storage.VariantSets do
       |> list_dimensions()
       |> Enum.filter(fn d ->
         d.enabled and d.name != "original" and is_integer(d.width) and
-          d.applies_to in [kind, "both"] and aspect_fits?(d, aspect)
+          d.applies_to in [kind, "both"] and aspect_fits?(d, aspect) and
+          output_fits?(file, d, output)
       end)
 
     case Enum.filter(candidates, &(&1.width >= min_width)) do
@@ -483,6 +495,15 @@ defmodule PhoenixKit.Modules.Storage.VariantSets do
       fitting -> fitting |> Enum.min_by(& &1.width) |> name_or_original()
     end
   end
+
+  # An image file's sizes are all stills; a video's are stills only when
+  # their format is an image format (`video_thumbnail`).
+  defp output_fits?(%StorageFile{file_type: "video"}, dimension, output) do
+    still? = dimension.format in @image_formats
+    if output == :video, do: not still?, else: still?
+  end
+
+  defp output_fits?(_file, _dimension, output), do: output == :image
 
   defp aspect_fits?(_dimension, :any), do: true
   defp aspect_fits?(dimension, :preserve), do: dimension.maintain_aspect_ratio == true

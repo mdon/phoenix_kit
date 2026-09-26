@@ -195,7 +195,12 @@ defmodule PhoenixKit.Modules.Storage.Dimension do
       old_name in @standard_slots and name != old_name ->
         add_error(changeset, :name, "is a standard size and cannot be renamed")
 
-      name in @aspect_slots and get_field(changeset, :maintain_aspect_ratio) == false ->
+      # Checked when the size is made, renamed, or its aspect setting is
+      # changed: an install whose `small` was cropped before V205 can still
+      # switch it off or change its quality without fixing that first.
+      name in @aspect_slots and get_field(changeset, :maintain_aspect_ratio) == false and
+          (is_nil(changeset.data.uuid) or Map.has_key?(changeset.changes, :name) or
+             Map.has_key?(changeset.changes, :maintain_aspect_ratio)) ->
         add_error(
           changeset,
           :maintain_aspect_ratio,

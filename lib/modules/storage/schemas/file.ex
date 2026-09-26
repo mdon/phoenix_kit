@@ -130,6 +130,7 @@ defmodule PhoenixKit.Modules.Storage.File do
           placed_revision: integer() | nil,
           placed_variant_set_uuid: UUIDv7.t() | nil,
           placed_variant_revision: integer() | nil,
+          reconcile_attempted_at: NaiveDateTime.t() | nil,
           user: PhoenixKit.Users.Auth.User.t() | Ecto.Association.NotLoaded.t(),
           parent_file: t() | Ecto.Association.NotLoaded.t() | nil,
           instances:
@@ -234,6 +235,9 @@ defmodule PhoenixKit.Modules.Storage.File do
     field :placed_revision, :integer
     field :placed_variant_set_uuid, UUIDv7
     field :placed_variant_revision, :integer
+    # When the reconciler last tried the file and could not finish (it
+    # waits before trying it again).
+    field :reconcile_attempted_at, :naive_datetime
 
     has_many :instances, PhoenixKit.Modules.Storage.FileInstance, foreign_key: :file_uuid
     has_many :folder_links, PhoenixKit.Modules.Storage.FolderLink, foreign_key: :file_uuid

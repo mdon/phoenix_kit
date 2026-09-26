@@ -124,8 +124,8 @@ msgstr "Loo uus konto"
 #: lib/phoenix_kit/notifications/channels/email.ex:25
 #: lib/phoenix_kit/users/table_columns.ex:266
 #: lib/phoenix_kit_web/components/core/dashboard_overview.ex:188
-#: lib/phoenix_kit_web/live/components/library_settings.ex:519
-#: lib/phoenix_kit_web/live/components/library_settings.ex:520
+#: lib/phoenix_kit_web/live/components/library_settings.ex:535
+#: lib/phoenix_kit_web/live/components/library_settings.ex:536
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:251
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:687
 #: lib/phoenix_kit_web/live/users/users.html.heex:308
@@ -522,7 +522,7 @@ msgid "Actions"
 msgstr "Tegevused"
 
 #: lib/phoenix_kit_web/components/media_gallery.html.heex:86
-#: lib/phoenix_kit_web/live/components/library_settings.ex:528
+#: lib/phoenix_kit_web/live/components/library_settings.ex:544
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:638
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:314
 #: lib/phoenix_kit_web/live/settings/users.html.heex:889
@@ -553,7 +553,7 @@ msgstr "Lisa märkus"
 msgid "Add a note above to start documenting information about this user."
 msgstr "Lisa märkus ülal, et alustada selle kasutaja teabe dokumenteerimist."
 
-#: lib/modules/storage/web/libraries_component.ex:260
+#: lib/modules/storage/web/libraries_component.ex:271
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:67
 #: lib/phoenix_kit_web/live/settings/website_access.ex:401
 #, elixir-autogen, elixir-format
@@ -627,8 +627,8 @@ msgstr "Punktloend"
 #: lib/modules/storage/web/bucket_form.html.heex:353
 #: lib/modules/storage/web/bucket_form.html.heex:381
 #: lib/modules/storage/web/dimension_form.html.heex:240
-#: lib/modules/storage/web/libraries_component.ex:251
-#: lib/modules/storage/web/libraries_component.ex:296
+#: lib/modules/storage/web/libraries_component.ex:262
+#: lib/modules/storage/web/libraries_component.ex:307
 #: lib/modules/storage/web/profiles_component.ex:223
 #: lib/phoenix_kit/mentions/live.ex:250
 #: lib/phoenix_kit_web/comments_gettext_manifest.ex:41
@@ -906,7 +906,7 @@ msgstr "Andmekaitsejärelevaataja kontakt salvestatud"
 #: lib/modules/storage/web/dimensions.html.heex:379
 #: lib/modules/storage/web/dimensions.html.heex:550
 #: lib/modules/storage/web/dimensions.html.heex:586
-#: lib/modules/storage/web/libraries_component.ex:372
+#: lib/modules/storage/web/libraries_component.ex:383
 #: lib/modules/storage/web/profiles_component.ex:305
 #: lib/modules/storage/web/settings.html.heex:286
 #: lib/phoenix_kit_web/components/core/bulk_select.ex:224
@@ -1144,8 +1144,8 @@ msgstr "Seade uuendamine ebaõnnestus"
 msgid "Feature Modules"
 msgstr "Funktsionaalsed moodulid"
 
-#: lib/modules/storage/web/libraries_component.ex:261
-#: lib/modules/storage/web/libraries_component.ex:446
+#: lib/modules/storage/web/libraries_component.ex:272
+#: lib/modules/storage/web/libraries_component.ex:457
 #: lib/modules/storage/web/settings.html.heex:142
 #: lib/modules/storage/web/settings.html.heex:158
 #: lib/phoenix_kit/users/auth.ex:3241
@@ -1459,7 +1459,7 @@ msgstr "OK"
 msgid "Only the Owner can edit Admin permissions"
 msgstr "Ainult Omanik saab muuta Administraatori õigusi"
 
-#: lib/modules/storage/web/libraries_component.ex:470
+#: lib/modules/storage/web/libraries_component.ex:481
 #: lib/phoenix_kit_web/components/core/preview_card.ex:305
 #: lib/phoenix_kit_web/components/core/preview_card.ex:339
 #: lib/phoenix_kit_web/live/users/libraries.html.heex:128
@@ -1674,7 +1674,7 @@ msgstr "Keeldu kõigest"
 #: lib/phoenix_kit_web/components/media_gallery.html.heex:53
 #: lib/phoenix_kit_web/components/user_dashboard_nav.ex:269
 #: lib/phoenix_kit_web/components/user_dashboard_nav.ex:270
-#: lib/phoenix_kit_web/live/components/library_settings.ex:503
+#: lib/phoenix_kit_web/live/components/library_settings.ex:519
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:283
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:315
 #: lib/phoenix_kit_web/live/settings.html.heex:137
@@ -1710,8 +1710,8 @@ msgstr "Tühistatud %{label} rollilt %{role_name}"
 #: lib/phoenix_kit/users/table_columns.ex:285
 #: lib/phoenix_kit_web/components/core/role_switcher.ex:127
 #: lib/phoenix_kit_web/live/activity/index.html.heex:49
-#: lib/phoenix_kit_web/live/components/library_settings.ex:490
-#: lib/phoenix_kit_web/live/components/library_settings.ex:523
+#: lib/phoenix_kit_web/live/components/library_settings.ex:506
+#: lib/phoenix_kit_web/live/components/library_settings.ex:539
 #: lib/phoenix_kit_web/live/users/roles.html.heex:160
 #: lib/phoenix_kit_web/live/users/users.html.heex:173
 #, elixir-autogen, elixir-format
@@ -1780,8 +1780,8 @@ msgstr "SWIFT/BIC"
 
 #: lib/modules/sitemap/web/settings.html.heex:501
 #: lib/modules/storage/web/dimensions.html.heex:97
-#: lib/modules/storage/web/libraries_component.ex:289
-#: lib/modules/storage/web/libraries_component.ex:432
+#: lib/modules/storage/web/libraries_component.ex:300
+#: lib/modules/storage/web/libraries_component.ex:443
 #: lib/modules/storage/web/profiles_component.ex:286
 #: lib/phoenix_kit_web/comments_gettext_manifest.ex:67
 #: lib/phoenix_kit_web/components/core/markdown_editor.ex:356
@@ -2351,8 +2351,8 @@ msgstr "Määra vaikimisi"
 
 #: lib/modules/storage/web/dimensions.html.heex:205
 #: lib/modules/storage/web/dimensions.html.heex:243
-#: lib/modules/storage/web/libraries_component.ex:263
-#: lib/modules/storage/web/libraries_component.ex:447
+#: lib/modules/storage/web/libraries_component.ex:274
+#: lib/modules/storage/web/libraries_component.ex:458
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1903
 #: lib/phoenix_kit_web/live/users/libraries.html.heex:106
 #, elixir-autogen, elixir-format
@@ -3044,14 +3044,14 @@ msgstr "Maksimaalselt %{count} koopiat, arvestades %{buckets} aktiivset bucket(i
 #: lib/modules/storage/web/dimensions.html.heex:80
 #: lib/modules/storage/web/dimensions.html.heex:242
 #: lib/modules/storage/web/dimensions.html.heex:445
-#: lib/modules/storage/web/libraries_component.ex:259
-#: lib/modules/storage/web/libraries_component.ex:443
+#: lib/modules/storage/web/libraries_component.ex:270
+#: lib/modules/storage/web/libraries_component.ex:454
 #: lib/modules/storage/web/profiles_component.ex:243
 #: lib/modules/storage/web/settings.html.heex:155
 #: lib/phoenix_kit_web/components/media_browser.html.heex:427
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1899
-#: lib/phoenix_kit_web/live/components/library_settings.ex:290
-#: lib/phoenix_kit_web/live/components/library_settings.ex:323
+#: lib/phoenix_kit_web/live/components/library_settings.ex:305
+#: lib/phoenix_kit_web/live/components/library_settings.ex:338
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:177
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:209
 #: lib/phoenix_kit_web/live/settings/email_sending.html.heex:149
@@ -4519,9 +4519,9 @@ msgstr "Liige lisatud organisatsiooni"
 msgid "Member removed from organization"
 msgstr "Liige eemaldatud organisatsioonist"
 
-#: lib/modules/storage/web/libraries_component.ex:445
-#: lib/phoenix_kit_web/live/components/library_settings.ex:368
-#: lib/phoenix_kit_web/live/components/library_settings.ex:414
+#: lib/modules/storage/web/libraries_component.ex:456
+#: lib/phoenix_kit_web/live/components/library_settings.ex:384
+#: lib/phoenix_kit_web/live/components/library_settings.ex:430
 #: lib/phoenix_kit_web/live/users/libraries.html.heex:104
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:108
 #, elixir-autogen, elixir-format
@@ -5731,9 +5731,9 @@ msgstr "Valmis"
 msgid "Reorder"
 msgstr "Muuda järjekorda"
 
-#: lib/modules/storage/web/libraries_component.ex:302
+#: lib/modules/storage/web/libraries_component.ex:313
 #: lib/modules/storage/web/profiles_component.ex:287
-#: lib/phoenix_kit_web/live/components/library_settings.ex:328
+#: lib/phoenix_kit_web/live/components/library_settings.ex:343
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:56
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:221
 #: lib/phoenix_kit_web/live/users/libraries.html.heex:86
@@ -6232,7 +6232,7 @@ msgstr "Kaust pole ligipääsetav — näitan juurkausta"
 msgid "Folder not found"
 msgstr "Kausta ei leitud"
 
-#: lib/modules/storage/web/libraries_component.ex:262
+#: lib/modules/storage/web/libraries_component.ex:273
 #: lib/phoenix_kit_web/components/folder_explorer.ex:250
 #, elixir-autogen, elixir-format
 msgid "Folders"
@@ -6346,11 +6346,11 @@ msgstr "Eelmine"
 msgid "Previous (←)"
 msgstr "Eelmine (←)"
 
-#: lib/modules/storage/web/libraries_component.ex:359
+#: lib/modules/storage/web/libraries_component.ex:370
 #: lib/phoenix_kit_web/components/folder_explorer.ex:681
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1442
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2131
-#: lib/phoenix_kit_web/live/components/library_settings.ex:326
+#: lib/phoenix_kit_web/live/components/library_settings.ex:341
 #, elixir-autogen, elixir-format
 msgid "Rename"
 msgstr "Nimeta ümber"
@@ -6400,8 +6400,8 @@ msgstr "See kaust on tühi."
 
 #: lib/phoenix_kit_web/components/folder_explorer.ex:360
 #: lib/phoenix_kit_web/components/media_browser.html.heex:691
-#: lib/phoenix_kit_web/live/components/library_settings.ex:383
-#: lib/phoenix_kit_web/live/components/library_settings.ex:439
+#: lib/phoenix_kit_web/live/components/library_settings.ex:399
+#: lib/phoenix_kit_web/live/components/library_settings.ex:455
 #, elixir-autogen, elixir-format
 msgid "Trash"
 msgstr "Prügikast"
@@ -9376,32 +9376,32 @@ msgstr "salvestatud:"
 msgid "New User Defaults"
 msgstr "Uue kasutaja vaikeseaded"
 
-#: lib/modules/storage/web/settings.ex:328
+#: lib/modules/storage/web/settings.ex:333
 #, elixir-autogen, elixir-format
 msgid "Auto-variant generation disabled"
 msgstr "Variantide automaatne genereerimine keelatud"
 
-#: lib/modules/storage/web/settings.ex:327
+#: lib/modules/storage/web/settings.ex:332
 #, elixir-autogen, elixir-format
 msgid "Auto-variant generation enabled"
 msgstr "Variantide automaatne genereerimine lubatud"
 
-#: lib/modules/storage/web/settings.ex:379
+#: lib/modules/storage/web/settings.ex:384
 #, elixir-autogen, elixir-format
 msgid "Bucket deleted successfully"
 msgstr "Bucket kustutati edukalt"
 
-#: lib/modules/storage/web/settings.ex:353
+#: lib/modules/storage/web/settings.ex:358
 #, elixir-autogen, elixir-format
 msgid "Bucket disabled successfully"
 msgstr "Bucket keelati edukalt"
 
-#: lib/modules/storage/web/settings.ex:352
+#: lib/modules/storage/web/settings.ex:357
 #, elixir-autogen, elixir-format
 msgid "Bucket enabled successfully"
 msgstr "Bucket lubati edukalt"
 
-#: lib/modules/storage/web/settings.ex:343
+#: lib/modules/storage/web/settings.ex:348
 #, elixir-autogen, elixir-format
 msgid "Bucket not found"
 msgstr "Salvestuskohta ei leitud"
@@ -9417,34 +9417,34 @@ msgstr "Liiasust ei saa määrata %{count} koopiale. Saadaval on ainult %{max} a
 msgid "Current setting (%{count} copies) exceeds available buckets (%{max})."
 msgstr "Praegune seade (%{count} koopiat) ületab saadaolevad salvestuskohad (%{max})."
 
-#: lib/modules/storage/web/settings.ex:390
+#: lib/modules/storage/web/settings.ex:395
 #, elixir-autogen, elixir-format
 msgid "Failed to delete bucket"
 msgstr "Bucketi kustutamine ebaõnnestus"
 
-#: lib/modules/storage/web/settings.ex:417
+#: lib/modules/storage/web/settings.ex:422
 #, elixir-autogen, elixir-format
 msgid "Failed to repair: %{reason}"
 msgstr "Parandamine ebaõnnestus: %{reason}"
 
-#: lib/modules/storage/web/settings.ex:359
+#: lib/modules/storage/web/settings.ex:364
 #, elixir-autogen, elixir-format
 msgid "Failed to update bucket"
 msgstr "Bucketi uuendamine ebaõnnestus"
 
 #: lib/modules/storage/web/settings.ex:130
-#: lib/modules/storage/web/settings.ex:301
+#: lib/modules/storage/web/settings.ex:306
 #, elixir-autogen, elixir-format
 msgid "Failed to update redundancy settings"
 msgstr "Liiasuse seadete uuendamine ebaõnnestus"
 
-#: lib/modules/storage/web/settings.ex:309
+#: lib/modules/storage/web/settings.ex:314
 #, elixir-autogen, elixir-format
 msgid "Failed to update storage settings"
 msgstr "Salvestusseadete uuendamine ebaõnnestus"
 
-#: lib/modules/storage/web/settings.ex:305
-#: lib/modules/storage/web/settings.ex:335
+#: lib/modules/storage/web/settings.ex:310
+#: lib/modules/storage/web/settings.ex:340
 #, elixir-autogen, elixir-format
 msgid "Failed to update variant settings"
 msgstr "Variandiseadete uuendamine ebaõnnestus"
@@ -9456,12 +9456,12 @@ msgid_plural "Redundancy settings updated to %{count} copies"
 msgstr[0] "Liiasuse seaded uuendatud: %{count} koopia"
 msgstr[1] "Liiasuse seaded uuendatud: %{count} koopiat"
 
-#: lib/modules/storage/web/settings.ex:407
+#: lib/modules/storage/web/settings.ex:412
 #, elixir-autogen, elixir-format
 msgid "Storage module repaired: %{summary}"
 msgstr "Salvestusmoodul parandatud: %{summary}"
 
-#: lib/modules/storage/web/settings.ex:296
+#: lib/modules/storage/web/settings.ex:301
 #, elixir-autogen, elixir-format
 msgid "Storage settings updated successfully"
 msgstr "Salvestusseaded uuendati edukalt"
@@ -10388,7 +10388,7 @@ msgid "Could not rotate the image."
 msgstr "Pilti ei saanud pöörata."
 
 #: lib/modules/storage/web/dimensions.ex:172
-#: lib/modules/storage/web/libraries_component.ex:123
+#: lib/modules/storage/web/libraries_component.ex:122
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:658
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:196
 #, elixir-autogen, elixir-format
@@ -10694,7 +10694,7 @@ msgstr "Jätke tühjaks gen_smtp vaikeväärtuse jaoks."
 msgid "Local path users land on after signing in."
 msgstr "Kohalik tee, kuhu kasutajad pärast sisselogimist jõuavad."
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:359
+#: lib/phoenix_kit_web/live/components/library_settings.ex:375
 #: lib/phoenix_kit_web/live/settings/send_profiles.html.heex:102
 #: lib/phoenix_kit_web/live/settings/send_profiles.html.heex:134
 #, elixir-autogen, elixir-format
@@ -10924,7 +10924,7 @@ msgid "Require email confirmation before using the app"
 msgstr "Nõua e-posti kinnitamist enne rakenduse kasutamist"
 
 #: lib/phoenix_kit_web/components/image_editor.ex:1022
-#: lib/phoenix_kit_web/live/components/library_settings.ex:458
+#: lib/phoenix_kit_web/live/components/library_settings.ex:474
 #: lib/phoenix_kit_web/live/notifications/inbox.ex:343
 #, elixir-autogen, elixir-format
 msgid "Restore"
@@ -15495,9 +15495,9 @@ msgid "Standard fields"
 msgstr "Standardväljad"
 
 #: lib/modules/storage/web/dimensions.html.heex:57
-#: lib/modules/storage/web/libraries_component.ex:249
+#: lib/modules/storage/web/libraries_component.ex:260
 #: lib/modules/storage/web/profiles_component.ex:221
-#: lib/phoenix_kit_web/live/components/library_settings.ex:294
+#: lib/phoenix_kit_web/live/components/library_settings.ex:309
 #, elixir-autogen, elixir-format
 msgid "Create"
 msgstr "Loo"
@@ -15520,14 +15520,14 @@ msgstr "Kogu „%{name}“ loodud"
 msgid "Library deleted"
 msgstr "Kogu kustutatud"
 
-#: lib/modules/storage/web/libraries_component.ex:199
-#: lib/modules/storage/web/libraries_component.ex:244
+#: lib/modules/storage/web/libraries_component.ex:210
+#: lib/modules/storage/web/libraries_component.ex:255
 #, elixir-autogen, elixir-format
 msgid "Library name"
 msgstr "Kogu nimi"
 
-#: lib/modules/storage/web/libraries_component.ex:222
-#: lib/phoenix_kit_web/live/components/library_settings.ex:284
+#: lib/modules/storage/web/libraries_component.ex:233
+#: lib/phoenix_kit_web/live/components/library_settings.ex:299
 #, elixir-autogen, elixir-format
 msgid "New library"
 msgstr "Uus kogu"
@@ -15543,17 +15543,17 @@ msgstr "Kustutada saab ainult tühja kogu, mitte kunagi vaikekogu."
 msgid "Library not found"
 msgstr "Kogu ei leitud"
 
-#: lib/modules/storage/web/libraries_component.ex:227
+#: lib/modules/storage/web/libraries_component.ex:238
 #, elixir-autogen, elixir-format
 msgid "A library is a separate space in Media with its own folders. Everything uploaded so far is in the default library. The Media page shows a library switcher once there are two or more."
 msgstr "Kogu on meedia eraldi osa, millel on oma kaustad. Kõik seni üles laaditud failid on vaikekogus. Meedia lehel kuvatakse kogude valik, kui kogusid on kaks või rohkem."
 
-#: lib/modules/storage/web/libraries_component.ex:370
+#: lib/modules/storage/web/libraries_component.ex:381
 #, elixir-autogen, elixir-format
 msgid "Delete this library?"
 msgstr "Kas kustutada see kogu?"
 
-#: lib/modules/storage/web/libraries_component.ex:213
+#: lib/modules/storage/web/libraries_component.ex:224
 #: lib/modules/storage/web/settings.html.heex:72
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:174
 #: lib/phoenix_kit_web/live/users/libraries.ex:38
@@ -15568,7 +15568,7 @@ msgstr "Kogud"
 msgid "Library renamed to \"%{name}\""
 msgstr "Kogu uus nimi on „%{name}“"
 
-#: lib/modules/storage/web/libraries_component.ex:366
+#: lib/modules/storage/web/libraries_component.ex:377
 #, elixir-autogen, elixir-format
 msgid "Only an empty library can be deleted."
 msgstr "Kustutada saab ainult tühja kogu."
@@ -15595,12 +15595,12 @@ msgstr ""
 msgid "Continue with Google"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:296
+#: lib/phoenix_kit_web/live/components/library_settings.ex:311
 #, elixir-autogen, elixir-format
 msgid "%{count} of %{limit} libraries"
 msgstr "%{count} / %{limit} kogu"
 
-#: lib/modules/storage/web/libraries_component.ex:408
+#: lib/modules/storage/web/libraries_component.ex:419
 #, elixir-autogen, elixir-format
 msgid "Allow user libraries"
 msgstr "Luba kasutajate kogud"
@@ -15610,28 +15610,28 @@ msgstr "Luba kasutajate kogud"
 msgid "Annotated"
 msgstr "Märkmetega"
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:236
+#: lib/phoenix_kit_web/live/components/library_settings.ex:251
 #: lib/phoenix_kit_web/live/users/libraries.ex:185
 #, elixir-autogen, elixir-format
 msgid "Contributor"
 msgstr "Kaastööline"
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:223
+#: lib/phoenix_kit_web/live/components/library_settings.ex:227
 #, elixir-autogen, elixir-format
 msgid "Could not leave the library"
 msgstr "Kogust lahkumine ebaõnnestus"
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:121
+#: lib/phoenix_kit_web/live/components/library_settings.ex:125
 #, elixir-autogen, elixir-format
 msgid "Default library changed"
 msgstr "Vaikimisi kogu muudetud"
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:424
+#: lib/phoenix_kit_web/live/components/library_settings.ex:440
 #, elixir-autogen, elixir-format
 msgid "Leave"
 msgstr "Lahku"
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:421
+#: lib/phoenix_kit_web/live/components/library_settings.ex:437
 #, elixir-autogen, elixir-format
 msgid "Leave “%{name}”?"
 msgstr "Kas lahkuda kogust „%{name}”?"
@@ -15641,17 +15641,17 @@ msgstr "Kas lahkuda kogust „%{name}”?"
 msgid "Libraries are not available"
 msgstr "Kogud pole saadaval"
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:266
+#: lib/phoenix_kit_web/live/components/library_settings.ex:281
 #, elixir-autogen, elixir-format
 msgid "Libraries keep your files apart from the site's media. Only you and the members you add can see them."
 msgstr "Kogud hoiavad Teie failid saidi meediast eraldi. Neid näete ainult Teie ja Teie lisatud liikmed."
 
-#: lib/modules/storage/web/libraries_component.ex:411
+#: lib/modules/storage/web/libraries_component.ex:422
 #, elixir-autogen, elixir-format
 msgid "Libraries per user"
 msgstr "Kogusid kasutaja kohta"
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:135
+#: lib/phoenix_kit_web/live/components/library_settings.ex:139
 #, elixir-autogen, elixir-format
 msgid "Library moved to the trash"
 msgstr "Kogu teisaldati prügikasti"
@@ -15671,53 +15671,53 @@ msgstr "Kogu „%{name}” loodud"
 msgid "Manage libraries"
 msgstr "Halda kogusid"
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:235
+#: lib/phoenix_kit_web/live/components/library_settings.ex:250
 #: lib/phoenix_kit_web/live/users/libraries.ex:184
 #, elixir-autogen, elixir-format
 msgid "Manager"
 msgstr "Haldur"
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:179
+#: lib/phoenix_kit_web/live/components/library_settings.ex:183
 #, elixir-autogen, elixir-format
 msgid "Member added"
 msgstr "Liige lisatud"
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:207
+#: lib/phoenix_kit_web/live/components/library_settings.ex:211
 #, elixir-autogen, elixir-format
 msgid "Member removed"
 msgstr "Liige eemaldatud"
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:376
+#: lib/phoenix_kit_web/live/components/library_settings.ex:392
 #, elixir-autogen, elixir-format
 msgid "Move “%{name}” to the trash? Its files are deleted for good after the trash period, and its members lose it now."
 msgstr "Kas teisaldada „%{name}” prügikasti? Selle failid kustutatakse prügikasti tähtaja järel jäädavalt ja liikmed kaotavad sellele ligipääsu kohe."
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:261
+#: lib/phoenix_kit_web/live/components/library_settings.ex:276
 #, elixir-autogen, elixir-format
 msgid "My libraries"
 msgstr "Minu kogud"
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:229
+#: lib/phoenix_kit_web/live/components/library_settings.ex:233
 #, elixir-autogen, elixir-format
 msgid "Name %{error}"
 msgstr "Nimi %{error}"
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:479
+#: lib/phoenix_kit_web/live/components/library_settings.ex:495
 #, elixir-autogen, elixir-format
 msgid "No members yet: only the owner can see this library."
 msgstr "Liikmeid veel pole: seda kogu näeb ainult omanik."
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:182
+#: lib/phoenix_kit_web/live/components/library_settings.ex:186
 #, elixir-autogen, elixir-format
 msgid "No user has that email"
 msgstr "Selle e-posti aadressiga kasutajat pole"
 
-#: lib/modules/storage/web/libraries_component.ex:436
+#: lib/modules/storage/web/libraries_component.ex:447
 #, elixir-autogen, elixir-format
 msgid "No user libraries yet."
 msgstr "Kasutajate kogusid veel pole."
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:272
+#: lib/phoenix_kit_web/live/components/library_settings.ex:287
 #, elixir-autogen, elixir-format
 msgid "Open libraries"
 msgstr "Ava kogud"
@@ -15727,25 +15727,25 @@ msgstr "Ava kogud"
 msgid "Opened as admin"
 msgstr "Avatud administraatorina"
 
-#: lib/modules/storage/web/libraries_component.ex:468
+#: lib/modules/storage/web/libraries_component.ex:479
 #: lib/phoenix_kit_web/live/users/libraries.html.heex:96
 #, elixir-autogen, elixir-format
 msgid "Opening a user's library is recorded in the audit log."
 msgstr "Kasutaja kogu avamine salvestatakse auditilogisse."
 
-#: lib/modules/storage/web/libraries_component.ex:444
+#: lib/modules/storage/web/libraries_component.ex:455
 #: lib/phoenix_kit_web/live/users/libraries.ex:183
 #: lib/phoenix_kit_web/live/users/libraries.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "Owner"
 msgstr "Omanik"
 
-#: lib/modules/storage/web/libraries_component.ex:422
+#: lib/modules/storage/web/libraries_component.ex:433
 #, elixir-autogen, elixir-format
 msgid "Private links last (hours)"
 msgstr "Privaatlingid kehtivad (tundi)"
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:198
+#: lib/phoenix_kit_web/live/components/library_settings.ex:202
 #, elixir-autogen, elixir-format
 msgid "Role changed"
 msgstr "Roll muudetud"
@@ -15755,7 +15755,7 @@ msgstr "Roll muudetud"
 msgid "Security"
 msgstr "Turvalisus"
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:397
+#: lib/phoenix_kit_web/live/components/library_settings.ex:413
 #, elixir-autogen, elixir-format
 msgid "Shared with me"
 msgstr "Minuga jagatud"
@@ -15770,12 +15770,12 @@ msgstr "See ei kuulu sellesse kogusse"
 msgid "The libraries you own or are a member of"
 msgstr "Kogud, mille omanik või liige Te olete"
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:230
+#: lib/phoenix_kit_web/live/components/library_settings.ex:234
 #, elixir-autogen, elixir-format
 msgid "The library could not be saved"
 msgstr "Kogu salvestamine ebaõnnestus"
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:185
+#: lib/phoenix_kit_web/live/components/library_settings.ex:189
 #, elixir-autogen, elixir-format
 msgid "The owner is always in the library"
 msgstr "Omanik kuulub alati kogusse"
@@ -15790,57 +15790,57 @@ msgstr "Pilt"
 msgid "Thumbnail"
 msgstr "Pisipilt"
 
-#: lib/modules/storage/web/libraries_component.ex:456
+#: lib/modules/storage/web/libraries_component.ex:467
 #: lib/phoenix_kit_web/live/users/libraries.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "Trashed"
 msgstr "Prügikastis"
 
-#: lib/modules/storage/web/libraries_component.ex:385
+#: lib/modules/storage/web/libraries_component.ex:396
 #, elixir-autogen, elixir-format
 msgid "User libraries"
 msgstr "Kasutajate kogud"
 
-#: lib/modules/storage/web/libraries_component.ex:147
+#: lib/modules/storage/web/libraries_component.ex:146
 #, elixir-autogen, elixir-format
 msgid "User library settings could not be saved"
 msgstr "Kasutajate kogude seadete salvestamine ebaõnnestus"
 
-#: lib/modules/storage/web/libraries_component.ex:145
+#: lib/modules/storage/web/libraries_component.ex:144
 #, elixir-autogen, elixir-format
 msgid "User library settings saved"
 msgstr "Kasutajate kogude seaded salvestatud"
 
-#: lib/modules/storage/web/libraries_component.ex:388
+#: lib/modules/storage/web/libraries_component.ex:399
 #, elixir-autogen, elixir-format
 msgid "Users with the Storage permission can keep libraries of their own, private to them and the members they add. Their files are served only through links that expire."
 msgstr "Salvestusruumi õigusega kasutajad saavad pidada oma kogusid, mis on privaatsed neile ja nende lisatud liikmetele. Nende faile jagatakse ainult aeguvate linkide kaudu."
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:237
+#: lib/phoenix_kit_web/live/components/library_settings.ex:252
 #: lib/phoenix_kit_web/live/users/libraries.ex:186
 #, elixir-autogen, elixir-format
 msgid "Viewer"
 msgstr "Vaataja"
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:301
+#: lib/phoenix_kit_web/live/components/library_settings.ex:316
 #: lib/phoenix_kit_web/live/users/libraries.html.heex:65
 #, elixir-autogen, elixir-format
 msgid "You have no libraries yet."
 msgstr "Teil pole veel ühtegi kogu."
 
 #: lib/phoenix_kit_web/live/components/library_settings.ex:82
-#: lib/phoenix_kit_web/live/components/library_settings.ex:147
+#: lib/phoenix_kit_web/live/components/library_settings.ex:151
 #, elixir-autogen, elixir-format
 msgid "You have reached the number of libraries you may own"
 msgstr "Olete jõudnud kogude arvuni, mida võite omada"
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:221
+#: lib/phoenix_kit_web/live/components/library_settings.ex:225
 #, elixir-autogen, elixir-format
 msgid "You left “%{name}”"
 msgstr "Lahkusite kogust „%{name}”"
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:114
-#: lib/phoenix_kit_web/live/components/library_settings.ex:123
+#: lib/phoenix_kit_web/live/components/library_settings.ex:118
+#: lib/phoenix_kit_web/live/components/library_settings.ex:127
 #, elixir-autogen, elixir-format
 msgid "You may not change this library"
 msgstr "Te ei saa seda kogu muuta"
@@ -15850,9 +15850,9 @@ msgstr "Te ei saa seda kogu muuta"
 msgid "You may not create libraries"
 msgstr "Te ei saa kogusid luua"
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:191
-#: lib/phoenix_kit_web/live/components/library_settings.ex:200
-#: lib/phoenix_kit_web/live/components/library_settings.ex:209
+#: lib/phoenix_kit_web/live/components/library_settings.ex:195
+#: lib/phoenix_kit_web/live/components/library_settings.ex:204
+#: lib/phoenix_kit_web/live/components/library_settings.ex:213
 #, elixir-autogen, elixir-format
 msgid "You may not manage this library's members"
 msgstr "Te ei saa selle kogu liikmeid hallata"
@@ -15862,7 +15862,7 @@ msgstr "Te ei saa selle kogu liikmeid hallata"
 msgid "You may not rename this library"
 msgstr "Te ei saa seda kogu ümber nimetada"
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:137
+#: lib/phoenix_kit_web/live/components/library_settings.ex:141
 #, elixir-autogen, elixir-format
 msgid "You may not trash this library"
 msgstr "Te ei saa seda kogu prügikasti teisaldada"
@@ -15898,22 +15898,22 @@ msgid_plural "%{count} stored objects have no recorded location yet. They are be
 msgstr[0] "%{count} salvestatud objektil pole veel salvestatud asukohta. Seda otsitakse taustal ja seni jagatakse seda edasi."
 msgstr[1] "%{count} salvestatud objektil pole veel salvestatud asukohta. Neid otsitakse taustal ja seni jagatakse neid edasi."
 
-#: lib/modules/storage/web/settings.ex:387
+#: lib/modules/storage/web/settings.ex:392
 #, elixir-autogen, elixir-format
 msgid "This bucket still holds files, so it cannot be deleted. Disable it to stop storing new files there."
 msgstr "Selles bucketis on veel faile, seega seda ei saa kustutada. Keelake see, et sinna enam uusi faile ei salvestataks."
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:441
+#: lib/phoenix_kit_web/live/components/library_settings.ex:457
 #, elixir-autogen, elixir-format
 msgid "A library in the trash is deleted for good, with its files, after the trash period."
 msgstr "Prügikastis olev kogu kustutatakse koos failidega prügikasti tähtaja järel jäädavalt."
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:144
+#: lib/phoenix_kit_web/live/components/library_settings.ex:148
 #, elixir-autogen, elixir-format
 msgid "Library “%{name}” restored"
 msgstr "Kogu „%{name}” taastatud"
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:153
+#: lib/phoenix_kit_web/live/components/library_settings.ex:157
 #, elixir-autogen, elixir-format
 msgid "The library could not be restored"
 msgstr "Kogu taastamine ebaõnnestus"
@@ -16083,7 +16083,7 @@ msgstr "Failid on salvestatud ja suurustatud nii, nagu kogu ette näeb"
 msgid "For the reconciler"
 msgstr "Ühtlustaja jaoks"
 
-#: lib/modules/storage/web/libraries_component.ex:117
+#: lib/modules/storage/web/libraries_component.ex:116
 #, elixir-autogen, elixir-format
 msgid "Library storage saved. Its files are moved and resized in the background; the Health page shows what is left."
 msgstr "Kogu salvestus salvestatud. Selle failid teisaldatakse ja nende suurust muudetakse taustal; lehel Seisund on näha, mis on veel jäänud."
@@ -16159,7 +16159,7 @@ msgid "Showing the first %{count} of %{total}."
 msgstr "Näidatakse esimest %{count} kirjet %{total}-st."
 
 #: lib/modules/storage/web/health.ex:81
-#: lib/phoenix_kit_web/live/components/library_settings.ex:339
+#: lib/phoenix_kit_web/live/components/library_settings.ex:354
 #, elixir-autogen, elixir-format
 msgid "Sizes"
 msgstr "Suurused"
@@ -16169,17 +16169,17 @@ msgstr "Suurused"
 msgid "Sizes and tiles"
 msgstr "Suurused ja plaadid"
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:111
+#: lib/phoenix_kit_web/live/components/library_settings.ex:115
 #, elixir-autogen, elixir-format
 msgid "Sizes changed. Existing files are resized in the background."
 msgstr "Suurused muudetud. Olemasolevate failide suurust muudetakse taustal."
 
-#: lib/modules/storage/web/libraries_component.ex:264
+#: lib/modules/storage/web/libraries_component.ex:275
 #, elixir-autogen, elixir-format
 msgid "Storage"
 msgstr "Salvestus"
 
-#: lib/modules/storage/web/libraries_component.ex:325
+#: lib/modules/storage/web/libraries_component.ex:336
 #, elixir-autogen, elixir-format
 msgid "Storage profile"
 msgstr "Salvestusprofiil"
@@ -16273,7 +16273,7 @@ msgstr[1] "Kasutab %{count} kogu."
 msgid "Users may choose it for their own libraries"
 msgstr "Kasutajad võivad seda oma kogude jaoks valida"
 
-#: lib/modules/storage/web/libraries_component.ex:338
+#: lib/modules/storage/web/libraries_component.ex:349
 #, elixir-autogen, elixir-format
 msgid "Variant set"
 msgstr "Variandikomplekt"
@@ -16317,7 +16317,7 @@ msgstr "Ootab"
 msgid "Which sizes each library's uploads get"
 msgstr "Millised suurused iga kogu üleslaadimistele tehakse"
 
-#: lib/phoenix_kit_web/live/components/library_settings.ex:340
+#: lib/phoenix_kit_web/live/components/library_settings.ex:355
 #, elixir-autogen, elixir-format
 msgid "Which sizes this library's uploads get"
 msgstr "Millised suurused selle kogu üleslaadimistele tehakse"

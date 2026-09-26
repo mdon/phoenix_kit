@@ -518,7 +518,7 @@ defmodule PhoenixKit.Modules.Storage do
       join: fi in FileInstance,
       on: fl.file_instance_uuid == fi.uuid,
       where: fl.bucket_uuid == ^bucket_uuid and fl.status == "active",
-      select: fragment("SUM(? / (1024 * 1024))", fi.size)
+      select: fragment("SUM(?) / (1024.0 * 1024)", fi.size)
     )
     |> repo().one()
     |> case do
@@ -600,10 +600,14 @@ defmodule PhoenixKit.Modules.Storage do
   """
   def reset_dimensions_to_defaults do
     repo().transaction(fn ->
-      # Delete the Default set's dimensions
+      # Delete the Default set's dimensions; its files are checked against
+      # the sizes put back (a size whose spec changed is remade, one that is
+      # gone is removed).
       Dimension
       |> where([d], d.variant_set_uuid == ^VariantSets.default_uuid())
       |> repo().delete_all()
+
+      VariantSets.bump_revision(VariantSets.default_uuid())
 
       # Insert default dimensions
       now = UtilsDate.utc_now()
@@ -1325,7 +1329,16 @@ defmodule PhoenixKit.Modules.Storage do
                 where: f.folder_uuid in ^subtree_uuids and f.trashed_at == ^stamp,
                 select: f.uuid
               )
-              |> repo().update_all(set: [status: "active", trashed_at: nil, updated_at: now])
+              |> repo().update_all(
+                # Sizes are not kept up to date in the trash (V205): a
+                # restored file is checked against its variant set again.
+                set: [
+                  status: "active",
+                  trashed_at: nil,
+                  updated_at: now,
+                  placed_variant_revision: 0
+                ]
+              )
 
             {:ok, folder, restored_uuids}
         end
@@ -3661,23 +3674,54 @@ defmodule PhoenixKit.Modules.Storage do
       fn ->
         lock_storage_paths([Path.dirname(key)])
 
-        from(l in FileLocation,
-          where: l.file_instance_uuid == ^instance.uuid and l.bucket_uuid == ^bucket.uuid
-        )
-        |> repo().delete_all()
+        # Re-read under the lock: an image edit may have moved this row to
+        # another key since it was read; then there is nothing to unlink.
+        if repo().exists?(
+             from(i in FileInstance, where: i.uuid == ^instance.uuid and i.file_name == ^key)
+           ) do
+          from(l in FileLocation,
+            where:
+              l.file_instance_uuid == ^instance.uuid and l.bucket_uuid == ^bucket.uuid and
+                l.path == ^key
+          )
+          |> repo().delete_all()
 
-        still_needed? =
-          repo().exists?(
-            from(l in FileLocation,
-              where: l.path == ^key and l.bucket_uuid == ^bucket.uuid and l.status == "active"
-            )
-          ) or
-            repo().exists?(from(i in Locations.unchecked_query(), where: i.file_name == ^key))
-
-        if still_needed?, do: :kept, else: delete_from(bucket, key)
+          if key_needed_on?(key, bucket), do: :kept, else: delete_from(bucket, key)
+        else
+          :kept
+        end
       end,
       timeout: :infinity
     )
+  end
+
+  # Whether the object at `key` must stay on `bucket`: another active
+  # location there names it, an instance under the key is unchecked (its
+  # buckets are not all known), or an upload into the key's directory is in
+  # flight (its row exists, its instance does not yet: an upload writes the
+  # object before it records it).
+  defp key_needed_on?(key, bucket) do
+    dir = Path.dirname(key)
+
+    repo().exists?(
+      from(l in FileLocation,
+        where: l.path == ^key and l.bucket_uuid == ^bucket.uuid and l.status == "active"
+      )
+    ) or
+      repo().exists?(from(i in Locations.unchecked_query(), where: i.file_name == ^key)) or
+      repo().exists?(
+        from(f in PhoenixKit.Modules.Storage.File,
+          as: :file,
+          where:
+            f.file_path == ^dir and f.status == "processing" and
+              not exists(
+                from(i in FileInstance,
+                  where: i.file_uuid == parent_as(:file).uuid and i.file_name == ^key,
+                  select: 1
+                )
+              )
+        )
+      )
   end
 
   defp delete_from(bucket, key) do
@@ -3758,6 +3802,15 @@ defmodule PhoenixKit.Modules.Storage do
     |> repo().update()
   end
 
+  # Sizes are not made or remade for a file in the trash (V205): a restored
+  # file is checked against its library's variant set again.
+  defp variants_stale_after_restore(file_uuids) do
+    from(f in PhoenixKit.Modules.Storage.File, where: f.uuid in ^file_uuids)
+    |> repo().update_all(set: [placed_variant_revision: 0])
+
+    ReconcileJob.enqueue()
+  end
+
   @doc "Restores a trashed file back to active status."
   def restore_file(%PhoenixKit.Modules.Storage.File{} = file) do
     file
@@ -3765,6 +3818,7 @@ defmodule PhoenixKit.Modules.Storage do
     |> repo().update()
     |> case do
       {:ok, updated} = result ->
+        variants_stale_after_restore([updated.uuid])
         broadcast_file_restored(updated.uuid)
         result
 
@@ -3806,6 +3860,7 @@ defmodule PhoenixKit.Modules.Storage do
     )
     |> case do
       {1, _} ->
+        variants_stale_after_restore([file.uuid])
         {:ok, %{file | status: "active", trashed_at: nil, folder_uuid: folder_uuid}}
 
       {0, _} ->
@@ -4471,7 +4526,8 @@ defmodule PhoenixKit.Modules.Storage do
 
               {:error, changeset} ->
                 # Clean up if instance creation fails
-                Manager.delete_file(original_path)
+                # Only if nothing else names the key (content-addressed).
+                delete_stored_objects([original_path])
                 {:error, changeset}
             end
 
@@ -5084,9 +5140,16 @@ defmodule PhoenixKit.Modules.Storage do
 
   def set_redundancy_copies(copies) when is_integer(copies) do
     with %StorageProfile{} = profile <- Profiles.default_profile() || {:error, :no_default} do
+      # Variants follow only while the profile has them equal to originals:
+      # a count set apart on the Storage profiles tab is left alone.
+      variants =
+        if profile.copies_variants == profile.copies_originals,
+          do: copies,
+          else: profile.copies_variants
+
       Profiles.update_profile(profile, %{
         copies_originals: copies,
-        copies_variants: copies,
+        copies_variants: variants,
         min_copies_on_write: min(profile.min_copies_on_write, copies)
       })
     end
@@ -5232,7 +5295,7 @@ defmodule PhoenixKit.Modules.Storage do
 
           {:error, changeset} ->
             # Clean up stored files if database creation fails
-            Manager.delete_file(storage_info.destination_path)
+            delete_stored_objects([storage_info.destination_path])
             {:error, changeset}
         end
 

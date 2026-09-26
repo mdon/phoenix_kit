@@ -75,6 +75,8 @@ defmodule PhoenixKit.Modules.Storage.Manager do
     # `force_bucket_ids` are exactly the buckets to write to (an edit's
     # output goes where the key it replaces is): every one that is enabled,
     # in the order given.
+    # `buckets` in write order; the first `target` are written, and a
+    # failed one is replaced by the next (spares only exist for a profile).
     {buckets, min_copies, target} =
       cond do
         force_bucket_ids != [] ->
@@ -101,7 +103,7 @@ defmodule PhoenixKit.Modules.Storage.Manager do
     if Enum.empty?(buckets) do
       {:error, "No available storage buckets"}
     else
-      with {:ok, info} <- store_across_buckets(source_path, buckets, opts) do
+      with {:ok, info} <- store_until(source_path, buckets, target, opts) do
         require_copies(info, min_copies, target)
       end
     end
@@ -120,7 +122,35 @@ defmodule PhoenixKit.Modules.Storage.Manager do
     copies = Profiles.copies(profile, kind)
     min_copies = if kind == :original, do: profile.min_copies_on_write, else: 1
 
-    {Enum.take(eligible, copies), min_copies, min(copies, length(eligible))}
+    {eligible, min_copies, min(copies, length(eligible))}
+  end
+
+  # Writes the first `want` of `buckets`, then, while fewer than `want`
+  # succeeded, the next ones one at a time: a bucket that fails does not
+  # cost a copy while another could take it.
+  defp store_until(source_path, buckets, want, opts) do
+    {first, spares} = Enum.split(buckets, want)
+    destination_path = destination_path(source_path, opts)
+    written = write_to(source_path, first, destination_path, opts)
+
+    written =
+      Enum.reduce_while(spares, written, fn bucket, acc ->
+        if length(acc) >= want,
+          do: {:halt, acc},
+          else: {:cont, acc ++ write_to(source_path, [bucket], destination_path, opts)}
+      end)
+
+    if written == [] do
+      {:error, "Failed to store file in any bucket"}
+    else
+      {:ok,
+       %{
+         destination_path: destination_path,
+         stored_in: want,
+         successful_storages: length(written),
+         bucket_ids: Enum.map(written, & &1.uuid)
+       }}
+    end
   end
 
   @doc false
@@ -146,21 +176,27 @@ defmodule PhoenixKit.Modules.Storage.Manager do
   end
 
   # Fewer copies than an original needs undo the write; fewer than wanted
-  # are reported, for the reconciler.
+  # are reported, for the reconciler. Keys are content-addressed: when a
+  # row already names this key (another upload of the same bytes, not yet
+  # a dedup donor), the object was there before this write, and stays.
   defp require_copies(info, min_copies, target) do
     written = info.successful_storages
 
     if written < min_copies do
-      Enum.each(info.bucket_ids, fn bucket_uuid ->
-        with %{} = bucket <- Storage.get_bucket(bucket_uuid) do
-          safe_delete(bucket, info.destination_path)
-        end
-      end)
+      if Storage.unreferenced_keys([info.destination_path]) != [],
+        do: undo_write(info)
 
       {:error, "Stored #{written} of the #{min_copies} copies required"}
     else
       {:ok, Map.put(info, :complete?, written >= target)}
     end
+  end
+
+  defp undo_write(info) do
+    Enum.each(info.bucket_ids, fn bucket_uuid ->
+      with %{} = bucket <- Storage.get_bucket(bucket_uuid),
+           do: safe_delete(bucket, info.destination_path)
+    end)
   end
 
   defp safe_delete(bucket, key) do
@@ -424,39 +460,46 @@ defmodule PhoenixKit.Modules.Storage.Manager do
     do: {select_buckets_for_retrieval(priority_buckets), []}
 
   defp store_across_buckets(source_path, buckets, opts) do
-    # Use path_prefix if provided, otherwise generate a path
-    destination_path =
-      case Keyword.get(opts, :path_prefix) do
-        nil -> generate_destination_path(source_path, opts)
-        path_prefix -> path_prefix
-      end
-
-    results =
-      buckets
-      |> Enum.map(fn bucket ->
-        provider = get_provider_for_bucket(bucket)
-        result = provider.store_file(bucket, source_path, destination_path, opts)
-        {bucket, result}
-      end)
-
-    # Only include buckets where the upload actually succeeded
-    successful_buckets =
-      Enum.filter(results, fn {_bucket, result} ->
-        result == :ok or match?({:ok, _}, result)
-      end)
+    destination_path = destination_path(source_path, opts)
+    successful_buckets = write_to(source_path, buckets, destination_path, opts)
 
     if successful_buckets != [] do
       file_info = %{
         destination_path: destination_path,
         stored_in: length(buckets),
         successful_storages: length(successful_buckets),
-        bucket_ids: Enum.map(successful_buckets, fn {bucket, _} -> bucket.uuid end)
+        bucket_ids: Enum.map(successful_buckets, & &1.uuid)
       }
 
       {:ok, file_info}
     else
       {:error, "Failed to store file in any bucket"}
     end
+  end
+
+  # Use path_prefix if provided, otherwise generate a path
+  defp destination_path(source_path, opts) do
+    case Keyword.get(opts, :path_prefix) do
+      nil -> generate_destination_path(source_path, opts)
+      path_prefix -> path_prefix
+    end
+  end
+
+  # The buckets of `buckets` the object was written to. A bucket that raises
+  # failed, like one that errors.
+  defp write_to(source_path, buckets, destination_path, opts) do
+    Enum.filter(buckets, fn bucket ->
+      provider = get_provider_for_bucket(bucket)
+
+      result =
+        try do
+          provider.store_file(bucket, source_path, destination_path, opts)
+        rescue
+          error -> {:error, Exception.message(error)}
+        end
+
+      result == :ok or match?({:ok, _}, result)
+    end)
   end
 
   defp retrieve_with_failover(_file_path, [], _opts), do: {:error, "File not found in any bucket"}

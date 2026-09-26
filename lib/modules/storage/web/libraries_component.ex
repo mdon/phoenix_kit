@@ -107,8 +107,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
 
   def handle_event("set_storage", %{"uuid" => uuid, "storage" => params}, socket) do
     with %{} = library <- find(socket, uuid),
-         {:ok, library} <- maybe_set_profile(library, params["profile"]),
-         {:ok, _library} <- maybe_set_variant_set(library, params["set"]) do
+         {:ok, _library} <- set_storage(library, params) do
       {:noreply,
        socket
        |> load()
@@ -146,6 +145,18 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
     else
       _ -> {:noreply, flash(socket, :error, gettext("User library settings could not be saved"))}
     end
+  end
+
+  # Both or neither.
+  defp set_storage(library, params) do
+    PhoenixKit.RepoHelper.repo().transaction(fn ->
+      with {:ok, library} <- maybe_set_profile(library, params["profile"]),
+           {:ok, library} <- maybe_set_variant_set(library, params["set"]) do
+        library
+      else
+        {:error, reason} -> PhoenixKit.RepoHelper.repo().rollback(reason)
+      end
+    end)
   end
 
   defp maybe_set_profile(library, uuid) when is_binary(uuid) and uuid != "" do

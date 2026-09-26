@@ -103,7 +103,11 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
   end
 
   def handle_event("set_variant_set", %{"uuid" => uuid, "set" => set_uuid}, socket) do
-    with %{library: library, role: :owner} <- entry(socket, uuid),
+    # The owner check is made again on the row as it is now, not on the
+    # list this tab loaded (it may have been trashed in another tab).
+    with %{library: listed, role: :owner} <- entry(socket, uuid),
+         %Library{trashed_at: nil} = library <- Libraries.get_library(listed.uuid),
+         :owner <- Libraries.role(library, Scope.user_uuid(socket.assigns.scope)),
          {:ok, _} <- VariantSets.set_library_variant_set(library, set_uuid) do
       reply(
         socket,
@@ -231,6 +235,17 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
     end
   end
 
+  # The sets offered for `library`: the selectable ones, and its own when
+  # an admin has since made that one not selectable (shown, not choosable),
+  # so the list says what the library uses.
+  defp set_options(library, sets) do
+    current = VariantSets.set_uuid_for(library)
+
+    if Enum.any?(sets, &(to_string(&1.uuid) == current)),
+      do: sets,
+      else: sets ++ List.wrap(VariantSets.get_variant_set(current))
+  end
+
   @doc false
   def role_label("manager"), do: gettext("Manager")
   def role_label("contributor"), do: gettext("Contributor")
@@ -327,7 +342,7 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
           </form>
           <span :if={library.is_default} class="badge badge-primary badge-sm">{gettext("Default")}</span>
           <form
-            :if={length(@variant_sets) > 1}
+            :if={length(set_options(library, @variant_sets)) > 1}
             id={"#{@id}-sizes-#{library.uuid}"}
             phx-change="set_variant_set"
             phx-target={@myself}
@@ -340,9 +355,10 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
               title={gettext("Which sizes this library's uploads get")}
             >
               <option
-                :for={set <- @variant_sets}
+                :for={set <- set_options(library, @variant_sets)}
                 value={set.uuid}
                 selected={VariantSets.set_uuid_for(library) == to_string(set.uuid)}
+                disabled={not set.selectable and not set.is_default}
               >
                 {set.name}
               </option>

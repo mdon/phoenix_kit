@@ -39,7 +39,9 @@ defmodule PhoenixKit.Migrations.Postgres.V205 do
       **NULL means the Default at revision 1**, which is what every existing
       file is, so no file row is rewritten. A file is stale, and the
       reconciler moves or regenerates it, when what it was placed by differs
-      from its library's. The files that are under-replicated today are
+      from its library's. `reconcile_attempted_at` is when the reconciler
+      last tried a file and could not finish it: it waits a while before the
+      next try, so a file that keeps failing is not retried on every pass. The files that are under-replicated today are
       marked stale here (`placed_revision = 0`): the ones whose completed
       instances do not each have as many active locations on enabled
       buckets as the Default wants (or as there are enabled buckets, if
@@ -104,7 +106,8 @@ defmodule PhoenixKit.Migrations.Postgres.V205 do
         ADD COLUMN IF NOT EXISTS placed_profile_uuid uuid,
         ADD COLUMN IF NOT EXISTS placed_revision integer,
         ADD COLUMN IF NOT EXISTS placed_variant_set_uuid uuid,
-        ADD COLUMN IF NOT EXISTS placed_variant_revision integer
+        ADD COLUMN IF NOT EXISTS placed_variant_revision integer,
+        ADD COLUMN IF NOT EXISTS reconcile_attempted_at timestamp(0) without time zone
       """,
       "ALTER TABLE #{p}phoenix_kit_file_instances ADD COLUMN IF NOT EXISTS spec_hash character varying(32)",
       dimension_columns(p, prefix),
@@ -211,7 +214,7 @@ defmodule PhoenixKit.Migrations.Postgres.V205 do
       SELECT '#{@default_profile_uuid}', 'Default', true, c.copies, c.copies, 1, 1, NOW(), NOW()
       FROM (
         SELECT LEAST(GREATEST(COALESCE(
-          (SELECT CASE WHEN value ~ '^[0-9]+$' THEN value::integer END
+          (SELECT CASE WHEN value ~ '^[0-9]{1,2}$' THEN value::integer END
            FROM #{p}phoenix_kit_settings WHERE key = 'storage_redundancy_copies'),
           1), 1), 5) AS copies
       ) c
@@ -422,7 +425,8 @@ defmodule PhoenixKit.Migrations.Postgres.V205 do
         DROP COLUMN IF EXISTS placed_profile_uuid,
         DROP COLUMN IF EXISTS placed_revision,
         DROP COLUMN IF EXISTS placed_variant_set_uuid,
-        DROP COLUMN IF EXISTS placed_variant_revision
+        DROP COLUMN IF EXISTS placed_variant_revision,
+        DROP COLUMN IF EXISTS reconcile_attempted_at
       """,
       """
       ALTER TABLE #{p}phoenix_kit_storage_libraries

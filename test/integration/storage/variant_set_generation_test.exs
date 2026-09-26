@@ -228,9 +228,13 @@ defmodule PhoenixKit.Modules.Storage.VariantSetGenerationTest do
       assert set.generate_variants == false
       file = upload!(ctx, 1200)
 
-      assert {:error, :placeholder} = FileController.get_file_instance(file.uuid, "thumbnail")
+      # Nothing is coming while the set makes no sizes: the original, as before.
+      assert {:ok, %{variant_name: "original"}, :pending} =
+               FileController.get_file_instance(file.uuid, "thumbnail")
 
       {:ok, _} = VariantSets.update_variant_set(set, %{generate_variants: true})
+      assert {:error, :placeholder} = FileController.get_file_instance(file.uuid, "thumbnail")
+
       thumbnail = Storage.get_dimension_by_name("thumbnail", ctx.set.uuid)
       {:ok, _} = Storage.VariantGenerator.generate_variant(Storage.get_file(file.uuid), thumbnail)
 

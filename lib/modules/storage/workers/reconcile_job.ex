@@ -10,7 +10,10 @@ defmodule PhoenixKit.Modules.Storage.Workers.ReconcileJob do
   its copying and its ImageMagick/FFmpeg work stay bounded by that queue.
   Only one pending run exists at a time (`unique` over `[:worker, :queue]`,
   ignoring the cursor): a change queued while a pass is under way starts
-  the walk again from the beginning once the current batch is done.
+  the walk again from the beginning (a waiting next batch is replaced).
+  A file that could not be finished waits ten minutes before it is tried
+  again (`reconcile_attempted_at`), so a restart does not retry the same
+  failing files ahead of the rest.
 
   **Queued by itself** (`enqueue/0`): whenever a profile, a variant set or
   one of their rows changes (their revision is bumped), a library moves to
@@ -38,9 +41,11 @@ defmodule PhoenixKit.Modules.Storage.Workers.ReconcileJob do
   because Oban is not running (a test, a Mix task); the daily prune and the
   next boot queue one anyway.
   """
+  # A pass already waiting between batches is replaced, not kept: its cursor
+  # would skip the files before it that this change made stale.
   @spec enqueue() :: :queued | :unavailable
   def enqueue do
-    case %{} |> new() |> Oban.insert() do
+    case %{} |> new(replace: [scheduled: [:args, :scheduled_at]]) |> Oban.insert() do
       {:ok, _job} -> :queued
       _ -> :unavailable
     end

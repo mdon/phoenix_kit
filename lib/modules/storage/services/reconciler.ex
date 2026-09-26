@@ -60,15 +60,28 @@ defmodule PhoenixKit.Modules.Storage.Reconciler do
 
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
 
+  # A file the reconciler could not finish waits this long before the next
+  # try, so one that keeps failing (an unreadable original, a bucket that is
+  # down) is not retried on every pass, ahead of every other file.
+  @retry_after_seconds 600
+
+  # A file still "processing" this long after its last change is not being
+  # processed any more (a type the processing job does not handle, or a
+  # failed run): its bytes are placed like any other file's.
+  @processing_grace_seconds 3600
+
   @doc """
   The files that are not where, or not what, their library's profile and
-  variant set want: every file row except one still uploading or with an
-  image edit pending.
+  variant set want. Not a file an upload is still processing, nor one with
+  an image edit pending, nor one tried in the last few minutes.
   """
   @spec stale_query() :: Ecto.Query.t()
   def stale_query do
     profile = Profiles.default_uuid()
     set = VariantSets.default_uuid()
+    now = NaiveDateTime.utc_now()
+    retry_before = NaiveDateTime.add(now, -@retry_after_seconds)
+    processing_before = NaiveDateTime.add(now, -@processing_grace_seconds)
 
     from(f in StorageFile,
       as: :file,
@@ -78,8 +91,11 @@ defmodule PhoenixKit.Modules.Storage.Reconciler do
       on: p.uuid == coalesce(l.storage_profile_uuid, type(^profile, UUIDv7)),
       join: s in VariantSet,
       on: s.uuid == coalesce(l.variant_set_uuid, type(^set, UUIDv7)),
-      where: f.status in ["active", "trashed"],
+      where:
+        f.status in ["active", "trashed", "failed"] or
+          (f.status == "processing" and f.updated_at < ^processing_before),
       where: is_nil(f.edit_state) or f.edit_state != "pending",
+      where: is_nil(f.reconcile_attempted_at) or f.reconcile_attempted_at < ^retry_before,
       where:
         coalesce(f.placed_profile_uuid, type(^profile, UUIDv7)) != p.uuid or
           coalesce(f.placed_revision, 1) != p.revision or
@@ -188,26 +204,57 @@ defmodule PhoenixKit.Modules.Storage.Reconciler do
     profile = Profiles.for_library(file.library_uuid)
     set = VariantSets.for_library(file.library_uuid)
 
-    placed? = profile != nil and reconcile_locations(file, profile)
+    # Sizes first: making one writes derived copies, which the locations
+    # step then checks.
     made? = set != nil and reconcile_variants(file, set)
+    placed? = profile != nil and reconcile_locations(file, profile)
 
+    # Each stamp only while the file still carries the stamp it had when it
+    # was read: something that marked it stale meanwhile (an incomplete
+    # variant, an upload job) wins, and the next pass looks again.
     if placed? do
-      stamp(file, placed_profile_uuid: profile.uuid, placed_revision: profile.revision)
+      stamp(file, [:placed_profile_uuid, :placed_revision],
+        placed_profile_uuid: profile.uuid,
+        placed_revision: profile.revision
+      )
     end
 
     if made? do
-      stamp(file, placed_variant_set_uuid: set.uuid, placed_variant_revision: set.revision)
+      stamp(file, [:placed_variant_set_uuid, :placed_variant_revision],
+        placed_variant_set_uuid: set.uuid,
+        placed_variant_revision: set.revision
+      )
     end
 
-    if placed? and made?, do: :reconciled, else: :stale
+    if placed? and made? do
+      :reconciled
+    else
+      attempted(file)
+      :stale
+    end
   rescue
     error ->
       Logger.warning("Reconciler: #{file.uuid} failed: #{Exception.message(error)}")
+      attempted(file)
       :stale
   end
 
-  defp stamp(file, changes) do
-    from(f in StorageFile, where: f.uuid == ^file.uuid) |> repo().update_all(set: changes)
+  defp stamp(file, fields, changes) do
+    fields
+    |> Enum.reduce(from(f in StorageFile, where: f.uuid == ^file.uuid), fn field, query ->
+      case Map.fetch!(file, field) do
+        nil -> where(query, [f], is_nil(field(f, ^field)))
+        value -> where(query, [f], field(f, ^field) == ^value)
+      end
+    end)
+    |> repo().update_all(set: changes)
+  end
+
+  defp attempted(file) do
+    now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+
+    from(f in StorageFile, where: f.uuid == ^file.uuid)
+    |> repo().update_all(set: [reconcile_attempted_at: now])
   end
 
   # ── Locations ────────────────────────────────────────────────────────
@@ -257,24 +304,44 @@ defmodule PhoenixKit.Modules.Storage.Reconciler do
           do: {to_string(row.bucket_uuid), row.bucket}
 
     writable = Manager.placement_candidates(profile, kind)
-    target = min(Profiles.copies(profile, kind), map_size(Map.merge(keep, by_uuid(writable))))
-
     located = located_buckets(instance)
     good = located |> Map.keys() |> Enum.filter(&Map.has_key?(keep, &1))
 
-    good = good ++ copy_to_more(instance, writable, good, target - length(good))
+    # As many copies as the profile wants, capped at the buckets that hold
+    # one or can take one: a read-only or full bucket without a copy cannot
+    # get one, and must not keep the file stale for ever.
+    target =
+      min(Profiles.copies(profile, kind), length(Enum.uniq(good ++ Map.keys(by_uuid(writable)))))
 
-    # Never unlink with no good copy elsewhere: a profile whose only bucket
-    # is draining (or gone) caps the target at zero, and "enough" copies
-    # must never mean deleting the last one.
-    if good != [] and length(good) >= target do
-      located
-      |> Enum.reject(fn {uuid, _bucket} -> Map.has_key?(keep, uuid) end)
-      |> Enum.map(fn {_uuid, bucket} -> unlink(instance, bucket) end)
-      |> Enum.all?()
-    else
-      false
+    good = good ++ copy_to_more(instance, writable, good, target - length(good))
+    leftovers = Enum.reject(located, fn {uuid, _bucket} -> Map.has_key?(keep, uuid) end)
+
+    cond do
+      length(good) < target ->
+        false
+
+      leftovers == [] ->
+        true
+
+      # Before a copy goes, the ones that stay are checked to really be
+      # there: a location row can outlive its object, and "enough copies"
+      # must never mean unlinking the last real one. Never with none.
+      verified_copies(instance, good, keep, located) < max(target, 1) ->
+        false
+
+      true ->
+        leftovers
+        |> Enum.map(fn {_uuid, bucket} -> unlink(instance, bucket) end)
+        |> Enum.all?()
     end
+  end
+
+  # How many of the `good` copies are really in their bucket.
+  defp verified_copies(instance, good, keep, located) do
+    Enum.count(good, fn uuid ->
+      bucket = Map.get(keep, uuid) || Map.get(located, uuid)
+      bucket != nil and Manager.holds?(bucket, instance.file_name)
+    end)
   end
 
   # The G13 rule: an original upload is an original; sizes, tiles, tile
@@ -353,22 +420,48 @@ defmodule PhoenixKit.Modules.Storage.Reconciler do
     instances = Storage.list_file_instances(file.uuid)
     by_name = Map.new(instances, &{&1.variant_name, &1})
 
+    # Missing sizes, and sizes made from another spec. An instance in a size
+    # slot with no spec hash was not made from a size (a burned annotation
+    # thumbnail is written into `thumbnail`): it is someone's content and is
+    # never made over.
     to_make =
-      Enum.filter(expected, fn {dimension, name, format} ->
+      Enum.flat_map(expected, fn {dimension, name, format} ->
         case Map.get(by_name, name) do
-          nil -> true
-          instance -> instance.spec_hash != VariantSets.spec_hash(dimension, format)
+          nil ->
+            [{dimension, name, format, []}]
+
+          %{spec_hash: nil} ->
+            []
+
+          instance ->
+            if instance.spec_hash == VariantSets.spec_hash(dimension, format),
+              do: [],
+              else: [{dimension, name, format, remake_opts(file, instance)}]
         end
       end)
 
     made? =
-      Enum.reduce(to_make, true, fn {dimension, name, format}, ok? ->
-        match?({:ok, _}, VariantGenerator.generate_variant(file, dimension, name, format)) and
+      Enum.reduce(to_make, true, fn {dimension, name, format, opts}, ok? ->
+        match?({:ok, _}, VariantGenerator.generate_variant(file, dimension, name, format, opts)) and
           ok?
       end)
 
     removed? = remove_dropped_sizes(file, set, instances)
     made? and removed?
+  end
+
+  # A variant's key is shared with a cross-user copy (same bytes, same
+  # directory). Made again from another spec, it goes under a new key, or it
+  # would change the bytes the other file serves under its old spec.
+  defp remake_opts(file, instance) do
+    shared? =
+      repo().exists?(
+        from(i in FileInstance,
+          where: i.file_name == ^instance.file_name and i.file_uuid != ^file.uuid
+        )
+      )
+
+    if shared?, do: [fresh_key: true], else: []
   end
 
   # Instances made from a size (a spec hash) that the set no longer has at

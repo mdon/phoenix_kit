@@ -445,7 +445,7 @@ never get a later change, the #871 lesson):
   stale files and queues a pass; `SyncFilesJob` is a shim that queues the
   reconciler (remove next release) and the `sync_under_replicated*`
   functions and `get_health_report/1` are gone.
-- Step 6 done. Settings → Media gets a **Storage profiles** tab
+- Step 6 done (`4b764e459`). Settings → Media gets a **Storage profiles** tab
   (`ProfilesComponent`: copy counts, and per bucket role/stores/write
   priority/serve order/status saved on change, add/remove, create/delete).
   The dimensions page is now **Variant sets** (a tab per set via `?set=`,
@@ -460,6 +460,14 @@ never get a later change, the #871 lesson):
   Default. All new strings translated in the seven locales (77 each: 59 new
   and 18 fuzzy carry-overs rewritten); the untranslated backlog is
   unchanged (de/fr 50, et/ru 71, es/it/pl 74).
+- Step 7: CHANGELOG under `## Unreleased` (`dd4757b62`), Storage README.
+  Two independent reviews found 25 issues, two of them data loss (the
+  reconciler trusting a location row as a good copy; making over burned
+  thumbnails); all but two fixed, with tests. See
+  `dev_docs/reviews/2026-09-26-storage-libraries-v205/CLAUDE_REVIEW.md`.
+  V205 gained `files.reconcile_attempted_at` in that round (it was not
+  pushed yet). Left: Grok's review, the maintainer's test on dev, then push
+  and publish.
 
 **Scope:** phoenix_kit (core), Storage module, in five releases (V201–V205).
 First consumer: `phoenix_kit_photos`.

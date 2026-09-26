@@ -202,14 +202,15 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # access to; the real-database integration suite re-ran clean against a DB
   # migrated through V196, which is the property s7/s8 exist to prove.
   #
-  # V205 (2026-09-25, storage profiles and variant sets) DECLARES 59 objects
+  # V205 (2026-09-25, storage profiles and variant sets) DECLARES 60 objects
   # here and RESHAPES one. New: `table:phoenix_kit_storage_profiles`,
   # `table:phoenix_kit_storage_profile_buckets` and
   # `table:phoenix_kit_variant_sets` with every column, constraint and index;
   # the two seed rows (the Default profile, fixed uuid
   # `00000000-0000-7000-8000-000000000002`, and the Default variant set,
   # `…0003`); `storage_profile_uuid` / `variant_set_uuid` on libraries with
-  # their FKs (`ON DELETE RESTRICT`); the four `placed_*` columns on files;
+  # their FKs (`ON DELETE RESTRICT`); the four `placed_*` columns and
+  # `reconcile_attempted_at` on files;
   # `spec_hash` on file instances; and `variant_set_uuid` on dimensions (NOT
   # NULL, DEFAULT the Default set's uuid) with its FK (`ON DELETE CASCADE`).
   # Reshaped, with an APPENDED `{205, ...}` revision and its `create`
@@ -505,7 +506,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "bffd512507acbe12c53f0ce2e988a15c76fbbf91e9ae1c90cf563a95de038586"
+  @chain_hash "142af0fd1de01326e88cc4bca1ec5cf1125a0b2d1861dfedc7fd6a6f1caa7c56"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -74689,6 +74690,22 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         class: :column,
         revisions: [{205, %{default: nil, type: "integer", pos: 37, not_null: false}}],
         presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_files.reconcile_attempted_at",
+        owner: :core,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_files", column: "reconcile_attempted_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_files ADD COLUMN IF NOT EXISTS \"reconcile_attempted_at\" timestamp(0) without time zone",
+        since: 205,
+        class: :column,
+        presence: :required,
+        revisions: [
+          {205, %{default: nil, type: "timestamp(0) without time zone", pos: 38, not_null: false}}
+        ],
         backfill: nil
       },
       %{

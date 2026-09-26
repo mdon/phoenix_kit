@@ -60,6 +60,9 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
   """
   def generate_variants(file, opts \\ []) do
     specific_dimensions = Keyword.get(opts, :dimensions, [])
+    # The set as it is now: the run is stamped with this revision, so a size
+    # changed while it runs leaves the file stale, not falsely up to date.
+    set = VariantSets.for_file(file)
 
     cond do
       not variant_source?(file) ->
@@ -68,7 +71,7 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
       # The file's library's variant set makes no sizes automatically:
       # nothing is missing, so its variants are as the set wants them.
       not VariantSets.variants_for?(file) ->
-        if specific_dimensions == [], do: VariantSets.record_variants(file, true)
+        if specific_dimensions == [], do: VariantSets.record_variants(file, true, set)
         {:ok, []}
 
       true ->
@@ -82,7 +85,7 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
 
         # A full run records whether every size of the set was made; one
         # that failed leaves the file stale for the reconciler.
-        if specific_dimensions == [], do: VariantSets.record_variants(file, complete?)
+        if specific_dimensions == [], do: VariantSets.record_variants(file, complete?, set)
         result
     end
   end
@@ -116,12 +119,20 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
   from `medium` in `"webp"`). What the reconciler uses to make one missing
   or stale variant (`expected_variants/1` lists them).
   """
-  def generate_variant(file, dimension, variant_name, format) do
+  # `fresh_key: true` stores it under a key of its own (the spec hash in the
+  # name) instead of the size's usual key: for a key another file still
+  # serves under its old spec.
+  def generate_variant(file, dimension, variant_name, format, opts \\ []) do
     if is_nil(file.file_path) do
       Logger.warning("Cannot generate variant for file #{file.uuid}: file_path is nil")
       {:error, :file_path_missing}
     else
-      do_generate_variant(file, dimension, variant_name, format)
+      suffix =
+        if Keyword.get(opts, :fresh_key),
+          do: "_" <> String.slice(VariantSets.spec_hash(dimension, format), 0, 8),
+          else: ""
+
+      do_generate_variant(file, dimension, variant_name, format, suffix)
     end
   end
 
@@ -149,14 +160,14 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
          (file.file_type == "document" and file.mime_type == "application/pdf"))
   end
 
-  defp do_generate_variant(file, dimension, variant_name, format_override) do
+  defp do_generate_variant(file, dimension, variant_name, format_override, key_suffix \\ "") do
     Logger.info("Generating variant: #{variant_name} for file: #{file.uuid}")
 
     # Generate variant filename using file checksum + variant name for uniqueness
     variant_ext = determine_variant_extension(file.ext, format_override)
     # Use file_checksum or file_name basename for naming (works with any path structure)
     base_name = file.file_checksum || Path.basename(file.file_name, Path.extname(file.file_name))
-    variant_filename = "#{base_name}_#{variant_name}.#{variant_ext}"
+    variant_filename = "#{base_name}_#{variant_name}#{key_suffix}.#{variant_ext}"
     variant_mime_type = determine_variant_mime_type(file.mime_type, format_override)
 
     # Build the variant storage path using file_path as base directory

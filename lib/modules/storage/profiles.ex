@@ -134,9 +134,10 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
     |> reload()
   end
 
-  # A rename moves no bytes, so it does not make every file stale.
+  # A rename moves no bytes, and neither does how many copies an upload
+  # needs (it applies to the next upload): neither makes every file stale.
   defp placement_changed?(changeset),
-    do: Map.drop(changeset.changes, [:name]) != %{}
+    do: Map.drop(changeset.changes, [:name, :min_copies_on_write]) != %{}
 
   @doc """
   Deletes a profile. The Default cannot be deleted

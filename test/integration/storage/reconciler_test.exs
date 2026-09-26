@@ -197,6 +197,11 @@ defmodule PhoenixKit.Modules.Storage.ReconcilerTest do
       assert Reconciler.reconcile_file(Storage.get_file(file.uuid)) == :stale
       assert buckets_of(key) == uuids([ctx.a])
       assert on(ctx.a, key)
+
+      # Tried and left: it waits before the next try, then is stale again.
+      assert Storage.get_file(file.uuid).reconcile_attempted_at
+      refute stale?(file)
+      back_off!(file, 3600)
       assert stale?(file)
     end
 
@@ -318,6 +323,14 @@ defmodule PhoenixKit.Modules.Storage.ReconcilerTest do
 
     assert totals[:reconciled] >= 3
     for file <- files, do: refute(stale?(file))
+  end
+
+  defp back_off!(file, seconds) do
+    at = NaiveDateTime.add(NaiveDateTime.utc_now(), -seconds) |> NaiveDateTime.truncate(:second)
+
+    Repo.update_all(from(f in Storage.File, where: f.uuid == ^file.uuid),
+      set: [reconcile_attempted_at: at]
+    )
   end
 
   defp user!(ctx) do
