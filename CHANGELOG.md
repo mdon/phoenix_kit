@@ -1,10 +1,26 @@
-## Unreleased
+## 2.41.0 - 2026-09-26
 
-Storage profiles and variant sets (**V205**, phase 4 of
-`dev_docs/plans/2026-09-22-storage-libraries.md`). Nothing changes for an
-install that never touches them: every library starts on the seeded
-**Default** profile and variant set, built from the existing buckets and
-settings.
+Storage profiles, variant sets and the reconciler (**V205**, phase 4 of
+`dev_docs/plans/2026-09-22-storage-libraries.md`). Each library now says
+where its files are kept and which sizes its uploads get. Nothing changes
+for an install that never touches them: every library starts on the
+seeded **Default** profile and variant set, built from the existing
+buckets and settings.
+
+### Upgrading
+
+- Run `mix phoenix_kit.update` (migration **V205**). It adds the new
+  tables and columns and seeds the Defaults; it copies, moves and resizes
+  nothing. Files that were already under-replicated are marked for the
+  reconciler, which then makes their missing copies by itself, throttled,
+  on the `file_processing` queue. **Settings → Media → Health** shows what
+  is left.
+- Every bucket joins the Default profile, in today's read order (local
+  first, then by priority). A disabled bucket stays disabled: `enabled` is
+  still the emergency stop.
+- The **Sync All** button on the Health page is gone; the reconciler does
+  that work. A sync already queued before the upgrade just queues the
+  reconciler.
 
 ### Added
 
