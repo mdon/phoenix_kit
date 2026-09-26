@@ -1430,9 +1430,27 @@ defmodule PhoenixKit.Modules.Storage do
       from(f in Folder, where: f.parent_uuid == ^folder.uuid)
       |> repo().update_all(set: [parent_uuid: folder.parent_uuid])
 
-      # Move home files to parent
+      # Move home files to parent. A file the parent ALREADY links to would
+      # arrive both homed there and linked there, and a folder holds a file
+      # once — the same pair `set_home/2` refuses to make, by a different
+      # door: the parent is a folder these files may well be attached to.
+      moved =
+        repo().all(
+          from(f in PhoenixKit.Modules.Storage.File,
+            where: f.folder_uuid == ^folder.uuid,
+            select: f.uuid
+          )
+        )
+
       from(f in PhoenixKit.Modules.Storage.File, where: f.folder_uuid == ^folder.uuid)
       |> repo().update_all(set: [folder_uuid: folder.parent_uuid])
+
+      if folder.parent_uuid && moved != [] do
+        from(l in FolderLink,
+          where: l.folder_uuid == ^folder.parent_uuid and l.file_uuid in ^moved
+        )
+        |> repo().delete_all()
+      end
 
       # Delete folder (links cascade via FK)
       case repo().delete(folder) do
@@ -2102,28 +2120,120 @@ defmodule PhoenixKit.Modules.Storage do
   end
 
   # A file's home is a folder of its own library (or none).
+  #
+  # Taking the link to the destination with it is the whole of the write: a
+  # folder holds a file ONCE, as its home or through a link, never both.
+  # Leaving both behind is invisible in a listing — `folder_uuid = $1 OR
+  # linked` answers once either way — and then bites on the next move, which
+  # asks the link table what to do and re-points a link while the home stays
+  # put. That is the file appearing in two folders at once.
+  #
+  # A file picks up the link that sets this off by being attached somewhere:
+  # `ResourceFolders.attach/2` (a post's featured image, a product's gallery)
+  # and the uploader's content-duplicate path both LINK a file that already
+  # has a home, and a later move into that same folder used to make the pair.
   defp set_home(file, target_folder_uuid) do
     if is_nil(target_folder_uuid) or same_library?(file, target_folder_uuid) do
-      file
-      |> Ecto.Changeset.change(%{folder_uuid: target_folder_uuid})
-      |> repo().update()
+      repo().transaction(fn ->
+        drop_folder_link(target_folder_uuid, file.uuid)
+
+        case file
+             |> Ecto.Changeset.change(%{folder_uuid: target_folder_uuid})
+             |> repo().update() do
+          {:ok, updated} -> updated
+          {:error, changeset} -> repo().rollback(changeset)
+        end
+      end)
     else
       {:error, :other_library}
     end
   end
 
+  # No link, or none to drop: both are `:ok`, and the root has no links.
+  defp drop_folder_link(nil, _file_uuid), do: :ok
+
+  defp drop_folder_link(folder_uuid, file_uuid) do
+    from(l in FolderLink, where: l.folder_uuid == ^folder_uuid and l.file_uuid == ^file_uuid)
+    |> repo().delete_all()
+
+    :ok
+  end
+
   @doc """
   Moves a file as SEEN in `from_folder_uuid` to `target_folder_uuid`.
 
-  A file that is merely linked into `from_folder_uuid` (its home is
-  another folder) has its LINK re-pointed at the target — the file
-  itself stays where it lives, and every other folder holding it keeps
-  it. A file whose home is `from_folder_uuid` (or that is viewed
-  outside any folder) moves as `move_file_to_folder/3` always has.
-  Folder listings show linked files (2026-09-12), so a move from a
-  folder must act on what that folder holds, not on the file's home.
+  Where the file LIVES decides what the gesture means, in this order:
+
+    * trashed → restored into `target_folder_uuid`, because moving a file
+      into a folder is how a trash listing puts it back (`{:error, …}` if
+      the target is out of scope, trashed, or another library's);
+    * home is `from_folder_uuid` (or it is viewed outside any folder) → it
+      moves, as `move_file_to_folder/3` always has, and the folder it left
+      keeps nothing: any link it had there goes with it;
+    * merely linked into `from_folder_uuid` (its home is another folder) →
+      the LINK is re-pointed at the target. The file stays where it lives
+      and every other folder holding it keeps it.
+
+  Home before links, because a file can hold both and asking the link
+  table first moved the link while leaving the home behind — one file in
+  two folders. Folder listings show linked files (2026-09-12), so a move
+  from a folder must act on what that folder holds, not only on the home.
   """
   def move_file_between_folders(file_uuid, from_folder_uuid, target_folder_uuid, scope_folder_id) do
+    file = repo().get(PhoenixKit.Modules.Storage.File, file_uuid)
+
+    cond do
+      is_nil(file) ->
+        {:error, :not_found}
+
+      # Moving a trashed file INTO a folder is how a listing takes it back
+      # out of the trash, so restore it there. Re-homing a trashed row
+      # instead — which is what this did — reported success, left the file
+      # in the trash, never showed it in the folder it was dropped on, and
+      # quietly changed the home it would come back to whenever somebody
+      # did find the way to restore it.
+      file.status == "trashed" ->
+        restore_into_target(file, target_folder_uuid, scope_folder_id)
+
+      # The file LIVES in the folder it was dragged out of, so this is a home
+      # move — whatever links it also carries. Asking the link table first
+      # sent a file holding both a home and a link to the same folder down
+      # the link path: the link moved to the target and the home stayed
+      # behind, which is the file "duplicating" into the folder it was
+      # dropped on while remaining in the one it came from.
+      to_string(file.folder_uuid) == to_string(from_folder_uuid) ->
+        with {:ok, _} = moved <-
+               move_file_to_folder(file_uuid, target_folder_uuid, scope_folder_id) do
+          # …and the folder it left keeps nothing: a link to the source is
+          # the other half of the pair `set_home/2` now refuses to make.
+          drop_folder_link(from_folder_uuid, file_uuid)
+          moved
+        end
+
+      true ->
+        move_linked_file(file_uuid, from_folder_uuid, target_folder_uuid, scope_folder_id)
+    end
+  end
+
+  # The same guards a live move gets: inside the scope, into a folder that
+  # is really there, and of the file's own library.
+  defp restore_into_target(file, target_folder_uuid, scope_folder_id) do
+    cond do
+      not within_scope?(target_folder_uuid, scope_folder_id) ->
+        {:error, :out_of_scope}
+
+      not is_nil(target_folder_uuid) and not live_folder?(target_folder_uuid) ->
+        {:error, :folder_unavailable}
+
+      not is_nil(target_folder_uuid) and not same_library?(file, target_folder_uuid) ->
+        {:error, :other_library}
+
+      true ->
+        restore_file_into(file, target_folder_uuid)
+    end
+  end
+
+  defp move_linked_file(file_uuid, from_folder_uuid, target_folder_uuid, scope_folder_id) do
     case folder_link(from_folder_uuid, file_uuid) do
       %FolderLink{} = link ->
         cond do
@@ -2371,6 +2481,21 @@ defmodule PhoenixKit.Modules.Storage do
 
   defp attach_to_target(file, target_folder_uuid),
     do: attach_file_to_folder(file, target_folder_uuid)
+
+  # The folder itself if it is live, else the closest ancestor that is, else
+  # the root. Bounded: a tree deeper than this is a cycle, and the walk is
+  # not the place to discover that.
+  defp nearest_live_folder(folder_uuid, depth \\ 0)
+  defp nearest_live_folder(nil, _depth), do: nil
+  defp nearest_live_folder(_folder_uuid, depth) when depth > 50, do: nil
+
+  defp nearest_live_folder(folder_uuid, depth) do
+    case repo().get(Folder, folder_uuid) do
+      %Folder{trashed_at: nil} -> folder_uuid
+      %Folder{parent_uuid: parent} -> nearest_live_folder(parent, depth + 1)
+      nil -> nil
+    end
+  end
 
   # Links into LIVE folders only: re-homing a file into a trashed folder
   # would strand it — listed nowhere, and not in the file trash either.
@@ -3915,10 +4040,23 @@ defmodule PhoenixKit.Modules.Storage do
     |> repo().update()
   end
 
-  @doc "Restores a trashed file back to active status."
+  @doc """
+  Restores a trashed file back to active status.
+
+  Back into a folder that is still there: the file's home may itself have
+  been trashed (trashing a folder trashes what is in it), and an active file
+  in a trashed folder is listed nowhere a person can reach — not in the
+  trash, and not in a folder tree that no longer shows its folder. It comes
+  back to the nearest live ancestor instead, or to the root, which is the
+  same rule `attach_file_to_folder/2` already applies to links.
+  """
   def restore_file(%PhoenixKit.Modules.Storage.File{} = file) do
     file
-    |> Ecto.Changeset.change(%{status: "active", trashed_at: nil})
+    |> Ecto.Changeset.change(%{
+      status: "active",
+      trashed_at: nil,
+      folder_uuid: nearest_live_folder(file.folder_uuid)
+    })
     |> repo().update()
     |> case do
       {:ok, updated} = result ->
@@ -3963,6 +4101,9 @@ defmodule PhoenixKit.Modules.Storage do
     )
     |> case do
       {1, _} ->
+        # The same announcement `restore_file/1` makes: a trash badge, an
+        # open listing and another browser all have a row to bring back.
+        broadcast_file_restored(file.uuid)
         {:ok, %{file | status: "active", trashed_at: nil, folder_uuid: folder_uuid}}
 
       {0, _} ->

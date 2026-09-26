@@ -808,6 +808,24 @@
 
                         <%!-- Bulk actions, only with a selection --%>
                         <%= if selected_count > 0 do %>
+                          <%!-- Restore (trash view). `restore_selected` has
+                               always been here and handled files AND folders;
+                               nothing ever rendered a control for it, so the
+                               trash offered "Empty Trash" and "Delete
+                               permanently" and no way back. --%>
+                          <button
+                            :if={not @readonly and @filter_trash}
+                            phx-click="restore_selected"
+                            phx-target={@myself}
+                            class="btn btn-sm btn-success gap-1"
+                            title={gettext("Restore")}
+                          >
+                            <.icon name="hero-arrow-uturn-left" class="w-4 h-4" />
+                            <span class="hidden sm:inline">{gettext("Restore")}</span>
+                          </button>
+                          <%!-- Move stays in the trash view: moving a trashed
+                               file INTO a folder is how you take it out of the
+                               trash, and the handler restores it there. --%>
                           <button
                             phx-click="show_move_modal"
                             phx-target={@myself}
@@ -1480,7 +1498,19 @@
                                     </div>
                                   </div>
                                 </li>
+                                <%!-- A trashed folder comes back with its
+                                     contents (`restore_folder/2`); the bulk
+                                     Restore has always handled folders too. --%>
                                 <.table_row_menu_button
+                                  :if={@filter_trash}
+                                  phx-click="restore_folder"
+                                  phx-target={@myself}
+                                  phx-value-folder-uuid={folder.uuid}
+                                  icon="hero-arrow-uturn-left"
+                                  label={gettext("Restore")}
+                                />
+                                <.table_row_menu_button
+                                  :if={not @filter_trash}
                                   phx-click="prepare_move_folder"
                                   phx-target={@myself}
                                   phx-value-folder-uuid={folder.uuid}
@@ -1698,6 +1728,18 @@
                                 phx-value-file-uuid={file.file_uuid}
                                 icon="hero-folder-arrow-down"
                                 label={gettext("Move")}
+                              />
+                              <%!-- Restore (trash view). Without it the only
+                                   way back was the file's details page, three
+                                   clicks away through the viewer, which is
+                                   why the trash read as permanent. --%>
+                              <.table_row_menu_button
+                                :if={not @readonly and @filter_trash}
+                                phx-click="restore_file"
+                                phx-target={@myself}
+                                phx-value-file-uuid={file.file_uuid}
+                                icon="hero-arrow-uturn-left"
+                                label={gettext("Restore")}
                               />
                               <.table_row_menu_button
                                 :if={not @readonly}
