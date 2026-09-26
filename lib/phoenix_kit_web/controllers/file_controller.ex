@@ -118,7 +118,12 @@ defmodule PhoenixKitWeb.FileController do
     with {:ok, instance, freshness} <- get_file_instance(file.uuid, variant),
          :ok <- check_version(instance, freshness, requested_version),
          result <- file |> get_file_access(instance, download?) |> keep_private(private?) do
-      cache = if private?, do: :private_file, else: cache_mode(file, freshness, requested_version)
+      # A stand-in is never kept, a private file's either: it is not the
+      # bytes of this URL.
+      cache =
+        if private? and freshness == :exact,
+          do: :private_file,
+          else: cache_mode(file, freshness, requested_version)
 
       case result do
         {:local, file_path} ->
@@ -1158,7 +1163,9 @@ defmodule PhoenixKitWeb.FileController do
           ]
         ]
 
-    get_file_access_with_retry(instance, opts, 5)
+    # Served by the file's own storage profile (V205): its roles and serve
+    # order, even for a key a cross-user copy elsewhere shares.
+    get_file_access_with_retry(instance, [{:file_uuid, instance.file_uuid} | opts], 5)
   end
 
   defp get_file_access_with_retry(instance, opts, retries) do

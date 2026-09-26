@@ -41,11 +41,14 @@ defmodule PhoenixKit.Modules.Storage.Workers.ReconcileJob do
   because Oban is not running (a test, a Mix task); the daily prune and the
   next boot queue one anyway.
   """
-  # A pass already waiting between batches is replaced, not kept: its cursor
-  # would skip the files before it that this change made stale.
+  # A pass already waiting (between batches, or queued behind other jobs) is
+  # replaced, not kept: its cursor would skip the files before it that this
+  # change made stale.
   @spec enqueue() :: :queued | :unavailable
   def enqueue do
-    case %{} |> new(replace: [scheduled: [:args, :scheduled_at]]) |> Oban.insert() do
+    replace = [scheduled: [:args, :scheduled_at], available: [:args]]
+
+    case %{} |> new(replace: replace) |> Oban.insert() do
       {:ok, _job} -> :queued
       _ -> :unavailable
     end

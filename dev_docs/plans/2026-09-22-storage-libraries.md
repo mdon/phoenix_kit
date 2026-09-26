@@ -466,7 +466,10 @@ never get a later change, the #871 lesson):
   thumbnails); all but two fixed, with tests. See
   `dev_docs/reviews/2026-09-26-storage-libraries-v205/CLAUDE_REVIEW.md`.
   V205 gained `files.reconcile_attempted_at` in that round (it was not
-  pushed yet). Left: Grok's review, the maintainer's test on dev, then push
+  pushed yet). Grok's review then filed ten more (shared keys across
+  libraries, burned thumbnails stamped by the migration, the rollback
+  outside the lock, revision bumps for serve-order edits); all fixed, see
+  `CLAUDE_RECHECK.md` there. Left: the maintainer's test on dev, then push
   and publish.
 
 **Scope:** phoenix_kit (core), Storage module, in five releases (V201–V205).

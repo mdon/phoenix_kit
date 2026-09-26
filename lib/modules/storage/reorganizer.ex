@@ -40,6 +40,7 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
   alias PhoenixKit.Modules.Storage.Folder
   alias PhoenixKit.Modules.Storage.FolderLink
   alias PhoenixKit.Modules.Storage.Reorganizer.Action
+  alias PhoenixKit.Modules.Storage.Workers.ReconcileJob
 
   @columns [
     :total,
@@ -390,8 +391,13 @@ defmodule PhoenixKit.Modules.Storage.Reorganizer do
         where: f.folder_uuid in ^subtree_uuids and f.trashed_at == ^trashed_at,
         select: f.uuid
       )
-      |> repo().update_all(set: [status: "active", trashed_at: nil, updated_at: now])
+      |> repo().update_all(
+        # Sizes are not kept up to date in the trash (V205): a restored file
+        # is checked against its variant set again.
+        set: [status: "active", trashed_at: nil, updated_at: now, placed_variant_revision: 0]
+      )
 
+    if restored != [], do: ReconcileJob.enqueue()
     {:ok, restored}
   end
 

@@ -319,6 +319,32 @@ defmodule PhoenixKit.Migrations.Postgres.V205Test do
     assert spec_hash(instances["original"]) == nil
   end
 
+  test "a thumbnail with an annotation burned into it gets no spec hash" do
+    reset!()
+
+    query("""
+    INSERT INTO public.phoenix_kit_storage_dimensions
+      (name, width, height, quality, format, applies_to, inserted_at, updated_at)
+    VALUES ('thumbnail', 150, 150, 85, 'jpg', 'image', NOW(), NOW())
+    """)
+
+    {plain, plain_instances} = file!([{"thumbnail", []}])
+    {by_metadata, meta_instances} = file!([{"thumbnail", []}])
+    {_by_sibling, sibling_instances} = file!([{"thumbnail", []}, {"burned", []}])
+
+    query(
+      "UPDATE public.phoenix_kit_files SET metadata = jsonb_build_object('burn', jsonb_build_object('fingerprint', 'x')) WHERE uuid = $1::text::uuid",
+      [by_metadata]
+    )
+
+    run(V205.up_statements("public"))
+
+    assert spec_hash(plain_instances["thumbnail"])
+    assert spec_hash(meta_instances["thumbnail"]) == nil
+    assert spec_hash(sibling_instances["thumbnail"]) == nil
+    assert plain
+  end
+
   test "only under-replicated files start stale" do
     reset!()
     setting!("storage_redundancy_copies", "2")

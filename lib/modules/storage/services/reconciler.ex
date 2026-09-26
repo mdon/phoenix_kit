@@ -99,8 +99,9 @@ defmodule PhoenixKit.Modules.Storage.Reconciler do
       where:
         coalesce(f.placed_profile_uuid, type(^profile, UUIDv7)) != p.uuid or
           coalesce(f.placed_revision, 1) != p.revision or
-          coalesce(f.placed_variant_set_uuid, type(^set, UUIDv7)) != s.uuid or
-          coalesce(f.placed_variant_revision, 1) != s.revision
+          (f.status == "active" and
+             (coalesce(f.placed_variant_set_uuid, type(^set, UUIDv7)) != s.uuid or
+                coalesce(f.placed_variant_revision, 1) != s.revision))
     )
   end
 
@@ -141,8 +142,9 @@ defmodule PhoenixKit.Modules.Storage.Reconciler do
           coalesce(f.placed_profile_uuid, type(^profile, UUIDv7)) != p.uuid or
             coalesce(f.placed_revision, 1) != p.revision,
         variants:
-          coalesce(f.placed_variant_set_uuid, type(^set, UUIDv7)) != s.uuid or
-            coalesce(f.placed_variant_revision, 1) != s.revision
+          f.status == "active" and
+            (coalesce(f.placed_variant_set_uuid, type(^set, UUIDv7)) != s.uuid or
+               coalesce(f.placed_variant_revision, 1) != s.revision)
       }
     )
     |> repo().all()
@@ -206,7 +208,8 @@ defmodule PhoenixKit.Modules.Storage.Reconciler do
 
     # Sizes first: making one writes derived copies, which the locations
     # step then checks.
-    made? = set != nil and reconcile_variants(file, set)
+    variants = if set, do: reconcile_variants(file, set), else: false
+    made? = variants != false
     placed? = profile != nil and reconcile_locations(file, profile)
 
     # Each stamp only while the file still carries the stamp it had when it
@@ -219,7 +222,10 @@ defmodule PhoenixKit.Modules.Storage.Reconciler do
       )
     end
 
-    if made? do
+    # Only when the sizes were really checked: a file in the trash, or not
+    # done processing, keeps its old stamp and is looked at again once it is
+    # active (the stale query only asks about an active file's sizes).
+    if variants == :checked do
       stamp(file, [:placed_variant_set_uuid, :placed_variant_revision],
         placed_variant_set_uuid: set.uuid,
         placed_variant_revision: set.revision
@@ -314,10 +320,15 @@ defmodule PhoenixKit.Modules.Storage.Reconciler do
       min(Profiles.copies(profile, kind), length(Enum.uniq(good ++ Map.keys(by_uuid(writable)))))
 
     good = good ++ copy_to_more(instance, writable, good, target - length(good))
+    good = good ++ servable_copy(instance, profile, writable, good)
     leftovers = Enum.reject(located, fn {uuid, _bucket} -> Map.has_key?(keep, uuid) end)
 
     cond do
       length(good) < target ->
+        false
+
+      # No copy it may serve, while it has somewhere to make one.
+      servable_missing?(profile, writable, good) ->
         false
 
       leftovers == [] ->
@@ -334,6 +345,29 @@ defmodule PhoenixKit.Modules.Storage.Reconciler do
         |> Enum.map(fn {_uuid, bucket} -> unlink(instance, bucket) end)
         |> Enum.all?()
     end
+  end
+
+  # A backup is never served, so a file needs one copy on a primary or a
+  # replica (a role change can leave all of them on backups). One more is
+  # made there when the profile has such a bucket to write.
+  defp servable_copy(instance, profile, writable, good) do
+    roles = Map.new(profile.buckets, &{to_string(&1.bucket_uuid), &1.role})
+    servable? = fn uuid -> Map.get(roles, uuid) in ["primary", "replica"] end
+
+    if Enum.any?(good, servable?) do
+      []
+    else
+      writable
+      |> Enum.filter(&servable?.(to_string(&1.uuid)))
+      |> then(&copy_to_more(instance, &1, good, 1))
+    end
+  end
+
+  defp servable_missing?(profile, writable, good) do
+    roles = Map.new(profile.buckets, &{to_string(&1.bucket_uuid), &1.role})
+    servable? = fn uuid -> Map.get(roles, uuid) in ["primary", "replica"] end
+
+    not Enum.any?(good, servable?) and Enum.any?(writable, &servable?.(to_string(&1.uuid)))
   end
 
   # How many of the `good` copies are really in their bucket.
@@ -378,22 +412,38 @@ defmodule PhoenixKit.Modules.Storage.Reconciler do
     else
       key = instance.file_name
 
-      case Manager.replicate_to_buckets(key, targets) do
-        {:ok, info} ->
-          stored = MapSet.new(info.bucket_ids, &to_string/1)
+      # Under the key's directory lock, like an unlink: another file's
+      # reconciler unlinking the same (shared) key from a bucket must see
+      # this copy's row, or not have seen the object at all.
+      {:ok, copied} =
+        repo().transaction(
+          fn ->
+            Storage.lock_storage_paths([Path.dirname(key)])
+            copy_and_record(key, targets)
+          end,
+          timeout: :infinity
+        )
 
-          # A copy counts once it is really there.
-          for bucket <- targets,
-              to_string(bucket.uuid) in stored,
-              Manager.holds?(bucket, key) do
-            Locations.record(key, bucket.uuid)
-            to_string(bucket.uuid)
-          end
+      copied
+    end
+  end
 
-        {:error, reason} ->
-          Logger.warning("Reconciler: could not copy #{key}: #{inspect(reason)}")
-          []
-      end
+  defp copy_and_record(key, targets) do
+    case Manager.replicate_to_buckets(key, targets) do
+      {:ok, info} ->
+        stored = MapSet.new(info.bucket_ids, &to_string/1)
+
+        # A copy counts once it is really there.
+        for bucket <- targets,
+            to_string(bucket.uuid) in stored,
+            Manager.holds?(bucket, key) do
+          Locations.record(key, bucket.uuid)
+          to_string(bucket.uuid)
+        end
+
+      {:error, reason} ->
+        Logger.warning("Reconciler: could not copy #{key}: #{inspect(reason)}")
+        []
     end
   end
 
@@ -407,11 +457,15 @@ defmodule PhoenixKit.Modules.Storage.Reconciler do
 
   # ── Variants ─────────────────────────────────────────────────────────
 
+  # `:checked` (the file has its set's sizes), `:not_now` (a file whose
+  # sizes are not looked after in its state: trashed, still processing,
+  # failed) or false (a size could not be made).
   defp reconcile_variants(file, %VariantSet{} = set) do
-    if VariantGenerator.variant_source?(file) and file.status == "active" do
-      make_variants(file, set)
-    else
-      true
+    cond do
+      file.status != "active" -> :not_now
+      not VariantGenerator.variant_source?(file) -> :checked
+      make_variants(file, set) -> :checked
+      true -> false
     end
   end
 

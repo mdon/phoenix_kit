@@ -187,13 +187,20 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
 
     transact(fn ->
       with {:ok, saved} <- repo().insert_or_update(changeset) do
-        if row.__meta__.state == :built or changeset.changes != %{},
+        if row.__meta__.state == :built or moves_bytes?(changeset),
           do: bump_revision(profile_uuid)
 
         {:ok, saved}
       end
     end)
   end
+
+  # What a file's placement depends on: what a bucket stores, its status,
+  # and its role (a file needs a copy it may serve). The serve order is read
+  # when a request is served, and a write priority or storage class only
+  # applies to the next write: changing them makes no file stale.
+  defp moves_bytes?(changeset),
+    do: Map.take(changeset.changes, [:stores, :status, :role]) != %{}
 
   @doc "Takes `bucket_uuid` out of `profile` and bumps the profile's revision."
   @spec remove_bucket(StorageProfile.t(), term()) :: :ok

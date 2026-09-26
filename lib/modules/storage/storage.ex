@@ -514,12 +514,18 @@ defmodule PhoenixKit.Modules.Storage do
   file instances that have locations in this bucket.
   """
   def calculate_bucket_usage(bucket_uuid) do
-    from(fl in FileLocation,
-      join: fi in FileInstance,
-      on: fl.file_instance_uuid == fi.uuid,
-      where: fl.bucket_uuid == ^bucket_uuid and fl.status == "active",
-      select: fragment("SUM(?) / (1024.0 * 1024)", fi.size)
-    )
+    # Each object once: a key shared by cross-user copies has one location
+    # row per copy, but one object on the bucket.
+    objects =
+      from(fl in FileLocation,
+        join: fi in FileInstance,
+        on: fl.file_instance_uuid == fi.uuid,
+        where: fl.bucket_uuid == ^bucket_uuid and fl.status == "active",
+        distinct: fl.path,
+        select: %{size: fi.size}
+      )
+
+    from(o in subquery(objects), select: fragment("SUM(?) / (1024.0 * 1024)", o.size))
     |> repo().one()
     |> case do
       nil -> 0
@@ -1346,6 +1352,7 @@ defmodule PhoenixKit.Modules.Storage do
 
     case result do
       {:ok, {:ok, f, restored_uuids}} ->
+        if restored_uuids != [], do: ReconcileJob.enqueue()
         broadcast_files_restored(restored_uuids)
         {:ok, f}
 
@@ -3698,30 +3705,62 @@ defmodule PhoenixKit.Modules.Storage do
   # Whether the object at `key` must stay on `bucket`: another active
   # location there names it, an instance under the key is unchecked (its
   # buckets are not all known), or an upload into the key's directory is in
-  # flight (its row exists, its instance does not yet: an upload writes the
-  # object before it records it).
+  # flight (`upload_in_flight?/2`).
   defp key_needed_on?(key, bucket) do
-    dir = Path.dirname(key)
-
     repo().exists?(
       from(l in FileLocation,
         where: l.path == ^key and l.bucket_uuid == ^bucket.uuid and l.status == "active"
       )
     ) or
       repo().exists?(from(i in Locations.unchecked_query(), where: i.file_name == ^key)) or
-      repo().exists?(
-        from(f in PhoenixKit.Modules.Storage.File,
-          as: :file,
-          where:
-            f.file_path == ^dir and f.status == "processing" and
-              not exists(
-                from(i in FileInstance,
-                  where: i.file_uuid == parent_as(:file).uuid and i.file_name == ^key,
-                  select: 1
-                )
+      upload_in_flight?(key, nil)
+  end
+
+  # An upload into the key's directory whose row exists and whose instance
+  # does not yet: an upload writes the object before it records it. Its own
+  # row (`own_file_uuid`) does not count.
+  defp upload_in_flight?(key, own_file_uuid) do
+    dir = Path.dirname(key)
+
+    query =
+      from(f in PhoenixKit.Modules.Storage.File,
+        as: :file,
+        where:
+          f.file_path == ^dir and f.status == "processing" and
+            not exists(
+              from(i in FileInstance,
+                where: i.file_uuid == parent_as(:file).uuid and i.file_name == ^key,
+                select: 1
               )
-        )
+            )
       )
+
+    query = if own_file_uuid, do: where(query, [f], f.uuid != ^own_file_uuid), else: query
+    repo().exists?(query)
+  end
+
+  @doc false
+  # Undoes a write that made fewer copies than required: deletes `key` from
+  # `bucket_uuids`, under the key's directory lock, and only when nothing
+  # else needs the object there (keys are content-addressed: a row may name
+  # it, or another upload of the same bytes be writing it).
+  def undo_store(key, bucket_uuids, own_file_uuid) do
+    repo().transaction(
+      fn ->
+        lock_storage_paths([Path.dirname(key)])
+
+        if unreferenced_keys([key]) != [] and not upload_in_flight?(key, own_file_uuid) do
+          for uuid <- bucket_uuids, %Bucket{} = bucket <- [get_bucket(uuid)] do
+            Manager.delete_from_bucket(bucket, key)
+          end
+        end
+
+        :ok
+      end,
+      timeout: :infinity
+    )
+
+    :ok
   end
 
   defp delete_from(bucket, key) do
@@ -4062,7 +4101,7 @@ defmodule PhoenixKit.Modules.Storage do
         bucket_url =
           if ImageEditing.edit_in_progress?(file) or Libraries.private_file?(file),
             do: nil,
-            else: Manager.public_url(instance.file_name)
+            else: Manager.public_url(instance.file_name, file_uuid: instance.file_uuid)
 
         public_listing_url(file, variant_name, instance, bucket_url)
 
@@ -4498,7 +4537,10 @@ defmodule PhoenixKit.Modules.Storage do
         # Store in buckets with redundancy - use MD5 hash for organized structure
         original_path = "#{file_path}/#{md5_hash}_original.#{ext}"
 
-        case store_by_profile(source_path, library_uuid, :original, path_prefix: original_path) do
+        case store_by_profile(source_path, library_uuid, :original,
+               path_prefix: original_path,
+               file_uuid: file.uuid
+             ) do
           {:ok, storage_info} ->
             record_placement(file.uuid, storage_info)
 
@@ -4886,7 +4928,10 @@ defmodule PhoenixKit.Modules.Storage do
     )
 
     # First, store the file in buckets using Manager
-    case store_by_profile(source_path, file.library_uuid, :original, path_prefix: original_path) do
+    case store_by_profile(source_path, file.library_uuid, :original,
+           path_prefix: original_path,
+           file_uuid: file.uuid
+         ) do
       {:ok, storage_info} ->
         Logger.info(
           "File stored in buckets: #{original_path}, bucket_ids: #{inspect(storage_info.bucket_ids)}"

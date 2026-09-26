@@ -62,8 +62,15 @@ defmodule PhoenixKit.Modules.Storage.Locations do
   backups; each group by `serve_order`. `role` is nil for a bucket not in
   the profile. Never raises: a failed lookup is `[]`, as for `bucket_uuids/1`.
   """
-  @spec ranked(String.t()) :: [%{bucket_uuid: String.t(), role: String.t() | nil}]
-  def ranked(key) when is_binary(key) do
+  # With `file_uuid`, only that file's locations and its own profile count:
+  # a key shared with a cross-user copy in another library must not have a
+  # bucket that library marks `backup` served because the other one calls
+  # it `primary`. Without it (a key read for processing), every file sharing
+  # the key counts, each bucket at its best rank.
+  @spec ranked(String.t(), term()) :: [%{bucket_uuid: String.t(), role: String.t() | nil}]
+  def ranked(key, file_uuid \\ nil)
+
+  def ranked(key, file_uuid) when is_binary(key) do
     default = Profiles.default_uuid()
 
     from(l in FileLocation,
@@ -80,6 +87,7 @@ defmodule PhoenixKit.Modules.Storage.Locations do
       where: l.path == ^key and l.status == "active",
       select: {l.bucket_uuid, pb.role, pb.serve_order}
     )
+    |> only_file(file_uuid)
     |> repo().all()
     |> Enum.map(fn {bucket_uuid, role, serve_order} ->
       {to_string(bucket_uuid), role, {Map.fetch!(@role_rank, role), serve_order || 0}}
@@ -96,7 +104,33 @@ defmodule PhoenixKit.Modules.Storage.Locations do
       []
   end
 
-  def ranked(_key), do: []
+  def ranked(_key, _file_uuid), do: []
+
+  defp only_file(query, nil), do: query
+  defp only_file(query, file_uuid), do: where(query, [_l, i], i.file_uuid == ^file_uuid)
+
+  @doc """
+  The buckets the profile of `file_uuid`'s library marks `backup`: never
+  served for that file, not even probed when its location rows name no
+  bucket that has the object. Never raises.
+  """
+  @spec backup_buckets(term()) :: [String.t()]
+  def backup_buckets(file_uuid) do
+    default = Profiles.default_uuid()
+
+    from(f in StorageFile,
+      left_join: lib in Library,
+      on: lib.uuid == f.library_uuid,
+      join: pb in ProfileBucket,
+      on: pb.profile_uuid == coalesce(lib.storage_profile_uuid, type(^default, UUIDv7)),
+      where: f.uuid == ^file_uuid and pb.role == "backup",
+      select: pb.bucket_uuid
+    )
+    |> repo().all()
+    |> Enum.map(&to_string/1)
+  rescue
+    _ -> []
+  end
 
   @doc """
   Records that `bucket_uuid` holds the object at `key`: an active location

@@ -380,4 +380,99 @@ defmodule PhoenixKit.Modules.Storage.V205ReviewTest do
       refute Storage.variant_for(file, min_width: 300, output: :video) == "video_thumbnail"
     end
   end
+
+  describe "Grok's review" do
+    test "a rolled-back write keeps a key another upload into the directory is writing", ctx do
+      owner = upload!(ctx, "racing bytes")
+      key = key(owner)
+      instance = Storage.get_file_instance_by_name(owner.uuid, "original")
+      Repo.delete_all(from(i in FileInstance, where: i.uuid == ^instance.uuid))
+
+      # The other upload: its row exists, its instance not yet.
+      Repo.update_all(from(f in Storage.File, where: f.uuid == ^owner.uuid),
+        set: [status: "processing"]
+      )
+
+      :ok = Storage.undo_store(key, [ctx.a.uuid], nil)
+      assert on(ctx.a, key)
+
+      # Its own row does not hold the rollback back.
+      :ok = Storage.undo_store(key, [ctx.a.uuid], owner.uuid)
+      refute on(ctx.a, key)
+    end
+
+    test "a copy is served by its own file's profile, not a clone's", ctx do
+      donor = upload!(ctx, "shared served")
+      clone = upload!(ctx, "shared served", user!())
+      key = key(donor)
+      assert key(clone) == key
+
+      # The clone's library moves to a profile that calls bucket a a backup.
+      {:ok, cold} = Profiles.create_profile(%{name: "Cold #{ctx.n}"})
+      {:ok, _} = Profiles.put_bucket(cold, ctx.a.uuid, %{role: "backup"})
+      {:ok, cold_library} = Libraries.create_system_library(%{name: "Cold #{ctx.n}"})
+      {:ok, cold_library} = Profiles.set_library_profile(cold_library, cold.uuid)
+
+      {:ok, _} =
+        Storage.update_file(Storage.get_file(clone.uuid), %{library_uuid: cold_library.uuid})
+
+      assert {:local, _} = Manager.get_file_access(key, file_uuid: donor.uuid)
+      assert {:error, :not_found} = Manager.get_file_access(key, file_uuid: clone.uuid)
+    end
+
+    test "a backup without a location row is not probed for serving", ctx do
+      file = upload!(ctx, "backup fallback")
+      key = key(file)
+      File.mkdir_p!(Path.dirname(Path.join(ctx.b.endpoint, key)))
+      File.cp!(Path.join(ctx.a.endpoint, key), Path.join(ctx.b.endpoint, key))
+      {:ok, _} = Profiles.put_bucket(profile(ctx), ctx.b.uuid, %{role: "backup"})
+      File.rm!(Path.join(ctx.a.endpoint, key))
+      Repo.delete_all(from(l in Storage.FileLocation, where: l.path == ^key))
+
+      assert {:error, :not_found} = Manager.get_file_access(key, file_uuid: file.uuid)
+    end
+
+    test "a trashed file keeps its size stamp and is not stale for sizes", ctx do
+      file = upload!(ctx, "trashed sizes")
+      {:ok, _} = Storage.trash_file(file)
+      {:ok, set} = VariantSets.create_variant_set(%{name: "Trash #{ctx.n}"})
+      {:ok, _} = VariantSets.set_library_variant_set(ctx.library, set.uuid)
+
+      refute Repo.exists?(from(f in Reconciler.stale_query(), where: f.uuid == ^file.uuid))
+    end
+
+    test "a shared key is counted once in a bucket's usage", ctx do
+      donor = upload!(ctx, String.duplicate("x", 600_000))
+      one = Storage.calculate_bucket_usage(ctx.a.uuid)
+      _clone = upload!(ctx, String.duplicate("x", 600_000), user!())
+
+      assert key(donor)
+      assert Storage.calculate_bucket_usage(ctx.a.uuid) == one
+    end
+
+    test "a serve order or write priority edit makes no file stale; a role edit does", ctx do
+      {:ok, _} = Profiles.put_bucket(profile(ctx), ctx.b.uuid, %{})
+      before = profile(ctx).revision
+
+      {:ok, _} =
+        Profiles.put_bucket(profile(ctx), ctx.b.uuid, %{serve_order: 9, write_priority: 3})
+
+      assert profile(ctx).revision == before
+
+      {:ok, _} = Profiles.put_bucket(profile(ctx), ctx.b.uuid, %{role: "replica"})
+      assert profile(ctx).revision == before + 1
+    end
+
+    test "a file whose only copy is on a backup gets one it may serve", ctx do
+      file = upload!(ctx, "needs a primary")
+      key = key(file)
+      {:ok, _} = Profiles.put_bucket(profile(ctx), ctx.a.uuid, %{role: "backup"})
+      {:ok, _} = Profiles.put_bucket(profile(ctx), ctx.b.uuid, %{})
+
+      assert Reconciler.reconcile_file(Storage.get_file(file.uuid)) == :reconciled
+      assert on(ctx.b, key)
+      assert {:local, path} = Manager.get_file_access(key, file_uuid: file.uuid)
+      assert String.starts_with?(path, ctx.b.endpoint)
+    end
+  end
 end

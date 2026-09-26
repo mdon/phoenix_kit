@@ -344,7 +344,11 @@ defmodule PhoenixKit.Migrations.Postgres.V205 do
 
   defp stamps(p) do
     [
-      # An instance named like a size was made from that size's spec.
+      # An instance named like a size was made from that size's spec. Not a
+      # thumbnail with an annotation burned into it (the burn is written into
+      # the `thumbnail` slot, and its file records it under `metadata.burn`
+      # or has a `burned` copy): with no spec hash, the reconciler never makes
+      # it over.
       """
       UPDATE #{p}phoenix_kit_file_instances fi
       SET spec_hash = #{spec_hash_sql("d.format")}
@@ -353,6 +357,20 @@ defmodule PhoenixKit.Migrations.Postgres.V205 do
         AND d.variant_set_uuid = '#{@default_variant_set_uuid}'
         AND d.name <> 'original'
         AND fi.variant_name = d.name
+        AND NOT (
+          fi.variant_name = 'thumbnail'
+          AND (
+            EXISTS (
+              SELECT 1 FROM #{p}phoenix_kit_files f
+              WHERE f.uuid = fi.file_uuid AND f.metadata -> 'burn' IS NOT NULL
+            )
+            OR EXISTS (
+              SELECT 1 FROM #{p}phoenix_kit_file_instances b
+              WHERE b.file_uuid = fi.file_uuid
+                AND b.variant_name IN ('burned', 'burned_large', 'thumbnail_annotated')
+            )
+          )
+        )
       """,
       # An alternative format of a size: `<name>_<format>`.
       """
