@@ -1395,7 +1395,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     move_file_to_folder move_folder_to_folder move_selected_to_folder new_folder_input
     open_cover_picker open_image_editor open_logo_picker open_new_folder_modal
     prepare_move_file prepare_move_folder remove_folder_cover remove_folder_logo
-    rename_folder rename_folder_input restore_selected rotate_file save_folder_description
+    rename_folder rename_folder_input restore_file restore_folder restore_selected
+    rotate_file save_folder_description
     save_folder_header select_all set_featured set_header_size show_move_modal show_upload
     start_edit_folder_description start_edit_folder_header start_rename_folder
     submit_new_folder toggle_header_option toggle_move_folder toggle_select
@@ -2651,20 +2652,31 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     # new parent is nil).
     target = if folder_uuid == "", do: scope, else: folder_uuid
 
-    Enum.each(socket.assigns.selected_files, fn file_uuid ->
-      from = appearance_folder_of(socket, file_uuid)
-      Storage.move_file_between_folders(file_uuid, from, target, scope)
-    end)
+    file_count =
+      Enum.count(socket.assigns.selected_files, fn file_uuid ->
+        from = appearance_folder_of(socket, file_uuid)
 
-    Enum.each(socket.assigns.selected_folders, fn sel_folder_uuid ->
-      if sel_folder_uuid != target do
+        case Storage.move_file_between_folders(file_uuid, from, target, scope) do
+          {:ok, _} -> true
+          _ -> false
+        end
+      end)
+
+    folder_count =
+      Enum.count(socket.assigns.selected_folders, fn sel_folder_uuid ->
         folder = Storage.get_folder(sel_folder_uuid)
-        if folder, do: Storage.update_folder(folder, %{parent_uuid: target}, scope)
-      end
-    end)
 
-    file_count = MapSet.size(socket.assigns.selected_files)
-    folder_count = MapSet.size(socket.assigns.selected_folders)
+        # A trashed folder is not moved out of the trash by being dropped
+        # somewhere — it comes back through Restore, which brings its
+        # contents with it. Reparenting it here left it trashed, exactly
+        # the silent no-op a trashed FILE used to get.
+        cond do
+          sel_folder_uuid == target -> false
+          is_nil(folder) -> false
+          not is_nil(folder.trashed_at) -> false
+          true -> match?({:ok, _}, Storage.update_folder(folder, %{parent_uuid: target}, scope))
+        end
+      end)
 
     {:noreply,
      socket
@@ -2946,6 +2958,55 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      |> assign(:selected_files, MapSet.new())
      |> assign(:selected_folders, MapSet.new())
      |> assign(:trash_count, full_trash_count(t_scope, lib_opts(socket)))}
+  end
+
+  # One row at a time, from the trash view's own menu. `restore_selected`
+  # below has always existed and does the same for a selection; neither was
+  # reachable, so a trashed file's only way back was its details page.
+  def handle_event("restore_file", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "restore_file")}
+  end
+
+  def handle_event("restore_file", %{"file-uuid" => file_uuid}, socket) do
+    scope = scope_folder_id(socket)
+    file = Storage.get_file(file_uuid)
+
+    if file && Storage.within_scope?(file.folder_uuid, scope) do
+      case Storage.restore_file(file) do
+        {:ok, _} ->
+          {:noreply,
+           socket
+           |> put_flash(:info, gettext("File restored"))
+           |> reload_folder_lists()
+           |> reload_current_page()}
+
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, gettext("Failed to restore file"))}
+      end
+    else
+      {:noreply, put_flash(socket, :error, gettext("Failed to restore file"))}
+    end
+  end
+
+  def handle_event("restore_folder", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "restore_folder")}
+  end
+
+  def handle_event("restore_folder", %{"folder-uuid" => folder_uuid}, socket) do
+    scope = scope_folder_id(socket)
+
+    with %Storage.Folder{} = folder <- Storage.get_folder(folder_uuid),
+         {:ok, _} <- Storage.restore_folder(folder, scope) do
+      {:noreply,
+       socket
+       |> put_flash(:info, gettext("Folder restored"))
+       |> reload_folder_lists()
+       |> reload_current_page()}
+    else
+      _ -> {:noreply, put_flash(socket, :error, gettext("Failed to restore folder"))}
+    end
   end
 
   def handle_event("restore_selected", _params, socket)
@@ -3885,6 +3946,17 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
           phx-value-file-uuid={@file.file_uuid}
           icon="hero-folder-arrow-down"
           label={gettext("Move")}
+        />
+        <%!-- Restore (trash view). This menu is the one a trashed file
+             actually offers, and it held Move and Delete Permanently and
+             no way back — the trash read as permanent. --%>
+        <.table_row_menu_button
+          :if={not @readonly and @filter_trash}
+          phx-click="restore_file"
+          phx-target={@myself}
+          phx-value-file-uuid={@file.file_uuid}
+          icon="hero-arrow-uturn-left"
+          label={gettext("Restore")}
         />
         <.table_row_menu_button
           :if={not @readonly}

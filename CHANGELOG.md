@@ -80,6 +80,16 @@ buckets and settings.
 
 ### Fixed
 
+- **Dragging a file onto a folder no longer shows it in both.** A file
+  attached somewhere (a featured image, a gallery) is linked as well as
+  homed. Moving it used to re-point the link and leave the home, so the
+  file appeared in the folder it was dropped on and the one it came from.
+  A folder now holds a file once, as its home or through a link.
+- **Trash can be left.** Restore is on the file menu, the row menu, the
+  folder menu and the bulk bar. Dragging a trashed file into a folder
+  restores it there. Restoring a file whose folder is also trashed puts
+  it in the nearest folder that is still there, or at the root, instead
+  of an active file inside a trashed folder where nothing lists it.
 - **A failed upload no longer deletes bytes another file uses.** Keys are
   content-addressed, so a second upload of the same bytes writes the same
   key; undoing a failed one now happens under the key's lock and only when
