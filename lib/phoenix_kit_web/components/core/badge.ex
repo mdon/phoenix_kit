@@ -204,7 +204,10 @@ defmodule PhoenixKitWeb.Components.Core.Badge do
 
   ## Attributes
 
-  - `status` - Status string (required)
+  - `status` - Status string (required); drives the colour mapping
+  - `label` - Text to render instead of the derived label, e.g. a translated
+    status name. `nil` (default) derives it from `status` ("in_review" →
+    "In review")
   - `size` - Badge size (default: :sm)
   - `class` - Additional CSS classes
 
@@ -213,15 +216,17 @@ defmodule PhoenixKitWeb.Components.Core.Badge do
       <.status_badge status="active" />
       <.status_badge status="deleted" size={:xs} />
       <.status_badge status="discontinued" class="ml-2" />
+      <.status_badge status="active" label={gettext("Active")} />
   """
   attr :status, :string, required: true
+  attr :label, :string, default: nil
   attr :size, :atom, default: :sm, values: [:xs, :sm, :md, :lg]
   attr :class, :string, default: ""
 
   def status_badge(assigns) do
     ~H"""
     <span class={["badge", status_class(@status), size_class(@size), @class]}>
-      {status_label(@status)}
+      {@label || status_label(@status)}
     </span>
     """
   end

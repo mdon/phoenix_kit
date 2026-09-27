@@ -16397,3 +16397,18 @@ msgstr "Файл восстановлен"
 #, elixir-autogen, elixir-format
 msgid "Folder restored"
 msgstr "Папка восстановлена"
+
+#: lib/phoenix_kit_web/components/core/table_default.ex:308
+#, elixir-autogen, elixir-format
+msgid "Card view"
+msgstr "Карточки"
+
+#: lib/phoenix_kit_web/components/core/table_default.ex:321
+#, elixir-autogen, elixir-format
+msgid "Comfortable view"
+msgstr "Просторный вид"
+
+#: lib/phoenix_kit_web/components/core/table_default.ex:334
+#, elixir-autogen, elixir-format
+msgid "Compact view"
+msgstr "Компактный вид"
