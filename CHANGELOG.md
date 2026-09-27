@@ -1,3 +1,44 @@
+## 2.41.2 - 2026-09-27
+
+### Added
+
+- Media settings has an **External libraries** tab listing every program
+  media processing runs — ImageMagick, ImageMagick 7 (`magick`, for tiles),
+  FFmpeg, FFprobe, Poppler `pdftoppm` and `pdfinfo` — with the detected
+  version or "Missing", and a "Check again" button that re-probes
+  (`PhoenixKit.System.Dependencies.external_tools/0`).
+
+### Changed
+
+- The ImageMagick/FFmpeg install-instruction alerts on Media settings are
+  replaced by a one-line "Not found on this server" banner linking to the
+  External libraries tab; ImageMagick 7 is only flagged while tile
+  generation is on.
+- Media settings' "Quick Actions" tab is renamed **Tools**, and the "Media
+  System Architecture" help block is removed.
+
+### Fixed
+
+- "Repair Media Module" no longer resets the Default storage profile to one
+  copy, which silently dropped redundancy on a multi-bucket install. It
+  now lowers the copy count only past the profile's writable buckets, puts
+  the enabled buckets back into a Default profile left with none to write
+  to, and clears a default-bucket setting pointing at a deleted or
+  disabled bucket. Buckets, redundancy and files are kept.
+- `mix phoenix_kit.doctor` checks composite foreign keys column-pair by
+  column-pair in catalog order with quoted columns, honouring `MATCH SIMPLE`
+  / `MATCH FULL` null semantics; a clean `NOT VALID` composite constraint
+  stays a validation warning.
+- Doctor no longer warns about the update mode it sets itself (a
+  host-configured update mode still warns), detects a pooler backend switch
+  that appears after two agreeing samples, and recognises case-insensitive
+  pooler hints and string ports.
+
+### i18n
+
+- Translate the External libraries tab, the Tools tab and the repair
+  messages in all supported locales.
+
 ## 2.41.1 - 2026-09-27
 
 ### Added
