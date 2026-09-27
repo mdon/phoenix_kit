@@ -77,8 +77,10 @@ config :logger, :console,
     :error
   ]
 
-config :esbuild, :version, "0.25.0"
-config :tailwind, :version, "4.1.12"
+if config_env() == :dev do
+  config :esbuild, :version, "0.25.0"
+  config :tailwind, :version, "4.1.12"
+end
 
 # For development/testing with real SMTP (when available)
 # config :phoenix_kit, PhoenixKit.Mailer,

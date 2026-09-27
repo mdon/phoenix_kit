@@ -55,6 +55,14 @@ defmodule PhoenixKit.KnownPackagesTest do
     end)
   end
 
+  test "clearing an absent cache is idempotent and does not create a table" do
+    table = :phoenix_kit_known_packages_cache
+    assert :ets.whereis(table) == :undefined
+    assert :ok = KnownPackages.clear_cache()
+    assert :ok = KnownPackages.clear_cache()
+    assert :ets.whereis(table) == :undefined
+  end
+
   describe "list/1 happy path" do
     test "returns shaped entries from Hex" do
       stub_hex([@hex_newsletters, @hex_posts])

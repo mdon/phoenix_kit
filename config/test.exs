@@ -107,7 +107,3 @@ config :phoenix_kit, PhoenixKitWeb.Endpoint,
     formats: [html: PhoenixKitWeb.ErrorHTML],
     layout: false
   ]
-
-# Suppress esbuild/tailwind warnings in tests (library doesn't include these apps)
-config :esbuild, :version, nil
-config :tailwind, :version, nil

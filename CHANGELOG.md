@@ -1,3 +1,34 @@
+## 2.41.1 - 2026-09-27
+
+### Added
+
+- `status_badge` accepts an optional `label`, allowing translated text while
+  preserving the status colour (#877).
+
+### Fixed
+
+- An `<Image file_uuid>` whose storage lookup raises — a column the new
+  code expects while the migration has not run, a dead connection — still
+  renders "Image not available", and the failure is recorded
+  (`PhoenixKit.Modules.Shared.RenderCache`). A file that is simply missing
+  stays an ordinary placeholder. A renderer that caches HTML can tell the
+  two apart and try the failed one again.
+- Nested render-cache checks preserve failures in both enclosing and nested
+  renders, and clean up after interrupted renders.
+- Remove the MarkdownEditor hook's obsolete `changes-status` listener (#877).
+- Configure development-only asset tools only in development, removing
+  missing-application warnings from test and production runs.
+- Clearing the package-discovery cache tolerates its owner exiting during
+  cleanup and no longer creates a table owned by the cleanup process.
+
+### Changed
+
+- Update locked Phoenix to 1.8.15 and Hackney to 4.8.4.
+
+### i18n
+
+- Translate the table view-toggle titles in all supported locales (#877).
+
 ## 2.41.0 - 2026-09-26
 
 Storage profiles, variant sets and the reconciler (**V205**, phase 4 of

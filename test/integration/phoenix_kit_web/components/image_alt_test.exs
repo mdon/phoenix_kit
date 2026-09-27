@@ -10,6 +10,7 @@ defmodule PhoenixKitWeb.Components.ImageAltTest do
 
   alias PhoenixKit.Modules.Shared.Components.Image
   alias PhoenixKit.Modules.Shared.Components.ImageSet
+  alias PhoenixKit.Modules.Shared.RenderCache
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Users.Auth
 
@@ -102,6 +103,30 @@ defmodule PhoenixKitWeb.Components.ImageAltTest do
       assigns = %{attrs: %{"src" => "/x.png", "file_uuid" => file.uuid, "alt" => "Mine"}}
 
       assert rendered_to_string(~H"<Image.render attributes={@attrs} />") =~ ~s(alt="Mine")
+    end
+
+    test "a file that resolves may be cached", %{image: file} do
+      assigns = %{attrs: %{"file_uuid" => file.uuid}}
+
+      {status, html} =
+        RenderCache.take(fn ->
+          rendered_to_string(~H"<Image.render attributes={@attrs} />")
+        end)
+
+      assert status == :ok
+      assert html =~ "<img"
+    end
+
+    test "a file that is not there is a placeholder and may be cached" do
+      assigns = %{attrs: %{"file_uuid" => UUIDv7.generate()}}
+
+      {status, html} =
+        RenderCache.take(fn ->
+          rendered_to_string(~H"<Image.render attributes={@attrs} />")
+        end)
+
+      assert status == :ok
+      assert html =~ "Image not available"
     end
   end
 end

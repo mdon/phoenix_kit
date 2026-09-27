@@ -28,6 +28,7 @@ defmodule PhoenixKit.Modules.Shared.Components.Image do
   """
   use Phoenix.Component
 
+  alias PhoenixKit.Modules.Shared.RenderCache
   alias PhoenixKit.Modules.Storage
 
   attr :attributes, :map, default: %{}
@@ -85,26 +86,31 @@ defmodule PhoenixKit.Modules.Shared.Components.Image do
   # the page is rendered in (the locale the request put on this process).
   defp file_alt(src, file_uuid)
        when src in [nil, ""] and is_binary(file_uuid) and file_uuid != "" do
-    Storage.translated_alt_by_uuid(file_uuid, PhoenixKit.Utils.Multilang.current_locale())
-  rescue
-    _ -> ""
+    RenderCache.lookup(
+      fn ->
+        Storage.translated_alt_by_uuid(file_uuid, PhoenixKit.Utils.Multilang.current_locale())
+      end,
+      ""
+    )
   end
 
   defp file_alt(_src, _file_uuid), do: ""
 
-  # Helper function to get file URL from Storage
+  # nil is a missing file: the placeholder is the answer, and a renderer may
+  # cache it. A raise (the column is not there yet, the connection is dead)
+  # is not an answer — `lookup/2` records it so the placeholder is not kept.
   defp get_file_url(file_uuid, variant) do
-    case Storage.get_public_url_by_uuid(file_uuid, variant) do
-      nil ->
-        # Try without variant (fallback to original)
-        Storage.get_public_url_by_uuid(file_uuid)
+    RenderCache.lookup(
+      fn ->
+        case Storage.get_public_url_by_uuid(file_uuid, variant) do
+          nil ->
+            Storage.get_public_url_by_uuid(file_uuid)
 
-      url ->
-        url
-    end
-  rescue
-    _ ->
-      # Gracefully handle missing repo or file
+          url ->
+            url
+        end
+      end,
       nil
+    )
   end
 end

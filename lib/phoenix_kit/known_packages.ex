@@ -116,10 +116,12 @@ defmodule PhoenixKit.KnownPackages do
   @doc "Clears the in-process cache. Intended for tests."
   @spec clear_cache() :: :ok
   def clear_cache do
-    ensure_table()
-    :ets.delete(@table, @cache_key)
-    :ets.delete(@table, @status_key)
+    :ets.delete_all_objects(@table)
     :ok
+  rescue
+    # The cache owner can exit at any time. An absent table is already clear;
+    # do not create a new table owned by a short-lived cleanup process.
+    ArgumentError -> :ok
   end
 
   # ---------------------------------------------------------------------------
