@@ -13,10 +13,10 @@ defmodule PhoenixKit.Migrations.Repair.Environment do
   connection can legitimately run on a non-standard port, and a
   transaction-pooling proxy can sit behind a hostname that says nothing
   about it. The authoritative signal is behavioral: `pg_backend_pid()`
-  sampled twice over the SAME checked-out connection, as two separate
+  sampled up to five times over the SAME checked-out connection, as separate
   (non-transactional) statements. A direct connection — or a
   session-pooling proxy, which behaves like one for this purpose — answers
-  with the same pid both times, because both statements ride the one
+  with the same pid each time, because all statements ride the one
   physical server backend for as long as the connection is checked out.
   Transaction-pooling PgBouncer can hand each statement a different backend
   connection, because nothing binds them together outside an explicit
@@ -37,9 +37,8 @@ defmodule PhoenixKit.Migrations.Repair.Environment do
   @type config_verdict :: :maybe_pooled | :direct
 
   @doc """
-  The config-based half of the detection (`doctor.ex`'s existing heuristic,
-  reused verbatim): a non-`5432` port, or a hostname containing
-  `"pgbouncer"`, is `:maybe_pooled`.
+  The config-based half of detection: a non-`5432` port, or a hostname containing
+  `"pgbouncer"` or `"pooler"` (case-insensitive), is `:maybe_pooled`.
 
       iex> Environment.classify_config(port: 5432, hostname: "db.internal")
       :direct
@@ -66,7 +65,8 @@ defmodule PhoenixKit.Migrations.Repair.Environment do
 
     hostname = config[:hostname] || extract_host_from_url(config[:url]) || "localhost"
 
-    if port != 5432 or String.contains?(to_string(hostname), "pgbouncer") do
+    if to_string(port) != "5432" or
+         String.contains?(String.downcase(to_string(hostname)), ["pgbouncer", "pooler"]) do
       :maybe_pooled
     else
       :direct
@@ -93,18 +93,19 @@ defmodule PhoenixKit.Migrations.Repair.Environment do
 
   @doc """
   The authoritative, behavioral check — see moduledoc. Checks out one
-  connection and compares `pg_backend_pid()` across two separate statements
-  on it. Fails toward `true` (pooled, the safer assumption) on any error —
-  an environment we cannot prove is direct is treated as pooled, never the
-  other way around.
+  connection and compares `pg_backend_pid()` across up to five separate
+  statements on it. Returns `true` for a backend switch or an inconclusive
+  probe (the safer assumption before repair). A `false` result only means
+  no backend switch was observed; it does not prove a direct connection.
   """
   @spec pooled?(Ecto.Repo.t()) :: boolean()
   def pooled?(repo), do: probe(repo) != :not_detected
 
   @typedoc """
   What the behavioral probe observed. `:not_detected` is NOT "direct": a
-  session-pooling proxy keeps one backend for the checkout too, so the same
-  pid twice rules out transaction pooling and nothing more.
+  session-pooling proxy keeps one backend for the checkout too, and an idle
+  transaction pooler may reuse one backend. An unchanged pid never rules out
+  transaction pooling.
   """
   @type probe_result :: :transaction_pooled | :not_detected | {:inconclusive, String.t()}
 
@@ -118,8 +119,11 @@ defmodule PhoenixKit.Migrations.Repair.Environment do
   def probe(repo) do
     repo.checkout(fn ->
       first = backend_pid!(repo)
-      second = backend_pid!(repo)
-      if first != second, do: :transaction_pooled, else: :not_detected
+      # A few bounded samples improve the chance of seeing a backend switch;
+      # even all equal samples cannot clear an idle transaction pooler.
+      if Enum.any?(1..4, fn _ -> backend_pid!(repo) != first end),
+        do: :transaction_pooled,
+        else: :not_detected
     end)
   rescue
     error -> {:inconclusive, Exception.message(error)}

@@ -137,6 +137,8 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     # otherwise the Oban Configuration check reports "0 queues, 0 plugins".
     oban_config = Application.get_env(Mix.Project.config()[:app], Oban)
 
+    host_update_mode = Application.get_env(:phoenix_kit, :update_mode, false)
+
     cap_repo_pool_size(2)
     Application.put_env(:phoenix_kit, :update_mode, true)
     start_app_or_explain!()
@@ -167,7 +169,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
         run_check("Oban Cron Queues", fn -> check_cron_queues(oban_config) end),
         run_check("PhoenixKit Supervisor", fn -> check_supervisor_state() end),
         run_check("Child Start Order", fn -> check_child_order() end),
-        run_check("Update Mode", fn -> check_update_mode() end),
+        run_check("Update Mode", fn -> update_mode_verdict(host_update_mode) end),
         run_check("daisyUI Version", fn -> check_daisyui() end),
         run_check("User Dashboard (deprecated)", fn -> check_user_dashboard_deprecation() end),
         run_check("Sitemap Discoverability", fn -> check_sitemap_serving(prefix) end),
@@ -578,9 +580,8 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   # as a pooler. The authoritative signal is behavioral (two statements on one
   # checkout landing on different backends), and the codebase already owns it.
   defp check_pgbouncer(oban_config) do
-    app = Mix.Project.config()[:app]
     repo = get_repo!()
-    config = Application.get_env(app, repo, [])
+    config = repo.config()
 
     port =
       cond do
@@ -619,18 +620,20 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
       # A config that looks pooled keeps the advice.
       :not_detected when config_verdict == :maybe_pooled ->
         {:warn,
-         "The config looks like a pooler (#{where}), but no transaction pooling was " <>
+         "Unconfirmed pooler hint: the config looks like a pooler (#{where}), but no transaction pooling was " <>
            "detected — a direct connection on a non-standard port, session pooling, or " <>
            "a transaction pooler that reused one backend for the probe (an idle " <>
            "PgBouncer does). If it is PgBouncer in transaction mode, DDL migrations need " <>
            "@disable_ddl_transaction true." <> notifier_hint(notifier)}
 
       :not_detected ->
-        {:pass, "No transaction pooling detected (#{where})."}
+        {:pass,
+         "No transaction pooling detected (#{where}); an idle transaction pooler can " <>
+           "reuse the same backend, so this does not prove a direct connection."}
 
       {:inconclusive, reason} ->
         {:warn,
-         "Could not tell whether a transaction pooler is in the way (#{where}): #{reason}. " <>
+         "Inconclusive probe: Could not tell whether a transaction pooler is in the way (#{where}): #{reason}. " <>
            "If you run PgBouncer in transaction mode, DDL migrations need " <>
            "@disable_ddl_transaction true." <> notifier_hint(notifier)}
     end
@@ -640,7 +643,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   # breaks without an error: jobs still run (local staging keeps going), but
   # queue start/pause/scale signals and cross-node wake-ups are lost.
   defp notifier_hint(notifier) when notifier in [nil, Oban.Notifiers.Postgres] do
-    " Oban is using its Postgres notifier, which loses LISTEN/NOTIFY behind a " <>
+    " If transaction pooling is in use, Oban's configured Postgres notifier loses LISTEN/NOTIFY behind a " <>
       "transaction pooler — silently: jobs still run, but queue pause/scale/start " <>
       "signals are dropped. Use `notifier: Oban.Notifiers.PG` if your nodes are " <>
       "Erlang-clustered, or give Oban a Repo that connects past the pooler."
@@ -1141,48 +1144,22 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
            "zero: either nothing is installed here, or --prefix names the wrong schema. " <>
            "This is not the same as clean."}
 
-      {:ok, {constraints, skipped_multi}} ->
+      {:ok, {constraints, []}} ->
         {orphaned, not_validated, probe_failed} =
           Enum.reduce(constraints, {[], [], []}, fn fk, acc -> probe_fk(repo, fk, prefix, acc) end)
-
-        multi_column_entries =
-          Enum.map(skipped_multi, fn {table, conname, ref_table, col_count} ->
-            {table, conname, ref_table, :multi_column, col_count, nil}
-          end)
-
-        total = length(constraints) + length(skipped_multi)
 
         report_orphaned_fk_refs(
           Enum.reverse(orphaned),
           Enum.reverse(not_validated),
-          Enum.reverse(probe_failed) ++ multi_column_entries,
-          total
+          Enum.reverse(probe_failed),
+          length(constraints)
         )
     end
   end
 
-  # Every single-column foreign key constraint in the schema, read straight
-  # from the catalog — not filtered to any PhoenixKit-owned naming
-  # convention, because an orphan on a host app's own table blocks that
-  # table's own VALIDATE just as surely as one on a phoenix_kit_* table.
-  # Multi-column FKs are enumerated separately rather than silently
-  # excluded: `check_orphaned_fk_refs/1` folds them into the report as
-  # "not checked", so the coverage count in the result line still accounts
-  # for every constraint that exists, not just the ones this query knows
-  # how to probe.
-  #
-  # Both `n.nspname` (owning table) and `fn.nspname` (referenced table) are
-  # constrained to `escaped_prefix` — a FK from this schema INTO a table
-  # living in a different one is excluded entirely, not counted, not folded
-  # into "not checked". Deliberate, not an oversight: the probe query below
-  # qualifies the referenced table with this same `escaped_prefix` via
-  # `prefix_table_name/2`, so a referenced table actually living elsewhere
-  # would be probed under the wrong schema-qualified name. Supporting a
-  # cross-schema referenced table for real means carrying its own schema
-  # through this function's return shape (not just its bare `relname`) and
-  # threading it into every place that currently assumes `escaped_prefix`
-  # covers both sides — `probe_fk/4` and `fk_probe_cost_context/4` included.
-  # Out of scope here; the moduledoc's check 12 entry names this boundary.
+  # Discover every FK, preserving conkey/confkey order for composite pairs.
+  # Both tables must be in the checked schema; cross-schema FKs remain outside
+  # this check's documented scope.
   @doc false
   def discover_fk_constraints(repo, escaped_prefix) do
     query = """
@@ -1191,11 +1168,13 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
       ft.relname AS ref_table,
       c.conname,
       c.convalidated,
-      array_length(c.conkey, 1) AS col_count,
-      (SELECT a.attname FROM pg_attribute a
-       WHERE a.attrelid = c.conrelid AND a.attnum = c.conkey[1]) AS fk_col,
-      (SELECT fa.attname FROM pg_attribute fa
-       WHERE fa.attrelid = c.confrelid AND fa.attnum = c.confkey[1]) AS ref_col
+      c.confmatchtype,
+      ARRAY(SELECT a.attname FROM unnest(c.conkey) WITH ORDINALITY AS k(num, ord)
+            JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.num
+            ORDER BY k.ord) AS fk_cols,
+      ARRAY(SELECT a.attname FROM unnest(c.confkey) WITH ORDINALITY AS k(num, ord)
+            JOIN pg_attribute a ON a.attrelid = c.confrelid AND a.attnum = k.num
+            ORDER BY k.ord) AS ref_cols
     FROM pg_constraint c
     JOIN pg_class t ON t.oid = c.conrelid
     JOIN pg_namespace n ON n.oid = t.relnamespace
@@ -1204,32 +1183,27 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     WHERE c.contype = 'f'
       AND n.nspname = '#{escaped_prefix}'
       AND fn.nspname = '#{escaped_prefix}'
-    ORDER BY t.relname, fk_col
+    ORDER BY t.relname, c.conname
     """
 
     case repo.query(query, [], log: false) do
       {:ok, %{rows: rows}} ->
-        {single, multi} =
-          Enum.split_with(rows, fn [_, _, _, _, col_count, _, _] -> col_count == 1 end)
-
         constraints =
-          Enum.map(single, fn [table, ref_table, conname, convalidated, _one, fk_col, ref_col] ->
+          Enum.map(rows, fn [table, ref_table, conname, valid?, match_type, fk_cols, ref_cols] ->
             %{
               table: table,
-              fk_col: fk_col,
+              fk_col: Enum.join(fk_cols, ", "),
+              fk_cols: fk_cols,
               ref_table: ref_table,
-              ref_col: ref_col,
+              ref_col: Enum.join(ref_cols, ", "),
+              ref_cols: ref_cols,
+              match_type: match_type,
               conname: conname,
-              convalidated: convalidated
+              convalidated: valid?
             }
           end)
 
-        skipped_multi =
-          Enum.map(multi, fn [table, ref_table, conname, _validated, col_count, _fk, _ref] ->
-            {table, conname, ref_table, col_count}
-          end)
-
-        {:ok, {constraints, skipped_multi}}
+        {:ok, {constraints, []}}
 
       {:error, reason} ->
         {:error, reason}
@@ -1254,17 +1228,8 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   @fk_probe_timeout_ms 5_000
 
   defp probe_fk(repo, fk, prefix, {orph, nv, pf}) do
-    %{table: table, fk_col: fk_col, ref_table: ref_table, ref_col: ref_col, convalidated: valid?} =
-      fk
-
-    table_name = prefix_table_name(table, prefix)
-    ref_name = prefix_table_name(ref_table, prefix)
-
-    orphan_query = """
-    SELECT count(*)::integer FROM #{table_name} t
-    WHERE t.#{fk_col} IS NOT NULL
-    AND NOT EXISTS (SELECT 1 FROM #{ref_name} r WHERE r.#{ref_col} = t.#{fk_col})
-    """
+    %{table: table, fk_col: fk_col, ref_table: ref_table, convalidated: valid?} = fk
+    orphan_query = fk_orphan_query(fk, prefix)
 
     count_result =
       case repo.query(orphan_query, [], log: false, timeout: @fk_probe_timeout_ms) do
@@ -1272,10 +1237,10 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
           {:ok, c}
 
         {:error, %Postgrex.Error{postgres: %{code: :query_canceled}} = reason} ->
-          {:probe_failed, timeout_probe_failure(reason, repo, table, fk_col, prefix)}
+          {:probe_failed, timeout_probe_failure(reason, repo, table, hd(fk.fk_cols), prefix)}
 
         {:error, %DBConnection.ConnectionError{reason: :closed} = reason} ->
-          {:probe_failed, timeout_probe_failure(reason, repo, table, fk_col, prefix)}
+          {:probe_failed, timeout_probe_failure(reason, repo, table, hd(fk.fk_cols), prefix)}
 
         {:error, reason} ->
           {:probe_failed, fk_probe_failure_reason(reason)}
@@ -1288,6 +1253,28 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
 
     classify_fk_check(table, fk_col, ref_table, count_result, validation, {orph, nv, pf})
   end
+
+  defp fk_orphan_query(fk, prefix) do
+    # MATCH SIMPLE exempts a row with ANY null key; MATCH FULL exempts only
+    # an ALL-null key. A partially-null FULL key is a violation too.
+    null_join = if fk.match_type == "f", do: " OR ", else: " AND "
+
+    non_null = Enum.map_join(fk.fk_cols, null_join, &"t.#{quote_fk_identifier(&1)} IS NOT NULL")
+
+    matching =
+      Enum.zip(fk.fk_cols, fk.ref_cols)
+      |> Enum.map_join(" AND ", fn {col, ref} ->
+        "r.#{quote_fk_identifier(ref)} = t.#{quote_fk_identifier(col)}"
+      end)
+
+    table = "#{quote_fk_identifier(prefix)}.#{quote_fk_identifier(fk.table)}"
+    ref = "#{quote_fk_identifier(prefix)}.#{quote_fk_identifier(fk.ref_table)}"
+
+    "SELECT count(*)::integer FROM #{table} t WHERE (#{non_null}) " <>
+      "AND NOT EXISTS (SELECT 1 FROM #{ref} r WHERE #{matching})"
+  end
+
+  defp quote_fk_identifier(name), do: "\"" <> String.replace(name, "\"", "\"\"") <> "\""
 
   defp timeout_probe_failure(reason, repo, table, fk_col, prefix) do
     fk_probe_failure_reason(reason) <> fk_probe_cost_context(repo, table, fk_col, prefix)
@@ -1510,20 +1497,8 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
        )}
   end
 
-  # A composite FK in `probe_failed` (see `discover_fk_constraints/2`) was never
-  # probed at all — no re-run ever turns that into a pass, only a manual
-  # `ALTER TABLE ... VALIDATE CONSTRAINT` does, which `fk_probe_lines/1` already
-  # says per entry. Suggesting a re-run regardless — the old unconditional text
-  # — told the operator to retry something that can never succeed. Only worth
-  # it when at least one entry is a genuine probe failure a re-run could
-  # actually resolve.
-  defp retry_suggestion(probe_failed, text) do
-    if Enum.any?(probe_failed, fn entry -> elem(entry, 3) != :multi_column end) do
-      text
-    else
-      ""
-    end
-  end
+  defp retry_suggestion([], _text), do: ""
+  defp retry_suggestion(_probe_failed, text), do: text
 
   defp fk_orphan_lines(orphaned) do
     Enum.map(orphaned, fn
@@ -1548,18 +1523,6 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
         "#{table}.#{fk_col} → #{ref}: #{count} orphaned row(s) measured, but could not check " <>
           "whether the constraint is validated (validation_state probe failed: " <>
           "#{inspect(reason)}) — a failed probe is not a pass, treat as unverified"
-
-      # A composite FK was never probed at all — a deliberate scope
-      # exclusion (see `discover_fk_constraints/2`), not a failed attempt.
-      # `conname` sits in the tuple's fk_col-shaped slot for every other
-      # `probe_failed` entry, so it needs its own clause: the generic one
-      # below would print it as if it were a column name and call it a
-      # "probe failed", both wrong for a check that was never run. There is
-      # also no re-run that turns this into :pass — only a manual
-      # VALIDATE CONSTRAINT does.
-      {table, conname, ref, :multi_column, col_count, nil} ->
-        "#{table} → #{ref}: composite FK #{conname} (#{col_count} columns) — not supported " <>
-          "by this check; verify manually via ALTER TABLE ... VALIDATE CONSTRAINT #{conname}"
 
       {table, fk_col, ref, kind, reason, nil} ->
         "#{table}.#{fk_col} → #{ref}: could not check (#{kind} probe failed: #{inspect(reason)}) " <>
@@ -2181,14 +2144,15 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     end
   end
 
-  defp check_update_mode do
-    update_mode = Application.get_env(:phoenix_kit, :update_mode, false)
+  @doc false
+  def update_mode_verdict(true) do
+    {:warn,
+     "update_mode=true was configured before doctor started; normal application services are disabled"}
+  end
 
-    if update_mode do
-      {:warn, "update_mode=true (doctor runs in update_mode to minimize DB connections)"}
-    else
-      {:pass, "update_mode=false (normal operation)"}
-    end
+  def update_mode_verdict(_) do
+    {:pass,
+     "Host update_mode=false; doctor temporarily enables update mode to minimize DB connections"}
   end
 
   # ── Helpers ──────────────────────────────────────────────────────────

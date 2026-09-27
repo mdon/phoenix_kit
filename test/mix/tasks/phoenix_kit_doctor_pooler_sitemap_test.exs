@@ -70,6 +70,19 @@ defmodule Mix.Tasks.PhoenixKit.DoctorPoolerSitemapTest do
 
       assert message =~ "Could not tell"
       assert message =~ "timeout"
+      assert message =~ "If transaction pooling is in use"
+    end
+  end
+
+  describe "update_mode_verdict/1" do
+    test "doctor's own update mode is expected" do
+      assert {:pass, message} = Doctor.update_mode_verdict(false)
+      assert message =~ "doctor temporarily enables"
+    end
+
+    test "host-configured update mode still warns" do
+      assert {:warn, message} = Doctor.update_mode_verdict(true)
+      assert message =~ "before doctor started"
     end
   end
 

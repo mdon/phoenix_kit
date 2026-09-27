@@ -35,6 +35,35 @@ defmodule PhoenixKit.Migrations.Repair.EnvironmentTest do
     end
   end
 
+  defmodule ProbeRepo do
+    def checkout(fun), do: fun.()
+
+    def query!("SELECT pg_backend_pid()", [], log: false) do
+      [pid | rest] = Process.get(:doctor_probe_pids)
+      Process.put(:doctor_probe_pids, rest)
+      %{rows: [[pid]]}
+    end
+  end
+
+  test "a later backend switch is detected even when the first two samples agree" do
+    Process.put(:doctor_probe_pids, [10, 10, 10, 11])
+    assert Environment.probe(ProbeRepo) == :transaction_pooled
+  end
+
+  test "stable samples report only not detected" do
+    Process.put(:doctor_probe_pids, [10, 10, 10, 10, 10])
+    assert Environment.probe(ProbeRepo) == :not_detected
+  end
+
+  test "recognizes case-insensitive pooler hints and string ports" do
+    assert Environment.classify_config(hostname: "PgBouncer.internal") == :maybe_pooled
+
+    assert Environment.classify_config(hostname: "aws.pooler.example", port: 5432) ==
+             :maybe_pooled
+
+    assert Environment.classify_config(hostname: "db", port: "5432") == :direct
+  end
+
   describe "lock_key/0" do
     test "a fixed, non-negative integer — stable across calls" do
       key = Environment.lock_key()
