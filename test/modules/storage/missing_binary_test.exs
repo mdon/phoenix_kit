@@ -47,4 +47,13 @@ defmodule PhoenixKit.Modules.Storage.MissingBinaryTest do
     assert Dependencies.check_imagemagick() == {:error, :not_installed}
     assert Dependencies.check_ffmpeg() == {:error, :not_installed}
   end
+
+  test "external_tools/0 lists every tool as not installed" do
+    tools = Dependencies.external_tools()
+
+    assert Enum.map(tools, & &1.id) ==
+             [:imagemagick, :magick, :ffmpeg, :ffprobe, :pdftoppm, :pdfinfo]
+
+    assert Enum.all?(tools, &(&1.status == {:error, :not_installed}))
+  end
 end

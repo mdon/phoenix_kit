@@ -1,11 +1,12 @@
 defmodule PhoenixKitWeb.Live.Modules.Storage.SettingsTabsTest do
   @moduledoc """
   Tabs on the Media settings page (`/admin/settings/media`) — Buckets /
-  Configuration / Quick Actions, the same `<.nav_tabs>` treatment the Email
+  Configuration / Tools / External libraries, the same `<.nav_tabs>` treatment the Email
   Sending and Sitemap settings pages already have.
   """
   use PhoenixKitWeb.ConnCase, async: true
 
+  alias PhoenixKit.System.Dependencies
   alias PhoenixKit.Utils.Routes
 
   @media_settings_path Routes.path("/admin/settings/media")
@@ -26,16 +27,19 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.SettingsTabsTest do
     end
   end
 
-  test "the three tabs render, defaulting to Buckets", %{conn: conn} do
+  test "the tabs render, defaulting to Buckets", %{conn: conn} do
     {:ok, _view, html} = live(admin_conn(conn), @media_settings_path)
 
     assert html =~ "Buckets"
     assert html =~ "Configuration"
-    assert html =~ "Quick Actions"
+    assert html =~ "Tools"
+    assert html =~ "External libraries"
+    refute html =~ "Quick Actions"
+    refute html =~ "Media System Architecture"
 
     assert tab_visible?(html, "media-tab-buckets")
     refute tab_visible?(html, "media-tab-configuration")
-    refute tab_visible?(html, "media-tab-quick-actions")
+    refute tab_visible?(html, "media-tab-tools")
   end
 
   test "switching to Configuration reveals it and hides the others", %{conn: conn} do
@@ -48,37 +52,55 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.SettingsTabsTest do
 
     refute tab_visible?(html, "media-tab-buckets")
     assert tab_visible?(html, "media-tab-configuration")
-    refute tab_visible?(html, "media-tab-quick-actions")
+    refute tab_visible?(html, "media-tab-tools")
     assert html =~ "Redundancy Copies"
   end
 
-  test "switching to Quick Actions reveals its action buttons", %{conn: conn} do
+  test "switching to Tools reveals its action buttons", %{conn: conn} do
     {:ok, view, _html} = live(admin_conn(conn), @media_settings_path)
 
     html =
       view
-      |> element("button[phx-value-tab=quick_actions]")
+      |> element("button[phx-value-tab=tools]")
       |> render_click()
 
     refute tab_visible?(html, "media-tab-buckets")
     refute tab_visible?(html, "media-tab-configuration")
-    assert tab_visible?(html, "media-tab-quick-actions")
+    assert tab_visible?(html, "media-tab-tools")
     assert html =~ "Variant sets"
     assert html =~ "Repair Media Module"
   end
 
-  test "the ImageMagick/FFmpeg dependency warnings are not tab-scoped", %{conn: conn} do
+  test "External libraries lists every tool with its status", %{conn: conn} do
+    {:ok, view, _html} = live(admin_conn(conn), @media_settings_path)
+
+    html =
+      view
+      |> element("button[role=tab][phx-value-tab=external_libraries]")
+      |> render_click()
+
+    assert tab_visible?(html, "media-tab-external-libraries")
+
+    for tool <- Dependencies.external_tools() do
+      assert html =~ tool.name
+    end
+
+    refute html =~ "brew install"
+    assert view |> element("button[phx-click=recheck_external_tools]") |> render_click()
+  end
+
+  test "the missing-tools warning is not tab-scoped", %{conn: conn} do
     {:ok, view, html} = live(admin_conn(conn), @media_settings_path)
 
     # Whatever the dependency status is on this machine, switching tabs must
     # not change whether the warning shows — it lives above the tab strip.
-    before_quick_actions = html =~ "ImageMagick Not Installed"
+    before_tools = html =~ "Not found on this server"
 
     html_after =
       view
-      |> element("button[phx-value-tab=quick_actions]")
+      |> element("button[phx-value-tab=tools]")
       |> render_click()
 
-    assert html_after =~ "ImageMagick Not Installed" == before_quick_actions
+    assert html_after =~ "Not found on this server" == before_tools
   end
 end

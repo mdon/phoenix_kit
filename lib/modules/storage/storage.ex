@@ -737,12 +737,23 @@ defmodule PhoenixKit.Modules.Storage do
   end
 
   @doc """
-  Repairs the storage module by resetting configuration to defaults.
+  Repairs the storage module: puts back what it cannot work without, and
+  resets the Default variant set's sizes.
 
-  This is a safe, non-destructive operation that:
-  1. Creates a default local bucket if no buckets exist
-  2. Resets dimensions to 8 defaults (4 image + 4 video)
-  3. Resets storage settings to recommended defaults
+  Safe on an install with one bucket or many, and non-destructive:
+
+  1. Creates a default local bucket if no buckets exist.
+  2. Adds the enabled buckets to the Default storage profile when it has
+     no enabled, active bucket to write to (a bucket already in it keeps
+     its role and order).
+  3. Brings the Default profile's copy count within the buckets it can
+     write to — lowered only when it asks for more copies than there are
+     buckets, never reset — so a multi-bucket install keeps its
+     redundancy.
+  4. Clears the default bucket setting when it points at a bucket that is
+     gone or disabled.
+  5. Resets the Default variant set's dimensions to the 8 defaults
+     (4 image + 4 video) and turns automatic variants back on.
 
   All existing files are preserved.
 
@@ -754,35 +765,98 @@ defmodule PhoenixKit.Modules.Storage do
   ## Examples
 
       iex> repair_storage_module()
-      {:ok, [{:bucket_created, "Local Storage"}, {:dimensions_reset, 8}, {:settings_reset, 3}]}
+      {:ok, [{:bucket_created, "Local Storage"}, {:dimensions_reset, 8}]}
 
   """
   def repair_storage_module do
     repo().transaction(fn ->
-      repairs = []
-
-      # 1. Ensure at least one bucket exists
-      repairs =
+      bucket_repairs =
         case ensure_default_bucket_exists() do
-          {:created, bucket} -> [{:bucket_created, bucket.name} | repairs]
-          :exists -> repairs
+          {:created, bucket} -> [{:bucket_created, bucket.name}]
+          :exists -> []
         end
 
-      # 2. Reset dimensions to defaults
+      repairs =
+        bucket_repairs ++
+          repair_default_profile_buckets() ++
+          repair_default_profile_copies() ++ repair_default_bucket_setting()
+
       case reset_dimensions_to_defaults() do
         {:ok, _} -> :ok
         {:error, reason} -> repo().rollback(reason)
       end
 
-      repairs = [{:dimensions_reset, 8} | repairs]
+      set_auto_generate_variants(true)
 
-      # 3. Reset settings to defaults
-      reset_settings_to_defaults()
-      repairs = [{:settings_reset, 3} | repairs]
-
-      Enum.reverse(repairs)
+      repairs ++ [{:dimensions_reset, 8}]
     end)
   end
+
+  # The Default profile needs a bucket it can write to; with none, every
+  # enabled bucket not in it joins (as a new bucket would).
+  defp repair_default_profile_buckets do
+    case Profiles.default_profile() do
+      %StorageProfile{buckets: rows} ->
+        if Enum.any?(rows, &writable_profile_bucket?/1) do
+          []
+        else
+          present = MapSet.new(rows, &to_string(&1.bucket_uuid))
+
+          missing =
+            Enum.filter(
+              list_buckets(),
+              &(&1.enabled and not MapSet.member?(present, to_string(&1.uuid)))
+            )
+
+          Enum.each(missing, &Profiles.add_to_default/1)
+
+          if missing == [], do: [], else: [{:buckets_added_to_default, length(missing)}]
+        end
+
+      nil ->
+        []
+    end
+  end
+
+  # More copies than the Default can write leaves every upload short; the
+  # count is lowered to what fits, never raised or reset.
+  defp repair_default_profile_copies do
+    with %StorageProfile{} = profile <- Profiles.default_profile(),
+         writable = Enum.count(profile.buckets, &writable_profile_bucket?/1),
+         true <- writable > 0 and profile.copies_originals > writable,
+         {:ok, _} <- set_redundancy_copies(writable) do
+      [{:copies_lowered, writable}]
+    else
+      _ -> []
+    end
+  end
+
+  defp repair_default_bucket_setting do
+    case get_default_bucket_uuid() do
+      uuid when uuid in [nil, ""] ->
+        []
+
+      uuid ->
+        case Ecto.UUID.cast(uuid) do
+          {:ok, uuid} ->
+            case get_bucket(uuid) do
+              %Bucket{enabled: true} -> []
+              _ -> clear_default_bucket_setting()
+            end
+
+          :error ->
+            clear_default_bucket_setting()
+        end
+    end
+  end
+
+  defp clear_default_bucket_setting do
+    Settings.update_setting("storage_default_bucket_uuid", nil)
+    [:default_bucket_cleared]
+  end
+
+  defp writable_profile_bucket?(%{status: "active", bucket: %Bucket{enabled: true}}), do: true
+  defp writable_profile_bucket?(_row), do: false
 
   @doc """
   Ensures at least one default bucket exists.

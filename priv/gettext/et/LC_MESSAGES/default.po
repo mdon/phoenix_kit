@@ -398,8 +398,8 @@ msgstr "Aktiivne"
 #: lib/modules/storage/web/dimensions.html.heex:303
 #: lib/modules/storage/web/dimensions.html.heex:437
 #: lib/modules/storage/web/dimensions.html.heex:510
-#: lib/modules/storage/web/settings.html.heex:147
-#: lib/modules/storage/web/settings.html.heex:210
+#: lib/modules/storage/web/settings.html.heex:104
+#: lib/modules/storage/web/settings.html.heex:167
 #: lib/phoenix_kit_web/components/core/dashboard_overview.ex:467
 #: lib/phoenix_kit_web/live/modules.html.heex:86
 #: lib/phoenix_kit_web/live/modules.html.heex:122
@@ -501,7 +501,7 @@ msgstr "Konto teave"
 #: lib/modules/sitemap/web/settings.html.heex:66
 #: lib/modules/storage/web/dimensions.html.heex:248
 #: lib/modules/storage/web/dimensions.html.heex:455
-#: lib/modules/storage/web/settings.html.heex:160
+#: lib/modules/storage/web/settings.html.heex:117
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:212
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:264
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:296
@@ -908,7 +908,7 @@ msgstr "Andmekaitsejärelevaataja kontakt salvestatud"
 #: lib/modules/storage/web/dimensions.html.heex:586
 #: lib/modules/storage/web/libraries_component.ex:383
 #: lib/modules/storage/web/profiles_component.ex:305
-#: lib/modules/storage/web/settings.html.heex:286
+#: lib/modules/storage/web/settings.html.heex:243
 #: lib/phoenix_kit_web/components/core/bulk_select.ex:224
 #: lib/phoenix_kit_web/components/image_editor.ex:1032
 #: lib/phoenix_kit_web/components/media_browser.html.heex:863
@@ -961,8 +961,8 @@ msgstr "Kirjeldus"
 #: lib/modules/storage/web/dimensions.html.heex:437
 #: lib/modules/storage/web/dimensions.html.heex:514
 #: lib/modules/storage/web/profiles_component.ex:333
-#: lib/modules/storage/web/settings.html.heex:147
-#: lib/modules/storage/web/settings.html.heex:214
+#: lib/modules/storage/web/settings.html.heex:104
+#: lib/modules/storage/web/settings.html.heex:171
 #: lib/phoenix_kit_web/components/core/badge.ex:191
 #: lib/phoenix_kit_web/live/modules.html.heex:41
 #: lib/phoenix_kit_web/live/modules.html.heex:86
@@ -992,7 +992,7 @@ msgstr "Mustand"
 #: lib/modules/storage/web/dimensions.html.heex:361
 #: lib/modules/storage/web/dimensions.html.heex:530
 #: lib/modules/storage/web/dimensions.html.heex:568
-#: lib/modules/storage/web/settings.html.heex:267
+#: lib/modules/storage/web/settings.html.heex:224
 #: lib/phoenix_kit_web/components/core/admin_edit_link.ex:53
 #: lib/phoenix_kit_web/components/core/admin_edit_link.ex:63
 #: lib/phoenix_kit_web/helpers/admin_edit_helper.ex:104
@@ -1146,8 +1146,8 @@ msgstr "Funktsionaalsed moodulid"
 
 #: lib/modules/storage/web/libraries_component.ex:272
 #: lib/modules/storage/web/libraries_component.ex:457
-#: lib/modules/storage/web/settings.html.heex:142
-#: lib/modules/storage/web/settings.html.heex:158
+#: lib/modules/storage/web/settings.html.heex:99
+#: lib/modules/storage/web/settings.html.heex:115
 #: lib/phoenix_kit/users/auth.ex:3241
 #: lib/phoenix_kit_web/components/core/preview_card.ex:284
 #: lib/phoenix_kit_web/live/users/libraries.html.heex:105
@@ -1589,8 +1589,8 @@ msgid "Primary: %{lang}"
 msgstr "Peamine: %{lang}"
 
 #: lib/modules/storage/web/bucket_form.html.heex:318
-#: lib/modules/storage/web/settings.html.heex:134
-#: lib/modules/storage/web/settings.html.heex:157
+#: lib/modules/storage/web/settings.html.heex:91
+#: lib/modules/storage/web/settings.html.heex:114
 #, elixir-autogen, elixir-format
 msgid "Priority"
 msgstr "Prioriteet"
@@ -1920,8 +1920,9 @@ msgstr "Maakond/provints"
 #: lib/modules/storage/web/dimensions.html.heex:436
 #: lib/modules/storage/web/dimensions.html.heex:454
 #: lib/modules/storage/web/profiles_component.ex:318
-#: lib/modules/storage/web/settings.html.heex:146
-#: lib/modules/storage/web/settings.html.heex:159
+#: lib/modules/storage/web/settings.html.heex:103
+#: lib/modules/storage/web/settings.html.heex:116
+#: lib/modules/storage/web/settings.html.heex:627
 #: lib/phoenix_kit/users/table_columns.ex:291
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:168
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:211
@@ -2244,7 +2245,7 @@ msgstr "Rakenda"
 msgid "Deactivate"
 msgstr "Deaktiveeri"
 
-#: lib/modules/storage/web/settings.html.heex:249
+#: lib/modules/storage/web/settings.html.heex:206
 #, elixir-autogen, elixir-format
 msgid "Delete bucket"
 msgstr "Kustuta bucket"
@@ -2253,8 +2254,8 @@ msgstr "Kustuta bucket"
 #: lib/modules/storage/web/dimensions.html.heex:369
 #: lib/modules/storage/web/dimensions.html.heex:538
 #: lib/modules/storage/web/dimensions.html.heex:576
-#: lib/modules/storage/web/settings.html.heex:237
-#: lib/modules/storage/web/settings.html.heex:274
+#: lib/modules/storage/web/settings.html.heex:194
+#: lib/modules/storage/web/settings.html.heex:231
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:128
 #: lib/phoenix_kit_web/live/settings/users.html.heex:657
 #: lib/phoenix_kit_web/live/settings/users.html.heex:703
@@ -2262,7 +2263,7 @@ msgstr "Kustuta bucket"
 msgid "Disable"
 msgstr "Keela"
 
-#: lib/modules/storage/web/settings.html.heex:230
+#: lib/modules/storage/web/settings.html.heex:187
 #, elixir-autogen, elixir-format
 msgid "Edit bucket"
 msgstr "Muuda bucket"
@@ -2271,8 +2272,8 @@ msgstr "Muuda bucket"
 #: lib/modules/storage/web/dimensions.html.heex:369
 #: lib/modules/storage/web/dimensions.html.heex:538
 #: lib/modules/storage/web/dimensions.html.heex:576
-#: lib/modules/storage/web/settings.html.heex:237
-#: lib/modules/storage/web/settings.html.heex:274
+#: lib/modules/storage/web/settings.html.heex:194
+#: lib/modules/storage/web/settings.html.heex:231
 #: lib/phoenix_kit_web/live/settings/users.html.heex:658
 #: lib/phoenix_kit_web/live/settings/users.html.heex:705
 #, elixir-autogen, elixir-format
@@ -2314,8 +2315,8 @@ msgstr "Keele sisu laadimine"
 msgid "Marketing"
 msgstr "Turundus"
 
-#: lib/modules/storage/web/settings.html.heex:130
-#: lib/modules/storage/web/settings.html.heex:156
+#: lib/modules/storage/web/settings.html.heex:87
+#: lib/modules/storage/web/settings.html.heex:113
 #: lib/phoenix_kit_web/live/settings/send_profiles.ex:84
 #: lib/phoenix_kit_web/live/settings/send_profiles.html.heex:48
 #, elixir-autogen, elixir-format
@@ -2324,7 +2325,6 @@ msgstr "Teenusepakkuja"
 
 #: lib/modules/sitemap/web/settings.html.heex:82
 #: lib/modules/sitemap/web/settings.html.heex:626
-#: lib/modules/storage/web/settings.html.heex:74
 #, elixir-autogen, elixir-format
 msgid "Quick Actions"
 msgstr "Kiiraktsioonid"
@@ -2447,7 +2447,7 @@ msgstr "Juurdepääsuvõtme ID"
 msgid "Access Type"
 msgstr "Juurdepääsu tüüp"
 
-#: lib/modules/storage/web/settings.html.heex:299
+#: lib/modules/storage/web/settings.html.heex:256
 #, elixir-autogen, elixir-format
 msgid "Active Buckets"
 msgstr "Aktiivsed bucketid"
@@ -2457,7 +2457,7 @@ msgstr "Aktiivsed bucketid"
 msgid "Active status for new user registrations"
 msgstr "Aktiivne olek uute kasutajate registreerimisel"
 
-#: lib/modules/storage/web/settings.html.heex:90
+#: lib/modules/storage/web/settings.html.heex:47
 #, elixir-autogen, elixir-format
 msgid "Add Bucket"
 msgstr "Lisa bucket"
@@ -2538,18 +2538,18 @@ msgstr "Rakenduse saladus"
 msgid "Application name display"
 msgstr "Rakenduse nime kuvamine"
 
-#: lib/modules/storage/web/settings.html.heex:528
+#: lib/modules/storage/web/settings.html.heex:485
 #, elixir-autogen, elixir-format
 msgid "Apply Changes"
 msgstr "Rakenda muudatused"
 
-#: lib/modules/storage/web/settings.html.heex:525
+#: lib/modules/storage/web/settings.html.heex:482
 #, elixir-autogen, elixir-format
 msgid "Applying..."
 msgstr "Rakendamine..."
 
-#: lib/modules/storage/web/settings.html.heex:244
-#: lib/modules/storage/web/settings.html.heex:280
+#: lib/modules/storage/web/settings.html.heex:201
+#: lib/modules/storage/web/settings.html.heex:237
 #, elixir-autogen, elixir-format
 msgid "Are you sure you want to delete this bucket? This will remove all location records."
 msgstr "Kas oled kindel, et soovid kustutada selle bucketi? See eemaldab kõik asukoharekordid."
@@ -2585,7 +2585,7 @@ msgstr "%{type} väljade jaoks on vaja vähemalt ühte valikut"
 msgid "Authentication Methods"
 msgstr "Autentimismeetodid"
 
-#: lib/modules/storage/web/settings.html.heex:401
+#: lib/modules/storage/web/settings.html.heex:358
 #, elixir-autogen, elixir-format
 msgid "Auto-Generate Variants"
 msgstr "Automaatselt genereeri variante"
@@ -2621,7 +2621,7 @@ msgstr "Autentimislehtede taustapilt mobiiliekraanidel (768px ja alla). Kasutab 
 msgid "Bucket Name"
 msgstr "Bucketi nimi"
 
-#: lib/modules/storage/web/settings.html.heex:103
+#: lib/modules/storage/web/settings.html.heex:60
 #, elixir-autogen, elixir-format
 msgid "Buckets can be local directories or cloud storage providers (AWS S3, Backblaze B2, Cloudflare R2)."
 msgstr "Bucketid võivad olla kohalikud kataloogid või pilvemälupakkujad (AWS S3, Backblaze B2, Cloudflare R2)."
@@ -2636,7 +2636,7 @@ msgstr "CSS värv või gradient autentimislehe taustaks. Ignoreeritakse, kui tau
 msgid "Callback URL"
 msgstr "Tagasihelistamise URL"
 
-#: lib/modules/storage/web/settings.html.heex:534
+#: lib/modules/storage/web/settings.html.heex:491
 #, elixir-autogen, elixir-format
 msgid "Changes will be saved immediately"
 msgstr "Muudatused salvestatakse kohe"
@@ -2742,7 +2742,7 @@ msgstr "Loo tee"
 msgid "Create Storage Path"
 msgstr "Loo salvestustee"
 
-#: lib/modules/storage/web/settings.html.heex:112
+#: lib/modules/storage/web/settings.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "Create Your First Bucket"
 msgstr "Loo oma esimene bucket"
@@ -2762,7 +2762,7 @@ msgstr "Loo projekt või vali olemasolev"
 msgid "Create your first dimension preset to start generating file variants."
 msgstr "Loo oma esimene dimensioonipresett failivariantide genereerimiseks."
 
-#: lib/modules/storage/web/settings.html.heex:303
+#: lib/modules/storage/web/settings.html.heex:260
 #, elixir-autogen, elixir-format
 msgid "Currently in use"
 msgstr "Praegu kasutusel"
@@ -2828,7 +2828,7 @@ msgstr "Lõpp-punkt"
 msgid "Enter"
 msgstr "Sisesta"
 
-#: lib/modules/storage/web/settings.html.heex:380
+#: lib/modules/storage/web/settings.html.heex:337
 #, elixir-autogen, elixir-format
 msgid "Enter number of copies"
 msgstr "Sisesta koopiate arv"
@@ -2847,16 +2847,6 @@ msgstr "Sisesta projekti pealkiri"
 #, elixir-autogen, elixir-format
 msgid "Error!"
 msgstr "Viga!"
-
-#: lib/modules/storage/web/settings.html.heex:45
-#, elixir-autogen, elixir-format
-msgid "FFmpeg Not Installed"
-msgstr "FFmpeg ei ole paigaldatud"
-
-#: lib/modules/storage/web/settings.html.heex:47
-#, elixir-autogen, elixir-format
-msgid "FFmpeg is required for video processing, transcoding, and thumbnail generation."
-msgstr "FFmpeg on vajalik video töötlemiseks, transkodeerimiseks ja pisipiltide genereerimiseks."
 
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:579
 #, elixir-autogen, elixir-format
@@ -2955,26 +2945,10 @@ msgstr "Kui kasutate nginx/apache'i, veenduge"
 msgid "Image Dimensions"
 msgstr "Pildi dimensioonid"
 
-#: lib/modules/storage/web/settings.html.heex:19
-#, elixir-autogen, elixir-format
-msgid "ImageMagick Not Installed"
-msgstr "ImageMagick ei ole paigaldatud"
-
-#: lib/modules/storage/web/settings.html.heex:21
-#, elixir-autogen, elixir-format
-msgid "ImageMagick is required for image processing and variant generation."
-msgstr "ImageMagick on vajalik piltide töötlemiseks ja variantide genereerimiseks."
-
 #: lib/modules/storage/web/dimensions.html.heex:602
 #, elixir-autogen, elixir-format
 msgid "Images use 1-100 scale (compression quality)"
 msgstr "Pildid kasutavad 1-100 skaalat (tihenduse kvaliteet)"
-
-#: lib/modules/storage/web/settings.html.heex:25
-#: lib/modules/storage/web/settings.html.heex:53
-#, elixir-autogen, elixir-format
-msgid "Installation:"
-msgstr "Paigaldamine:"
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:549
 #: lib/phoenix_kit_web/live/settings/users.html.heex:618
@@ -3035,7 +3009,7 @@ msgstr "Halda sisselogimislehe kujundust ja autentimismeetodeid"
 msgid "Manage user registration, defaults, and custom fields"
 msgstr "Halda kasutajate registreerimist, vaikimisi seadeid ja kohandatud välju"
 
-#: lib/modules/storage/web/settings.html.heex:386
+#: lib/modules/storage/web/settings.html.heex:343
 #, elixir-autogen, elixir-format
 msgid "Maximum %{count} copies based on %{buckets} active bucket(s)."
 msgstr "Maksimaalselt %{count} koopiat, arvestades %{buckets} aktiivset bucket(i)."
@@ -3047,7 +3021,7 @@ msgstr "Maksimaalselt %{count} koopiat, arvestades %{buckets} aktiivset bucket(i
 #: lib/modules/storage/web/libraries_component.ex:270
 #: lib/modules/storage/web/libraries_component.ex:454
 #: lib/modules/storage/web/profiles_component.ex:243
-#: lib/modules/storage/web/settings.html.heex:155
+#: lib/modules/storage/web/settings.html.heex:112
 #: lib/phoenix_kit_web/components/media_browser.html.heex:427
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1941
 #: lib/phoenix_kit_web/live/components/library_settings.ex:305
@@ -3080,7 +3054,7 @@ msgstr "Uue kasutaja vaikimisi olek"
 msgid "New users will be created as inactive and will not be able to log in until an admin activates their account."
 msgstr "Uued kasutajad luuakse mitteaktiivsena ja nad ei saa sisse logida, kuni administraator aktiveerib nende konto."
 
-#: lib/modules/storage/web/settings.html.heex:353
+#: lib/modules/storage/web/settings.html.heex:310
 #, elixir-autogen, elixir-format
 msgid "No active buckets available. Enable buckets to configure redundancy."
 msgstr "Aktiivseid buckete pole saadaval. Luba bucketid redundantsuse konfigureerimiseks."
@@ -3090,7 +3064,7 @@ msgstr "Aktiivseid buckete pole saadaval. Luba bucketid redundantsuse konfiguree
 msgid "No active sessions found."
 msgstr "Aktiivseid seansse ei leitud."
 
-#: lib/modules/storage/web/settings.html.heex:532
+#: lib/modules/storage/web/settings.html.heex:489
 #, elixir-autogen, elixir-format
 msgid "No changes to apply"
 msgstr "Pole muudatusi rakendamiseks"
@@ -3141,7 +3115,7 @@ msgstr "OAuth teenusepakkujad"
 msgid "OAuth Setup Instructions"
 msgstr "OAuth seadistamisjuhised"
 
-#: lib/modules/storage/web/settings.html.heex:382
+#: lib/modules/storage/web/settings.html.heex:339
 #, elixir-autogen, elixir-format
 msgid "Only 1 active bucket available. Add more buckets to enable redundancy."
 msgstr "Ainult 1 aktiivne bucket saadaval. Lisa rohkem buckete redundantsuse lubamiseks."
@@ -3194,18 +3168,18 @@ msgstr "Kvaliteet (CRF)"
 msgid "Quality Settings:"
 msgstr "Kvaliteedi seaded:"
 
-#: lib/modules/storage/web/settings.html.heex:137
-#: lib/modules/storage/web/settings.html.heex:197
+#: lib/modules/storage/web/settings.html.heex:94
+#: lib/modules/storage/web/settings.html.heex:154
 #, elixir-autogen, elixir-format
 msgid "Random"
 msgstr "Juhuslik"
 
-#: lib/modules/storage/web/settings.html.heex:367
+#: lib/modules/storage/web/settings.html.heex:324
 #, elixir-autogen, elixir-format
 msgid "Reduce redundancy or enable more buckets."
 msgstr "Vähenda redundantsust või luba rohkem buckete."
 
-#: lib/modules/storage/web/settings.html.heex:342
+#: lib/modules/storage/web/settings.html.heex:299
 #, elixir-autogen, elixir-format
 msgid "Redundancy Copies"
 msgstr "Redundantsuse koopiad"
@@ -3340,7 +3314,7 @@ msgstr "Näita kasutajanime välja registreerimisel"
 msgid "Site Address (URL)"
 msgstr "Saidi aadress (URL)"
 
-#: lib/modules/storage/web/settings.html.heex:579
+#: lib/modules/storage/web/settings.html.heex:536
 #, elixir-autogen, elixir-format
 msgid "Soon"
 msgstr "Varsti"
@@ -3401,11 +3375,6 @@ msgstr "Migratsioon loob 8 vaikimisi dimensiooni: 4 pildi suurust (pisipilt, vä
 msgid "The storage path"
 msgstr "Salvestustee"
 
-#: lib/modules/storage/web/settings.html.heex:632
-#, elixir-autogen, elixir-format
-msgid "This will reset dimensions and settings to defaults, and create a local bucket if none exist. Your uploaded files will NOT be deleted. Continue?"
-msgstr "See lähtestab dimensioonid ja seaded vaikimisi väärtustele ning loob kohaliku bucketi, kui ühtegi pole. Teie üleslaaditud faile EI kustutata. Jätkata?"
-
 #: lib/phoenix_kit_web/live/settings.html.heex:599
 #, elixir-autogen, elixir-format
 msgid "Time Format"
@@ -3422,7 +3391,7 @@ msgstr "Ajavöönd"
 msgid "Token"
 msgstr "Token"
 
-#: lib/modules/storage/web/settings.html.heex:293
+#: lib/modules/storage/web/settings.html.heex:250
 #, elixir-autogen, elixir-format
 msgid "Total Buckets"
 msgstr "Buckete kokku"
@@ -3504,11 +3473,6 @@ msgstr "Külasta"
 msgid "Week Start On"
 msgstr "Nädal algab"
 
-#: lib/modules/storage/web/settings.html.heex:661
-#, elixir-autogen, elixir-format
-msgid "When a file is requested, the system automatically tries each location until it successfully retrieves the file."
-msgstr "Kui failile pääseb juurde, proovib süsteem automaatselt iga asukohta, kuni fail on edukalt kätte saadud."
-
 #: lib/phoenix_kit_web/live/settings/users.html.heex:835
 #, elixir-autogen, elixir-format
 msgid "When checked, users can view and edit this field on their settings page. When unchecked, only admins can edit it."
@@ -3523,16 +3487,6 @@ msgstr "Kui lubatud, kogutakse analüütika jaoks registreerimise IP-aadressid j
 #, elixir-autogen, elixir-format
 msgid "Width (px)"
 msgstr "Laius (px)"
-
-#: lib/modules/storage/web/settings.html.heex:22
-#, elixir-autogen, elixir-format
-msgid "Without it, image resizing, cropping, and format conversion will not work."
-msgstr "Ilma selleta ei tööta piltide suuruse muutmine, kärpimine ega vorminguteisendamine."
-
-#: lib/modules/storage/web/settings.html.heex:50
-#, elixir-autogen, elixir-format
-msgid "Without it, video file processing will not work."
-msgstr "Ilma selleta ei tööta videofailide töötlemine."
 
 #: lib/modules/storage/web/bucket_form.html.heex:378
 #, elixir-autogen, elixir-format
@@ -3591,7 +3545,7 @@ msgstr "ei eksisteeri."
 msgid "e.g., thumbnail, medium, 720p"
 msgstr "nt pisipilt, keskmine, 720p"
 
-#: lib/modules/storage/web/settings.html.heex:204
+#: lib/modules/storage/web/settings.html.heex:161
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1866
 #, elixir-autogen, elixir-format
 msgid "files"
@@ -3915,7 +3869,7 @@ msgstr "Backblaze piirkond"
 msgid "Both width and height are used for fixed dimensions"
 msgstr "Fikseeritud dimensioonide jaoks kasutatakse nii laiust kui ka kõrgust"
 
-#: lib/modules/storage/web/settings.html.heex:221
+#: lib/modules/storage/web/settings.html.heex:178
 #, elixir-autogen, elixir-format
 msgid "Bucket actions"
 msgstr "Bucketi tegevused"
@@ -3998,7 +3952,7 @@ msgstr "Lõpeta esmalt 1. samm konto ühendamise lubamiseks."
 msgid "Configure storage provider settings"
 msgstr "Seadista salvestuspakkuja seaded"
 
-#: lib/modules/storage/web/settings.html.heex:295
+#: lib/modules/storage/web/settings.html.heex:252
 #, elixir-autogen, elixir-format
 msgid "Configured media locations"
 msgstr "Konfigureeritud meedia asukohad"
@@ -4123,7 +4077,7 @@ msgstr "Loo OAuth klient"
 msgid "Create an OpenRouter account"
 msgstr "Loo OpenRouteri konto"
 
-#: lib/modules/storage/web/settings.html.heex:507
+#: lib/modules/storage/web/settings.html.heex:464
 #, elixir-autogen, elixir-format
 msgid "Current limit: %{size} MB"
 msgstr "Praegune limiit: %{size} MB"
@@ -4290,11 +4244,6 @@ msgstr "Avatari uuendamine ebaõnnestus"
 msgid "File"
 msgstr "Fail"
 
-#: lib/modules/storage/web/settings.html.heex:658
-#, elixir-autogen, elixir-format
-msgid "Files are tracked in PostgreSQL with support for multiple media locations (local, S3, remote servers)."
-msgstr "Faile jälgitakse PostgreSQL-is mitme meediumiasukoha toega (kohalik, S3, kaugserverid)."
-
 #: lib/phoenix_kit/integrations/providers.ex:226
 #, elixir-autogen, elixir-format
 msgid "From Google Cloud Console → APIs & Services → Credentials"
@@ -4382,7 +4331,7 @@ msgstr "Anna juurdepääs Google Docs'ile ja Google Drive'ile"
 
 #: lib/modules/storage/web/health.ex:29
 #: lib/modules/storage/web/health.html.heex:59
-#: lib/modules/storage/web/settings.html.heex:597
+#: lib/modules/storage/web/settings.html.heex:554
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:356
 #, elixir-autogen, elixir-format
 msgid "Health"
@@ -4478,35 +4427,30 @@ msgstr "Hooldus pole aktiivne — see on lehe eelvaade."
 msgid "Manage your account settings and preferences"
 msgstr "Halda oma konto seadeid ja eelistusi"
 
-#: lib/modules/storage/web/settings.html.heex:495
+#: lib/modules/storage/web/settings.html.heex:452
 #, elixir-autogen, elixir-format
 msgid "Max Upload Size (MB)"
 msgstr "Maksimaalne üleslaadimise suurus (MB)"
 
-#: lib/modules/storage/web/settings.html.heex:497
+#: lib/modules/storage/web/settings.html.heex:454
 #, elixir-autogen, elixir-format
 msgid "Maximum file size allowed per upload"
 msgstr "Maksimaalne failisuurus üleslaadimise kohta"
 
-#: lib/modules/storage/web/settings.html.heex:84
+#: lib/modules/storage/web/settings.html.heex:41
 #, elixir-autogen, elixir-format
 msgid "Media Buckets"
 msgstr "Meedia bucketid"
 
-#: lib/modules/storage/web/settings.html.heex:330
+#: lib/modules/storage/web/settings.html.heex:287
 #, elixir-autogen, elixir-format
 msgid "Media Configuration"
 msgstr "Meedia konfiguratsioon"
 
-#: lib/modules/storage/web/settings.html.heex:578
+#: lib/modules/storage/web/settings.html.heex:535
 #, elixir-autogen, elixir-format
 msgid "Media Stats"
 msgstr "Meedia statistika"
-
-#: lib/modules/storage/web/settings.html.heex:653
-#, elixir-autogen, elixir-format
-msgid "Media System Architecture"
-msgstr "Meediasüsteemi arhitektuur"
 
 #: lib/phoenix_kit_web/users/user_form.ex:364
 #, elixir-autogen, elixir-format
@@ -4528,6 +4472,7 @@ msgstr "Liige eemaldatud organisatsioonist"
 msgid "Members"
 msgstr "Liikmed"
 
+#: lib/modules/storage/web/settings.html.heex:647
 #: lib/phoenix_kit_web/components/core/integration_picker.ex:186
 #, elixir-autogen, elixir-format
 msgid "Missing"
@@ -4543,7 +4488,7 @@ msgstr "Mine [Võtmed](https://openrouter.ai/keys) lehele"
 msgid "Navigate to the OAuth section using the search bar or the hamburger menu: search for \"OAuth\", or go to the sidebar: **APIs & Services → OAuth consent screen**. This opens a different section with its own sidebar."
 msgstr "Navigeerige OAuth jaotisesse otsinguribi või hamburgeri menüü abil: otsige \"OAuth\" või minge külgribale: **APIs & Services → OAuth consent screen**. See avab eraldi jaotise oma külgribaga."
 
-#: lib/modules/storage/web/settings.html.heex:98
+#: lib/modules/storage/web/settings.html.heex:55
 #, elixir-autogen, elixir-format
 msgid "No Media Buckets Configured"
 msgstr "Meedia bucketid pole konfigureeritud"
@@ -4741,7 +4686,7 @@ msgstr "Eemalda organisatsioonist"
 msgid "Remove this member from the organization?"
 msgstr "Eemaldada see liige organisatsioonist?"
 
-#: lib/modules/storage/web/settings.html.heex:638
+#: lib/modules/storage/web/settings.html.heex:595
 #, elixir-autogen, elixir-format
 msgid "Repair Media Module"
 msgstr "Paranda meediamoodul"
@@ -4870,11 +4815,6 @@ msgstr "Test ebaõnnestus"
 msgid "Testing..."
 msgstr "Testimine..."
 
-#: lib/modules/storage/web/settings.html.heex:655
-#, elixir-autogen, elixir-format
-msgid "The media system is designed for distributed file management with automatic redundancy."
-msgstr "Meediasüsteem on loodud hajutatud failihalduseks automaatse redundantsusega."
-
 #: lib/phoenix_kit_web/components/core/integration_picker.ex:189
 #, elixir-autogen, elixir-format
 msgid "The selected integration no longer exists. Please choose a different one."
@@ -4954,7 +4894,7 @@ msgstr "Sa ei saa ennast kutsuda"
 msgid "You joined the organization!"
 msgstr "Liitusite organisatsiooniga!"
 
-#: lib/modules/storage/web/settings.html.heex:100
+#: lib/modules/storage/web/settings.html.heex:57
 #, elixir-autogen, elixir-format
 msgid "You need to create at least one media bucket before files can be uploaded."
 msgstr "Enne failide üleslaadimist peate looma vähemalt ühe meedia bucketi."
@@ -5573,7 +5513,7 @@ msgstr "nõuab, et"
 #: lib/modules/storage/web/dimension_form.html.heex:8
 #: lib/modules/storage/web/dimensions.html.heex:8
 #: lib/modules/storage/web/health.html.heex:8
-#: lib/modules/storage/web/settings.ex:65
+#: lib/modules/storage/web/settings.ex:61
 #: lib/modules/storage/web/settings.html.heex:4
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:161
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:333
@@ -5926,7 +5866,7 @@ msgstr "Lisa staatilisse saidikaardi"
 
 #: lib/modules/sitemap/web/settings.html.heex:81
 #: lib/modules/sitemap/web/settings.html.heex:516
-#: lib/modules/storage/web/settings.html.heex:73
+#: lib/modules/storage/web/settings.html.heex:25
 #, elixir-autogen
 msgid "Configuration"
 msgstr "Seadistus"
@@ -6783,7 +6723,7 @@ msgstr "Kausta ei saa teisaldada lubatud ulatusest väljaspool"
 msgid "Could not post comment"
 msgstr "Kommentaari postitamine ebaõnnestus"
 
-#: lib/modules/storage/web/settings.html.heex:417
+#: lib/modules/storage/web/settings.html.heex:374
 #, elixir-autogen, elixir-format
 msgid "Deep Zoom Tile Generation"
 msgstr "Sügava suumi plaadigeneratsioon"
@@ -6884,7 +6824,7 @@ msgstr "Kaust jäädavalt kustutatud"
 msgid "Giphy search failed"
 msgstr "Giphy otsing ebaõnnestus"
 
-#: lib/modules/storage/web/settings.html.heex:420
+#: lib/modules/storage/web/settings.html.heex:377
 #, elixir-autogen, elixir-format
 msgid "Lazily generate DZI tile pyramids when users zoom deeply into images. With this off the MediaBrowser still swaps between medium/large variants while zooming, but never generates tiles or hits the lazy tile endpoint. ImageMagick is required when enabled."
 msgstr "Genereeri DZI-plaadipüramiide laisklaadimisega suurendamisel. Väljalylitatuna vahetab MediaBrowser variantide vahel, kuid ei genereeri plaate. Vajalik ImageMagick."
@@ -7506,6 +7446,7 @@ msgstr "Tühjenda filtrid"
 msgid "Date & Time"
 msgstr "Kuupäev ja kellaaeg"
 
+#: lib/modules/storage/web/settings.ex:529
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:569
 #: lib/phoenix_kit_web/live/activity/index.html.heex:310
 #, elixir-autogen, elixir-format
@@ -8468,7 +8409,7 @@ msgstr "Lisa kirjeldus"
 msgid "All types"
 msgstr "Kõik tüübid"
 
-#: lib/modules/storage/web/settings.html.heex:436
+#: lib/modules/storage/web/settings.html.heex:393
 #, elixir-autogen, elixir-format
 msgid "Annotated Thumbnails"
 msgstr "Märgistatud pisipildid"
@@ -8496,12 +8437,12 @@ msgstr "Tagasi"
 msgid "Background image"
 msgstr "Taustapilt"
 
-#: lib/modules/storage/web/settings.html.heex:439
+#: lib/modules/storage/web/settings.html.heex:396
 #, elixir-autogen, elixir-format
 msgid "Bake Etcher annotation shapes (rectangles, marker strokes, etc.) into a file's grid thumbnail, regenerated in the background when annotations change. With this off the grid shows the plain thumbnail and no annotated variant is generated. ImageMagick is required when enabled."
 msgstr "Küpseta Etcheri märgistuskujundid (ristkülikud, markerijooned jne) faili ruudustiku pisipildile, mis genereeritakse taustal uuesti, kui märgistused muutuvad. Väljalülitatuna kuvab ruudustik tavalist pisipilti ja märgistatud varianti ei genereerita. Sisselülitatuna on vajalik ImageMagick."
 
-#: lib/modules/storage/web/settings.html.heex:606
+#: lib/modules/storage/web/settings.html.heex:563
 #, elixir-autogen, elixir-format
 msgid "Browse files no longer attached to any record (orphaned media) so you can review or delete them."
 msgstr "Sirvi faile, mis pole enam ühegi kirjega seotud (orvuks jäänud meedia), et neid üle vaadata või kustutada."
@@ -8647,7 +8588,7 @@ msgstr "Päise uuendamine ebaõnnestus"
 msgid "Filter"
 msgstr "Filter"
 
-#: lib/modules/storage/web/settings.html.heex:615
+#: lib/modules/storage/web/settings.html.heex:572
 #, elixir-autogen, elixir-format
 msgid "Find Orphaned Files"
 msgstr "Leia sidumata failid"
@@ -8841,11 +8782,6 @@ msgstr "Muu"
 msgid "Pick or upload a small icon image."
 msgstr "Vali või laadi üles väike ikoonipilt."
 
-#: lib/modules/storage/web/settings.html.heex:624
-#, elixir-autogen, elixir-format
-msgid "Reset dimensions and settings to defaults and create a local bucket if none exist. Does not delete uploaded files."
-msgstr "Lähtesta mõõtmed ja seaded vaikeväärtustele ning loo kohalik ämber, kui ühtegi pole. Ei kustuta üleslaaditud faile."
-
 #: lib/phoenix_kit_web/components/media_browser.html.heex:644
 #, elixir-autogen, elixir-format
 msgid "Save name"
@@ -8928,7 +8864,7 @@ msgstr "Tasuta tase sisaldab igakuist märkide kvooti; tasulised paketid tõstav
 msgid "Unread"
 msgstr "Lugemata"
 
-#: lib/modules/storage/web/settings.html.heex:575
+#: lib/modules/storage/web/settings.html.heex:532
 #, elixir-autogen, elixir-format
 msgid "View storage usage and media statistics. Coming soon."
 msgstr "Vaata salvestusruumi kasutust ja meedia statistikat. Tulekul varsti."
@@ -9412,7 +9348,7 @@ msgstr "Salvestuskohta ei leitud"
 msgid "Cannot set redundancy to %{count} copies. Only %{max} active bucket(s) available."
 msgstr "Liiasust ei saa määrata %{count} koopiale. Saadaval on ainult %{max} aktiivset salvestuskohta."
 
-#: lib/modules/storage/web/settings.html.heex:363
+#: lib/modules/storage/web/settings.html.heex:320
 #, elixir-autogen, elixir-format
 msgid "Current setting (%{count} copies) exceeds available buckets (%{max})."
 msgstr "Praegune seade (%{count} koopiat) ületab saadaolevad salvestuskohad (%{max})."
@@ -14048,7 +13984,7 @@ msgstr ""
 msgid "sessions"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:70
+#: lib/modules/storage/web/settings.html.heex:22
 #, elixir-autogen, elixir-format
 msgid "Buckets"
 msgstr "Bucketid"
@@ -14462,7 +14398,7 @@ msgstr "Muuda pilti"
 msgid "Edited"
 msgstr "Muudetud"
 
-#: lib/modules/storage/web/settings.html.heex:484
+#: lib/modules/storage/web/settings.html.heex:441
 #, elixir-autogen, elixir-format
 msgid "Every save overwrites the image for good. Nothing can be undone, and redacted areas are gone from storage."
 msgstr "Iga salvestamine kirjutab pildi jäädavalt üle. Midagi ei saa tagasi võtta ja kaetud alad kaovad salvestusruumist."
@@ -14488,12 +14424,12 @@ msgstr "Kõrgus %"
 msgid "Hide areas"
 msgstr "Peida alad"
 
-#: lib/modules/storage/web/settings.html.heex:449
+#: lib/modules/storage/web/settings.html.heex:406
 #, elixir-autogen, elixir-format
 msgid "Image Editing"
 msgstr "Piltide muutmine"
 
-#: lib/modules/storage/web/settings.html.heex:465
+#: lib/modules/storage/web/settings.html.heex:422
 #, elixir-autogen, elixir-format
 msgid "Keep the original (recommended)"
 msgstr "Säilita originaal (soovitatav)"
@@ -14544,7 +14480,7 @@ msgstr "Pikselda"
 msgid "Remove area"
 msgstr "Eemalda ala"
 
-#: lib/modules/storage/web/settings.html.heex:482
+#: lib/modules/storage/web/settings.html.heex:439
 #, elixir-autogen, elixir-format
 msgid "Replace the original"
 msgstr "Asenda originaal"
@@ -14619,7 +14555,7 @@ msgstr "Kuni see valmib, näidatakse pildi asemel kohatäidet."
 msgid "The preview is approximate; colours and blur are exact once saved."
 msgstr "Eelvaade on ligikaudne; värvid ja hägusus on täpsed pärast salvestamist."
 
-#: lib/modules/storage/web/settings.html.heex:467
+#: lib/modules/storage/web/settings.html.heex:424
 #, elixir-autogen, elixir-format
 msgid "The unedited image is kept privately, so an edit can be changed or undone. Owners can delete it themselves."
 msgstr "Muutmata pilti hoitakse privaatselt, et muudatust saaks muuta või tagasi võtta. Omanikud saavad selle ise kustutada."
@@ -14707,7 +14643,7 @@ msgstr "Seni näidatakse pildi asemel kõikjal kohatäidet."
 msgid "Wait until the image has finished rendering."
 msgstr "Oota, kuni pildi töötlemine lõpeb."
 
-#: lib/modules/storage/web/settings.html.heex:451
+#: lib/modules/storage/web/settings.html.heex:408
 #, elixir-autogen, elixir-format
 msgid "What saving an edited image (crop, turn, redaction…) does with the original."
 msgstr "Mida teeb muudetud pildi (kärpimine, pööramine, katmine…) salvestamine originaaliga."
@@ -15559,7 +15495,7 @@ msgid "Delete this library?"
 msgstr "Kas kustutada see kogu?"
 
 #: lib/modules/storage/web/libraries_component.ex:224
-#: lib/modules/storage/web/settings.html.heex:72
+#: lib/modules/storage/web/settings.html.heex:24
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:174
 #: lib/phoenix_kit_web/live/users/libraries.ex:38
 #: lib/phoenix_kit_web/live/users/libraries.ex:89
@@ -15968,7 +15904,7 @@ msgstr "Aktiivsed ja prügikastis"
 msgid "Add bucket"
 msgstr "Lisa bucket"
 
-#: lib/modules/storage/web/settings.html.heex:404
+#: lib/modules/storage/web/settings.html.heex:361
 #, elixir-autogen, elixir-format
 msgid "Automatically resize images and videos to the sizes of the Default variant set. A library on another variant set follows that set."
 msgstr "Muuda piltide ja videote suurust automaatselt vaike-variandikomplekti suurusteni. Teist variandikomplekti kasutav kogu järgib seda komplekti."
@@ -16028,12 +15964,12 @@ msgstr "Suuruse või plaadi koopiad"
 msgid "Copies of an original"
 msgstr "Originaali koopiad"
 
-#: lib/modules/storage/web/settings.html.heex:344
+#: lib/modules/storage/web/settings.html.heex:301
 #, elixir-autogen, elixir-format
 msgid "Copies of each file in the Default storage profile. A library on another profile uses that profile's copies (Storage profiles tab)."
 msgstr "Iga faili koopiate arv vaikimisi salvestusprofiilis. Teist profiili kasutav kogu kasutab selle profiili koopiaid (vahekaart Salvestusprofiilid)."
 
-#: lib/modules/storage/web/settings.html.heex:558
+#: lib/modules/storage/web/settings.html.heex:515
 #, elixir-autogen, elixir-format
 msgid "Create and edit variant sets: the image and video sizes each library's uploads get."
 msgstr "Looge ja muutke variandikomplekte: pildi- ja videosuurused, mis iga kogu üleslaadimistele tehakse."
@@ -16118,7 +16054,7 @@ msgstr "Uus variandikomplekt"
 msgid "No buckets yet: uploads to a library on this profile fail."
 msgstr "Buckete pole veel: üleslaadimised selle profiiliga kogusse ebaõnnestuvad."
 
-#: lib/modules/storage/web/settings.html.heex:588
+#: lib/modules/storage/web/settings.html.heex:545
 #, elixir-autogen, elixir-format
 msgid "Open the media health dashboard: the files not yet stored or sized as their library wants."
 msgstr "Ava meedia seisundi töölaud: failid, mis pole veel salvestatud või suurustatud nii, nagu nende kogu ette näeb."
@@ -16205,7 +16141,7 @@ msgid "Storage profile saved"
 msgstr "Salvestusprofiil salvestatud"
 
 #: lib/modules/storage/web/profiles_component.ex:186
-#: lib/modules/storage/web/settings.html.heex:71
+#: lib/modules/storage/web/settings.html.heex:23
 #, elixir-autogen, elixir-format
 msgid "Storage profiles"
 msgstr "Salvestusprofiilid"
@@ -16245,7 +16181,7 @@ msgstr "Ühtlustajat ei õnnestunud järjekorda panna."
 msgid "The reconciler is queued. Refresh to see its progress."
 msgstr "Ühtlustaja on järjekorras. Edenemise nägemiseks värskendage lehte."
 
-#: lib/modules/storage/web/settings.html.heex:423
+#: lib/modules/storage/web/settings.html.heex:380
 #, elixir-autogen, elixir-format
 msgid "This is the Default variant set's setting; a library on another variant set follows that set."
 msgstr "See on vaike-variandikomplekti seade; teist variandikomplekti kasutav kogu järgib seda komplekti."
@@ -16301,7 +16237,7 @@ msgstr "Variandikomplekt salvestatud"
 #: lib/modules/storage/web/dimension_form.html.heex:10
 #: lib/modules/storage/web/dimensions.ex:27
 #: lib/modules/storage/web/dimensions.html.heex:4
-#: lib/modules/storage/web/settings.html.heex:567
+#: lib/modules/storage/web/settings.html.heex:524
 #, elixir-autogen, elixir-format
 msgid "Variant sets"
 msgstr "Variandikomplektid"
@@ -16373,3 +16309,107 @@ msgstr "Avar vaade"
 #, elixir-autogen, elixir-format
 msgid "Compact view"
 msgstr "Kompaktne vaade"
+
+#: lib/modules/storage/web/settings.html.heex:618
+#, elixir-autogen, elixir-format
+msgid "Check again"
+msgstr "Kontrolli uuesti"
+
+#: lib/modules/storage/web/settings.html.heex:29
+#, elixir-autogen, elixir-format
+msgid "External libraries"
+msgstr "Välised teegid"
+
+#: lib/modules/storage/web/settings.ex:543
+#, elixir-autogen, elixir-format
+msgid "Image variants, resizing and conversion"
+msgstr "Pildivariandid, suuruse muutmine ja teisendamine"
+
+#: lib/modules/storage/web/settings.ex:521
+#, elixir-autogen, elixir-format
+msgid "Not found on this server: %{tools}."
+msgstr "Selles serveris ei leitud: %{tools}."
+
+#: lib/modules/storage/web/settings.ex:548
+#, elixir-autogen, elixir-format
+msgid "PDF page count and metadata"
+msgstr "PDF-i lehekülgede arv ja metaandmed"
+
+#: lib/modules/storage/web/settings.ex:547
+#, elixir-autogen, elixir-format
+msgid "PDF preview images"
+msgstr "PDF-i eelvaatepildid"
+
+#: lib/modules/storage/web/settings.html.heex:611
+#, elixir-autogen, elixir-format
+msgid "Programs on this server that media processing runs."
+msgstr "Selle serveri programmid, mida meediatöötlus käivitab."
+
+#: lib/modules/storage/web/settings.html.heex:581
+#, elixir-autogen, elixir-format
+msgid "Put back what storage needs: a bucket, a writable bucket in the Default profile, a copy count its buckets can hold. Resets the default dimensions. Keeps your buckets, redundancy and files."
+msgstr "Taastab, mida salvestus vajab: bucketi, kirjutatava bucketi vaikeprofiilis ja koopiate arvu, mille selle bucketid mahutavad. Lähtestab vaikimisi dimensioonid. Sinu bucketid, redundantsus ja failid jäävad alles."
+
+#: lib/modules/storage/web/settings.html.heex:589
+#, elixir-autogen, elixir-format
+msgid "This resets the default dimensions and fixes missing bucket setup. Buckets, redundancy and uploaded files are kept. Continue?"
+msgstr "See lähtestab vaikimisi dimensioonid ja parandab puuduva bucketite seadistuse. Bucketid, redundantsus ja üleslaaditud failid jäävad alles. Kas jätkata?"
+
+#: lib/modules/storage/web/settings.html.heex:625
+#, elixir-autogen, elixir-format
+msgid "Tool"
+msgstr "Tööriist"
+
+#: lib/modules/storage/web/settings.html.heex:26
+#, elixir-autogen, elixir-format
+msgid "Tools"
+msgstr "Tööriistad"
+
+#: lib/modules/storage/web/settings.html.heex:626
+#, elixir-autogen, elixir-format
+msgid "Used for"
+msgstr "Kasutatakse"
+
+#: lib/modules/storage/web/settings.ex:546
+#, elixir-autogen, elixir-format
+msgid "Video dimensions, duration and capture date"
+msgstr "Video mõõtmed, kestus ja jäädvustamise kuupäev"
+
+#: lib/modules/storage/web/settings.ex:545
+#, elixir-autogen, elixir-format
+msgid "Video variants and thumbnails"
+msgstr "Videovariandid ja pisipildid"
+
+#: lib/modules/storage/web/settings.ex:544
+#, elixir-autogen, elixir-format
+msgid "Zoomable tiles for large images"
+msgstr "Suumitavad paanid suurte piltide jaoks"
+
+#: lib/modules/storage/web/settings.ex:493
+#, elixir-autogen, elixir-format
+msgid "added %{count} bucket to the Default profile"
+msgid_plural "added %{count} buckets to the Default profile"
+msgstr[0] "lisati %{count} bucket vaikeprofiili"
+msgstr[1] "lisati %{count} bucketit vaikeprofiili"
+
+#: lib/modules/storage/web/settings.ex:507
+#, elixir-autogen, elixir-format
+msgid "cleared the missing default bucket"
+msgstr "eemaldati puuduv vaikimisi bucket"
+
+#: lib/modules/storage/web/settings.ex:490
+#, elixir-autogen, elixir-format
+msgid "created bucket '%{name}'"
+msgstr "loodi bucket „%{name}“"
+
+#: lib/modules/storage/web/settings.ex:500
+#, elixir-autogen, elixir-format
+msgid "lowered the Default profile to %{count} copy"
+msgid_plural "lowered the Default profile to %{count} copies"
+msgstr[0] "vaikeprofiil vähendati %{count} koopiale"
+msgstr[1] "vaikeprofiil vähendati %{count} koopiale"
+
+#: lib/modules/storage/web/settings.ex:510
+#, elixir-autogen, elixir-format
+msgid "reset %{count} dimensions"
+msgstr "lähtestati %{count} dimensiooni"

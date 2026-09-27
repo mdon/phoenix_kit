@@ -55,10 +55,6 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
     form_annotated_thumbnails_enabled = annotated_thumbnails_enabled == "true"
     current_max_upload_size_mb = String.to_integer(max_upload_size_mb)
 
-    # Check system dependencies
-    imagemagick_status = Dependencies.check_imagemagick_cached()
-    ffmpeg_status = Dependencies.check_ffmpeg_cached()
-
     socket =
       socket
       |> assign(:current_path, current_path)
@@ -80,8 +76,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
       |> assign(:form_max_upload_size_mb, current_max_upload_size_mb)
       |> assign(:image_edit_mode, image_edit_mode)
       |> assign(:form_image_edit_mode, image_edit_mode)
-      |> assign(:imagemagick_status, imagemagick_status)
-      |> assign(:ffmpeg_status, ffmpeg_status)
+      |> assign(:external_tools, Dependencies.external_tools())
       |> assign(:active_tab, "buckets")
 
     {:ok, socket}
@@ -89,6 +84,11 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
 
   def handle_event("switch_settings_tab", %{"tab" => tab}, socket) do
     {:noreply, assign(socket, :active_tab, tab)}
+  end
+
+  def handle_event("recheck_external_tools", _params, socket) do
+    Dependencies.clear_cache()
+    {:noreply, assign(socket, :external_tools, Dependencies.external_tools())}
   end
 
   def handle_event("update_redundancy", %{"redundancy_copies" => copies}, socket) do
@@ -486,11 +486,66 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
 
   defp format_repairs(repairs) do
     Enum.map_join(repairs, ", ", fn
-      {:bucket_created, name} -> "created bucket '#{name}'"
-      {:dimensions_reset, count} -> "reset #{count} dimensions"
-      {:settings_reset, count} -> "reset #{count} settings"
+      {:bucket_created, name} ->
+        gettext("created bucket '%{name}'", name: name)
+
+      {:buckets_added_to_default, count} ->
+        ngettext(
+          "added %{count} bucket to the Default profile",
+          "added %{count} buckets to the Default profile",
+          count
+        )
+
+      {:copies_lowered, count} ->
+        ngettext(
+          "lowered the Default profile to %{count} copy",
+          "lowered the Default profile to %{count} copies",
+          count
+        )
+
+      :default_bucket_cleared ->
+        gettext("cleared the missing default bucket")
+
+      {:dimensions_reset, count} ->
+        gettext("reset %{count} dimensions", count: count)
     end)
   end
+
+  attr :tools, :list, required: true
+
+  defp missing_tools_banner(assigns) do
+    ~H"""
+    <div :if={@tools != []} role="alert" class="alert alert-warning alert-soft py-2 mb-6">
+      <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
+      <span class="text-sm">
+        {gettext("Not found on this server: %{tools}.", tools: Enum.map_join(@tools, ", ", & &1.name))}
+      </span>
+      <button
+        type="button"
+        phx-click="switch_settings_tab"
+        phx-value-tab="external_libraries"
+        class="btn btn-ghost btn-xs"
+      >
+        {gettext("Details")}
+      </button>
+    </div>
+    """
+  end
+
+  # The missing tools worth a banner: the tile maker only matters while
+  # tiles are on.
+  defp missing_tools(tools, tile_generation_enabled?) do
+    Enum.filter(tools, fn tool ->
+      match?({:error, _}, tool.status) and (tool.id != :magick or tile_generation_enabled?)
+    end)
+  end
+
+  defp tool_purpose(:images), do: gettext("Image variants, resizing and conversion")
+  defp tool_purpose(:tiles), do: gettext("Zoomable tiles for large images")
+  defp tool_purpose(:video), do: gettext("Video variants and thumbnails")
+  defp tool_purpose(:video_metadata), do: gettext("Video dimensions, duration and capture date")
+  defp tool_purpose(:pdf_previews), do: gettext("PDF preview images")
+  defp tool_purpose(:pdf_metadata), do: gettext("PDF page count and metadata")
 
   defp reload_settings_data(socket) do
     # Reload buckets

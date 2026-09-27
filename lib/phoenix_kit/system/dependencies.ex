@@ -2,8 +2,9 @@ defmodule PhoenixKit.System.Dependencies do
   @moduledoc """
   System dependency checker for PhoenixKit.
 
-  Probes for required system tools like ImageMagick and FFmpeg.
-  Results are cached to avoid repeated system calls.
+  Probes for the external programs PhoenixKit shells out to (ImageMagick,
+  FFmpeg, Poppler); `external_tools/0` lists them all. Results are cached
+  to avoid repeated system calls.
   """
 
   require Logger
@@ -145,6 +146,117 @@ defmodule PhoenixKit.System.Dependencies do
     end
   end
 
+  # The external programs PhoenixKit shells out to. `args` print the
+  # version; `pattern` pulls the bare version number out of that output.
+  @tools [
+    %{
+      id: :imagemagick,
+      name: "ImageMagick",
+      command: "identify",
+      args: ["-version"],
+      pattern: ~r/ImageMagick\s+(\S+)/,
+      used_for: :images
+    },
+    %{
+      id: :magick,
+      name: "ImageMagick 7",
+      command: "magick",
+      args: ["-version"],
+      pattern: ~r/ImageMagick\s+(\S+)/,
+      used_for: :tiles
+    },
+    %{
+      id: :ffmpeg,
+      name: "FFmpeg",
+      command: "ffmpeg",
+      args: ["-version"],
+      pattern: ~r/version\s+(\S+)/,
+      used_for: :video
+    },
+    %{
+      id: :ffprobe,
+      name: "FFprobe",
+      command: "ffprobe",
+      args: ["-version"],
+      pattern: ~r/version\s+(\S+)/,
+      used_for: :video_metadata
+    },
+    %{
+      id: :pdftoppm,
+      name: "Poppler pdftoppm",
+      command: "pdftoppm",
+      args: ["-v"],
+      pattern: ~r/version\s+(\S+)/,
+      used_for: :pdf_previews
+    },
+    %{
+      id: :pdfinfo,
+      name: "Poppler pdfinfo",
+      command: "pdfinfo",
+      args: ["-v"],
+      pattern: ~r/version\s+(\S+)/,
+      used_for: :pdf_metadata
+    }
+  ]
+
+  @typedoc "One external program and whether it was found."
+  @type tool :: %{
+          id: atom(),
+          name: String.t(),
+          command: String.t(),
+          used_for: atom(),
+          status: {:ok, String.t()} | {:error, :not_installed}
+        }
+
+  @doc """
+  Every external program PhoenixKit uses, each with its detected status:
+  `{:ok, version}` (the bare version number, or the first line of the
+  version output when no number is found) or `{:error, :not_installed}`.
+
+  Cached like the single checks; `clear_cache/0` forces a fresh probe.
+  """
+  @spec external_tools() :: [tool()]
+  def external_tools do
+    Enum.map(@tools, fn tool ->
+      status =
+        case get_cached("tool_#{tool.id}") do
+          nil ->
+            result = probe_tool(tool)
+            cache_result("tool_#{tool.id}", result)
+            result
+
+          cached_result ->
+            cached_result
+        end
+
+      tool
+      |> Map.take([:id, :name, :command, :used_for])
+      |> Map.put(:status, status)
+    end)
+  end
+
+  # A tool is found by its executable; its version output is read whatever
+  # the exit code (`pdftoppm -v` exits non-zero on older poppler).
+  defp probe_tool(tool) do
+    case System.find_executable(tool.command) do
+      nil ->
+        {:error, :not_installed}
+
+      path ->
+        {output, _code} = System.cmd(path, tool.args, stderr_to_stdout: true)
+
+        case Regex.run(tool.pattern, output) do
+          [_, version] ->
+            {:ok, version}
+
+          _ ->
+            {:ok, output |> String.split("\n") |> List.first("") |> String.trim()}
+        end
+    end
+  rescue
+    _error -> {:error, :not_installed}
+  end
+
   @doc """
   Clear the dependency check cache.
 
@@ -154,6 +266,7 @@ defmodule PhoenixKit.System.Dependencies do
     :persistent_term.erase(:phoenix_kit_deps_imagemagick)
     :persistent_term.erase(:phoenix_kit_deps_ffmpeg)
     :persistent_term.erase(:phoenix_kit_deps_poppler)
+    Enum.each(@tools, &:persistent_term.erase(:"phoenix_kit_deps_tool_#{&1.id}"))
     :ok
   end
 
