@@ -16349,3 +16349,18 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Folder restored"
 msgstr ""
+
+#: lib/phoenix_kit_web/components/core/table_default.ex:308
+#, elixir-autogen, elixir-format
+msgid "Card view"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/core/table_default.ex:321
+#, elixir-autogen, elixir-format
+msgid "Comfortable view"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/core/table_default.ex:334
+#, elixir-autogen, elixir-format
+msgid "Compact view"
+msgstr ""

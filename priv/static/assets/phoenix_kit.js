@@ -1772,13 +1772,6 @@ if (typeof window.Chart === "undefined") {
         this.lastCursorPosition = content ? content.length : 0;
         this.dirty = false;
       });
-      // Back-compat: publishing pushes "changes-status" on every edit. Use it to
-      // drive the unsaved-changes beforeunload guard without touching its many
-      // call sites.
-      this.handleEvent("changes-status", ({ has_changes }) => {
-        this.dirty = !!has_changes;
-      });
-
       // Browser-exit protection for unsaved changes.
       if (this.protectNavigation) {
         this._beforeUnload = (e) => {
@@ -1800,7 +1793,7 @@ if (typeof window.Chart === "undefined") {
       this._revealToolbars();
       // Trust the server once it reports a saved state — otherwise the local
       // `dirty` flag stays true for the page's life after the first keystroke
-      // (only set-content / changes-status clear it, which not every host pushes)
+      // (only set-content clears it, which not every host pushes)
       // and the beforeunload guard fires a bogus "unsaved changes" prompt post-save.
       if (this.el.dataset.saveStatus === "saved") this.dirty = false;
     },

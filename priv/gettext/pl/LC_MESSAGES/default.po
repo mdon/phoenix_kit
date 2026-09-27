@@ -16385,3 +16385,18 @@ msgstr "Plik przywrócony"
 #, elixir-autogen, elixir-format
 msgid "Folder restored"
 msgstr "Folder przywrócony"
+
+#: lib/phoenix_kit_web/components/core/table_default.ex:308
+#, elixir-autogen, elixir-format
+msgid "Card view"
+msgstr "Widok kart"
+
+#: lib/phoenix_kit_web/components/core/table_default.ex:321
+#, elixir-autogen, elixir-format
+msgid "Comfortable view"
+msgstr "Widok komfortowy"
+
+#: lib/phoenix_kit_web/components/core/table_default.ex:334
+#, elixir-autogen, elixir-format
+msgid "Compact view"
+msgstr "Widok kompaktowy"

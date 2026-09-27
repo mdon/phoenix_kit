@@ -305,7 +305,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
                 "btn btn-sm join-item",
                 @view_mode == "card" && "btn-active"
               ]}
-              title="Card view"
+              title={gettext("Card view")}
             >
               <.icon name="hero-squares-2x2" class="w-4 h-4" />
             </button>
@@ -318,7 +318,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
                 "btn btn-sm join-item",
                 @view_mode == "comfy" && "btn-active"
               ]}
-              title="Comfortable view"
+              title={gettext("Comfortable view")}
             >
               <.icon name="hero-bars-3" class="w-4 h-4" />
             </button>
@@ -331,7 +331,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
                 "btn btn-sm join-item",
                 @view_mode == "table" && "btn-active"
               ]}
-              title="Compact view"
+              title={gettext("Compact view")}
             >
               <.icon name="hero-bars-4" class="w-4 h-4" />
             </button>

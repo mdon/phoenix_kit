@@ -16358,3 +16358,18 @@ msgstr "Fail taastatud"
 #, elixir-autogen, elixir-format
 msgid "Folder restored"
 msgstr "Kaust taastatud"
+
+#: lib/phoenix_kit_web/components/core/table_default.ex:308
+#, elixir-autogen, elixir-format
+msgid "Card view"
+msgstr "Kaardivaade"
+
+#: lib/phoenix_kit_web/components/core/table_default.ex:321
+#, elixir-autogen, elixir-format
+msgid "Comfortable view"
+msgstr "Avar vaade"
+
+#: lib/phoenix_kit_web/components/core/table_default.ex:334
+#, elixir-autogen, elixir-format
+msgid "Compact view"
+msgstr "Kompaktne vaade"
