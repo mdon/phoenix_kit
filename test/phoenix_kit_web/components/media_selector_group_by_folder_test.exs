@@ -62,11 +62,11 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorGroupByFolderTest do
     folder
   end
 
-  defp file!(folder) do
+  defp file!(folder, opts \\ []) do
     n = System.unique_integer([:positive])
 
     Repo.insert!(%StorageFile{
-      original_file_name: "g#{n}.png",
+      original_file_name: Keyword.get(opts, :name, "g#{n}.png"),
       file_name: "g#{n}.png",
       mime_type: "image/png",
       file_type: "image",
@@ -78,6 +78,19 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorGroupByFolderTest do
       folder_uuid: folder.uuid,
       user_uuid: Process.get(:owner_uuid)
     })
+  end
+
+  # Pins a file's inserted_at (the column is second-precision, so files made
+  # in one test otherwise tie). The ordering tests date their files so that
+  # newest-first alone would put them in the wrong order: only the folder
+  # sort gets them right.
+  defp dated!(file, inserted_at) do
+    Repo.update_all(
+      from(f in StorageFile, where: f.uuid == ^file.uuid),
+      set: [inserted_at: inserted_at]
+    )
+
+    file
   end
 
   defp open(conn, scope, opts \\ []) do
@@ -122,10 +135,12 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorGroupByFolderTest do
 
   test "files sit under their folder: the scope folder first, subfolders in path order",
        %{conn: conn} = ctx do
-    root_file = file!(ctx.scope)
-    sub1_file = file!(ctx.sub1)
-    deep_file = file!(ctx.tootmine)
-    sub2_file = file!(ctx.sub2)
+    # Made out of path order, the deepest-in-path file newest: newest-first
+    # alone would list sub-2 first and the scope folder last.
+    sub2_file = file!(ctx.sub2) |> dated!(~U[2026-01-04 00:00:00Z])
+    root_file = file!(ctx.scope) |> dated!(~U[2026-01-01 00:00:00Z])
+    deep_file = file!(ctx.tootmine) |> dated!(~U[2026-01-03 00:00:00Z])
+    sub1_file = file!(ctx.sub1) |> dated!(~U[2026-01-02 00:00:00Z])
 
     # A file living elsewhere, linked into sub-2: grouped where it is linked.
     outside = folder!("outside-#{System.unique_integer([:positive])}")
@@ -144,6 +159,51 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorGroupByFolderTest do
 
     # The heading counts the folder's files, not just the ones on this page.
     assert has_element?(view, "#{group_id(ctx.sub2)} [data-media-group-count]", "2 files")
+  end
+
+  test "a file whose home folder is in the scope stays there, even when also linked into another scope folder",
+       %{conn: conn} = ctx do
+    home_file = file!(ctx.sub1)
+    {:ok, _} = Storage.create_folder_link(ctx.sub2.uuid, home_file.uuid)
+    sub2_file = file!(ctx.sub2)
+
+    {:ok, view, html} = open(conn, ctx.scope)
+
+    assert headings(html) == ["sub-1", "sub-2"]
+    assert tile_in?(view, ctx.sub1, home_file)
+    refute tile_in?(view, ctx.sub2, home_file)
+    assert tile_in?(view, ctx.sub2, sub2_file)
+    assert has_element?(view, "#{group_id(ctx.sub1)} [data-media-group-count]", "1 file")
+    assert has_element?(view, "#{group_id(ctx.sub2)} [data-media-group-count]", "1 file")
+
+    assert html
+           |> LazyHTML.from_fragment()
+           |> LazyHTML.query(~s(div[phx-value-file-uuid="#{home_file.uuid}"]))
+           |> Enum.count() == 1
+  end
+
+  test "a search narrows the groups: headings and counts follow the matching files",
+       %{conn: conn} = ctx do
+    file!(ctx.scope, name: "cat-scope.png")
+    file!(ctx.sub1, name: "dog-sub1.png")
+    file!(ctx.sub1, name: "cat-sub1.png")
+    file!(ctx.sub2, name: "dog-sub2.png")
+
+    {:ok, view, html} = open(conn, ctx.scope)
+
+    assert headings(html) == [ctx.scope.name, "sub-1", "sub-2"]
+    assert has_element?(view, "#{group_id(ctx.sub1)} [data-media-group-count]", "2 files")
+
+    # The search row only shows for a locked picker once the library is big;
+    # the event is what matters here.
+    html =
+      view
+      |> with_target("#media-selector-modal-backdrop-picker")
+      |> render_submit("search", %{"search" => %{"query" => "cat"}})
+
+    assert headings(html) == [ctx.scope.name, "sub-1"]
+    assert has_element?(view, "#{group_id(ctx.sub1)} [data-media-group-count]", "1 file")
+    refute has_element?(view, group_id(ctx.sub2))
   end
 
   test "a folder cut by the page break carries its heading onto the next page, marked continued",
@@ -212,10 +272,10 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorGroupByFolderTest do
 
   test "folder_labels name folders in the headings in place of their stored names",
        %{conn: conn} = ctx do
-    file!(ctx.scope)
-    file!(ctx.sub1)
-    file!(ctx.tootmine)
-    file!(ctx.sub2)
+    file!(ctx.sub2) |> dated!(~U[2026-01-04 00:00:00Z])
+    file!(ctx.tootmine) |> dated!(~U[2026-01-03 00:00:00Z])
+    file!(ctx.scope) |> dated!(~U[2026-01-01 00:00:00Z])
+    file!(ctx.sub1) |> dated!(~U[2026-01-02 00:00:00Z])
 
     labels = %{ctx.sub1.uuid => "No. 30-1 — Kitchen — Main house"}
     {:ok, _view, html} = open(conn, ctx.scope, labels: labels)
