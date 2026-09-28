@@ -353,7 +353,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # V190 (`generate_baseline.exs` still needs the pre-squash checkout this
   # environment does not have).
   #
-  # V189 (2026-09-08, per-domain currency Э5) declares NO object here, and
+  # V189 (2026-09-08, per-domain currency E5) declares NO object here, and
   # cannot: it is a pure data migration — `DELETE FROM phoenix_kit_settings
   # WHERE "key" = 'billing_default_currency'` (a dead setting seeded by V135
   # that nothing reads, and that actively disagreed with the currency
@@ -408,7 +408,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # `chain_hash` restamped over the 51 shipped files; the real-database
   # integration suite re-ran clean against a DB migrated through V185.
   #
-  # V184 (2026-09-05, per-domain currency Э0) declares NO object here, and
+  # V184 (2026-09-05, per-domain currency E0) declares NO object here, and
   # cannot: it is a pure data migration — `DELETE FROM phoenix_kit_settings
   # WHERE "key" = 'shop_currency'` (a dead setting seeded by V135 that nothing
   # reads), plus the version-marker COMMENT. No table, column, index or
