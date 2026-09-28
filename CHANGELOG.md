@@ -1,3 +1,12 @@
+## 2.41.3 - 2026-09-28
+
+### Changed
+
+- Source comments that quoted Russian text or used Cyrillic stage labels
+  (the doctor's FK-probe timeout wording, the V184/V189 per-domain currency
+  stages, two settings-test comments) are written in English (#878).
+- Dependency lock refreshed: `mint` 1.11.0, `quic` 2.1.0.
+
 ## 2.41.2 - 2026-09-27
 
 ### Added
