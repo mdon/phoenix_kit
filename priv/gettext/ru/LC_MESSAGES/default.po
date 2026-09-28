@@ -16454,3 +16454,8 @@ msgstr[2] "профиль «По умолчанию» снижен до %{count}
 #, elixir-autogen, elixir-format
 msgid "reset %{count} dimensions"
 msgstr "сброшено размеров: %{count}"
+
+#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:325
+#, elixir-autogen, elixir-format
+msgid "continued"
+msgstr "продолжение"

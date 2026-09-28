@@ -16413,3 +16413,8 @@ msgstr[1] "vaikeprofiil vähendati %{count} koopiale"
 #, elixir-autogen, elixir-format
 msgid "reset %{count} dimensions"
 msgstr "lähtestati %{count} dimensiooni"
+
+#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:325
+#, elixir-autogen, elixir-format
+msgid "continued"
+msgstr "jätk"

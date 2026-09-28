@@ -16404,3 +16404,8 @@ msgstr[1] "profilo Predefinito ridotto a %{count} copie"
 #, elixir-autogen, elixir-format
 msgid "reset %{count} dimensions"
 msgstr "reimpostate %{count} dimensioni"
+
+#: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:325
+#, elixir-autogen, elixir-format
+msgid "continued"
+msgstr "continua"
