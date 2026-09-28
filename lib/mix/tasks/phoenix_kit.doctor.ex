@@ -1285,7 +1285,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   # reach this function — it only exists to make the two timeout shapes say
   # "time limit exceeded" instead of a raw Postgres cancellation code or a
   # "tcp recv: closed" pool message, so the doctor's report uses
-  # operator-facing language ("не проверено (превышен предел)") rather than
+  # operator-facing language ("not checked, not clean") rather than
   # leaking a database/pool error that means the same thing.
   #
   # Exposed (not `defp`) and `@doc false`, same reason as the other pure

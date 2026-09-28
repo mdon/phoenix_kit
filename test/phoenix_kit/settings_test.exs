@@ -188,7 +188,7 @@ defmodule PhoenixKit.SettingsTest do
   # S015 pt.1-3: oauth_*/aws_* live in this context, not
   # PhoenixKit.Integrations — `PhoenixKit.Integrations.Encryption`'s
   # single-value API (`encrypt_value/1`/`decrypt_value/1`) is reused here
-  # poштучно (encrypt_fields/1 assumes an integration-shaped map, which a
+  # one value at a time (encrypt_fields/1 assumes an integration-shaped map, which a
   # flat setting is not). New writes only — an existing plaintext row on a
   # live install is a separate, live-database migration step, not implied
   # by this changeset (see `Setting.maybe_encrypt_restricted_value/1`).
@@ -229,7 +229,7 @@ defmodule PhoenixKit.SettingsTest do
     end
 
     # State 2 of 3: no prefix at all — legacy, returned as-is, but tagged
-    # distinctly from state 1 (that is what "отличимо" in the card means:
+    # distinctly from state 1 (that is what "distinguishable" in the card means:
     # `decrypt_restricted_value/1` itself, not `get_setting/1`, can tell
     # "already encrypted" apart from "predates encryption").
     test "decrypt_restricted_value/1: an unprefixed value is legacy, not decrypted" do
