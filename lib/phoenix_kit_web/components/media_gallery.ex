@@ -37,6 +37,13 @@ defmodule PhoenixKitWeb.Components.MediaGallery do
     featured one and drag-reordering changes the feature. Default `false` so
     existing consumers aren't surprised.
   - `scope_folder_id` — folder scope passed to the picker
+  - `group_by_folder` — passed to the picker: `true` lists a scope that holds
+    subfolders grouped by folder, under one heading each (see
+    `MediaSelectorModal`); default `false`
+  - `folder_labels` — passed to the picker: `%{folder_uuid => name}` shown in
+    its folder headings instead of the stored folder names; default `%{}`
+  - `picker_size` — the picker's `size`: `:default` or `:full` (the whole
+    viewport, more files a page); default `:default`
   - `phoenix_kit_current_user` — required for upload in the picker
   - `readonly` — when `true`, hides the pick button, remove buttons, and DnD;
     preview (lightbox) still works; default `false`
@@ -118,6 +125,9 @@ defmodule PhoenixKitWeb.Components.MediaGallery do
       |> assign_new(:cols, fn -> 4 end)
       |> assign_new(:featured_first, fn -> false end)
       |> assign_new(:scope_folder_id, fn -> nil end)
+      |> assign_new(:group_by_folder, fn -> false end)
+      |> assign_new(:picker_size, fn -> :default end)
+      |> assign_new(:folder_labels, fn -> %{} end)
       |> assign_new(:phoenix_kit_current_user, fn -> nil end)
       |> assign_new(:readonly, fn -> false end)
       |> assign_new(:max_count, fn -> nil end)
