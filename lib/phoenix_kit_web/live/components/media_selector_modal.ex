@@ -808,10 +808,13 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
 
   # One page of files, each paired with its folder group: newest first, or —
   # grouped — in folder order, then newest first within a folder.
+  # `inserted_at` is second-precision, so a batch upload ties; the uuid
+  # (UUIDv7, time-ordered) breaks the tie, or LIMIT/OFFSET pages have no
+  # stable order and a file can show on two pages while another shows on none.
   defp page_files(query, nil, per_page, offset, repo) do
     files =
       query
-      |> order_by([f], desc: f.inserted_at)
+      |> order_by([f], desc: f.inserted_at, desc: f.uuid)
       |> limit(^per_page)
       |> offset(^offset)
       |> repo.all()
@@ -833,7 +836,8 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorModal do
             f.folder_uuid,
             lp.pos
           ),
-        desc: f.inserted_at
+        desc: f.inserted_at,
+        desc: f.uuid
       )
       |> select(
         [f, lp],

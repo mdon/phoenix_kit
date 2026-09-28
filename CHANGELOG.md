@@ -1,3 +1,26 @@
+## 2.41.4 - 2026-09-28
+
+### Added
+
+- `MediaSelectorModal` `group_by_folder: true` — a picker scoped to a folder
+  with subfolders lists its files folder by folder (the scope folder first,
+  then subfolders in path order with numbers sorted by value, newest first
+  within each), each run opened by a heading tile with the folder's path and
+  file count; a folder cut by a page break repeats its heading marked
+  "continued". A linked-in file groups where it is linked unless its home
+  folder is inside the scope (#879).
+- `MediaSelectorModal` `folder_labels` (`%{folder_uuid => name}`) names
+  folders in those headings, and `size: :full` opens the picker over the
+  whole viewport with up to 10 columns and 60 files a page (#879).
+- `MediaGallery` forwards `group_by_folder`, `folder_labels` and
+  `picker_size` to its picker (#879).
+
+### Fixed
+
+- The media picker's pages have a stable order: files uploaded in the same
+  second (`inserted_at` is second-precision) are tie-broken by uuid, so
+  paging no longer repeats one file and skips another.
+
 ## 2.41.3 - 2026-09-28
 
 ### Changed

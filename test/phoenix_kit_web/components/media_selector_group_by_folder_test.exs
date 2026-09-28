@@ -215,6 +215,7 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorGroupByFolderTest do
 
     assert headings(html) == ["sub-1"]
     refute has_element?(view, "#{group_id(ctx.sub1)} [data-continued]")
+    page1 = Enum.filter(sub1_files, &tile_in?(view, ctx.sub1, &1))
 
     html =
       view
@@ -227,8 +228,13 @@ defmodule PhoenixKitWeb.Live.Components.MediaSelectorGroupByFolderTest do
     assert has_element?(view, "#{group_id(ctx.sub1)} [data-media-group-count]", "3 files")
     assert tile_in?(view, ctx.sub2, sub2_file)
 
-    # Every sub-1 file is on page 1 or page 2, each exactly once.
-    assert Enum.count(sub1_files, &tile_in?(view, ctx.sub1, &1)) == 1
+    # Every sub-1 file is on page 1 or page 2, each exactly once — the files
+    # share one inserted_at second, so this needs a stable tiebreak.
+    page2 = Enum.filter(sub1_files, &tile_in?(view, ctx.sub1, &1))
+    assert length(page1) == 2 and length(page2) == 1
+
+    assert Enum.sort(Enum.map(page1 ++ page2, & &1.uuid)) ==
+             Enum.sort(Enum.map(sub1_files, & &1.uuid))
   end
 
   test "without group_by_folder the picker keeps its flat, newest-first grid",
