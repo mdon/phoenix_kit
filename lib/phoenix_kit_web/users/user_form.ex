@@ -680,9 +680,12 @@ defmodule PhoenixKitWeb.Users.UserForm do
       # the only thing wrong was the screen saying "User updated successfully"
       # about a password that had not moved. The user it belonged to then
       # could not sign in with it and nobody had been told why.
+      #
+      # The cheap comparison goes first: `credential_authority_now/2` is a
+      # database read, and an ordinary save asks for no credential change.
       credentials_refused? =
-        not credential_authority_now(socket, user) and
-          credential_change_attempted?(user, profile_params)
+        credential_change_attempted?(user, profile_params) and
+          not credential_authority_now(socket, user)
 
       handle_update_result(socket, result, credentials_refused?)
     else
@@ -928,7 +931,7 @@ defmodule PhoenixKitWeb.Users.UserForm do
      |> put_flash(
        :error,
        gettext(
-         "Saved, but the password and email were not changed — you don't have permission to manage this user's credentials."
+         "Saved, but the password, email and username were not changed — you don't have permission to manage this user's credentials."
        )
      )}
   end

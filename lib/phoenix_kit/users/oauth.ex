@@ -56,7 +56,10 @@ if Code.ensure_loaded?(Ueberauth) do
        address attached to a provider account signs in as its owner, so the
        provider must ASSERT it verified the address. Without that assertion the
        callback is refused with `{:error, :provider_email_unverified}`.
-    3. **No local account** registers a new one.
+    3. **No local account** registers a new one — unless `allow_registration`
+       is off, in which case the callback is refused with
+       `{:error, :registration_disabled}`. Signing in to an existing account
+       (cases 1 and 2) is never affected by that switch.
 
     The assertion requirement can be lifted with the `oauth_require_verified_email`
     setting (default `true`) for a deployment whose provider does not surface a

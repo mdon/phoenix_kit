@@ -1,3 +1,25 @@
+## 2.41.5 - 2026-09-29
+
+### Fixed
+
+- A `MediaBrowser` scoped to a folder (`scope_folder_id`) reads its root as
+  the scope folder when a per-file action works out where a file appears, so
+  linked-in files no longer fall through to their home folder (#880).
+- Removing a file the browser does not show now answers with a "Failed to
+  remove file" flash instead of doing nothing (#880).
+- OAuth sign-in no longer creates an account while `allow_registration` is
+  off; the callback redirects to log-in with "Registration is currently
+  disabled" and signing in to an existing account is unaffected (#880).
+- The admin user form says so when a submitted password, email or username
+  change was refused for lack of rank, instead of "User updated successfully"
+  (#880). An ordinary save no longer pays a database read to decide that.
+
+### i18n
+
+- The three strings #880 added are extracted and translated in all locales;
+  the extract had fuzzy-matched "Failed to remove file" onto "Failed to
+  restore file".
+
 ## 2.41.4 - 2026-09-28
 
 ### Added
