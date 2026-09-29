@@ -2858,7 +2858,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
        |> put_flash(:info, flash)
        |> reload_current_page()}
     else
-      {:noreply, socket}
+      # Nothing in this browser shows that file: a stale row, a uuid from
+      # another listing, a forged one. Refusing is right; refusing in
+      # silence is not — the button was pressed and the screen has to
+      # answer for it.
+      {:noreply, put_flash(socket, :error, gettext("Failed to remove file"))}
     end
   end
 
@@ -3564,8 +3568,17 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # the root, on the file's home). Nil only when no folder view shows
   # it: the root / All Files / search, where actions address the file.
   defp appearance_folder(socket, file) do
+    # The root of a SCOPED browser is the scope folder, not the system root —
+    # the same reading `move_file_to_folder` has always applied to a drop on
+    # "root". A host embeds the browser scoped to a folder of its own (a
+    # sub-order's Files tab), opens it there with no current folder, and the
+    # files it shows are usually links: they live in the order's folder and
+    # this one points at them. Without the scope in the candidates nothing
+    # here appears to be "in" a folder at all, and a per-file action falls
+    # through to asking where the file LIVES.
     candidates =
-      List.wrap(current_folder_uuid(socket)) ++ (socket.assigns[:expanded_stacks] || [])
+      List.wrap(current_folder_uuid(socket) || scope_folder_id(socket)) ++
+        (socket.assigns[:expanded_stacks] || [])
 
     Enum.find(candidates, fn folder_uuid ->
       to_string(file.folder_uuid) == to_string(folder_uuid) or

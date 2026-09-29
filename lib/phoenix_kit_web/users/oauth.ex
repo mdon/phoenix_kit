@@ -319,6 +319,22 @@ if Code.ensure_loaded?(Ueberauth) do
           )
           |> redirect(to: Routes.path("/users/log-in"))
 
+        {:error, :registration_disabled} ->
+          # No new accounts anywhere while `allow_registration` is off. Said
+          # plainly, because "authentication failed" would send someone to
+          # retry a provider that is working perfectly well.
+          Logger.info(
+            "PhoenixKit: OAuth registration refused for #{auth.info.email} via " <>
+              "#{auth.provider} — registration is disabled"
+          )
+
+          conn
+          |> put_flash(
+            :error,
+            gettext("Registration is currently disabled. Contact an administrator for access.")
+          )
+          |> redirect(to: Routes.path("/users/log-in"))
+
         {:error, reason} ->
           Logger.error("PhoenixKit: OAuth authentication error: #{inspect(reason)}")
 

@@ -76,6 +76,16 @@ if Code.ensure_loaded?(Ueberauth) do
         existing_user = Auth.get_user_by_email(oauth_data.email) ->
           attach_to_existing_user(existing_user, oauth_data)
 
+        # `allow_registration` is the wide switch: no new accounts, by any
+        # door. It hid the Register link and closed the password and
+        # magic-link routes while this branch went on creating accounts, so
+        # a provider account nobody here had seen before still arrived, was
+        # registered, and was signed in — registration closed, account
+        # created. Signing IN is untouched: the two branches above reach
+        # accounts that already exist.
+        not registration_open?() ->
+          {:error, :registration_disabled}
+
         true ->
           case register_oauth_user(oauth_data, track_geolocation, ip_address) do
             {:ok, user} -> {:ok, user, :created}
@@ -83,6 +93,9 @@ if Code.ensure_loaded?(Ueberauth) do
           end
       end
     end
+
+    defp registration_open?,
+      do: PhoenixKit.Settings.get_boolean_setting("allow_registration", true)
 
     # The account this external identity is already attached to, if any.
     #

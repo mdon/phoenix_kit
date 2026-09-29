@@ -674,7 +674,17 @@ defmodule PhoenixKitWeb.Users.UserForm do
         |> assign(:avatar_changed, false)
         |> assign(:pending_avatar_file_uuid, nil)
 
-      handle_update_result(socket, result)
+      # The credential fields were dropped for lack of rank while this
+      # submission actually asked to change one. The rest of the save is
+      # committed — that is the established behaviour and a test pins it — so
+      # the only thing wrong was the screen saying "User updated successfully"
+      # about a password that had not moved. The user it belonged to then
+      # could not sign in with it and nobody had been told why.
+      credentials_refused? =
+        not credential_authority_now(socket, user) and
+          credential_change_attempted?(user, profile_params)
+
+      handle_update_result(socket, result, credentials_refused?)
     else
       {:error, %Ecto.Changeset{} = changeset} ->
         handle_profile_update_error(socket, changeset, user_params)
@@ -733,16 +743,52 @@ defmodule PhoenixKitWeb.Users.UserForm do
     # the refusal arrived as `{:error, :insufficient_permissions}`, which the
     # clause below expects to be a changeset. The assign stays as the UI's
     # answer; the write path asks for a fresh one.
-    profile_params =
-      if credential_authority_now(socket, user) do
-        profile_params
-      else
-        # `username` goes with them: it is the second thing
-        # `get_user_by_email_or_username_and_password/3` accepts, so rewriting it
-        # takes away a sign-in route from an account the actor may not manage.
-        Map.drop(profile_params, ["password", "email", "username"])
-      end
+    authority? = credential_authority_now(socket, user)
 
+    # Dropping them and carrying on is right for a save that only LOOKS like it
+    # touches credentials — the form submits `email` and `username` on every
+    # save, unchanged — but it was also what happened when an actor really did
+    # type a new password for an account out of their rank: the field was
+    # discarded, the profile update went through, and the page said "User
+    # updated successfully." The password had not changed, so the person it
+    # belonged to could not sign in with it, and nothing on screen said why.
+    #
+    # An actual attempt is now refused out loud; an untouched field is still
+    # dropped in silence, because nothing was asked for.
+    write_profile(socket, user, credential_params(profile_params, authority?))
+  end
+
+  # `username` goes with the other two: it is the second thing
+  # `get_user_by_email_or_username_and_password/3` accepts, so rewriting it
+  # takes away a sign-in route from an account the actor may not manage.
+  @credential_fields ~w(password email username)
+
+  defp credential_params(profile_params, true), do: profile_params
+  defp credential_params(profile_params, false), do: Map.drop(profile_params, @credential_fields)
+
+  # Did this submission ask for a credential CHANGE, as opposed to echoing back
+  # what is already stored?
+  defp credential_change_attempted?(user, params) do
+    submitted_password?(params) or
+      rewrites?(params, "email", user.email) or
+      rewrites?(params, "username", user.username)
+  end
+
+  defp submitted_password?(params) do
+    case params["password"] do
+      value when is_binary(value) -> String.trim(value) != ""
+      _ -> false
+    end
+  end
+
+  defp rewrites?(params, key, current) do
+    case params[key] do
+      value when is_binary(value) -> String.trim(value) != to_string(current || "")
+      _ -> false
+    end
+  end
+
+  defp write_profile(socket, user, profile_params) do
     password_provided =
       socket.assigns.show_password_field &&
         Map.has_key?(profile_params, "password") &&
@@ -873,7 +919,21 @@ defmodule PhoenixKitWeb.Users.UserForm do
     end
   end
 
-  defp handle_update_result(socket, {:ok, _result}) do
+  defp handle_update_result(socket, {:ok, _result} = result, true) do
+    {:noreply, socket} = handle_update_result(socket, result, false)
+
+    {:noreply,
+     socket
+     |> Phoenix.LiveView.clear_flash(:info)
+     |> put_flash(
+       :error,
+       gettext(
+         "Saved, but the password and email were not changed — you don't have permission to manage this user's credentials."
+       )
+     )}
+  end
+
+  defp handle_update_result(socket, {:ok, _result}, _refused) do
     # _result could be either the updated user or role assignments (from sync_user_roles)
     # In both cases, we need to reload the user from the database to get the fresh data
     user_uuid = socket.assigns.user.uuid
@@ -889,7 +949,7 @@ defmodule PhoenixKitWeb.Users.UserForm do
     {:noreply, socket}
   end
 
-  defp handle_update_result(socket, {:error, reason}) do
+  defp handle_update_result(socket, {:error, reason}, _refused) do
     error_message = format_role_update_error(reason)
 
     socket =
