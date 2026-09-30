@@ -478,44 +478,48 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
   end
 
   @doc """
-  Removes everything of a user's own storage (V206): their profiles, then their
-  buckets. Called once their libraries have been purged (the profiles' FK from
-  libraries is RESTRICT, and a bucket that still holds file locations cannot be
-  deleted: either leaves the rows and is reported).
+  Removes a user's own profile (V206) and the buckets that were in it and are
+  in no profile now: what is left of a user's storage once their library is
+  purged. A site profile, or one a library still uses, is left alone.
 
-  Returns `:ok`, or `{:error, reason}` for the first thing that could not go.
+  Returns `:ok`, or `{:error, reason}` for the first bucket that could not go
+  (one that still holds file locations cannot be deleted).
   """
-  @spec delete_user_storage(String.t()) :: :ok | {:error, term()}
-  def delete_user_storage(owner_uuid) when is_binary(owner_uuid) do
-    profiles = from(p in StorageProfile, where: p.owner_uuid == ^owner_uuid) |> repo().all()
+  @spec delete_user_profile(term()) :: :ok | {:error, term()}
+  def delete_user_profile(profile_uuid) do
+    case get_profile(profile_uuid) do
+      %StorageProfile{owner_uuid: owner} = profile when is_binary(owner) ->
+        if libraries_using(profile.uuid) > 0,
+          do: {:error, :in_use},
+          else: remove_user_profile(profile)
 
-    with :ok <- each_ok(profiles, &delete_user_profile/1) do
-      owner_uuid
-      |> PhoenixKit.Modules.Storage.list_owned_buckets()
-      |> each_ok(fn bucket ->
-        case PhoenixKit.Modules.Storage.delete_bucket(bucket) do
-          {:ok, _} -> :ok
-          {:error, reason} -> {:error, reason}
-        end
-      end)
+      _ ->
+        :ok
     end
   end
 
-  defp delete_user_profile(profile) do
-    if libraries_using(profile.uuid) > 0 do
-      {:error, :in_use}
-    else
-      case repo().transaction(fn ->
-             from(r in ProfileBucket, where: r.profile_uuid == ^profile.uuid)
-             |> repo().delete_all()
+  defp remove_user_profile(profile) do
+    bucket_uuids = Enum.map(profile.buckets, & &1.bucket_uuid)
 
-             repo().delete!(profile)
-           end) do
+    {:ok, _} =
+      repo().transaction(fn ->
+        from(r in ProfileBucket, where: r.profile_uuid == ^profile.uuid) |> repo().delete_all()
+        repo().delete!(profile)
+      end)
+
+    bucket_uuids
+    |> PhoenixKit.Modules.Storage.get_buckets()
+    |> Enum.filter(&(is_binary(&1.owner_uuid) and not in_any_profile?(&1.uuid)))
+    |> each_ok(fn bucket ->
+      case PhoenixKit.Modules.Storage.delete_bucket(bucket) do
         {:ok, _} -> :ok
         {:error, reason} -> {:error, reason}
       end
-    end
+    end)
   end
+
+  defp in_any_profile?(bucket_uuid),
+    do: repo().exists?(from(r in ProfileBucket, where: r.bucket_uuid == ^bucket_uuid))
 
   defp each_ok(items, fun) do
     Enum.reduce_while(items, :ok, fn item, :ok ->

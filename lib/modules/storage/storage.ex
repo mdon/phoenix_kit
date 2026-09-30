@@ -4134,10 +4134,13 @@ defmodule PhoenixKit.Modules.Storage do
     end
   end
 
-  # The buckets of the user who owns the library whose `key_prefix` is the first
-  # segment of `dir`: where that library's objects may live besides the site's
-  # buckets. Nothing for a key of a site library (no user library has its
-  # prefix). One query per directory.
+  # The user's own buckets in the storage profile of the library whose
+  # `key_prefix` is the first segment of `dir`: where that library's objects may
+  # live besides the site's buckets. Found through the library's profile, not its
+  # owner: a library of a deleted user has no owner left (its purge is what runs
+  # then), and a user with two libraries on two buckets must only touch the right
+  # one. Nothing for a key of a site library (no user library has its prefix).
+  # One query per directory.
   @doc false
   def owned_buckets_for_dir(dir) do
     case dir |> String.split("/", parts: 2) |> hd() do
@@ -4146,9 +4149,12 @@ defmodule PhoenixKit.Modules.Storage do
 
       prefix ->
         from(l in Library,
+          join: pb in PhoenixKit.Modules.Storage.ProfileBucket,
+          on: pb.profile_uuid == l.storage_profile_uuid,
           join: b in Bucket,
-          on: b.owner_uuid == l.owner_uuid,
-          where: l.kind == "user" and l.key_prefix == ^prefix,
+          on: b.uuid == pb.bucket_uuid,
+          where: l.kind == "user" and l.key_prefix == ^prefix and not is_nil(b.owner_uuid),
+          distinct: true,
           select: b
         )
         |> repo().all()

@@ -243,29 +243,67 @@ defmodule PhoenixKit.Modules.Storage.UserProfilesTest do
     end
   end
 
-  describe "delete_user_storage/1" do
-    test "removes the user's profiles and buckets, and nobody else's", %{user: user, other: other} do
+  describe "delete_user_profile/1" do
+    test "removes the profile and the buckets only it used, and nobody else's", %{
+      user: user,
+      other: other
+    } do
       mine = owned_bucket!(user.uuid)
       theirs = owned_bucket!(other.uuid)
       {:ok, profile} = Profiles.create_user_profile(user.uuid, mine, :only)
       {:ok, others} = Profiles.create_user_profile(other.uuid, theirs, :only)
 
-      assert :ok = Profiles.delete_user_storage(user.uuid)
+      assert :ok = Profiles.delete_user_profile(profile.uuid)
 
       assert Profiles.get_profile(profile.uuid) == nil
       assert Storage.get_bucket(mine.uuid) == nil
-      assert Storage.list_owned_buckets(user.uuid) == []
 
       assert %StorageProfile{} = Profiles.get_profile(others.uuid)
       assert Storage.get_bucket(theirs.uuid)
+    end
+
+    test "keeps a bucket another of the user's profiles still uses", %{user: user} do
+      bucket = owned_bucket!(user.uuid)
+      {:ok, first} = Profiles.create_user_profile(user.uuid, bucket, :only)
+      {:ok, second} = Profiles.create_user_profile(user.uuid, bucket, :only)
+
+      assert :ok = Profiles.delete_user_profile(first.uuid)
+
+      assert Storage.get_bucket(bucket.uuid)
+      assert %StorageProfile{} = Profiles.get_profile(second.uuid)
     end
 
     test "leaves a profile a library still uses, and says so", %{user: user} do
       {:ok, profile} = Profiles.create_user_profile(user.uuid, owned_bucket!(user.uuid), :only)
       {:ok, _} = Profiles.assign_user_profile(library!(user), profile)
 
-      assert {:error, :in_use} = Profiles.delete_user_storage(user.uuid)
+      assert {:error, :in_use} = Profiles.delete_user_profile(profile.uuid)
       assert %StorageProfile{} = Profiles.get_profile(profile.uuid)
+    end
+
+    test "never touches a site profile" do
+      assert :ok = Profiles.delete_user_profile(Profiles.default_uuid())
+      assert %StorageProfile{} = Profiles.default_profile()
+    end
+  end
+
+  describe "purging a user's library" do
+    test "takes the user's profile and bucket with it", %{user: user} do
+      bucket = owned_bucket!(user.uuid)
+      {:ok, profile} = Profiles.create_user_profile(user.uuid, bucket, :only)
+      library = library!(user)
+      {:ok, library} = Profiles.assign_user_profile(library, profile)
+
+      {:ok, library} =
+        library
+        |> Ecto.Changeset.change(trashed_at: DateTime.truncate(DateTime.utc_now(), :second))
+        |> Repo.update()
+
+      assert :ok = PhoenixKit.Modules.Storage.Libraries.purge_library(library)
+
+      assert Repo.get(Library, library.uuid) == nil
+      assert Profiles.get_profile(profile.uuid) == nil
+      assert Storage.get_bucket(bucket.uuid) == nil
     end
   end
 end

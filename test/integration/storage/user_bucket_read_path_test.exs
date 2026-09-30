@@ -10,7 +10,7 @@ defmodule PhoenixKit.Modules.Storage.UserBucketReadPathTest do
 
   alias PhoenixKit.Integrations
   alias PhoenixKit.Modules.Storage
-  alias PhoenixKit.Modules.Storage.{FileLocation, Library, Manager}
+  alias PhoenixKit.Modules.Storage.{FileLocation, Library, Manager, Profiles}
   alias PhoenixKit.Test.Repo
   alias PhoenixKit.Users.Auth
 
@@ -154,32 +154,63 @@ defmodule PhoenixKit.Modules.Storage.UserBucketReadPathTest do
   end
 
   describe "deleting the objects of a user's library" do
-    test "reaches the owner's buckets, and only the owner's", ctx do
+    test "reaches the own buckets of that library's profile, and only those", ctx do
       {:ok, other} =
         Auth.register_user(%{
           "email" => "read-path-other-#{System.unique_integer([:positive])}@example.com",
           "password" => "ValidPassword123!"
         })
 
-      _others_bucket = owned_bucket!(other.uuid)
+      others_bucket = owned_bucket!(other.uuid)
+      second_bucket = owned_bucket!(ctx.user.uuid)
 
-      prefix = "lib#{System.unique_integer([:positive])}"
+      mine = library_on!(ctx.user, ctx.owned)
+      theirs = library_on!(other, others_bucket)
+      _second = library_on!(ctx.user, second_bucket)
 
-      Repo.insert!(%Library{
-        name: "Mine",
-        kind: "user",
-        owner_uuid: ctx.user.uuid,
-        visibility: "private",
-        key_prefix: prefix,
-        slug: prefix
-      })
-
-      assert [%{uuid: uuid}] = Storage.owned_buckets_for_dir("#{prefix}/ab/hash")
+      assert [%{uuid: uuid}] = Storage.owned_buckets_for_dir("#{mine.key_prefix}/ab/hash")
       assert uuid == ctx.owned.uuid
+
+      assert [%{uuid: uuid}] = Storage.owned_buckets_for_dir("#{theirs.key_prefix}/ab/hash")
+      assert uuid == others_bucket.uuid
 
       # A site library's prefix, or none at all, reaches nothing.
       assert Storage.owned_buckets_for_dir("nobody/ab/hash") == []
       assert Storage.owned_buckets_for_dir(".") == []
     end
+
+    test "still finds them once the owner is gone (the library has no owner left)", ctx do
+      library = library_on!(ctx.user, ctx.owned)
+
+      # What the owner's deletion leaves: a trashed library with no owner.
+      library
+      |> Ecto.Changeset.change(
+        owner_uuid: nil,
+        slug: nil,
+        trashed_at: DateTime.truncate(DateTime.utc_now(), :second)
+      )
+      |> Repo.update!()
+
+      assert [%{uuid: uuid}] = Storage.owned_buckets_for_dir("#{library.key_prefix}/ab/hash")
+      assert uuid == ctx.owned.uuid
+    end
+  end
+
+  defp library_on!(user, bucket) do
+    slug = "lib#{System.unique_integer([:positive])}"
+
+    library =
+      Repo.insert!(%Library{
+        name: "Mine #{slug}",
+        kind: "user",
+        owner_uuid: user.uuid,
+        visibility: "private",
+        key_prefix: slug,
+        slug: slug
+      })
+
+    {:ok, profile} = Profiles.create_user_profile(user.uuid, bucket, :only)
+    {:ok, library} = Profiles.assign_user_profile(library, profile)
+    library
   end
 end

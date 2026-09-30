@@ -42,7 +42,7 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
 
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
-  alias PhoenixKit.Modules.Storage.{Folder, Library, LibraryMember}
+  alias PhoenixKit.Modules.Storage.{Folder, Library, LibraryMember, Profiles}
   alias PhoenixKit.Modules.Storage.Workers.PurgeLibraryJob
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth.{Scope, User}
@@ -1029,6 +1029,17 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
     |> Enum.each(fn folder -> repo().delete!(folder) end)
 
     repo().delete!(library)
+
+    # What was left of a user's own storage: their profile, and the buckets
+    # only it used. A bucket that cannot be removed (it still holds file
+    # locations) stays, and is reported; the purge itself is done.
+    with profile when not is_nil(profile) <- library.storage_profile_uuid,
+         {:error, reason} <- Profiles.delete_user_profile(profile) do
+      Logger.warning(
+        "Storage: the own storage of purged library #{uuid} was not fully removed: #{inspect(reason)}"
+      )
+    end
+
     :ok
   rescue
     error ->
