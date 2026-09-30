@@ -162,9 +162,20 @@ defmodule PhoenixKit.Modules.Storage.CaptureDate do
   """
   @spec read_exif(Path.t()) :: %{String.t() => String.t()}
   def read_exif(path) do
-    case System.cmd("identify", ["-format", "%[EXIF:*]", "#{path}[0]"], stderr_to_stdout: true) do
-      {output, 0} -> parse_exif_properties(output)
-      {_output, _status} -> %{}
+    # Decoder pinned to the sniffed raster format, with the processor's
+    # resource limits; anything that is not a known raster image has no EXIF
+    # worth reading here.
+    with {:ok, input} <- PhoenixKit.Modules.Storage.ImageProcessor.pinned_input(path, "[0]"),
+         {output, 0} <-
+           System.cmd(
+             "identify",
+             PhoenixKit.Modules.Storage.ImageProcessor.limit_args() ++
+               ["-format", "%[EXIF:*]", input],
+             stderr_to_stdout: true
+           ) do
+      parse_exif_properties(output)
+    else
+      _ -> %{}
     end
   rescue
     # System.cmd raises when the executable is missing.

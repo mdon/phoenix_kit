@@ -25,6 +25,7 @@ defmodule PhoenixKit.Modules.Storage.AnnotationThumbnail do
   # older versions at compile time and degrade gracefully at runtime.
   @compile {:no_warn_undefined, Etcher.Raster}
 
+  alias PhoenixKit.Modules.Storage.ImageProcessor
   require Logger
 
   alias PhoenixKit.Annotations
@@ -117,11 +118,21 @@ defmodule PhoenixKit.Modules.Storage.AnnotationThumbnail do
   end
 
   defp run_convert(input_path, output_path, draw_args) do
+    # Decoder pinned to the sniffed raster format, with ImageProcessor's
+    # resource limits, like every other ImageMagick call.
+    case ImageProcessor.pinned_input(input_path) do
+      {:ok, input} -> convert_pinned(input, output_path, draw_args)
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp convert_pinned(input, output_path, draw_args) do
     # `draw_args` already carries `-fill none` + the per-shape `-stroke/-draw`
     # (from Etcher.Raster); we just splice it in before the resize/crop so shapes
     # are drawn in the source image's pixel space and scale with it.
     args =
-      [input_path] ++
+      ImageProcessor.limit_args() ++
+        [input] ++
         draw_args ++
         ["-resize", "#{@size}x#{@size}^", "-gravity", "center", "-extent", "#{@size}x#{@size}"] ++
         ["png:#{output_path}"]

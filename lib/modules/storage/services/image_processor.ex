@@ -12,7 +12,40 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
 
   require Logger
 
+  alias PhoenixKit.Modules.Storage.Sniff
   alias PhoenixKit.Modules.Storage.ImageEdit
+
+  # Resource ceilings on EVERY ImageMagick call, applied here rather than
+  # trusted to the host's policy.xml: a decompression bomb is a small file
+  # that decodes to gigabytes, and "the sysadmin configured ImageMagick" is
+  # not a control this code can rely on.
+  @limit_args [
+    "-limit",
+    "memory",
+    "256MiB",
+    "-limit",
+    "map",
+    "512MiB",
+    "-limit",
+    "disk",
+    "1GiB",
+    "-limit",
+    "area",
+    "128MP",
+    "-limit",
+    "width",
+    "16KP",
+    "-limit",
+    "height",
+    "16KP",
+    "-limit",
+    "time",
+    "60"
+  ]
+
+  # 100 megapixels for resizing (variants): above any real camera, and the
+  # header is read and refused before the decoder starts.
+  @resize_max_pixels 100_000_000
 
   @doc """
   Get the width of an image file using ImageMagick identify.
@@ -48,7 +81,15 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
   - `{:error, reason}` - If extraction fails
   """
   def extract_dimensions(file_path) do
-    case System.cmd("identify", ["-format", "%wx%h", file_path], stderr_to_stdout: true) do
+    with {:ok, input} <- pinned_input(file_path, "[0]") do
+      identify_dimensions(input)
+    end
+  end
+
+  defp identify_dimensions(input) do
+    case System.cmd("identify", @limit_args ++ ["-format", "%wx%h", input],
+           stderr_to_stdout: true
+         ) do
       {output, 0} ->
         case String.split(String.trim(output), "x") do
           [width_str, height_str] ->
@@ -95,31 +136,31 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
     quality = Keyword.get(opts, :quality, 85)
     format = Keyword.get(opts, :format, nil)
 
-    # Extract current dimensions
-    case extract_dimensions(input_path) do
-      {:ok, {current_width, current_height}} ->
-        # Calculate resize parameters
-        resize_spec = calculate_resize_spec(current_width, current_height, width, height)
+    # Extract current dimensions (pinned and limited like every call here),
+    # and refuse an oversized header before the decoder ever runs.
+    with {:ok, input} <- pinned_input(input_path),
+         {:ok, {current_width, current_height}} <- extract_dimensions(input_path),
+         :ok <- check_pixel_budget(current_width, current_height, @resize_max_pixels) do
+      # Calculate resize parameters
+      resize_spec = calculate_resize_spec(current_width, current_height, width, height)
 
-        # Build ImageMagick convert command
-        args = build_convert_args(input_path, output_path, resize_spec, quality, format)
+      # Build ImageMagick convert command
+      args = @limit_args ++ build_convert_args(input, output_path, resize_spec, quality, format)
 
-        Logger.info(
-          "Resizing image: #{input_path} -> #{output_path}, resize spec: #{resize_spec}"
-        )
+      Logger.info("Resizing image: #{input_path} -> #{output_path}, resize spec: #{resize_spec}")
 
-        case System.cmd("convert", args, stderr_to_stdout: true) do
-          {_output, 0} ->
-            Logger.info("Successfully resized image to #{output_path}")
-            {:ok, output_path}
+      case System.cmd("convert", args, stderr_to_stdout: true) do
+        {_output, 0} ->
+          Logger.info("Successfully resized image to #{output_path}")
+          {:ok, output_path}
 
-          {output, exit_code} ->
-            Logger.error("convert failed with exit code #{exit_code}: #{output}")
-            {:error, "ImageMagick convert failed: #{output}"}
-        end
-
+        {output, exit_code} ->
+          Logger.error("convert failed with exit code #{exit_code}: #{output}")
+          {:error, "ImageMagick convert failed: #{output}"}
+      end
+    else
       {:error, reason} ->
-        {:error, "Failed to extract image dimensions: #{reason}"}
+        {:error, "Failed to read the image: #{reason}"}
     end
   rescue
     e ->
@@ -179,24 +220,26 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
         format
       end
 
-    if is_nil(width) or is_nil(height) do
-      {:error, "Both width and height are required for center-crop resizing"}
-    else
+    with {:w, true} <- {:w, not (is_nil(width) or is_nil(height))},
+         {:ok, input} <- pinned_input(input_path),
+         {:ok, {cur_w, cur_h}} <- extract_dimensions(input_path),
+         :ok <- check_pixel_budget(cur_w, cur_h, @resize_max_pixels) do
       Logger.info(
         "Center-cropping image: #{input_path} -> #{output_path}, target: #{width}x#{height}"
       )
 
       # Build ImageMagick convert command for center-crop
       args =
-        build_center_crop_args(
-          input_path,
-          output_path,
-          width,
-          height,
-          quality,
-          format,
-          background
-        )
+        @limit_args ++
+          build_center_crop_args(
+            input,
+            output_path,
+            width,
+            height,
+            quality,
+            format,
+            background
+          )
 
       case System.cmd("convert", args, stderr_to_stdout: true) do
         {_output, 0} ->
@@ -207,6 +250,9 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
           Logger.error("convert failed with exit code #{exit_code}: #{output}")
           {:error, "ImageMagick convert failed: #{output}"}
       end
+    else
+      {:w, false} -> {:error, "Both width and height are required for center-crop resizing"}
+      {:error, reason} -> {:error, "Failed to read the image: #{reason}"}
     end
   rescue
     e ->
@@ -296,6 +342,15 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
           "disk",
           "1GiB",
           "-limit",
+          "area",
+          "128MP",
+          "-limit",
+          "width",
+          "16KP",
+          "-limit",
+          "height",
+          "16KP",
+          "-limit",
           "time",
           "20"
         ] ++
@@ -342,6 +397,26 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
 
   # Private functions
 
+  @doc false
+  @spec limit_args() :: [String.t()]
+  def limit_args, do: @limit_args
+
+  @doc false
+  # The input spec for ImageMagick with the decoder pinned to the SNIFFED
+  # raster format — `"png:/tmp/x"` — so a file is only ever decoded by the
+  # coder its bytes say it is, never one chosen from its name or picked by
+  # ImageMagick's own guessing (SVG, MVG, MSL, PostScript and friends are
+  # never reached). `frame` is appended as is (`"[0]"`).
+  @spec pinned_input(String.t(), String.t()) :: {:ok, String.t()} | {:error, String.t()}
+  def pinned_input(path, frame \\ "") do
+    with {:ok, %{format: format}} <- Sniff.sniff(path),
+         coder when is_binary(coder) <- Sniff.magick_coder(format) do
+      {:ok, "#{coder}:#{path}#{frame}"}
+    else
+      _ -> {:error, "unsupported image format"}
+    end
+  end
+
   # What ImageMagick actually thinks this is, checked against a short
   # allowlist. The extension and the browser's content-type are both the
   # uploader's claims; this is the only reading that counts, and it does
@@ -357,11 +432,12 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
   @spec oriented_info(String.t()) ::
           {:ok, {pos_integer(), pos_integer(), pos_integer()}} | {:error, String.t()}
   def oriented_info(file_path) do
-    with {:ok, frames} <- frame_count(file_path),
+    with {:ok, input} <- pinned_input(file_path, "[0]"),
+         {:ok, frames} <- frame_count(file_path),
          {output, 0} <-
            System.cmd(
              "convert",
-             ["#{file_path}[0]", "-auto-orient", "-format", "%w %h", "info:"],
+             @limit_args ++ [input, "-auto-orient", "-format", "%w %h", "info:"],
              stderr_to_stdout: true
            ),
          [w, h] <- output |> last_line() |> String.split(),
@@ -376,7 +452,15 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
   end
 
   defp frame_count(file_path) do
-    case System.cmd("identify", ["-format", "%n\\n", file_path], stderr_to_stdout: true) do
+    with {:ok, input} <- pinned_input(file_path) do
+      count_frames(input)
+    end
+  end
+
+  defp count_frames(input) do
+    case System.cmd("identify", @limit_args ++ ["-format", "%n\\n", input],
+           stderr_to_stdout: true
+         ) do
       {output, 0} ->
         case output
              |> String.split("\n", trim: true)
@@ -404,7 +488,13 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
   @spec render_edit(String.t(), String.t(), map() | nil, {pos_integer(), pos_integer()}) ::
           :ok | {:error, String.t()}
   def render_edit(input_path, output_path, edit, size) do
-    args = ImageEdit.magick_args(edit, size, input_path, output_path)
+    with {:ok, input} <- pinned_input(input_path) do
+      run_edit(input, output_path, edit, size)
+    end
+  end
+
+  defp run_edit(input, output_path, edit, size) do
+    args = @limit_args ++ ImageEdit.magick_args(edit, size, input, output_path)
 
     case System.cmd("convert", args, stderr_to_stdout: true) do
       {_output, 0} ->
@@ -507,9 +597,15 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
     args
   end
 
-  defp has_alpha_channel?(file_path) do
-    case System.cmd("identify", ["-format", "%[channels]", file_path], stderr_to_stdout: true) do
-      {output, 0} -> String.contains?(String.trim(output), "a")
+  @doc false
+  def has_alpha_channel?(file_path) do
+    with {:ok, input} <- pinned_input(file_path, "[0]"),
+         {output, 0} <-
+           System.cmd("identify", @limit_args ++ ["-format", "%[channels]", input],
+             stderr_to_stdout: true
+           ) do
+      String.contains?(String.trim(output), "a")
+    else
       _ -> false
     end
   rescue
