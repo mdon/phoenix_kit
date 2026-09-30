@@ -1132,21 +1132,9 @@ defmodule PhoenixKitWeb.FileController do
       :error
   end
 
-  # A file in a private library takes only a time-window token (its
-  # permanent one is refused); every other file only the permanent one.
-  defp verify_file_token(file, variant, token) do
-    if Libraries.private_file?(file) do
-      case URLSigner.verify_private_token(file.uuid, variant, token) do
-        :ok -> :ok
-        :expired -> {:error, :expired_token}
-        :invalid -> {:error, :invalid_token}
-      end
-    else
-      if URLSigner.verify_token(file.uuid, variant, token),
-        do: :ok,
-        else: {:error, :invalid_token}
-    end
-  end
+  # The token rule lives in URLSigner, shared with `URLSigner.verify_url/2`.
+  defp verify_file_token(file, variant, token),
+    do: URLSigner.verify_file_token(file, variant, token)
 
   # Get file access info with retry logic for bucket cache race conditions
   # Returns {:local, path} | {:redirect, url} | {:proxy, file_name} | {:error, reason}
