@@ -1,3 +1,40 @@
+## Unreleased
+
+### Added
+
+- **Media shows each viewer only what is theirs.** A holder of `media` without the new
+  `media.view_all` sees, in a site library, the files they uploaded, the folders they
+  created or that hold their files, and those folders' ancestors: in the grid, folders,
+  tree, search, counts, trash and orphans, and on the file's own page. An Owner/Admin or a
+  holder of `media.view_all` sees everything, as before. Every event that names someone
+  else's file or a folder the viewer cannot see is refused, so is changing a folder they did
+  not create, and a hand-edited `?file=` link opens only a file of the library shown that the
+  viewer may see (it opened any file, of any library, before). A trashed file's URL answers its
+  uploader, an Owner/Admin or a `media.view_all` holder; changing another person's file needs
+  `media.view_all`. Emptying the trash and clearing orphans work for a restricted viewer on
+  their own files only.
+- **User libraries join Media's switcher**, grouped "Site" and "Mine" (`/admin/media/my/<id>`).
+  A holder of `media` who is not an Owner/Admin is sent there from `/admin/libraries`; that page
+  remains for people who hold `storage` without `media` and for the admin's audited list of other
+  users' libraries. The profile's Media tab has an "Open" link on every library.
+- **Two sub-permissions of `media`:** `media.view_all` (see everyone's files in the site's
+  libraries) and `media.manage` (Settings → Media: buckets, sizes, health). They appear under
+  Media in the permissions matrix.
+
+### Changed
+
+- **The storage administration screens (Settings → Media: buckets, sizes, profiles, health) need
+  `media.manage`, no longer just `media`.** So giving an end user Media does not hand them the
+  bucket form.
+
+### Upgrading
+
+- Every role that holds `media` when this boots is granted `media.view_all` and `media.manage`
+  once (and Admin gets them with the other new keys), so **nothing changes for existing roles**.
+  A role created afterwards gets neither by default: a holder of `media` alone sees only their own
+  files. Revoke `media.view_all` from a role to make it so; it is not given back.
+- The media pickers (`MediaSelectorModal` and the featured-image picker) are not filtered by viewer.
+
 ## 2.42.1 - 2026-09-30
 
 ### Changed
