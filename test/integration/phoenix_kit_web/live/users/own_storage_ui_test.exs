@@ -377,4 +377,25 @@ defmodule PhoenixKitWeb.Live.Users.OwnStorageUITest do
     assert html =~ "Object Storage"
     refute html =~ "Telegram"
   end
+
+  test "the profile's tabs stay on the add and edit pages of a personal integration", %{
+    conn: conn,
+    role: role
+  } do
+    user = user!(role)
+    connection = connection!(user)
+    conn = log_in_user(conn, user)
+
+    for path <- [
+          "/profile/settings/integrations",
+          "/profile/settings/integrations/new",
+          "/profile/settings/integrations/#{connection}"
+        ] do
+      {:ok, _view, html} = live(conn, Routes.path(path))
+
+      assert html =~ "Security", path
+      assert html =~ "Sessions", path
+      assert html =~ ~s(aria-selected="true") or html =~ "tab-active", path
+    end
+  end
 end

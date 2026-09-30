@@ -556,6 +556,12 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
       current_locale={assigns[:current_locale]}
     >
       <div class="px-4 py-6">
+        <%!-- The profile's settings tabs, as on the list page, so "Add integration"
+             and a connection's own page still say where you are. --%>
+        <PhoenixKitWeb.Components.ProfileSettingsTabs.profile_tabs
+          active="integrations"
+          scope={assigns[:phoenix_kit_current_scope]}
+        />
         <%!-- Step 1: Provider picker (new mode, no provider selected yet) --%>
         <div :if={@live_action == :new && @selected_provider == nil} class="max-w-4xl mx-auto">
           <.provider_picker providers={@providers} />
