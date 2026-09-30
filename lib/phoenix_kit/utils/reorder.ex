@@ -16,9 +16,15 @@ defmodule PhoenixKit.Utils.Reorder do
   consumer doing exactly that — this module owns only the index-rewrite
   primitive.
 
-  Non-UUID entries in the payload are silently filtered (a stale or
-  malformed drop event can't poison the rewrite). Duplicates dedup
-  last-write-wins via `Enum.uniq/1`.
+  Rows are matched on `uuid` by default; pass `key: :id` (any field) for
+  a schema keyed some other way — an integer primary key, a slug. The
+  payload's ids are cast with that field's Ecto type, so the strings a
+  drag hook sends (`"42"`) match an integer column.
+
+  Entries that are not a valid key (a non-UUID for `:uuid`, a non-integer
+  for an integer key) are silently filtered — a stale or malformed drop
+  event can't poison the rewrite. Duplicates dedup last-write-wins via
+  `Enum.uniq/1`.
 
   ## Example
 
@@ -54,16 +60,19 @@ defmodule PhoenixKit.Utils.Reorder do
 
   - `:repo` — the Ecto repo to use. Defaults to
     `PhoenixKit.RepoHelper.repo/0` so it picks up the host app's repo.
-  - `:max_uuids` — payload cap, checked after dedup. Default `500`.
-    Guards against runaway drop events from a misbehaving client.
+  - `:key` — the field the ids are matched on. Default `:uuid`.
+  - `:max_ids` (or the older `:max_uuids`) — payload cap, checked after
+    dedup. Default `500`. Guards against runaway drop events from a
+    misbehaving client.
   """
-  @spec reorder(module(), [String.t()], atom(), keyword()) :: result()
+  @spec reorder(module(), [String.t() | integer()], atom(), keyword()) :: result()
   def reorder(schema, ordered_ids, field, opts \\ [])
       when is_atom(schema) and is_list(ordered_ids) and is_atom(field) do
-    max = Keyword.get(opts, :max_uuids, @default_max_uuids)
+    max = Keyword.get(opts, :max_ids) || Keyword.get(opts, :max_uuids, @default_max_uuids)
     repo = Keyword.get(opts, :repo, PhoenixKit.RepoHelper.repo())
+    key = Keyword.get(opts, :key, :uuid)
 
-    case dedupe_uuids(ordered_ids) do
+    case dedupe_ids(ordered_ids, schema, key) do
       [] ->
         {:ok, 0}
 
@@ -74,27 +83,42 @@ defmodule PhoenixKit.Utils.Reorder do
         {:ok, count} =
           repo.transaction(fn ->
             pairs = Enum.with_index(uuids, 1)
-            _ = write_phase(repo, schema, pairs, field, -1)
-            write_phase(repo, schema, pairs, field, 1)
+            _ = write_phase(repo, schema, key, pairs, field, -1)
+            write_phase(repo, schema, key, pairs, field, 1)
           end)
 
         {:ok, count}
     end
   end
 
-  defp write_phase(repo, schema, pairs, field, sign) do
-    Enum.reduce(pairs, 0, fn {uuid, idx}, total ->
+  defp write_phase(repo, schema, key, pairs, field, sign) do
+    Enum.reduce(pairs, 0, fn {id, idx}, total ->
       {n, _} =
-        from(r in schema, where: r.uuid == ^uuid)
+        from(r in schema, where: field(r, ^key) == ^id)
         |> repo.update_all(set: [{field, sign * idx}])
 
       total + n
     end)
   end
 
-  defp dedupe_uuids(ids) do
+  # `:uuid` keeps its own validity check (the schema's type may be a
+  # custom UUIDv7 module); any other key casts with the field's Ecto type.
+  defp dedupe_ids(ids, _schema, :uuid) do
     ids
-    |> Enum.filter(&UUID.valid?/1)
+    |> Enum.filter(&(is_binary(&1) and UUID.valid?(&1)))
+    |> Enum.uniq()
+  end
+
+  defp dedupe_ids(ids, schema, key) do
+    type = schema.__schema__(:type, key) || :string
+
+    ids
+    |> Enum.flat_map(fn id ->
+      case Ecto.Type.cast(type, id) do
+        {:ok, value} when not is_nil(value) -> [value]
+        _ -> []
+      end
+    end)
     |> Enum.uniq()
   end
 end

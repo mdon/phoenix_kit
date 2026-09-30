@@ -96,7 +96,10 @@ defmodule PhoenixKitWeb.Components.Core.Sortable do
   needs: `sortable-item` class and `data-id` attr. Consumer classes
   pass through alongside.
   """
-  attr :item_id, :string, required: true
+  attr :item_id, :any,
+    required: true,
+    doc: "The row's id — a UUID, or any key `Utils.Reorder` is told to match with `key:`."
+
   attr :class, :any, default: ""
   attr :rest, :global
 
@@ -106,7 +109,7 @@ defmodule PhoenixKitWeb.Components.Core.Sortable do
     ~H"""
     <PhoenixKitWeb.Components.Core.TableDefault.table_default_row
       class={["sortable-item", @class]}
-      data-id={@item_id}
+      data-id={to_string(@item_id)}
       {@rest}
     >
       {render_slot(@inner_block)}
