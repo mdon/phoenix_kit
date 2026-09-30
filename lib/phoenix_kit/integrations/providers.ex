@@ -172,7 +172,18 @@ defmodule PhoenixKit.Integrations.Providers do
   @spec personal_offered() :: [provider()]
   def personal_offered do
     by_key = Map.new(for_scope(:personal), &{&1.key, &1})
-    Enum.flat_map(@personal_offered, fn key -> List.wrap(by_key[key]) end)
+    Enum.flat_map(personal_offered_keys(), fn key -> List.wrap(by_key[key]) end)
+  end
+
+  # Object Storage is offered only while the site lets users keep a library on
+  # their own bucket (`storage_user_buckets_enabled`, off by default): it is
+  # the one personal connection that makes the server connect to a host the
+  # user names, so it is not on the picker of a site that has not opted in.
+  # A connection already made stays manageable in the list either way.
+  defp personal_offered_keys do
+    if PhoenixKit.Settings.get_boolean_setting("storage_user_buckets_enabled", false),
+      do: @personal_offered ++ ["object_storage"],
+      else: @personal_offered
   end
 
   # ---------------------------------------------------------------------------

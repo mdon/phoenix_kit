@@ -140,9 +140,13 @@ defmodule PhoenixKit.Modules.Storage.UserProfilesTest do
       default_uuids = Enum.map(default.buckets, &to_string(&1.bucket_uuid))
       assert Enum.sort(Map.keys(by_bucket)) == Enum.sort([to_string(bucket.uuid) | default_uuids])
 
-      assert profile.copies_originals == min(default.copies_originals + 1, 5)
-      assert profile.copies_variants == default.copies_variants
-      assert profile.min_copies_on_write == default.min_copies_on_write
+      # An original on every site bucket that stores originals, plus the backup:
+      # placement writes all primaries before any backup, so anything less and
+      # the backup would never get a copy.
+      originals = Enum.count(profile.buckets, &(&1.role != "backup" and &1.stores != "derived"))
+      assert profile.copies_originals == originals + 1
+      assert profile.copies_variants <= default.copies_variants
+      assert profile.min_copies_on_write <= default.min_copies_on_write
     end
 
     test "a site bucket added to the Default later is not in the snapshot", %{user: user} do

@@ -347,6 +347,19 @@ defmodule PhoenixKitWeb.Live.Users.OwnStorageUITest do
     end
   end
 
+  describe "Object Storage as a personal connection" do
+    test "is offered only while the site allows users their own buckets" do
+      keys = fn -> Enum.map(PhoenixKit.Integrations.Providers.personal_offered(), & &1.key) end
+
+      assert "object_storage" in keys.()
+
+      {:ok, _} = Settings.update_boolean_setting("storage_user_buckets_enabled", false)
+
+      refute "object_storage" in keys.()
+      assert "telegram" in keys.()
+    end
+  end
+
   test "the new personal connection page opens on the provider named in ?provider=", %{
     conn: conn,
     role: role

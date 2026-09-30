@@ -376,10 +376,13 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
       is a `backup` of the originals. The site buckets are a **snapshot of the
       Default profile taken now**: a site bucket added later is not used by
       this library (removing or disabling one already reaches every profile).
-      An original gets one copy more than the Default makes, and an upload
-      still succeeds on the Default's terms; the backup copy is made by the
-      reconciler if the write missed it. Sizes and tiles are not backed up
-      (they can be regenerated).
+      An original is kept on every one of those site buckets that stores
+      originals (not only as many as the Default's copy count: placement writes
+      all primaries before any backup, so the backup would otherwise never get
+      one) and on the backup, at most 5 copies in all. An upload still succeeds
+      on the Default's terms; the backup copy is made by the reconciler if the
+      write missed it. Sizes and tiles are not backed up (they can be
+      regenerated).
 
   The profile is the user's (`owner_uuid`), named by its own uuid (the name is
   never shown), and `bucket` must be theirs. Returns `{:error, :no_site_storage}`
@@ -417,6 +420,15 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
     {:ok, [row], %{copies_originals: 1, copies_variants: 1, min_copies_on_write: 1}}
   end
 
+  # Placement writes every primary before any backup, up to the copy count, so
+  # a backup only gets a copy when the profile wants MORE copies than it has
+  # primaries and replicas. The profile therefore wants one original on every
+  # site bucket that stores originals, plus the backup (at most 5 copies: with
+  # more site buckets than that, the first four by serve order are kept). The
+  # upload still succeeds on the Default's terms (`min_copies_on_write`); a
+  # backup the write missed is made by the reconciler.
+  @max_copies 5
+
   defp user_profile_plan(:backup, bucket) do
     case default_profile() do
       %StorageProfile{buckets: [_ | _] = rows} = default ->
@@ -433,10 +445,13 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
               status: &1.status
             }
           )
+          |> keep_room_for_backup()
 
-        if site_rows == [] do
+        if Enum.all?(site_rows, &(&1.stores == "derived")) do
           {:error, :no_site_storage}
         else
+          originals = Enum.count(site_rows, &(&1.stores in ["all", "originals"]))
+
           backup = %{
             bucket_uuid: bucket.uuid,
             role: "backup",
@@ -448,15 +463,21 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
 
           {:ok, site_rows ++ [backup],
            %{
-             copies_originals: min(default.copies_originals + 1, 5),
-             copies_variants: default.copies_variants,
-             min_copies_on_write: default.min_copies_on_write
+             copies_originals: originals + 1,
+             copies_variants: min(default.copies_variants, length(site_rows)),
+             min_copies_on_write: min(default.min_copies_on_write, originals)
            }}
         end
 
       _ ->
         {:error, :no_site_storage}
     end
+  end
+
+  # At most `@max_copies - 1` site rows, by serve order, so the backup fits in
+  # the copy count.
+  defp keep_room_for_backup(rows) do
+    rows |> Enum.sort_by(& &1.serve_order) |> Enum.take(@max_copies - 1)
   end
 
   defp insert_user_profile(owner_uuid, copies) do
