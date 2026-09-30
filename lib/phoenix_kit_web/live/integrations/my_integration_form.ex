@@ -112,14 +112,23 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
   end
 
   @impl true
+  # Only a provider the picker offered: the key arrives from the client, and the
+  # list is what a site admin chose (`Providers.personal_offered/0`), not whatever
+  # a hand-made event names.
   def handle_event("select_provider", %{"provider" => key}, socket) do
-    {:noreply,
-     socket
-     |> assign(:selected_provider, key)
-     |> assign(:provider, Providers.get(key))
-     |> assign(:data, %{})
-     |> assign(:new_name, "")
-     |> assign(:form_values, %{})}
+    case Enum.find(socket.assigns.providers, &(&1.key == key)) do
+      nil ->
+        {:noreply, socket}
+
+      provider ->
+        {:noreply,
+         socket
+         |> assign(:selected_provider, key)
+         |> assign(:provider, provider)
+         |> assign(:data, %{})
+         |> assign(:new_name, "")
+         |> assign(:form_values, %{})}
+    end
   end
 
   def handle_event("back_to_providers", _params, socket) do

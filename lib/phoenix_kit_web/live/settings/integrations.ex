@@ -42,6 +42,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
       |> assign(:current_path, get_current_path(socket.assigns.current_locale_base))
       |> load_encryption_report()
       |> load_connections()
+      |> assign_personal_providers()
       |> assign(:validating, nil)
 
     {:ok, socket}
@@ -62,6 +63,23 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
      socket
      |> put_flash(:info, gettext("Disconnected"))
      |> load_connections()}
+  end
+
+  # Which services users may connect on their own (the personal "add" picker).
+  # Only providers that may be personal are kept.
+  def handle_event("save_personal_providers", params, socket) do
+    keys = params |> get_in(["personal", "providers"]) |> List.wrap()
+
+    case Providers.put_personal_enabled(keys) do
+      {:ok, _kept} ->
+        {:noreply,
+         socket
+         |> assign_personal_providers()
+         |> put_flash(:info, gettext("Personal integrations saved"))}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, gettext("Personal integrations could not be saved"))}
+    end
   end
 
   def handle_event("validate_connection", %{"uuid" => uuid}, socket) do
@@ -156,6 +174,25 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
     socket
     |> assign(:encryption_report, report)
     |> assign(:encryption_fingerprint, encryption_fingerprint(report))
+  end
+
+  # The providers that may be personal, each with whether users are offered it:
+  # ticked by the admin, or (Object Storage) because users may keep a library on
+  # their own bucket (`Providers.also_while_on?/1`).
+  defp assign_personal_providers(socket) do
+    capable = Providers.for_scope(:personal)
+    enabled = Providers.personal_enabled_keys(capable)
+
+    rows =
+      Enum.map(capable, fn provider ->
+        %{
+          provider: provider,
+          enabled: provider.key in enabled,
+          forced: Providers.also_while_on?(provider)
+        }
+      end)
+
+    assign(socket, :personal_providers, rows)
   end
 
   # What the Remove confirmation says. A connection is removed without checking

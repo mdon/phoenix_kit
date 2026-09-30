@@ -20,6 +20,21 @@
 - **Two sub-permissions of `media`:** `media.view_all` (see everyone's files in the site's
   libraries) and `media.manage` (Settings → Media: buckets, sizes, health). They appear under
   Media in the permissions matrix.
+- **Which services users may connect on their own is a site setting.** Settings →
+  Integrations has a "Personal integrations" card: a checkbox per provider that supports
+  personal use, and the personal "add integration" page offers exactly the ticked ones. The
+  list used to be fixed in code (Telegram and OpenRouter); until an admin saves a choice those
+  two are still what users are offered, so nothing changes on upgrade. A provider opts in with
+  `personal_default: true` (offered until the admin chooses), and Object Storage is also
+  offered while users may keep a library on their own bucket (`personal_also_while`). The
+  page refuses a provider it did not offer, even to a hand-made event.
+
+### Fixed
+
+- **The profile's tabs stay on the personal integration "add" and edit pages.** They
+  disappeared after "Add integration", so the page no longer said where you were.
+- **The Multiple Sessions setting reads "Enable multiple sessions"** (it said "multi-account
+  switcher in the header"; the switcher is in the user menu).
 
 ### Changed
 

@@ -50,7 +50,17 @@ defmodule PhoenixKit.Integrations.Providers do
           # setup. Absent ⇒ `[:system]` (a provider opts INTO personal use
           # explicitly — the self-owned-secret providers do; OAuth2 providers,
           # whose setup fields are the APP's client_id/secret, stay system-only).
-          optional(:scopes) => [:system | :personal]
+          optional(:scopes) => [:system | :personal],
+          # `true`: offered to users on the personal "add" picker until a site
+          # admin saves their own choice (Settings → Integrations → Personal
+          # integrations). It is how a provider says "I was offered to users
+          # before that choice existed", so no central list names them.
+          optional(:personal_default) => boolean(),
+          # A boolean setting key: the provider is ALSO offered to users while
+          # that setting is on, whatever the admin's list says (Object Storage
+          # while users may keep a library on their own bucket: without a
+          # connection that feature is a dead end).
+          optional(:personal_also_while) => String.t()
         }
 
   @providers_cache_key {__MODULE__, :all}
@@ -156,35 +166,59 @@ defmodule PhoenixKit.Integrations.Providers do
     Enum.filter(all(), fn p -> scope in scopes_of(p) end)
   end
 
-  # Providers currently OFFERED on the personal integrations "add" picker — a
-  # deliberate subset of `for_scope(:personal)`. The personal surface is kept
-  # small for now; widen this list (or drop the filter) to offer more. A
-  # provider must still declare `:personal` in its `:scopes` to appear, and
-  # already-created personal connections of any provider stay manageable in the
-  # list regardless of this allowlist.
-  @personal_offered ~w(telegram openrouter)
+  @personal_setting "personal_integration_providers"
 
   @doc """
-  Providers offered on the personal integrations "add" picker — the subset of
-  `for_scope(:personal)` currently exposed (see `@personal_offered`), returned
-  in that list's order.
+  Providers offered on the personal integrations "add" picker: the providers that
+  may be personal (`for_scope(:personal)`) and that a site admin has enabled for
+  users (`personal_enabled_keys/0`), plus any that declares
+  `:personal_also_while` and whose setting is on. Returned in `for_scope/1`'s order.
   """
   @spec personal_offered() :: [provider()]
   def personal_offered do
-    by_key = Map.new(for_scope(:personal), &{&1.key, &1})
-    Enum.flat_map(personal_offered_keys(), fn key -> List.wrap(by_key[key]) end)
+    capable = for_scope(:personal)
+    enabled = personal_enabled_keys(capable)
+
+    Enum.filter(capable, &(&1.key in enabled or also_while_on?(&1)))
   end
 
-  # Object Storage is offered only while the site lets users keep a library on
-  # their own bucket (`storage_user_buckets_enabled`, off by default): it is
-  # the one personal connection that makes the server connect to a host the
-  # user names, so it is not on the picker of a site that has not opted in.
-  # A connection already made stays manageable in the list either way.
-  defp personal_offered_keys do
-    if PhoenixKit.Settings.get_boolean_setting("storage_user_buckets_enabled", false),
-      do: @personal_offered ++ ["object_storage"],
-      else: @personal_offered
+  @doc """
+  The provider keys a site admin has enabled for users. Until one saves a choice
+  (`put_personal_enabled/1`) they are the providers that declare
+  `:personal_default`, which is what users were offered before the choice existed.
+  """
+  @spec personal_enabled_keys([provider()]) :: [String.t()]
+  def personal_enabled_keys(capable \\ for_scope(:personal)) do
+    case PhoenixKit.Settings.get_json_setting_cached(@personal_setting, nil) do
+      %{"providers" => keys} when is_list(keys) ->
+        Enum.filter(keys, &is_binary/1)
+
+      _ ->
+        for p <- capable, p[:personal_default] == true, do: p.key
+    end
   end
+
+  @doc """
+  Saves which providers users may add on their own. Only providers that may be
+  personal are kept; everything else in `keys` is dropped.
+  """
+  @spec put_personal_enabled([String.t()]) :: {:ok, [String.t()]} | {:error, term()}
+  def put_personal_enabled(keys) when is_list(keys) do
+    capable = Enum.map(for_scope(:personal), & &1.key)
+    kept = keys |> Enum.filter(&(&1 in capable)) |> Enum.uniq()
+
+    case PhoenixKit.Settings.update_json_setting(@personal_setting, %{"providers" => kept}) do
+      {:ok, _setting} -> {:ok, kept}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc "Whether `provider` is offered to users only because a setting it names is on."
+  @spec also_while_on?(provider()) :: boolean()
+  def also_while_on?(%{personal_also_while: setting}) when is_binary(setting),
+    do: PhoenixKit.Settings.get_boolean_setting(setting, false)
+
+  def also_while_on?(_provider), do: false
 
   # ---------------------------------------------------------------------------
   # Built-in provider definitions
@@ -402,6 +436,7 @@ defmodule PhoenixKit.Integrations.Providers do
     %{
       key: "openrouter",
       scopes: [:system, :personal],
+      personal_default: true,
       name: gettext("OpenRouter"),
       description: gettext("AI model access via OpenRouter (100+ models)"),
       icon: "hero-sparkles",
@@ -927,6 +962,7 @@ defmodule PhoenixKit.Integrations.Providers do
     %{
       key: "object_storage",
       scopes: [:system, :personal],
+      personal_also_while: "storage_user_buckets_enabled",
       name: gettext("Object Storage (S3-compatible)"),
       description:
         gettext(
@@ -1172,6 +1208,7 @@ defmodule PhoenixKit.Integrations.Providers do
       # Available both website-wide (a project bot) and personal (a user's own
       # bot for notifications).
       scopes: [:system, :personal],
+      personal_default: true,
       name: gettext("Telegram"),
       description: gettext("Send messages and notifications via your own Telegram bot"),
       icon: "hero-paper-airplane",

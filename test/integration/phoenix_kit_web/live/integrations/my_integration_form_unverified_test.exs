@@ -16,6 +16,8 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationFormUnverifiedTest do
 
   use PhoenixKitWeb.ConnCase, async: false
 
+  import Ecto.Query
+
   alias PhoenixKit.Integrations.Providers
   alias PhoenixKit.ModuleRegistry
   alias PhoenixKit.Users.Permissions
@@ -24,6 +26,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationFormUnverifiedTest do
 
   @new_path Routes.path("/profile/settings/integrations/new")
   @provider_key "fixture_unverified"
+  @personal_setting "personal_integration_providers"
 
   defmodule FixtureProvider do
     @moduledoc false
@@ -58,9 +61,15 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationFormUnverifiedTest do
     ModuleRegistry.register(FixtureProvider)
     Providers.clear_cache()
 
+    # An external provider is never offered to users until a site admin ticks it
+    # (Settings → Integrations → Personal integrations), so tick it here.
+    {:ok, _} = Providers.put_personal_enabled([@provider_key])
+
     on_exit(fn ->
       ModuleRegistry.unregister(FixtureProvider)
       Providers.clear_cache()
+      Repo.delete_all(from s in PhoenixKit.Settings.Setting, where: s.key == ^@personal_setting)
+      PhoenixKit.Cache.invalidate(:settings, @personal_setting)
     end)
 
     :ok
