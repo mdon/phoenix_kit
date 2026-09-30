@@ -43,6 +43,8 @@ defmodule PhoenixKitWeb.Components.Core.FormActions do
   - `submit_icon` — Optional Heroicon name rendered inside the submit
     button (e.g. `"hero-check"`).
   - `submit_class` — Class for the submit button. Default `"btn btn-primary"`.
+  - `submit_disabled` — Disables the submit button (uploads or a request
+    still in flight). Say why in `submit_label`.
   - `class` — Extra classes appended to the outer wrapper.
 
   ## Slots
@@ -80,6 +82,12 @@ defmodule PhoenixKitWeb.Components.Core.FormActions do
   attr :submitting_label, :string, default: nil
   attr :submit_icon, :string, default: nil
   attr :submit_class, :string, default: "btn btn-primary"
+
+  attr :submit_disabled, :boolean,
+    default: false,
+    doc:
+      "Disables the submit button, e.g. while uploads or an AI request are in flight. Pair with a `submit_label` that says why."
+
   attr :class, :string, default: nil
 
   slot :inner_block, doc: "Extra controls rendered BEFORE Cancel + Submit."
@@ -117,7 +125,12 @@ defmodule PhoenixKitWeb.Components.Core.FormActions do
       >
         {gettext("Cancel")}
       </.link>
-      <button type="submit" class={@submit_class} phx-disable-with={@submitting_label}>
+      <button
+        type="submit"
+        class={@submit_class}
+        disabled={@submit_disabled}
+        phx-disable-with={@submitting_label}
+      >
         <.icon :if={@submit_icon} name={@submit_icon} class="w-4 h-4 mr-2" />
         {@submit_label}
       </button>

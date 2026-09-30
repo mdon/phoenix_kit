@@ -28,6 +28,9 @@ defmodule PhoenixKitWeb.Components.Core.FormSection do
   - `:subtitle` — Optional helper text rendered under the title. Slot
     (not attr) so callers can drop a `<.pk_link>` / `<.icon>` / etc.
     inline.
+  - `:actions` — Optional controls on the right of the title row (e.g. a
+    "Reset to defaults" button). Without it the title renders exactly as
+    before.
 
   ## Example
 
@@ -60,11 +63,20 @@ defmodule PhoenixKitWeb.Components.Core.FormSection do
   slot :inner_block, required: true
   slot :subtitle
 
+  slot :actions,
+    doc: "Controls on the right of the title row, e.g. a \"Reset to defaults\" button."
+
   def form_section(assigns) do
     ~H"""
     <section class={["card bg-base-100 shadow-lg", @class]} {@rest}>
       <div class={["card-body", @body_class]}>
-        <h2 class="card-title text-lg">
+        <div :if={@actions != []} class="flex items-start justify-between gap-3">
+          <h2 class="card-title text-lg">
+            <.icon :if={@icon} name={@icon} class="w-5 h-5" /> {@title}
+          </h2>
+          <div class="shrink-0 flex items-center gap-2">{render_slot(@actions)}</div>
+        </div>
+        <h2 :if={@actions == []} class="card-title text-lg">
           <.icon :if={@icon} name={@icon} class="w-5 h-5" /> {@title}
         </h2>
         <p :if={@subtitle != []} class="text-sm text-base-content/60 -mt-1">
