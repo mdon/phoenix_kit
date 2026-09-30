@@ -9946,3 +9946,155 @@ if (typeof window.Chart === "undefined") {
     module.exports.imageEditorSwapped = imageEditorSwapped;
   }
 })();
+
+// ---------------------------------------------------------------------------
+// PkChartCrosshair — the client half of `line_chart hover={:crosshair}`
+// (PhoenixKitWeb.Components.Core.Chart). The server sends one entry per
+// datum, already positioned and formatted:
+//
+//   [left%, right%, x%, y%, x_label, y_label, rank_label, [[row, colour]]]
+//
+// so this only finds the entry under the pointer and places the crosshair,
+// the dot and the readout. The hook sits on a pointer-events-none layer and
+// listens on the chart wrapper (its parent), because a style it set on its
+// own element would be dropped by the next patch.
+(function () {
+  if (typeof window === "undefined") return;
+  window.PhoenixKitHooks = window.PhoenixKitHooks || {};
+
+  var STYLE_ID = "pk-chart-crosshair-style";
+
+  // The native per-point tooltips are the no-JavaScript readout; once the
+  // hook runs they would show on top of the crosshair's, so turn them off.
+  function ensureStyle() {
+    if (typeof document === "undefined" || document.getElementById(STYLE_ID)) return;
+    var style = document.createElement("style");
+    style.id = STYLE_ID;
+    style.textContent = "[data-pk-crosshair] svg rect[data-x]{pointer-events:none}";
+    document.head.appendChild(style);
+  }
+
+  // The entry whose band holds `pct` (0–100 across the chart), or -1 where
+  // no datum stands (left of the first point of a step series).
+  function crosshairPick(points, pct) {
+    if (!points || !points.length) return -1;
+    for (var i = 0; i < points.length; i++) {
+      if (pct >= points[i][0] && pct < points[i][1]) return i;
+    }
+    // The right edge itself belongs to the last band.
+    var last = points[points.length - 1];
+    if (pct >= last[1] && pct <= 100) return points.length - 1;
+    return -1;
+  }
+
+  // Which side of the line the readout goes: right of it, unless that would
+  // run off the chart.
+  function crosshairTipSide(xPct) {
+    return xPct > 55 ? "left" : "right";
+  }
+
+  function line(tag, text, className) {
+    var el = document.createElement(tag);
+    el.textContent = text;
+    if (className) el.className = className;
+    return el;
+  }
+
+  window.PhoenixKitHooks.PkChartCrosshair = {
+    mounted() {
+      ensureStyle();
+      this.host = this.el.parentElement;
+      this.lineEl = this.el.querySelector("[data-crosshair-line]");
+      this.dotEl = this.el.querySelector("[data-crosshair-dot]");
+      this.tipEl = this.el.querySelector("[data-crosshair-tip]");
+      this.shown = -1;
+
+      this.onMove = (event) => this.show(event.clientX);
+      this.onLeave = () => this.hide();
+      this.host.addEventListener("pointermove", this.onMove);
+      this.host.addEventListener("pointerdown", this.onMove);
+      this.host.addEventListener("pointerleave", this.onLeave);
+      this.host.addEventListener("pointercancel", this.onLeave);
+    },
+
+    updated() {
+      // New data: the entry on screen may be gone or moved.
+      this.cache = null;
+      this.hide();
+    },
+
+    points() {
+      if (!this.cache) {
+        try {
+          this.cache = JSON.parse(this.el.dataset.points || "[]");
+        } catch (_err) {
+          this.cache = [];
+        }
+      }
+      return this.cache;
+    },
+
+    show(clientX) {
+      var rect = this.host.getBoundingClientRect();
+      if (!rect.width) return;
+      var points = this.points();
+      var i = crosshairPick(points, ((clientX - rect.left) / rect.width) * 100);
+      if (i < 0) return this.hide();
+      if (i === this.shown) return;
+      this.shown = i;
+
+      var p = points[i];
+      this.lineEl.style.left = p[2] + "%";
+      this.dotEl.style.left = p[2] + "%";
+      this.dotEl.style.top = p[3] + "%";
+
+      var tip = this.tipEl;
+      tip.replaceChildren();
+      if (p[4]) tip.appendChild(line("div", p[4], "opacity-70"));
+      tip.appendChild(line("div", p[5], "font-semibold"));
+      if (p[6]) tip.appendChild(line("div", p[6], "opacity-70"));
+      (p[7] || []).forEach(function (row) {
+        var el = line("div", "", "flex items-center gap-1.5");
+        var swatch = document.createElement("span");
+        swatch.className = "inline-block w-2 h-2 rounded-full bg-current";
+        if (row[1]) swatch.style.background = row[1];
+        el.appendChild(swatch);
+        el.appendChild(document.createTextNode(row[0]));
+        tip.appendChild(el);
+      });
+
+      if (crosshairTipSide(p[2]) === "right") {
+        tip.style.left = p[2] + "%";
+        tip.style.transform = "translateX(8px)";
+      } else {
+        tip.style.left = p[2] + "%";
+        tip.style.transform = "translateX(calc(-100% - 8px))";
+      }
+
+      this.lineEl.hidden = false;
+      this.dotEl.hidden = false;
+      tip.hidden = false;
+    },
+
+    hide() {
+      this.shown = -1;
+      if (this.lineEl) this.lineEl.hidden = true;
+      if (this.dotEl) this.dotEl.hidden = true;
+      if (this.tipEl) this.tipEl.hidden = true;
+    },
+
+    destroyed() {
+      if (!this.host) return;
+      this.host.removeEventListener("pointermove", this.onMove);
+      this.host.removeEventListener("pointerdown", this.onMove);
+      this.host.removeEventListener("pointerleave", this.onLeave);
+      this.host.removeEventListener("pointercancel", this.onLeave);
+    }
+  };
+
+  // Exported for the Node test harness (test/js); harmless in a browser.
+  if (typeof module === "object" && module.exports) {
+    module.exports.crosshairPick = crosshairPick;
+    module.exports.crosshairTipSide = crosshairTipSide;
+  }
+})();

@@ -77,6 +77,32 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
         x_format={&clock_label/1}
       />
 
+  ## Crosshair readout
+
+  `hover={:crosshair}` swaps the native tooltips for a crosshair that
+  snaps to the datum under the pointer (the slot, with `step`) and a
+  readout beside it: the x (`x_format`), the value (`value_format`), an
+  optional rank against the series (`rank_format`), and which `rows` are
+  active at that x — the pairing `chart_lanes/1` implies:
+
+      <.line_chart
+        id="price-today"
+        data={@points}
+        x_domain={{0, 1440}}
+        step
+        hover={:crosshair}
+        value_format={&"€\#{&1}/kWh"}
+        x_format={&clock_label/1}
+        rank_format={&"\#{ordinal(&1)} cheapest of \#{&2}"}
+        rows={[%{label: "Boiler", color: "var(--color-warning)", bands: [{360, 420}]}]}
+      />
+
+  Everything the readout says is computed here, on the server; the
+  `PkChartCrosshair` hook (shipped in `phoenix_kit.js`) only places it. The
+  native per-point tooltips are still rendered underneath, so a page whose
+  JavaScript has not loaded keeps the plain readout; the hook turns them
+  off when it mounts.
+
   `x_format` gets the plotted NUMBER, never the struct it came from — a
   time axis formats back from the number it plotted (`clock_label(810)` →
   `"13:30"` here), since a `DateTime` x is not a point and is dropped.
@@ -107,15 +133,33 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
         "their own values, which flips the sign of every domain and marker " <>
         "they pass too."
 
-  attr :hover, :boolean,
+  attr :hover, :any,
     default: false,
+    values: [false, true, :native, :crosshair],
     doc:
-      "Add a hover readout: an invisible band per data point, spanning the " <>
+      "`true` (or `:native`) adds a hover readout: an invisible band per data point, spanning the " <>
         "stretch of x the point stands for (its step with `step`, otherwise " <>
         "half-way to each neighbour), with a native tooltip. No JavaScript. Each " <>
         "band also carries `data-x` / `data-y` with the raw values, so a host's " <>
         "own hook (a crosshair, a richer popover) can snap to points without " <>
-        "reverse-engineering the stretched SVG."
+        "reverse-engineering the stretched SVG. `:crosshair` adds a snapping " <>
+        "crosshair and a richer readout on top (see \"Crosshair readout\")."
+
+  attr :rank_format, :any,
+    default: nil,
+    doc:
+      "With `hover={:crosshair}`: 2-arity fun `(rank, count)` → a line for the " <>
+        "readout, where `rank` is the point's 1-based place when the series is " <>
+        "sorted ascending by y (ties share a place) and `count` the number of " <>
+        "points. `nil` shows no rank."
+
+  attr :rows, :list,
+    default: [],
+    doc:
+      "With `hover={:crosshair}`: things that run over stretches of x, as " <>
+        "`%{label: _, color: _, bands: [{from, to}]}` (bands right-open, in " <>
+        "the same units as x; `color` any CSS colour). The readout lists the " <>
+        "rows active at the hovered x, in the order given."
 
   attr :value_format, :any,
     default: nil,
@@ -150,7 +194,11 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
     assigns = assign(assigns, :geometry, line_geometry(assigns))
 
     ~H"""
-    <div class={["pk-chart w-full h-full", @class]} {@rest}>
+    <div
+      class={["pk-chart w-full h-full", @hover == :crosshair && "relative", @class]}
+      data-pk-crosshair={@hover == :crosshair && @geometry && "true"}
+      {@rest}
+    >
       <svg
         :if={@geometry}
         viewBox={"0 0 #{@width} #{@height}"}
@@ -229,6 +277,39 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
           <title>{band.title}</title>
         </rect>
       </svg>
+
+      <%!-- The crosshair layer. `phx-update="ignore"` keeps the hook's
+           placement across patches; its own attributes (the payload) still
+           update. It never takes pointer events: the hook listens on the
+           wrapper. --%>
+      <div
+        :if={@hover == :crosshair && @geometry}
+        id={"#{@id}-crosshair"}
+        phx-hook="PkChartCrosshair"
+        phx-update="ignore"
+        data-points={Phoenix.json_library().encode!(@geometry.crosshair)}
+        class="absolute inset-0 pointer-events-none"
+        aria-hidden="true"
+      >
+        <div
+          data-crosshair-line
+          hidden
+          class="absolute top-0 bottom-0 w-px -translate-x-1/2 bg-current opacity-50"
+        >
+        </div>
+        <div
+          data-crosshair-dot
+          hidden
+          class="absolute w-2.5 h-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-current ring-2 ring-base-100"
+        >
+        </div>
+        <div
+          data-crosshair-tip
+          hidden
+          class="absolute top-1 z-10 min-w-max max-w-64 rounded-box border border-base-300 bg-base-100 px-2.5 py-1.5 text-xs text-base-content shadow-md"
+        >
+        </div>
+      </div>
 
       <div :if={!@geometry}>{render_slot(@empty)}</div>
     </div>
@@ -455,6 +536,7 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
             else: fn y -> round1(height - to_y.(y)) end
 
         points = plot_points(data, assigns.step, px, py, x_max)
+        bands = hover_bands(assigns, data, x_min, x_max, px)
         line_path = to_path(points)
         {first_x, _} = List.first(points)
         {last_x, _} = List.last(points)
@@ -471,7 +553,8 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
           # that was never measured, and did exactly that for out-of-domain
           # data too.
           dot: collapsed_point(points),
-          hover_bands: hover_bands(assigns, data, x_min, x_max, px)
+          hover_bands: bands,
+          crosshair: crosshair_points(assigns, bands, data, py)
         }
     end
   end
@@ -488,31 +571,33 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
   # A domain with no width (one x, no `x_domain`) draws every x at the
   # centre, so no datum has a stretch of its own: the whole chart answers for
   # the last one, in both modes.
-  defp hover_bands(%{hover: true} = assigns, [_ | _] = data, x_min, x_max, _px)
-       when x_min == x_max do
+  defp hover_bands(%{hover: hover} = assigns, [_ | _] = data, x_min, x_max, px)
+       when hover in [true, :native, :crosshair] and x_min == x_max do
     {x, y} = List.last(data)
-    [hover_band(assigns, x, y, 0, assigns.width)]
+    [hover_band(assigns, x, y, px.(x), 0, assigns.width)]
   end
 
-  defp hover_bands(%{hover: true} = assigns, data, _x_min, x_max, px) do
+  defp hover_bands(%{hover: hover} = assigns, data, _x_min, x_max, px)
+       when hover in [true, :native, :crosshair] do
     xs = Enum.map(data, fn {x, _} -> px.(x) end)
     edges = band_edges(xs, assigns.step, px.(x_max), assigns.width)
 
     data
     |> Enum.zip(edges)
     |> Enum.flat_map(fn {{x, y}, {left, right}} ->
-      if round1(right - left) > 0, do: [hover_band(assigns, x, y, left, right)], else: []
+      if round1(right - left) > 0, do: [hover_band(assigns, x, y, px.(x), left, right)], else: []
     end)
   end
 
   defp hover_bands(_assigns, _data, _x_min, _x_max, _px), do: []
 
-  defp hover_band(assigns, x, y, left, right) do
+  defp hover_band(assigns, x, y, x_pos, left, right) do
     %{
       x: round1(left),
       w: round1(right - left),
       raw_x: x,
       raw_y: y,
+      x_pos: x_pos,
       title: hover_title(x, y, Map.get(assigns, :x_format), Map.get(assigns, :value_format))
     }
   end
@@ -532,6 +617,97 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
     rights = mids ++ [width]
     Enum.zip(lefts, rights)
   end
+
+  # The crosshair's payload, one entry per hover band:
+  # `[left%, right%, x%, y%, x_label, y_label, rank_label, [[row, colour]]]`.
+  # Positions are percentages of the chart box, so the hook needs no scale of
+  # its own; every label is already formatted.
+  defp crosshair_points(%{hover: :crosshair} = assigns, bands, data, py) do
+    %{width: width, height: height} = assigns
+    ys = data |> Enum.map(&elem(&1, 1)) |> Enum.sort()
+    count = length(ys)
+    rows = normalize_rows(Map.get(assigns, :rows, []))
+    x_format = Map.get(assigns, :x_format)
+    value_format = Map.get(assigns, :value_format)
+
+    Enum.map(bands, fn band ->
+      [
+        pct(band.x, width),
+        pct(band.x + band.w, width),
+        pct(band.x_pos, width),
+        pct(py.(band.raw_y), height),
+        x_format && display(band.raw_x, x_format),
+        display(band.raw_y, value_format),
+        rank_label(Map.get(assigns, :rank_format), band.raw_y, ys, count),
+        for(row <- rows, row_active?(row, band.raw_x), do: [row.label, row.color])
+      ]
+    end)
+  end
+
+  defp crosshair_points(_assigns, _bands, _data, _py), do: []
+
+  defp pct(value, extent) when extent > 0, do: Float.round(value / extent * 100, 3)
+  defp pct(_value, _extent), do: 0.0
+
+  defp rank_label(format, y, ys, count) when is_function(format, 2) do
+    rank = Enum.count(ys, &(&1 < y)) + 1
+    to_string(format.(rank, count))
+  rescue
+    _ -> nil
+  end
+
+  defp rank_label(_format, _y, _ys, _count), do: nil
+
+  defp normalize_rows(rows) when is_list(rows) do
+    Enum.flat_map(rows, fn row ->
+      with true <- is_map(row),
+           label when not is_nil(label) <- field(row, :label) do
+        [
+          %{
+            label: to_string(label),
+            color: row |> field(:color) |> css_color(),
+            bands: row |> field(:bands) |> normalize_row_bands()
+          }
+        ]
+      else
+        _ -> []
+      end
+    end)
+  end
+
+  defp normalize_rows(_rows), do: []
+
+  defp field(map, key), do: Map.get(map, key, Map.get(map, Atom.to_string(key)))
+
+  # Only what a colour can look like reaches `style.background` in the hook;
+  # anything else falls back to the chart's own colour.
+  defp css_color(color) when is_binary(color) do
+    if Regex.match?(~r/\A[#a-zA-Z0-9(),.%\s\/-]{1,64}\z/, color), do: color, else: nil
+  end
+
+  defp css_color(_color), do: nil
+
+  defp normalize_row_bands(bands) when is_list(bands) do
+    Enum.flat_map(bands, fn band ->
+      {from, to} =
+        case band do
+          {from, to} -> {from, to}
+          [from, to] -> {from, to}
+          %{} -> {field(band, :from), field(band, :to)}
+          _ -> {nil, nil}
+        end
+
+      case {numeric(from), numeric(to)} do
+        {from, to} when is_number(from) and is_number(to) -> [{from, to}]
+        _ -> []
+      end
+    end)
+  end
+
+  defp normalize_row_bands(_bands), do: []
+
+  defp row_active?(%{bands: bands}, x),
+    do: Enum.any?(bands, fn {from, to} -> from <= x and x < to end)
 
   defp hover_title(_x, y, nil, value_format), do: display(y, value_format)
 
