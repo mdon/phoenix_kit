@@ -87,6 +87,26 @@ defmodule PhoenixKitWeb.Components.Core.BulkSelectTest do
   end
 
   describe "bulk_actions_toolbar/1" do
+    test "renders :primary last, after :trailing and the built-in actions" do
+      assigns = %{}
+
+      result =
+        rendered_to_string(~H"""
+        <.bulk_actions_toolbar on_open_reorder="r">
+          <:leading><span id="lead">L</span></:leading>
+          <:trailing><span id="trail">T</span></:trailing>
+          <:primary><a id="primary" href="/new">New</a></:primary>
+        </.bulk_actions_toolbar>
+        """)
+
+      {clear, _} = :binary.match(result, ~s(data-bulk-clear="true"))
+      {trail, _} = :binary.match(result, ~s(id="trail"))
+      {primary, _} = :binary.match(result, ~s(id="primary"))
+
+      assert clear < trail
+      assert trail < primary
+    end
+
     test "renders reorder button with the configured event name" do
       assigns = %{}
 
