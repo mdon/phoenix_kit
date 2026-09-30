@@ -56,15 +56,17 @@ Every email built from a file or a default is sent with an HTML body inside a
 shared layout. PhoenixKit's own layout is deliberately plain: the site's name
 above the message, the name and a link to the site below it — table markup
 with inline styles, no colours of any brand, no images, and no words of its
-own, so it needs no translation.
+own, so it needs no translation. Its `<html lang>` is the reader's locale.
 
 - An email with only a `text` part gets its HTML body built from the text:
   every character escaped, a blank line starts a paragraph, a line break
   becomes `<br>`, and `http://`/`https://` addresses become links (no other
-  scheme does). The `text` body is sent unchanged next to it.
+  scheme does, and neither does an address longer than 2 KB). The `text`
+  body is sent unchanged next to it. An empty part counts as missing.
 - An `html` part that is a fragment (`<p>…</p>`) is placed inside the layout.
 - An `html` part that is a whole document — starting with `<!doctype` or
-  `<html` — is sent as it is; it already has its own chrome.
+  `<html`, after any byte-order mark, whitespace, comments or `<?xml ?>`
+  prolog — is sent as it is; it already has its own chrome.
 - Emails still coming from database templates (the `phoenix_kit_emails`
   package) are never wrapped.
 
@@ -84,6 +86,11 @@ It is resolved for the same reader and from the same directories as the email
 it wraps. Only `html` is read. Finding `_layout` needs
 `phoenix_kit_templates` 0.2.1 or later.
 
+A layout with no `content` placeholder — an empty file, or a typo such as
+`{{{contnet}}}` — would drop the body of every email, the password reset
+included. PhoenixKit refuses it: it logs a warning on each send and uses its
+own layout until the file is fixed.
+
 Variables available to the layout:
 
 | placeholder | value |
@@ -91,7 +98,7 @@ Variables available to the layout:
 | `{{{content}}}` | the email's HTML body |
 | `{{subject}}` | the email's subject, e.g. for `<title>` |
 | `{{site_name}}` | the project title (the `project_title` setting, else `config :phoenix_kit, project_title:`) |
-| `{{site_url}}` | the site URL used in email links (the `site_url` setting, else the endpoint's URL) |
+| `{{site_url}}` | the site URL used in email links (the `site_url` setting, else the endpoint's URL) — as configured; PhoenixKit's own layout links it only when it is `http(s)://` |
 
 Write the body as `{{{content}}}` — **three braces**. It is already HTML,
 escaped when it was built; with two braces it would be escaped a second time

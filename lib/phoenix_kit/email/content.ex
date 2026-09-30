@@ -50,9 +50,12 @@ defmodule PhoenixKit.Email.Content do
     * `html` is `nil` — the text is turned into HTML (escaped, paragraphs,
       links; `Layout.text_to_html/1`) and wrapped, so a text-only message still
       arrives as HTML.
-    * `html` is a whole document (`<!doctype …` or `<html …`) — it is left
+    * `html` is a whole document (`<!doctype …` or `<html …`, after any BOM,
+      whitespace, comments or XML prolog; `Layout.document?/1`) — it is left
       alone; it already carries its own chrome.
-    * both `html` and `text` are `nil` — nothing to wrap, `html` stays `nil`.
+    * both `html` and `text` are `nil` or blank — nothing to wrap, `html` is
+      `nil`. A blank `html` (an empty override file) counts as `nil`, so the
+      text is wrapped instead.
     * `layout: false` — nothing is wrapped.
 
   A database template (layer 1) is never wrapped.
@@ -135,21 +138,30 @@ defmodule PhoenixKit.Email.Content do
   end
 
   # The html part is the only one the layout touches: subject and text reach
-  # the reader exactly as resolved. With neither html nor text there is no
-  # message to wrap, and leaving html nil is what keeps an unknown name
-  # answering `{:error, :template_not_found}` in `Mailer.send_from_template/4`.
+  # the reader exactly as resolved. A blank part (an empty override file) counts
+  # as absent. With neither html nor text there is no message to wrap, and
+  # leaving html nil is what keeps an unknown name answering
+  # `{:error, :template_not_found}` in `Mailer.send_from_template/4`.
   defp maybe_wrap(rendered, false, _opts), do: rendered
-  defp maybe_wrap(%{html: nil, text: nil} = rendered, _layout, _opts), do: rendered
 
-  defp maybe_wrap(%{html: nil, text: text} = rendered, _layout, opts) do
-    %{rendered | html: Layout.wrap(Layout.text_to_html(text), rendered.subject, opts)}
+  defp maybe_wrap(rendered, _layout, opts) do
+    cond do
+      present?(rendered.html) and Layout.document?(rendered.html) ->
+        rendered
+
+      present?(rendered.html) ->
+        %{rendered | html: Layout.wrap(rendered.html, rendered.subject, opts)}
+
+      present?(rendered.text) ->
+        html = rendered.text |> Layout.text_to_html() |> Layout.wrap(rendered.subject, opts)
+        %{rendered | html: html}
+
+      true ->
+        %{rendered | html: nil}
+    end
   end
 
-  defp maybe_wrap(%{html: html} = rendered, _layout, opts) do
-    if Layout.document?(html),
-      do: rendered,
-      else: %{rendered | html: Layout.wrap(html, rendered.subject, opts)}
-  end
+  defp present?(part), do: is_binary(part) and String.trim(part) != ""
 
   @doc """
   Roots searched for host override files, most specific first.

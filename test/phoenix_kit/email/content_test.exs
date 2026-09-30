@@ -7,6 +7,9 @@ defmodule PhoenixKit.Email.ContentTest do
 
   @moduletag :tmp_dir
 
+  # Host `_layout` files need phoenix_kit_templates 0.2.1; see the module.
+  @needs_underscore_names PhoenixKit.Test.UnderscoreTemplateNames.skip_reason()
+
   # The real msgids core sends, so the assertions below break if a translation
   # is reworded rather than passing against copy invented for the test.
   defp defaults do
@@ -171,6 +174,58 @@ defmodule PhoenixKit.Email.ContentTest do
                paths: [root],
                layout: false
              ).html == "<p>bare</p>"
+    end
+
+    test "a whole document behind a byte-order mark and a comment is left alone",
+         %{tmp_dir: root} do
+      document = "\uFEFF<!-- exported -->\n<!DOCTYPE html><html><body>Own</body></html>"
+      write(root, "bom_document_probe", "html.html", document)
+
+      assert Content.resolve("bom_document_probe", user("en"), %{}, text_only("t"), paths: [root]).html ==
+               document
+    end
+
+    test "an empty html file counts as no html: the text is wrapped", %{tmp_dir: root} do
+      write(root, "empty_html_probe", "html.html", "")
+
+      html =
+        Content.resolve("empty_html_probe", user("en"), %{}, text_only("from text"),
+          paths: [root]
+        ).html
+
+      assert html =~ "<!DOCTYPE html>"
+      assert html =~ "from text</p>"
+    end
+
+    test "blank html and blank text leave no html at all" do
+      resolved =
+        Content.resolve("blank_probe", user("en"), %{}, fn ->
+          %{subject: "s", text: "", html: "  \n"}
+        end)
+
+      assert resolved.html == nil
+      assert resolved.text == ""
+    end
+
+    @tag skip: @needs_underscore_names
+    test "the layout resolves from the message's own roots and reader locale",
+         %{tmp_dir: root} do
+      write(root, "_layout", "html.html", "ANY[{{{content}}}]")
+      write(root, "_layout", "html.de.html", "DE[{{{content}}}]")
+
+      assert Content.resolve("layout_locale_probe", user("de"), %{}, text_only("body"),
+               paths: [root]
+             ).html =~ ~r/\ADE\[<p[^>]*>body<\/p>\]\z/
+
+      assert Content.resolve("layout_locale_probe", user("fr"), %{}, text_only("body"),
+               paths: [root]
+             ).html =~ ~r/\AANY\[/
+
+      # The :locale option wins over the recipient's own preference.
+      assert Content.resolve("layout_locale_probe", user("fr"), %{}, text_only("body"),
+               paths: [root],
+               locale: "de"
+             ).html =~ ~r/\ADE\[/
     end
 
     test "nothing to wrap leaves every part nil" do
