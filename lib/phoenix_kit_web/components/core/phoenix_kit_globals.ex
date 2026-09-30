@@ -21,6 +21,15 @@ defmodule PhoenixKitWeb.Components.Core.PhoenixKitGlobals do
   The inline script clears this cache on every page load so WebSocket is always
   tried first, providing clean disconnect semantics and preventing double mounts.
 
+  ## Form controls on phones
+
+  iOS zooms the page when a form control under 16px takes focus, and every
+  daisyUI control is smaller (`input-sm` more so). A style here lifts
+  controls to at least 16px on touch screens under 768px — only inside the
+  kit's own markup (the admin drawer and pages marked `data-phoenix-kit`),
+  never a host's page, and only upward: `max(16px, 1em)` leaves a larger
+  font alone.
+
   ## Usage
 
       <PhoenixKitWeb.Components.Core.PhoenixKitGlobals.phoenix_kit_globals />
@@ -41,6 +50,13 @@ defmodule PhoenixKitWeb.Components.Core.PhoenixKitGlobals do
     assigns = assign(assigns, :prefix, prefix)
 
     ~H"""
+    <style data-pk-mobile-inputs>
+      @media (pointer: coarse) and (max-width: 767px) {
+        :is(#admin-drawer, [data-phoenix-kit]) :is(input:not([type=checkbox], [type=radio], [type=range], [type=file], [type=color], [type=hidden]), select, textarea) {
+          font-size: max(16px, 1em);
+        }
+      }
+    </style>
     <script>
       window.PHOENIX_KIT_PREFIX = "<%= @prefix %>";
       try{["localStorage","sessionStorage"].forEach(function(s){var t=window[s];Object.keys(t).filter(function(k){return k.indexOf("phx")!==-1&&k.indexOf("phx:")!==0}).forEach(function(k){t.removeItem(k)})})}catch(e){}

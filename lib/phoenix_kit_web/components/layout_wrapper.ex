@@ -1421,7 +1421,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
           </script>
         <% end %>
       </head>
-      <body class="bg-base-100 antialiased transition-colors">
+      <body class="bg-base-100 antialiased transition-colors" data-phoenix-kit>
         <%!-- Admin pages without parent headers --%>
         <main class="min-h-screen bg-base-100 transition-colors">
           <.flash_group flash={@flash} />
