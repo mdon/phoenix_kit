@@ -1586,7 +1586,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   end
 
   # Prepare assigns for parent layout compatibility
-  defp prepare_parent_layout_assigns(assigns) do
+  @doc false
+  def prepare_parent_layout_assigns(assigns) do
     # Flatten `:module_assigns` into the top-level assigns map FIRST so that
     # host layouts can read module-supplied keys directly (e.g.
     # `assigns[:phoenix_kit_publishing_translations]`). Existing top-level
@@ -1601,11 +1602,37 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
     assigns
     |> Map.put_new(:current_user, get_current_user_for_parent(assigns))
+    |> maybe_put_anonymous_scope()
     |> Map.put_new(:phoenix_kit_integrated, true)
     |> Map.put_new(:phoenix_kit_version, get_phoenix_kit_version())
     |> Map.put_new(:phoenix_version_info, PhoenixVersion.get_version_info())
     |> Map.put_new(:crawlers_no_index, assigns[:crawlers_no_index] || false)
   end
+
+  # A host layout written for Phoenix 1.8 reads `@current_scope`, which the
+  # kit's pages never set — so on the login and registration pages (no user)
+  # it got nil and every such layout needed a nil guard. A host can name a
+  # function returning its own anonymous scope:
+  #
+  #     config :phoenix_kit, host_anonymous_scope: {MyApp.Accounts.Scope, :anonymous, []}
+  #
+  # It is given to the layout when nobody is signed in, and is the host's own
+  # struct: display only — the kit never uses it for an access decision.
+  # Unset (the default) leaves `current_scope` absent, as before.
+  defp maybe_put_anonymous_scope(%{current_user: nil} = assigns) do
+    case Application.get_env(:phoenix_kit, :host_anonymous_scope) do
+      {mod, fun, args} when is_atom(mod) and is_atom(fun) and is_list(args) ->
+        Map.put_new(assigns, :current_scope, apply(mod, fun, args))
+
+      fun when is_function(fun, 0) ->
+        Map.put_new(assigns, :current_scope, fun.())
+
+      _ ->
+        assigns
+    end
+  end
+
+  defp maybe_put_anonymous_scope(assigns), do: assigns
 
   # Extract current user from scope for parent layout compatibility
   defp get_current_user_for_parent(assigns) do
