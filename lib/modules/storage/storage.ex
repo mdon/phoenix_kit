@@ -107,6 +107,7 @@ defmodule PhoenixKit.Modules.Storage do
   alias PhoenixKit.Modules.Storage.FolderLink
   alias PhoenixKit.Modules.Storage.ImageEditing
   alias PhoenixKit.Modules.Storage.Libraries
+  alias PhoenixKit.Modules.Storage.RemoteFetch
   alias PhoenixKit.Modules.Storage.Sniff
   alias PhoenixKit.Modules.Storage.Library
   alias PhoenixKit.Modules.Storage.Locations
@@ -5282,6 +5283,69 @@ defmodule PhoenixKit.Modules.Storage do
   #
   # Every other claim (documents, audio, video, archives) is left as it was —
   # sniffing only corrects the image path, which is the one that decodes.
+  @doc """
+  Downloads `url` and stores it like an upload, returning what
+  `store_file_in_buckets/7` returns.
+
+  The download is `PhoenixKit.Modules.Storage.RemoteFetch.download/2`: https
+  only by default, never to a non-public address (redirects and DNS
+  rebinding included), streamed to a temporary file with a size cap and an
+  overall timeout. The stored type comes from the bytes (`Storage.Sniff`),
+  not the response's `Content-Type`, and must be one of `:allowed_types`.
+  The temporary file is always removed.
+
+  This blocks for as long as the download takes; call it from a Task or a
+  job, not a LiveView's event handler.
+
+  ## Options
+
+    * `:user_uuid` (required) — the uploader.
+    * `:library_uuid` — the library to store into (default: Media).
+    * `:allowed_types` — MIME types or prefixes (`"image/"`) the sniffed
+      type must match. Default `["image/"]`.
+    * `:filename` — the stored original name (default: the URL's last
+      path segment).
+    * `:max_bytes`, `:timeout`, `:max_redirects`, `:allow_http`,
+      `:allowed_ports` — see `RemoteFetch`.
+
+  Errors: RemoteFetch's reasons, `:unsupported_type` (bytes of no known
+  type, or one not allowed), or `store_file_in_buckets/7`'s.
+  """
+  @spec store_from_url(String.t(), keyword()) ::
+          {:ok, term()} | {:ok, term(), atom()} | {:error, term()}
+  def store_from_url(url, opts) do
+    user_uuid = Keyword.fetch!(opts, :user_uuid)
+    allowed = Keyword.get(opts, :allowed_types, ["image/"])
+
+    with {:ok, %{path: path, filename: name}} <- RemoteFetch.download(url, opts) do
+      try do
+        with {:ok, %{mime: mime}} <- Sniff.sniff(path),
+             true <- Enum.any?(allowed, &String.starts_with?(mime, &1)) do
+          filename = opts[:filename] || name
+          ext = mime |> MIME.extensions() |> List.first() || "bin"
+
+          checksum =
+            :sha256 |> :crypto.hash(Elixir.File.read!(path)) |> Base.encode16(case: :lower)
+
+          store_file_in_buckets(
+            path,
+            determine_file_type(mime, filename),
+            user_uuid,
+            checksum,
+            ext,
+            filename,
+            mime_type: mime,
+            library_uuid: opts[:library_uuid]
+          )
+        else
+          _ -> {:error, :unsupported_type}
+        end
+      after
+        Elixir.File.rm(path)
+      end
+    end
+  end
+
   @doc false
   def content_mime_type(claimed, source_path, filename) do
     case Sniff.sniff(source_path) do
