@@ -7806,6 +7806,17 @@ if (typeof window.Chart === "undefined") {
         this.onInput();
       });
       this.el.addEventListener("keydown", (e) => this.onKeydown(e));
+      // Focus moving to another element closes the list (and so drops a
+      // late answer). Not when the whole window lost focus — the user is
+      // coming back — and not when focus went into the list itself.
+      this.el.addEventListener("blur", () => {
+        setTimeout(() => {
+          if (!document.hasFocus()) return;
+          var active = document.activeElement;
+          if (active === this.el || this.dd.contains(active)) return;
+          this.close();
+        }, 200);
+      });
       this.el.addEventListener("focus", () => {
         // A close_on_pick picker refocuses its input after a pick; that
         // focus must not reopen the list.
@@ -7874,13 +7885,10 @@ if (typeof window.Chart === "undefined") {
         if (payload.id && payload.id !== this.el.id) return;
         if (this.stagingNow) return;
         if (this.el.value.trim() !== (payload.q || "")) return; // stale
-        // Closed since the search went out, or nobody is in the field any
-        // more (a slow answer after the user moved on): do not reopen.
+        // Closed since the search went out (Escape, a pick, a click
+        // elsewhere, or focus moved to another field — see the blur
+        // listener): a slow answer must not reopen it.
         if (!this.wantOpen) return;
-        if (!this.loadingMore && document.activeElement !== this.el) {
-          this.searching = false;
-          return;
-        }
         var incoming = payload.results || [];
 
         if (this.loadingMore) {
