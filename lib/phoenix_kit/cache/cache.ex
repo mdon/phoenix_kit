@@ -295,7 +295,9 @@ defmodule PhoenixKit.Cache do
   There is no single-flight lock: when a key expires, every process that
   misses before the first fill lands runs `fun`. Keep `fun` free of side
   effects, and put anything expensive behind its own guard if that matters.
-  A cached `nil` counts as a hit.
+  A cached `nil` counts as a hit. An error — `:error` or `{:error, _}` — is
+  returned but never stored, so one failed load (a timeout) is not served
+  until the TTL runs out.
 
   ## Example
 
@@ -315,13 +317,17 @@ defmodule PhoenixKit.Cache do
             ms -> [if_generation: generation, expires_in: ms]
           end
 
-        put(cache_name, key, value, put_opts)
+        unless error_value?(value), do: put(cache_name, key, value, put_opts)
         value
 
       {value, _generation} ->
         value
     end
   end
+
+  defp error_value?(:error), do: true
+  defp error_value?({:error, _}), do: true
+  defp error_value?(_value), do: false
 
   @doc false
   # Milliseconds from `now` until the `:until` boundary; public for its tests,

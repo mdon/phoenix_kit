@@ -44,7 +44,9 @@ defmodule PhoenixKitWeb.Plugs.ProbeBlock do
   @defaults [
     # A dot-segment anywhere in the path, except /.well-known.
     {"(^|/)\\.(?!well-known(/|$))[^/]+", ""},
-    {"(^|/)wp-(admin|login|content|includes|config|json)", "i"},
+    # The name must end there (`/wp-login.php`, `/wp-admin/`), so a real
+    # route like `/docs/wp-administer` passes.
+    {"(^|/)wp-(admin|login|content|includes|config|json)(?=[/.]|$)", "i"},
     {"(^|/)xmlrpc\\.php", "i"},
     {"\\.php\\d?$", "i"},
     {"(^|/)(phpmyadmin|pma|myadmin)(/|$)", "i"},

@@ -45,6 +45,7 @@ defmodule PhoenixKit.Modules.Storage.RemoteFetch do
           | :timeout
           | {:http_status, pos_integer()}
           | {:connect_failed, term()}
+          | {:write_failed, term()}
 
   @spec download(String.t(), keyword()) ::
           {:ok, %{path: String.t(), filename: String.t(), url: String.t()}}
@@ -188,19 +189,26 @@ defmodule PhoenixKit.Modules.Storage.RemoteFetch do
 
       true ->
         path = temp_path()
-        {:ok, io} = File.open(path, [:write, :binary])
-        handle(rest, ref, %{state | io: io, path: path}, max)
+
+        case File.open(path, [:write, :binary]) do
+          {:ok, io} -> handle(rest, ref, %{state | io: io, path: path}, max)
+          {:error, reason} -> {:done, {:error, {:write_failed, reason}}, state}
+        end
     end
   end
 
   defp handle([{:data, ref, data} | rest], ref, %{io: io} = state, max) when io != nil do
     bytes = state.bytes + byte_size(data)
 
+    # A full disk is an error to report, not a crash: a raise here would skip
+    # `finish/3` and leave the partial temporary file behind.
     if bytes > max do
       {:done, {:error, :too_large}, %{state | bytes: bytes}}
     else
-      :ok = IO.binwrite(io, data)
-      handle(rest, ref, %{state | bytes: bytes}, max)
+      case write(io, data) do
+        :ok -> handle(rest, ref, %{state | bytes: bytes}, max)
+        {:error, reason} -> {:done, {:error, {:write_failed, reason}}, %{state | bytes: bytes}}
+      end
     end
   end
 
@@ -208,6 +216,14 @@ defmodule PhoenixKit.Modules.Storage.RemoteFetch do
     do: {:done, {:ok, path}, state}
 
   defp handle([_other | rest], ref, state, max), do: handle(rest, ref, state, max)
+
+  # `IO.binwrite/2` raises on a write error (a full disk) rather than
+  # returning one.
+  defp write(io, data) do
+    IO.binwrite(io, data)
+  rescue
+    error -> {:error, error}
+  end
 
   # Closes the connection and the file; a temporary file only survives a
   # successful download.

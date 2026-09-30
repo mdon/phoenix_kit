@@ -498,7 +498,7 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
   # Opaque images, other formats and non-images are unchanged.
   @spec output_format(String.t() | nil, map(), String.t()) :: String.t() | nil
   def output_format(format, file, original_path) do
-    target = format || String.trim_leading(to_string(file.ext), ".")
+    target = String.downcase(format || String.trim_leading(to_string(file.ext), "."))
 
     if file.file_type == "image" and target in ["jpg", "jpeg"] and
          ImageProcessor.has_alpha_channel?(original_path) do
@@ -508,7 +508,10 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
     end
   end
 
-  defp alpha_format do
+  @doc false
+  # The format a see-through image's JPEG-configured size is written in.
+  @spec alpha_format() :: String.t()
+  def alpha_format do
     case Application.get_env(:phoenix_kit, :variant_alpha_format, "png") do
       f when f in @alpha_capable -> f
       _ -> "png"

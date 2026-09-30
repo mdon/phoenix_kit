@@ -329,8 +329,7 @@ defmodule PhoenixKit.Migrations.Postgres.V205 do
 
   @doc false
   # The SQL for a size's spec hash, over the row `d` with the output format
-  # `format_sql`. `VariantSets.legacy_spec_hash/2` builds the same (pipeline-1)
-  # text; the current `VariantSets.spec_hash/2` adds the pipeline version.
+  # `format_sql`. `VariantSets.spec_hash/2` builds the same text.
   def spec_hash_sql(format_sql) do
     """
     md5(

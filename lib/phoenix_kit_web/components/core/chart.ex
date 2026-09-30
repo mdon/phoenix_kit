@@ -711,9 +711,19 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
   defp field(map, key), do: Map.get(map, key, Map.get(map, Atom.to_string(key)))
 
   # Only what a colour can look like reaches `style.background` in the hook;
-  # anything else falls back to the chart's own colour.
+  # anything else falls back to the chart's own colour. The characters alone
+  # would pass `url(//host/x)` — a request the page never meant to make — so
+  # every function in it must also be a colour function.
+  @css_color_functions ~w(var rgb rgba hsl hsla hwb lab lch oklab oklch color color-mix)
+
   defp css_color(color) when is_binary(color) do
-    if Regex.match?(~r/\A[#a-zA-Z0-9(),.%\s\/-]{1,64}\z/, color), do: color, else: nil
+    functions =
+      ~r/([a-zA-Z-]+)\s*\(/ |> Regex.scan(color) |> Enum.map(&String.downcase(List.last(&1)))
+
+    if Regex.match?(~r/\A[#a-zA-Z0-9(),.%\s\/-]{1,64}\z/, color) and
+         Enum.all?(functions, &(&1 in @css_color_functions)),
+       do: color,
+       else: nil
   end
 
   defp css_color(_color), do: nil

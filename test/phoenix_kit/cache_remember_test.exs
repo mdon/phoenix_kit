@@ -82,4 +82,18 @@ defmodule PhoenixKit.CacheRememberTest do
       assert Cache.ttl_until({:end_of_day, "Not/AZone"}, now) == 60_000
     end
   end
+
+  test "an error is returned but not stored, so the next call loads again" do
+    cache = start_cache()
+
+    assert Cache.remember(cache, :k, fn -> {:error, :timeout} end) == {:error, :timeout}
+    flush(cache)
+    assert Cache.remember(cache, :k, fn -> {:ok, :recovered} end) == {:ok, :recovered}
+    flush(cache)
+    assert Cache.remember(cache, :k, fn -> {:ok, :again} end) == {:ok, :recovered}
+
+    assert Cache.remember(cache, :e, fn -> :error end) == :error
+    flush(cache)
+    assert Cache.remember(cache, :e, fn -> :fine end) == :fine
+  end
 end

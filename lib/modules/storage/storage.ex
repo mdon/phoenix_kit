@@ -5363,8 +5363,10 @@ defmodule PhoenixKit.Modules.Storage do
             claimed
         end
 
+      # Bytes nothing recognises are not an image, whatever the claim —
+      # raster or not (an `image/svg+xml` claim over unknown bytes too).
       :unknown ->
-        if claimed in @raster_mimes do
+        if claimed in @raster_mimes or image_claim?(claimed) do
           log_mime_mismatch(filename, claimed, "application/octet-stream")
           "application/octet-stream"
         else
@@ -5372,6 +5374,9 @@ defmodule PhoenixKit.Modules.Storage do
         end
     end
   end
+
+  defp image_claim?(claimed) when is_binary(claimed), do: String.starts_with?(claimed, "image/")
+  defp image_claim?(_claimed), do: false
 
   defp log_mime_mismatch(filename, claimed, actual) do
     Logger.warning(

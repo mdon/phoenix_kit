@@ -72,27 +72,44 @@ defmodule PhoenixKitWeb.Components.ProfileSettingsTabs do
   @doc "The sections an admin has hidden. Unknown names are ignored."
   @spec hidden_sections() :: [atom()]
   def hidden_sections do
-    case PhoenixKit.Settings.get_json_setting_cached(@hidden_key, %{"hidden" => []}) do
-      %{"hidden" => names} when is_list(names) ->
-        Enum.filter(@hideable, &(Atom.to_string(&1) in names))
-
-      _ ->
-        []
-    end
+    @hidden_key
+    |> PhoenixKit.Settings.get_json_setting_cached(%{"hidden" => []})
+    |> stored_hidden()
   rescue
     _ -> []
   end
 
+  defp stored_hidden(%{"hidden" => names}) when is_list(names),
+    do: Enum.filter(@hideable, &(Atom.to_string(&1) in names))
+
+  defp stored_hidden(_value), do: []
+
   @doc "Hides or shows `section` for every user. `section` must be hideable."
   @spec set_section_hidden(atom(), boolean()) :: :ok | {:error, term()}
+  #
+  # A read-modify-write of one list, so it runs under a transaction lock on
+  # the key and reads the stored value, not the cache: two admins toggling
+  # different sections at once must both land.
   def set_section_hidden(section, hidden?) when section in @hideable do
-    names =
-      hidden_sections()
-      |> then(&if(hidden?, do: Enum.uniq(&1 ++ [section]), else: List.delete(&1, section)))
-      |> Enum.map(&Atom.to_string/1)
+    repo = PhoenixKit.RepoHelper.repo()
 
-    case PhoenixKit.Settings.update_json_setting(@hidden_key, %{"hidden" => names}) do
-      {:ok, _} -> :ok
+    repo.transaction(fn ->
+      repo.query!("SELECT pg_advisory_xact_lock(hashtext($1))", [@hidden_key])
+
+      names =
+        @hidden_key
+        |> PhoenixKit.Settings.get_json_setting(%{"hidden" => []})
+        |> stored_hidden()
+        |> then(&if(hidden?, do: Enum.uniq(&1 ++ [section]), else: List.delete(&1, section)))
+        |> Enum.map(&Atom.to_string/1)
+
+      case PhoenixKit.Settings.update_json_setting(@hidden_key, %{"hidden" => names}) do
+        {:ok, _} -> :ok
+        {:error, reason} -> repo.rollback(reason)
+      end
+    end)
+    |> case do
+      {:ok, :ok} -> :ok
       {:error, reason} -> {:error, reason}
     end
   end

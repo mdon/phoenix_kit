@@ -31,7 +31,7 @@ defmodule PhoenixKit.Modules.Storage.VariantSets do
 
   import Ecto.Query
 
-  alias PhoenixKit.Modules.Storage.{Dimension, Library, VariantSet}
+  alias PhoenixKit.Modules.Storage.{Dimension, Library, VariantGenerator, VariantSet}
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
   alias PhoenixKit.Modules.Storage.Libraries
   alias PhoenixKit.Modules.Storage.Workers.ReconcileJob
@@ -562,8 +562,19 @@ defmodule PhoenixKit.Modules.Storage.VariantSets do
     aspect = if d.maintain_aspect_ratio, do: "t", else: "f"
 
     "v1|w=#{d.width}|h=#{d.height}|q=#{d.quality}|f=#{format}|a=#{aspect}|p=#{@pipeline}"
+    |> Kernel.<>(alpha_part())
     |> then(&:crypto.hash(:md5, &1))
     |> Base.encode16(case: :lower)
+  end
+
+  # `variant_alpha_format` changes the pixels of a see-through image's
+  # JPEG-configured sizes, so a non-default value is part of the hash. The
+  # default adds nothing, so existing hashes are unchanged.
+  defp alpha_part do
+    case VariantGenerator.alpha_format() do
+      "png" -> ""
+      other -> "|af=#{other}"
+    end
   end
 
   @doc false

@@ -504,8 +504,16 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
     end
   end
 
+  # Pinned and limited like every other call: an unpinned `identify` lets a
+  # path such as `xc:red` choose its own coder.
   defp detect_format(path) do
-    case System.cmd("identify", ["-format", "%m", "#{path}[0]"], stderr_to_stdout: true) do
+    with {:ok, input} <- pinned_input(path, "[0]") do
+      identify_format(input)
+    end
+  end
+
+  defp identify_format(input) do
+    case System.cmd("identify", @limit_args ++ ["-format", "%m", input], stderr_to_stdout: true) do
       {output, 0} ->
         format = output |> String.trim() |> String.upcase()
 

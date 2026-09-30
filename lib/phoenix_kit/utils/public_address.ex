@@ -10,6 +10,15 @@ defmodule PhoenixKit.Utils.PublicAddress do
   IPv6 forms that smuggle an IPv4 address (IPv4-mapped, IPv4-compatible,
   NAT64, 6to4, Teredo). Listing what is *not* public is how the registries
   themselves are organised; an address in none of these ranges is public.
+
+  A network can add its own: an IPv6-only host behind a NAT64 gateway with a
+  network-specific prefix (not `64:ff9b::/96`) sees every IPv4 address,
+  internal ones included, as a global-looking IPv6 address under that
+  prefix. List it, and anything else local to the network, in
+
+      config :phoenix_kit, :blocked_ip_ranges, ["2a00:abcd:1234:5678::/96"]
+
+  (CIDR strings; an unparsable entry is ignored).
   """
 
   import Bitwise
@@ -25,7 +34,8 @@ defmodule PhoenixKit.Utils.PublicAddress do
     end
   end
 
-  def public?({_, _, _, _} = ip), do: not Enum.any?(v4_blocked(), &in_range?(ip, &1))
+  def public?({_, _, _, _} = ip),
+    do: not Enum.any?(v4_blocked() ++ configured_blocked(), &in_range?(ip, &1))
 
   # Only global unicast space (2000::/3) is ever public; everything outside it
   # is reserved or local. Inside it, every form that carries an IPv4 address
@@ -35,7 +45,7 @@ defmodule PhoenixKit.Utils.PublicAddress do
   def public?({_, _, _, _, _, _, _, _} = ip),
     do:
       in_range?(ip, {{0x2000, 0, 0, 0, 0, 0, 0, 0}, 3}) and
-        not Enum.any?(v6_blocked(), &in_range?(ip, &1))
+        not Enum.any?(v6_blocked() ++ configured_blocked(), &in_range?(ip, &1))
 
   def public?(_ip), do: false
 
@@ -74,6 +84,26 @@ defmodule PhoenixKit.Utils.PublicAddress do
   end
 
   defp prefer_v4(addresses), do: Enum.find(addresses, hd(addresses), &(tuple_size(&1) == 4))
+
+  defp configured_blocked do
+    :phoenix_kit
+    |> Application.get_env(:blocked_ip_ranges, [])
+    |> List.wrap()
+    |> Enum.flat_map(&parse_cidr/1)
+  end
+
+  defp parse_cidr(cidr) when is_binary(cidr) do
+    with [address, prefix] <- String.split(cidr, "/", parts: 2),
+         {:ok, ip} <- :inet.parse_strict_address(String.to_charlist(address)),
+         {prefix, ""} <- Integer.parse(prefix),
+         true <- prefix in 0..(tuple_size(ip) * if(tuple_size(ip) == 4, do: 8, else: 16)) do
+      [{ip, prefix}]
+    else
+      _ -> []
+    end
+  end
+
+  defp parse_cidr(_cidr), do: []
 
   # {network, prefix length}
   defp v4_blocked do

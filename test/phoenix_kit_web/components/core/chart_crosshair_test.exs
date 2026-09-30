@@ -197,6 +197,37 @@ defmodule PhoenixKitWeb.Components.Core.ChartCrosshairTest do
     assert payload(html) |> Enum.map(&Enum.at(&1, 7)) == [[0], [0]]
   end
 
+  test "a colour carrying a url() or another non-colour function is dropped" do
+    assigns = %{
+      rows: [
+        %{label: "A", color: "url(//attacker.test/p)", bands: [{0, 5}]},
+        %{label: "B", color: "URL (x)", bands: [{0, 5}]},
+        %{label: "C", color: "rgb(from url(x) r g b)", bands: [{0, 5}]},
+        %{label: "D", color: "image(red)", bands: [{0, 5}]},
+        %{
+          label: "E",
+          color: "color-mix(in oklch, var(--color-info) 40%, white)",
+          bands: [{0, 5}]
+        },
+        %{label: "F", color: "oklch(70% 0.1 200)", bands: [{0, 5}]}
+      ]
+    }
+
+    html =
+      rendered_to_string(~H"""
+      <.line_chart id="c" data={[{0, 1}, {1, 1}]} hover={:crosshair} rows={@rows} />
+      """)
+
+    assert rows(html) == [
+             ["A", nil],
+             ["B", nil],
+             ["C", nil],
+             ["D", nil],
+             ["E", "color-mix(in oklch, var(--color-info) 40%, white)"],
+             ["F", "oklch(70% 0.1 200)"]
+           ]
+  end
+
   test "labels are escaped in the attribute" do
     assigns = %{}
 

@@ -25,7 +25,8 @@ defmodule PhoenixKitWeb.Plugs.ProbeBlockTest do
   test "real pages and /.well-known pass through" do
     for path <-
           ~w(/ /admin /en/blog/my-post /users/log-in /assets/app.js /phoenix_kit/admin/settings
-             /.well-known/acme-challenge/abc /.well-known/security.txt /wordpress-migration-guide) do
+             /.well-known/acme-challenge/abc /.well-known/security.txt /wordpress-migration-guide
+             /docs/wp-administer /blog/wp-contentious-topics) do
       conn = run(path)
       refute conn.halted, path
       assert conn.status == nil

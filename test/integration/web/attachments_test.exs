@@ -59,6 +59,10 @@ defmodule PhoenixKitWeb.AttachmentsTest do
     path
   end
 
+  # An image claim is checked against the bytes, so a test that stores one
+  # needs a PNG signature in front of its unique tail.
+  defp png(tail), do: <<0x89, "PNG", 0x0D, 0x0A, 0x1A, 0x0A>> <> tail
+
   defp entry(name, type \\ "application/octet-stream"),
     do: %{client_name: name, client_type: type}
 
@@ -169,7 +173,12 @@ defmodule PhoenixKitWeb.AttachmentsTest do
     n: n
   } do
     assert {:ok, file} =
-             store(upload!("typed #{n}"), entry("scan.dat", "image/png"), user.uuid, folder.uuid)
+             store(
+               upload!(png("typed #{n}")),
+               entry("scan.dat", "image/png"),
+               user.uuid,
+               folder.uuid
+             )
 
     assert file.mime_type == "image/png"
     assert file.file_type == "image"
@@ -196,7 +205,12 @@ defmodule PhoenixKitWeb.AttachmentsTest do
   # so an upper-case type used to be stored as "other" with a "bin" name.
   test "a browser type in upper case is the same type", %{user: user, folder: folder, n: n} do
     assert {:ok, file} =
-             store(upload!("shouty #{n}"), entry("photo", "IMAGE/PNG"), user.uuid, folder.uuid)
+             store(
+               upload!(png("shouty #{n}")),
+               entry("photo", "IMAGE/PNG"),
+               user.uuid,
+               folder.uuid
+             )
 
     assert file.mime_type == "image/png"
     assert file.file_type == "image"
