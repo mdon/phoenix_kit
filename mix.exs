@@ -1,7 +1,7 @@
 defmodule PhoenixKit.MixProject do
   use Mix.Project
 
-  @version "2.42.0"
+  @version "2.42.1"
   @description "A foundation for building Elixir Phoenix apps — SaaS, social networks, ERP systems, marketplaces, and more"
   @source_url "https://github.com/BeamLabEU/phoenix_kit"
 
@@ -278,7 +278,7 @@ defmodule PhoenixKit.MixProject do
       # one; they keep the old reading.
       {:fresco, "~> 0.10.0 or ~> 0.11.0 or ~> 0.12.0 or ~> 0.13.0"},
       {:tessera, "~> 0.3.0"},
-      {:etcher, "~> 0.17.0"},
+      {:etcher, "~> 0.18.0"},
 
       # QR device-handoff login ("scan to sign in" on the login page).
       #

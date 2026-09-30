@@ -1,3 +1,20 @@
+## 2.42.1 - 2026-09-30
+
+### Changed
+
+- **Etcher 0.18.0 (and Fresco 0.13.1).** The requirement moves to
+  `~> 0.18.0`, the lock to 0.18.0 and the jsDelivr pin in `phoenix_kit.js`
+  to `etcher@v0.18.0`, together, so a host's Elixir half never floats past
+  the frozen browser bundle. Fresco's pin follows its lock to `v0.13.1`
+  (the requirement already admitted it). What the media viewer's annotation
+  editor gains: peers watch a shape being drawn, two fingers pan and pinch
+  whatever tool is armed (Fresco 0.13.1 stops an annotation layer keeping
+  the second finger), label size has plus/minus buttons, and a batch of
+  iOS fixes (a slow stroke is no longer a long press, a tap places a dot, a
+  new text box raises the keyboard). No core API change; hosts that held
+  etcher at 0.17 see the `deps.upgrade` "newer release, requirement will not
+  allow it" warning clear.
+
 ## 2.42.0 - 2026-09-30
 
 ### Added
