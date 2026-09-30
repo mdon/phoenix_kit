@@ -630,8 +630,8 @@ msgstr ""
 #: lib/phoenix_kit/mentions/live.ex:250
 #: lib/phoenix_kit_web/comments_gettext_manifest.ex:41
 #: lib/phoenix_kit_web/components/annotation_composer.ex:661
-#: lib/phoenix_kit_web/components/core/form_actions.ex:111
-#: lib/phoenix_kit_web/components/core/form_actions.ex:118
+#: lib/phoenix_kit_web/components/core/form_actions.ex:119
+#: lib/phoenix_kit_web/components/core/form_actions.ex:126
 #: lib/phoenix_kit_web/components/core/modal.ex:311
 #: lib/phoenix_kit_web/components/core/reorder_modal.ex:92
 #: lib/phoenix_kit_web/components/image_editor.ex:1056
@@ -906,7 +906,7 @@ msgstr ""
 #: lib/modules/storage/web/libraries_component.ex:383
 #: lib/modules/storage/web/profiles_component.ex:305
 #: lib/modules/storage/web/settings.html.heex:243
-#: lib/phoenix_kit_web/components/core/bulk_select.ex:224
+#: lib/phoenix_kit_web/components/core/bulk_select.ex:228
 #: lib/phoenix_kit_web/components/image_editor.ex:1032
 #: lib/phoenix_kit_web/components/media_browser.html.heex:863
 #: lib/phoenix_kit_web/components/media_browser.html.heex:870
@@ -4167,6 +4167,7 @@ msgid "Enter your API credentials from the developer console."
 msgstr ""
 
 #: lib/modules/maintenance/web/maintenance_page_live.ex:155
+#: lib/phoenix_kit_web/components/layouts/maintenance.html.heex:37
 #, elixir-autogen, elixir-format
 msgid "Expected back in"
 msgstr ""
@@ -5103,9 +5104,9 @@ msgstr ""
 msgid "Disconnect account"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/core/table_default.ex:448
-#: lib/phoenix_kit_web/components/core/table_default.ex:485
-#: lib/phoenix_kit_web/components/core/table_default.ex:698
+#: lib/phoenix_kit_web/components/core/table_default.ex:459
+#: lib/phoenix_kit_web/components/core/table_default.ex:496
+#: lib/phoenix_kit_web/components/core/table_default.ex:709
 #, elixir-autogen, elixir-format
 msgid "Drag to reorder"
 msgstr ""
@@ -5261,7 +5262,7 @@ msgid "Removes the integration permanently. Any module pinned to this connection
 msgstr ""
 
 #: lib/phoenix_kit_web/components/core/crumb_switcher.ex:48
-#: lib/phoenix_kit_web/components/core/table_default.ex:894
+#: lib/phoenix_kit_web/components/core/table_default.ex:905
 #: lib/phoenix_kit_web/components/tree_picker.ex:79
 #, elixir-autogen, elixir-format
 msgid "Search..."
@@ -6066,7 +6067,7 @@ msgid "Cannot rename folder outside the allowed scope"
 msgstr ""
 
 #: lib/phoenix_kit_web/components/core/bulk_actions_bar.ex:110
-#: lib/phoenix_kit_web/components/core/bulk_select.ex:225
+#: lib/phoenix_kit_web/components/core/bulk_select.ex:229
 #: lib/phoenix_kit_web/components/media_browser.html.heex:805
 #: lib/phoenix_kit_web/live/settings/website_access.html.heex:243
 #, elixir-autogen, elixir-format
@@ -6451,61 +6452,73 @@ msgstr ""
 msgid "Upload successful! %{added}. %{duplicates}."
 msgstr ""
 
+#: lib/phoenix_kit/utils/date.ex:88
 #: lib/phoenix_kit_web/projects_gettext_manifest.ex:36
 #, elixir-autogen, elixir-format
 msgid "Jan"
 msgstr ""
 
+#: lib/phoenix_kit/utils/date.ex:89
 #: lib/phoenix_kit_web/projects_gettext_manifest.ex:37
 #, elixir-autogen, elixir-format
 msgid "Feb"
 msgstr ""
 
+#: lib/phoenix_kit/utils/date.ex:90
 #: lib/phoenix_kit_web/projects_gettext_manifest.ex:38
 #, elixir-autogen, elixir-format
 msgid "Mar"
 msgstr ""
 
+#: lib/phoenix_kit/utils/date.ex:91
 #: lib/phoenix_kit_web/projects_gettext_manifest.ex:39
 #, elixir-autogen, elixir-format
 msgid "Apr"
 msgstr ""
 
+#: lib/phoenix_kit/utils/date.ex:92
 #: lib/phoenix_kit_web/projects_gettext_manifest.ex:40
 #, elixir-autogen, elixir-format
 msgid "May"
 msgstr ""
 
+#: lib/phoenix_kit/utils/date.ex:93
 #: lib/phoenix_kit_web/projects_gettext_manifest.ex:41
 #, elixir-autogen, elixir-format
 msgid "Jun"
 msgstr ""
 
+#: lib/phoenix_kit/utils/date.ex:94
 #: lib/phoenix_kit_web/projects_gettext_manifest.ex:42
 #, elixir-autogen, elixir-format
 msgid "Jul"
 msgstr ""
 
+#: lib/phoenix_kit/utils/date.ex:95
 #: lib/phoenix_kit_web/projects_gettext_manifest.ex:43
 #, elixir-autogen, elixir-format
 msgid "Aug"
 msgstr ""
 
+#: lib/phoenix_kit/utils/date.ex:96
 #: lib/phoenix_kit_web/projects_gettext_manifest.ex:44
 #, elixir-autogen, elixir-format
 msgid "Sep"
 msgstr ""
 
+#: lib/phoenix_kit/utils/date.ex:97
 #: lib/phoenix_kit_web/projects_gettext_manifest.ex:45
 #, elixir-autogen, elixir-format
 msgid "Oct"
 msgstr ""
 
+#: lib/phoenix_kit/utils/date.ex:98
 #: lib/phoenix_kit_web/projects_gettext_manifest.ex:46
 #, elixir-autogen, elixir-format
 msgid "Nov"
 msgstr ""
 
+#: lib/phoenix_kit/utils/date.ex:99
 #: lib/phoenix_kit_web/projects_gettext_manifest.ex:47
 #, elixir-autogen, elixir-format
 msgid "Dec"
@@ -6856,7 +6869,7 @@ msgstr ""
 msgid "Redirecting…"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/core/form_actions.ex:95
+#: lib/phoenix_kit_web/components/core/form_actions.ex:103
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:584
 #: lib/phoenix_kit_web/live/notifications/settings.ex:347
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:261
@@ -8256,12 +8269,12 @@ msgstr ""
 msgid "Multiple Sessions"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/core/bulk_select.ex:223
+#: lib/phoenix_kit_web/components/core/bulk_select.ex:227
 #, elixir-autogen, elixir-format
 msgid "Reorder %{count} selected"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/core/bulk_select.ex:215
+#: lib/phoenix_kit_web/components/core/bulk_select.ex:219
 #, elixir-autogen, elixir-format
 msgid "Reorder all"
 msgstr ""
@@ -9291,12 +9304,12 @@ msgstr ""
 msgid "The icon appears in browser tabs, bookmarks, and on phone home screens."
 msgstr ""
 
-#: lib/phoenix_kit_web/components/core/form_section.ex:116
+#: lib/phoenix_kit_web/components/core/form_section.ex:128
 #, elixir-autogen, elixir-format
 msgid "Unsaved change"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/core/form_section.ex:118
+#: lib/phoenix_kit_web/components/core/form_section.ex:130
 #, elixir-autogen, elixir-format
 msgid "saved:"
 msgstr ""
@@ -12817,7 +12830,7 @@ msgstr ""
 
 #: lib/phoenix_kit_web/components/layout_wrapper.ex:1243
 #: lib/phoenix_kit_web/components/tree_picker.ex:382
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Collapse"
 msgstr ""
 
@@ -12850,12 +12863,12 @@ msgid "Any status"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/users/users.html.heex:293
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Email confirmed"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:263
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Show:"
 msgstr ""
 
@@ -13676,13 +13689,13 @@ msgid "Manage Integrations"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1939
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "No personal integrations yet."
 msgstr ""
 
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:61
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:56
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "You don't have access to Integrations."
 msgstr ""
 
@@ -13703,19 +13716,19 @@ msgid "%{label} is not valid for %{country}"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:490
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Add Account"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:342
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:409
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Add Bank Account"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:21
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:329
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Bank Accounts"
 msgstr ""
 
@@ -13730,7 +13743,7 @@ msgid "Bank account saved"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/organization.ex:382
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Bank name is required"
 msgstr ""
 
@@ -13740,7 +13753,7 @@ msgid "Business Number, optionally with a program account, e.g. 123456789RT0001"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:169
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "EIN format: 12-3456789"
 msgstr ""
 
@@ -13750,7 +13763,7 @@ msgid "Edit Bank Account"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:332
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "For bank transfer payments on invoices. A company can have more than one."
 msgstr ""
 
@@ -13760,17 +13773,17 @@ msgid "No bank accounts added yet"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:476
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Primary account"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:389
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Remove this bank account?"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:111
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Select..."
 msgstr ""
 
@@ -13796,9 +13809,9 @@ msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:20
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:215
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Main Countries"
-msgstr "Main countries"
+msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:191
 #, elixir-autogen, elixir-format
@@ -13811,7 +13824,7 @@ msgid "Optional — VAT/tax-ID registration is threshold-based or opt-in in most
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/organization.ex:526
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Registration number is required"
 msgstr ""
 
@@ -13831,12 +13844,12 @@ msgid "Default Integration"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/email_sending.html.heex:24
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Local Dev Mailbox"
 msgstr ""
 
 #: lib/modules/sitemap/web/settings.html.heex:80
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Sources"
 msgstr ""
 
@@ -13990,7 +14003,7 @@ msgstr ""
 #: lib/phoenix_kit_web/live/settings/email_sending.html.heex:229
 #: lib/phoenix_kit_web/live/settings/send_profile_form.ex:25
 #: lib/phoenix_kit_web/live/settings/send_profiles.ex:26
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Emails Bulk"
 msgstr ""
 
@@ -14016,22 +14029,22 @@ msgid "No modules are currently enabled."
 msgstr ""
 
 #: lib/phoenix_kit_web/live/modules.html.heex:47
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Not Installed"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/send_profiles.ex:29
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Service-wide default profile used by newsletter broadcasts. Transactional mail (auth, notifications) is routed by the Default Transactional Integration on the Emails Transactional page."
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/email_sending.ex:171
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "This is a test email sent from the Emails Transactional settings page."
 msgstr ""
 
 #: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:10
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Confirm your email to continue"
 msgstr ""
 
@@ -14041,12 +14054,12 @@ msgid "No confirmation email on record — use Resend below."
 msgstr ""
 
 #: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:59
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Resend email"
 msgstr ""
 
 #: lib/phoenix_kit_web/users/confirmation_instructions.html.heex:20
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Sent"
 msgstr ""
 
@@ -14056,17 +14069,17 @@ msgid "We emailed a confirmation link to %{email}. Open it to continue — you'l
 msgstr ""
 
 #: lib/phoenix_kit/users/auth.ex:3221
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Admin notes"
 msgstr ""
 
 #: lib/phoenix_kit/users/auth.ex:3218
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Billing profiles"
 msgstr ""
 
 #: lib/phoenix_kit/users/auth.ex:3239
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Email logs"
 msgstr ""
 
@@ -14082,7 +14095,7 @@ msgstr ""
 
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:91
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:811
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Permanently Delete"
 msgstr ""
 
@@ -14092,7 +14105,7 @@ msgid "Permanently Delete User"
 msgstr ""
 
 #: lib/phoenix_kit/users/auth.ex:3216
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Role assignments"
 msgstr ""
 
@@ -14102,7 +14115,7 @@ msgid "Session and other tokens"
 msgstr ""
 
 #: lib/phoenix_kit/users/auth.ex:3220
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Shopping carts"
 msgstr ""
 
@@ -14122,7 +14135,7 @@ msgid "Will be anonymized (preserved without PII):"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:781
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Will be permanently deleted:"
 msgstr ""
 
@@ -14132,7 +14145,7 @@ msgid "You've asked for this a few times already — please wait a few minutes a
 msgstr ""
 
 #: lib/phoenix_kit_web/users/confirmation_instructions.ex:291
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Your email is already confirmed."
 msgstr ""
 
@@ -14147,13 +14160,13 @@ msgid "Always-on roles"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:600
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Could not save that."
 msgstr ""
 
 #: lib/phoenix_kit_web/users/session.ex:233
 #: lib/phoenix_kit_web/users/session.ex:241
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Could not switch to that role."
 msgstr ""
 
@@ -14168,23 +14181,23 @@ msgid "Let users with several roles act as one role at a time"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:594
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Saved."
 msgstr ""
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1675
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Start page"
 msgstr ""
 
 #: lib/phoenix_kit_web/components/core/role_switcher.ex:94
 #: lib/phoenix_kit_web/components/core/role_switcher.ex:95
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Switch role"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/users.html.heex:441
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Switcher location"
 msgstr ""
 
@@ -14219,7 +14232,7 @@ msgid "Where users switch between their roles"
 msgstr ""
 
 #: lib/phoenix_kit_web/users/session.ex:228
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "You are now acting as %{role}."
 msgstr ""
 
@@ -14882,7 +14895,7 @@ msgstr ""
 
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:422
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:426
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Channel"
 msgstr ""
 
@@ -14898,7 +14911,7 @@ msgid "Chat unlinked"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:464
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Could not save the linked chats"
 msgstr ""
 
@@ -14920,7 +14933,7 @@ msgstr ""
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1156
 #: lib/phoenix_kit_web/users/user_form.html.heex:275
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Google Email"
 msgstr ""
 
@@ -15077,7 +15090,7 @@ msgid "The selected file is not an available image"
 msgstr ""
 
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:595
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Title & description"
 msgstr ""
 
@@ -15092,7 +15105,7 @@ msgid "%{attempts} attempts across %{networks} network(s), against %{accounts} k
 msgstr ""
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1892
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "%{count} attempt"
 msgid_plural "%{count} attempts"
 msgstr[0] ""
@@ -15125,12 +15138,12 @@ msgid "Hi {{user_email}},\n\nSomeone has been trying to sign in to your account 
 msgstr ""
 
 #: lib/phoenix_kit/users/auth/user_notifier.ex:313
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Hi {{user_email}},\n\nWe noticed a new login to your account from an unrecognized device:\n\nTime: {{login_time}}\nIP address: {{ip_address}}\nLocation: {{location}}\nDevice: {{browser_os}}\n\n{{failed_attempts}}If this was you, no action is needed.\n\nIf you don't recognize this activity, secure your account here:\n\n{{security_url}}\n"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:101
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Last seen"
 msgstr ""
 
@@ -15247,7 +15260,7 @@ msgid "Annotation tools"
 msgstr ""
 
 #: lib/phoenix_kit/integrations/integrations.ex:1233
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Could not read the current figures"
 msgstr ""
 
@@ -16287,17 +16300,17 @@ msgstr ""
 msgid "Folder restored"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/core/table_default.ex:308
+#: lib/phoenix_kit_web/components/core/table_default.ex:316
 #, elixir-autogen, elixir-format
 msgid "Card view"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/core/table_default.ex:321
+#: lib/phoenix_kit_web/components/core/table_default.ex:329
 #, elixir-autogen, elixir-format
 msgid "Comfortable view"
 msgstr ""
 
-#: lib/phoenix_kit_web/components/core/table_default.ex:334
+#: lib/phoenix_kit_web/components/core/table_default.ex:342
 #, elixir-autogen, elixir-format
 msgid "Compact view"
 msgstr ""
@@ -16424,4 +16437,19 @@ msgstr ""
 #: lib/phoenix_kit_web/users/user_form.ex:933
 #, elixir-autogen, elixir-format
 msgid "Saved, but the password, email and username were not changed — you don't have permission to manage this user's credentials."
+msgstr ""
+
+#: lib/phoenix_kit/utils/date.ex:112
+#, elixir-autogen, elixir-format
+msgid "%{day} %{month}"
+msgstr ""
+
+#: lib/phoenix_kit/utils/date.ex:123
+#, elixir-autogen, elixir-format
+msgid "%{day} %{month} %{year}"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/layouts/maintenance.html.heex:33
+#, elixir-autogen, elixir-format
+msgid "any moment now..."
 msgstr ""

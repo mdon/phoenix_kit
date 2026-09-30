@@ -65,4 +65,14 @@ defmodule PhoenixKit.ShortMonthTest do
       assert UtilsDate.short_with_year(nil) == ""
     end
   end
+
+  describe "short/1 in a translated locale" do
+    test "Estonian writes the day with a dot, and its own month abbreviation" do
+      Gettext.put_locale(PhoenixKitWeb.Gettext, "et")
+      month = UtilsDate.short_month(10)
+
+      assert UtilsDate.short(~D[2026-10-03]) == "3. #{month}"
+      assert UtilsDate.short_with_year(~D[2026-10-03]) == "3. #{month} 2026"
+    end
+  end
 end

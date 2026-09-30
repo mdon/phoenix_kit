@@ -630,8 +630,8 @@ msgstr "Aufzählungsliste"
 #: lib/phoenix_kit/mentions/live.ex:250
 #: lib/phoenix_kit_web/comments_gettext_manifest.ex:41
 #: lib/phoenix_kit_web/components/annotation_composer.ex:661
-#: lib/phoenix_kit_web/components/core/form_actions.ex:111
-#: lib/phoenix_kit_web/components/core/form_actions.ex:118
+#: lib/phoenix_kit_web/components/core/form_actions.ex:119
+#: lib/phoenix_kit_web/components/core/form_actions.ex:126
 #: lib/phoenix_kit_web/components/core/modal.ex:311
 #: lib/phoenix_kit_web/components/core/reorder_modal.ex:92
 #: lib/phoenix_kit_web/components/image_editor.ex:1056
@@ -906,7 +906,7 @@ msgstr "DSB-Kontakt gespeichert"
 #: lib/modules/storage/web/libraries_component.ex:383
 #: lib/modules/storage/web/profiles_component.ex:305
 #: lib/modules/storage/web/settings.html.heex:243
-#: lib/phoenix_kit_web/components/core/bulk_select.ex:224
+#: lib/phoenix_kit_web/components/core/bulk_select.ex:228
 #: lib/phoenix_kit_web/components/image_editor.ex:1032
 #: lib/phoenix_kit_web/components/media_browser.html.heex:863
 #: lib/phoenix_kit_web/components/media_browser.html.heex:870
@@ -4167,6 +4167,7 @@ msgid "Enter your API credentials from the developer console."
 msgstr "Geben Sie Ihre API-Anmeldedaten aus der Entwicklerkonsole ein."
 
 #: lib/modules/maintenance/web/maintenance_page_live.ex:155
+#: lib/phoenix_kit_web/components/layouts/maintenance.html.heex:37
 #, elixir-autogen, elixir-format
 msgid "Expected back in"
 msgstr "Voraussichtlich wieder verfügbar in"
@@ -5103,9 +5104,9 @@ msgstr "Diese Verbindung löschen"
 msgid "Disconnect account"
 msgstr "Konto trennen"
 
-#: lib/phoenix_kit_web/components/core/table_default.ex:448
-#: lib/phoenix_kit_web/components/core/table_default.ex:485
-#: lib/phoenix_kit_web/components/core/table_default.ex:698
+#: lib/phoenix_kit_web/components/core/table_default.ex:459
+#: lib/phoenix_kit_web/components/core/table_default.ex:496
+#: lib/phoenix_kit_web/components/core/table_default.ex:709
 #, elixir-autogen, elixir-format
 msgid "Drag to reorder"
 msgstr "Zum Neuordnen ziehen"
@@ -5261,7 +5262,7 @@ msgid "Removes the integration permanently. Any module pinned to this connection
 msgstr "Entfernt die Integration endgültig. Jedes Modul, das an diese Verbindung gebunden ist, funktioniert erst wieder, wenn es neu zugewiesen wurde."
 
 #: lib/phoenix_kit_web/components/core/crumb_switcher.ex:48
-#: lib/phoenix_kit_web/components/core/table_default.ex:894
+#: lib/phoenix_kit_web/components/core/table_default.ex:905
 #: lib/phoenix_kit_web/components/tree_picker.ex:79
 #, elixir-autogen, elixir-format
 msgid "Search..."
@@ -6066,7 +6067,7 @@ msgid "Cannot rename folder outside the allowed scope"
 msgstr "Der Ordner kann außerhalb des zulässigen Bereichs nicht umbenannt werden"
 
 #: lib/phoenix_kit_web/components/core/bulk_actions_bar.ex:110
-#: lib/phoenix_kit_web/components/core/bulk_select.ex:225
+#: lib/phoenix_kit_web/components/core/bulk_select.ex:229
 #: lib/phoenix_kit_web/components/media_browser.html.heex:805
 #: lib/phoenix_kit_web/live/settings/website_access.html.heex:243
 #, elixir-autogen, elixir-format
@@ -6451,61 +6452,73 @@ msgstr "Teilweise erfolgreich: %{uploaded}, %{failed} wegen fehlender Speicher-B
 msgid "Upload successful! %{added}. %{duplicates}."
 msgstr "Upload erfolgreich! %{added}. %{duplicates}."
 
+#: lib/phoenix_kit/utils/date.ex:88
 #: lib/phoenix_kit_web/projects_gettext_manifest.ex:36
 #, elixir-autogen, elixir-format
 msgid "Jan"
 msgstr "Jan."
 
+#: lib/phoenix_kit/utils/date.ex:89
 #: lib/phoenix_kit_web/projects_gettext_manifest.ex:37
 #, elixir-autogen, elixir-format
 msgid "Feb"
 msgstr "Feb."
 
+#: lib/phoenix_kit/utils/date.ex:90
 #: lib/phoenix_kit_web/projects_gettext_manifest.ex:38
 #, elixir-autogen, elixir-format
 msgid "Mar"
 msgstr "März"
 
+#: lib/phoenix_kit/utils/date.ex:91
 #: lib/phoenix_kit_web/projects_gettext_manifest.ex:39
 #, elixir-autogen, elixir-format
 msgid "Apr"
 msgstr "Apr."
 
+#: lib/phoenix_kit/utils/date.ex:92
 #: lib/phoenix_kit_web/projects_gettext_manifest.ex:40
 #, elixir-autogen, elixir-format
 msgid "May"
 msgstr "Mai"
 
+#: lib/phoenix_kit/utils/date.ex:93
 #: lib/phoenix_kit_web/projects_gettext_manifest.ex:41
 #, elixir-autogen, elixir-format
 msgid "Jun"
 msgstr "Juni"
 
+#: lib/phoenix_kit/utils/date.ex:94
 #: lib/phoenix_kit_web/projects_gettext_manifest.ex:42
 #, elixir-autogen, elixir-format
 msgid "Jul"
 msgstr "Juli"
 
+#: lib/phoenix_kit/utils/date.ex:95
 #: lib/phoenix_kit_web/projects_gettext_manifest.ex:43
 #, elixir-autogen, elixir-format
 msgid "Aug"
 msgstr "Aug."
 
+#: lib/phoenix_kit/utils/date.ex:96
 #: lib/phoenix_kit_web/projects_gettext_manifest.ex:44
 #, elixir-autogen, elixir-format
 msgid "Sep"
 msgstr "Sep."
 
+#: lib/phoenix_kit/utils/date.ex:97
 #: lib/phoenix_kit_web/projects_gettext_manifest.ex:45
 #, elixir-autogen, elixir-format
 msgid "Oct"
 msgstr "Okt."
 
+#: lib/phoenix_kit/utils/date.ex:98
 #: lib/phoenix_kit_web/projects_gettext_manifest.ex:46
 #, elixir-autogen, elixir-format
 msgid "Nov"
 msgstr "Nov."
 
+#: lib/phoenix_kit/utils/date.ex:99
 #: lib/phoenix_kit_web/projects_gettext_manifest.ex:47
 #, elixir-autogen, elixir-format
 msgid "Dec"
@@ -6856,7 +6869,7 @@ msgstr "Veröffentlichen"
 msgid "Redirecting…"
 msgstr "Weiterleitung …"
 
-#: lib/phoenix_kit_web/components/core/form_actions.ex:95
+#: lib/phoenix_kit_web/components/core/form_actions.ex:103
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:584
 #: lib/phoenix_kit_web/live/notifications/settings.ex:347
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:261
@@ -8256,12 +8269,12 @@ msgstr "Abgemeldet. Jetzt angemeldet als %{email}."
 msgid "Multiple Sessions"
 msgstr "Mehrere Sitzungen"
 
-#: lib/phoenix_kit_web/components/core/bulk_select.ex:223
+#: lib/phoenix_kit_web/components/core/bulk_select.ex:227
 #, elixir-autogen, elixir-format
 msgid "Reorder %{count} selected"
 msgstr "%{count} ausgewählte neu anordnen"
 
-#: lib/phoenix_kit_web/components/core/bulk_select.ex:215
+#: lib/phoenix_kit_web/components/core/bulk_select.ex:219
 #, elixir-autogen, elixir-format
 msgid "Reorder all"
 msgstr "Alle neu anordnen"
@@ -9291,12 +9304,12 @@ msgstr "Statische Routen"
 msgid "The icon appears in browser tabs, bookmarks, and on phone home screens."
 msgstr "Das Symbol erscheint in Browser-Tabs, Favoriten und auf Startbildschirmen von Telefonen."
 
-#: lib/phoenix_kit_web/components/core/form_section.ex:116
+#: lib/phoenix_kit_web/components/core/form_section.ex:128
 #, elixir-autogen, elixir-format
 msgid "Unsaved change"
 msgstr "Nicht gespeicherte Änderung"
 
-#: lib/phoenix_kit_web/components/core/form_section.ex:118
+#: lib/phoenix_kit_web/components/core/form_section.ex:130
 #, elixir-autogen, elixir-format
 msgid "saved:"
 msgstr "gespeichert:"
@@ -16287,17 +16300,17 @@ msgstr "Datei wiederhergestellt"
 msgid "Folder restored"
 msgstr "Ordner wiederhergestellt"
 
-#: lib/phoenix_kit_web/components/core/table_default.ex:308
+#: lib/phoenix_kit_web/components/core/table_default.ex:316
 #, elixir-autogen, elixir-format
 msgid "Card view"
 msgstr "Kartenansicht"
 
-#: lib/phoenix_kit_web/components/core/table_default.ex:321
+#: lib/phoenix_kit_web/components/core/table_default.ex:329
 #, elixir-autogen, elixir-format
 msgid "Comfortable view"
 msgstr "Komfortable Ansicht"
 
-#: lib/phoenix_kit_web/components/core/table_default.ex:334
+#: lib/phoenix_kit_web/components/core/table_default.ex:342
 #, elixir-autogen, elixir-format
 msgid "Compact view"
 msgstr "Kompakte Ansicht"
@@ -16425,3 +16438,18 @@ msgstr "Die Registrierung ist derzeit deaktiviert. Wenden Sie sich an einen Admi
 #, elixir-autogen, elixir-format
 msgid "Saved, but the password, email and username were not changed — you don't have permission to manage this user's credentials."
 msgstr "Gespeichert, aber Passwort, E-Mail-Adresse und Benutzername wurden nicht geändert – Sie haben keine Berechtigung, die Anmeldedaten dieses Benutzers zu verwalten."
+
+#: lib/phoenix_kit/utils/date.ex:112
+#, elixir-autogen, elixir-format
+msgid "%{day} %{month}"
+msgstr ""
+
+#: lib/phoenix_kit/utils/date.ex:123
+#, elixir-autogen, elixir-format
+msgid "%{day} %{month} %{year}"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/layouts/maintenance.html.heex:33
+#, elixir-autogen, elixir-format
+msgid "any moment now..."
+msgstr ""
