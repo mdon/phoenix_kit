@@ -57,14 +57,25 @@
               {gettext("Core Sections")}
             </td>
           </tr>
-          <.permission_row
-            :for={key <- @core_keys}
-            key={key}
-            label={PhoenixKit.Users.Permissions.localized_module_label(key)}
-            roles={@roles}
-            matrix={@matrix}
-            uneditable_role_uuids={@uneditable_role_uuids}
-          />
+          <%= for key <- @core_keys do %>
+            <.permission_row
+              key={key}
+              label={PhoenixKit.Users.Permissions.localized_module_label(key)}
+              roles={@roles}
+              matrix={@matrix}
+              uneditable_role_uuids={@uneditable_role_uuids}
+            />
+            <%!-- Sub-permissions of a core section (media.view_all, media.manage). --%>
+            <.permission_row
+              :for={sub <- Map.get(@sub_permissions, key, [])}
+              key={sub.key}
+              label={PhoenixKit.Users.Permissions.localized_module_label(sub.key)}
+              sub
+              roles={@roles}
+              matrix={@matrix}
+              uneditable_role_uuids={@uneditable_role_uuids}
+            />
+          <% end %>
 
           <%!-- Integrations Header (two independent keys: personal + system) --%>
           <tr class="bg-primary/10">

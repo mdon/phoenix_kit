@@ -2345,15 +2345,15 @@ defmodule PhoenixKitWeb.Users.Auth do
     PhoenixKitWeb.Live.Settings.SendProfileForm => "settings",
     PhoenixKitWeb.Live.Settings.Crawlers => "crawlers",
     PhoenixKitWeb.Live.Modules.Languages => "languages",
-    PhoenixKitWeb.Live.Modules.Storage.Settings => "media",
-    PhoenixKitWeb.Live.Modules.Storage.BucketForm => "media",
-    PhoenixKitWeb.Live.Modules.Storage.Dimensions => "media",
-    PhoenixKitWeb.Live.Modules.Storage.DimensionForm => "media",
-    # Media health dashboard — same `media` key as the other Storage admin LVs.
+    PhoenixKitWeb.Live.Modules.Storage.Settings => "media.manage",
+    PhoenixKitWeb.Live.Modules.Storage.BucketForm => "media.manage",
+    PhoenixKitWeb.Live.Modules.Storage.Dimensions => "media.manage",
+    PhoenixKitWeb.Live.Modules.Storage.DimensionForm => "media.manage",
+    # Media health dashboard — same `media.manage` key as the other Storage admin LVs.
     # (Its `PhoenixKitWeb.Live.Modules.Storage.*` namespace resolves through no
     # inference branch, so without this it fell through to the unmapped
     # fallback and a `media`-only custom role was wrongly denied it.)
-    PhoenixKitWeb.Live.Modules.Storage.Health => "media",
+    PhoenixKitWeb.Live.Modules.Storage.Health => "media.manage",
     PhoenixKitWeb.Live.Modules.Jobs.Index => "jobs",
     # Notifications' two personal pages are NOT here — they are in
     # `@personal_admin_views`, because reading your own inbox is not an

@@ -229,7 +229,7 @@ defmodule PhoenixKitWeb.Live.Users.PermissionsMatrix do
 
     # Sub-permissions render as indented rows under their (enabled) module row
     sub_permissions =
-      enabled_feature_keys
+      (Permissions.core_section_keys() ++ enabled_feature_keys)
       |> Enum.map(&{&1, Permissions.sub_permissions_for(&1)})
       |> Enum.reject(fn {_key, subs} -> subs == [] end)
       |> Map.new()
