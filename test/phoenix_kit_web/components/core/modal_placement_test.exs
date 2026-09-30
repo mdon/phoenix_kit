@@ -78,4 +78,29 @@ defmodule PhoenixKitWeb.Components.Core.ModalPlacementTest do
     assert guarded =~ ~s(data-close-guard="input")
     refute plain =~ "data-close-guard"
   end
+
+  describe "content max-height" do
+    alias PhoenixKitWeb.Components.Core.Modal
+
+    test "a vh height is also given in dvh, the height actually visible on a phone" do
+      assert Modal.max_height_style("70vh") == "max-height: 70vh; max-height: 70dvh"
+      assert Modal.max_height_style("62.5vh") == "max-height: 62.5vh; max-height: 62.5dvh"
+    end
+
+    test "other units pass through" do
+      assert Modal.max_height_style("400px") == "max-height: 400px"
+      assert Modal.max_height_style("calc(100% - 2rem)") == "max-height: calc(100% - 2rem)"
+    end
+
+    test "the default renders both declarations" do
+      assigns = %{}
+
+      html =
+        rendered_to_string(~H"""
+        <Modal.modal show on_close="close">body</Modal.modal>
+        """)
+
+      assert html =~ "max-height: 70vh; max-height: 70dvh"
+    end
+  end
 end

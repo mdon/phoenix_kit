@@ -63,7 +63,11 @@ defmodule PhoenixKitWeb.Components.Core.Modal do
   - `on_close` - Event name to send when modal should close (required)
   - `id` - Optional ID for the modal element
   - `max_width` - Maximum width class: "sm" … "7xl", "full" (default: "md")
-  - `max_height` - Maximum height for content area, e.g., "60vh", "400px" (default: "70vh")
+  - `max_height` - Maximum height for content area, e.g., "60vh", "400px" (default: "70vh").
+    A `vh` value is also emitted in `dvh` (the height that is actually
+    visible), so on an iPhone — where `vh` is the tallest viewport, taller
+    than the screen while the toolbars show — the dialog does not scroll with
+    room to spare. Browsers without `dvh` keep the `vh` line.
   - `class` - Additional CSS classes for the modal box
   - `backdrop_class` - Additional CSS classes for the backdrop
   - `closeable` - Whether the modal can be closed via backdrop/escape (default: true)
@@ -173,7 +177,7 @@ defmodule PhoenixKitWeb.Components.Core.Modal do
                (`min-h-0`) instead of against a max-height. --%>
           <div
             class="flex-1 min-h-0 overflow-y-auto overscroll-contain"
-            style={@placement == :center && "max-height: #{@max_height}"}
+            style={@placement == :center && max_height_style(@max_height)}
           >
             {render_slot(@inner_block)}
           </div>
@@ -188,6 +192,18 @@ defmodule PhoenixKitWeb.Components.Core.Modal do
       </dialog>
     <% end %>
     """
+  end
+
+  @doc false
+  # "70vh" → "max-height: 70vh; max-height: 70dvh" — a browser that knows
+  # `dvh` takes the second declaration, one that does not keeps the first.
+  # Any other unit passes through unchanged.
+  @spec max_height_style(String.t()) :: String.t()
+  def max_height_style(value) when is_binary(value) do
+    case Regex.run(~r/\A\s*(\d+(?:\.\d+)?)vh\s*\z/, value) do
+      [_, number] -> "max-height: #{number}vh; max-height: #{number}dvh"
+      nil -> "max-height: #{value}"
+    end
   end
 
   @doc """
