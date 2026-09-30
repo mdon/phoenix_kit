@@ -9,7 +9,8 @@ defmodule PhoenixKit.Integration.Users.MediaPermissionsTest do
   use PhoenixKitWeb.ConnCase, async: false
 
   alias PhoenixKit.Settings
-  alias PhoenixKit.Users.{Permissions, Roles}
+  alias PhoenixKit.Test.Repo
+  alias PhoenixKit.Users.{Auth, Permissions, Roles}
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
 
@@ -26,14 +27,14 @@ defmodule PhoenixKit.Integration.Users.MediaPermissionsTest do
 
   defp user_with(role) do
     {:ok, user} =
-      PhoenixKit.Users.Auth.register_user(%{
+      Auth.register_user(%{
         email: "media-perms-#{System.unique_integer([:positive])}@example.com",
         password: "TestPassword123!"
       })
 
-    {:ok, user} = PhoenixKit.Users.Auth.admin_confirm_user(user)
+    {:ok, user} = Auth.admin_confirm_user(user)
     {:ok, _} = Roles.assign_role(user, role.name)
-    PhoenixKit.Test.Repo.get!(PhoenixKit.Users.Auth.User, user.uuid)
+    Repo.get!(Auth.User, user.uuid)
   end
 
   describe "registration" do

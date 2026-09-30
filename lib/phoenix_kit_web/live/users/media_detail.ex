@@ -32,6 +32,7 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
   alias PhoenixKitWeb.Components.ImageEditor
   alias PhoenixKitWeb.Components.MediaBrowser
   alias PhoenixKitWeb.Components.MediaCanvasViewer
+  alias PhoenixKitWeb.Live.Users.Media
 
   def mount(params, _session, socket) do
     # Set locale for LiveView process
@@ -287,7 +288,7 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
         if (Libraries.private_file?(file) and not Libraries.can?(scope, file, :read)) or
              (not Libraries.private_file?(file) and
                 not Storage.viewer_can_see_file?(
-                  PhoenixKitWeb.Live.Users.Media.restricted_viewer(scope),
+                  Media.restricted_viewer(scope),
                   file
                 )) do
           socket
