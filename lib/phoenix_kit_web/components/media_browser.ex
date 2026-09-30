@@ -1525,7 +1525,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     # Emptying the trash and clearing orphans are refused a contributor, who
     # would touch files they did not upload; for a restricted viewer they are
     # scoped to the viewer's own files already (`lib_opts/1`).
-    if (event in @every_file_events and is_nil(socket.assigns.viewer_uuid)) or
+    if (event in @every_file_events and is_nil(socket.assigns[:viewer_uuid])) or
          others_file?(uuids, socket.assigns.own_files_only) or
          others_file_in_folders?(folders, socket.assigns.own_files_only) do
       Logger.warning(

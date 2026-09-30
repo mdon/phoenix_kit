@@ -434,6 +434,44 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   def may_use_libraries?(_scope), do: false
 
   @doc """
+  Whether Media (`/admin/media`) is where `scope` browses their user libraries:
+  they hold `media` and are not an Owner/Admin. Media's switcher then lists their
+  own and shared libraries beside the site's (`/admin/media/my/<id>`); everyone
+  else (only `storage`, or an Owner/Admin who also opens other people's libraries,
+  audit-logged) uses `/admin/libraries`.
+  """
+  @spec browse_in_media?(Scope.t() | nil) :: boolean()
+  def browse_in_media?(%Scope{} = scope),
+    do: Scope.has_module_access?(scope, "media") and not Scope.system_role?(scope)
+
+  def browse_in_media?(_scope), do: false
+
+  @doc """
+  Whether the sidebar lists a separate "Libraries" entry for `scope`: user
+  libraries are on for them, and they do not already have them in Media.
+  """
+  @spec show_libraries_entry?(Scope.t() | nil) :: boolean()
+  def show_libraries_entry?(scope), do: may_use_libraries?(scope) and not browse_in_media?(scope)
+
+  @doc """
+  The (canonical, unprefixed) path of the page that browses `library` for
+  `scope`: Media's for a holder of `media`, `/admin/libraries` otherwise.
+  """
+  @spec browse_path(Scope.t() | nil, Library.t()) :: String.t()
+  def browse_path(scope, %Library{} = library) do
+    id = url_id(library, Scope.user_uuid(scope))
+
+    if browse_in_media?(scope),
+      do: "/admin/media/my/#{id}",
+      else: "/admin/libraries/#{id}"
+  end
+
+  @doc "The path of the page that lists `scope`'s libraries (see `browse_path/2`)."
+  @spec browse_index_path(Scope.t() | nil) :: String.t()
+  def browse_index_path(scope),
+    do: if(browse_in_media?(scope), do: "/admin/media", else: "/admin/libraries")
+
+  @doc """
   Whether the site lets users keep a library on their own bucket (the
   `storage_user_buckets_enabled` setting, off by default: the site answers for
   nothing that lands outside its own storage until it says so).

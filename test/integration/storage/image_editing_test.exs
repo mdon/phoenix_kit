@@ -743,6 +743,7 @@ defmodule PhoenixKit.Modules.Storage.ImageEditingTest do
 
       {:ok, librarian} = Roles.create_role(%{name: "Librarian#{ctx.n}"})
       {:ok, _} = Permissions.grant_permission(librarian.uuid, "media")
+      {:ok, _} = Permissions.grant_permission(librarian.uuid, "media.view_all")
       holder = user!("holder", ctx.n)
       {:ok, _} = Roles.assign_role(holder, librarian.name)
 

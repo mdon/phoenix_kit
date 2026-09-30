@@ -168,7 +168,8 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
         group: :admin_main,
         gettext_backend: PhoenixKitWeb.Gettext
       },
-      # The user's own storage libraries, while user libraries are on.
+      # The user's own storage libraries, while user libraries are on — unless they
+      # hold `media`, where Media's switcher lists them.
       %Tab{
         id: :admin_libraries,
         label: gettext_noop("Libraries"),
@@ -179,7 +180,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
         permission: "storage",
         match: :prefix,
         group: :admin_main,
-        visible: &Libraries.may_use_libraries?/1,
+        visible: &Libraries.show_libraries_entry?/1,
         gettext_backend: PhoenixKitWeb.Gettext
       }
     ]

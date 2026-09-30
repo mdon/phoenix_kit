@@ -528,7 +528,7 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
             )}
           </p>
         </div>
-        <.pk_link navigate="/admin/libraries" class="btn btn-sm btn-outline">
+        <.pk_link navigate={Libraries.browse_index_path(@scope)} class="btn btn-sm btn-outline">
           {gettext("Open libraries")}
         </.pk_link>
       </div>
@@ -834,6 +834,9 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
           >
             {gettext("Make default")}
           </button>
+          <.pk_link navigate={Libraries.browse_path(@scope, library)} class="btn btn-sm btn-ghost">
+            <.icon name="hero-photo" class="w-4 h-4" /> {gettext("Open")}
+          </.pk_link>
           <button
             type="button"
             phx-click="toggle_members"
@@ -874,6 +877,9 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
           <div class="flex flex-wrap items-center gap-2">
             <span class="font-medium grow">{library.name}</span>
             <span class="badge badge-ghost badge-sm">{role_label(role)}</span>
+            <.pk_link navigate={Libraries.browse_path(@scope, library)} class="btn btn-sm btn-ghost">
+              <.icon name="hero-photo" class="w-4 h-4" /> {gettext("Open")}
+            </.pk_link>
             <button
               :if={library.uuid in @managed_uuids}
               type="button"

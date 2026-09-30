@@ -380,4 +380,95 @@ defmodule PhoenixKitWeb.Live.Users.OwnMediaTest do
     assert %Library{kind: "system"} = Libraries.get_library(Libraries.media_uuid())
     assert is_integer(n)
   end
+
+  describe "where libraries are browsed" do
+    setup %{alice: alice} do
+      {:ok, _} = Settings.update_boolean_setting("storage_user_libraries_enabled", true)
+      n = System.unique_integer([:positive])
+      {:ok, role} = Roles.create_role(%{name: "Both #{n}"})
+
+      for key <- ~w(media storage storage.create_library),
+          do: {:ok, _} = Permissions.grant_permission(role.uuid, key)
+
+      {:ok, _} = Roles.assign_role(alice, role.name)
+      alice = Repo.get!(Auth.User, alice.uuid)
+
+      {:ok, library} =
+        Libraries.create_user_library(Scope.for_user(alice), %{"name" => "Trips #{n}"})
+
+      {:ok, only_role} = Roles.create_role(%{name: "Storage only #{n}"})
+
+      for key <- ~w(storage storage.create_library),
+          do: {:ok, _} = Permissions.grant_permission(only_role.uuid, key)
+
+      {:ok, carol} =
+        Auth.register_user(%{
+          "email" => "own-media-carol-#{n}@example.com",
+          "password" => "ValidPassword123!"
+        })
+
+      {:ok, carol} = Auth.admin_confirm_user(carol)
+      {:ok, _} = Roles.assign_role(carol, only_role.name)
+
+      %{alice: alice, library: library, carol: Repo.get!(Auth.User, carol.uuid)}
+    end
+
+    test "a holder of media is sent from /admin/libraries into Media", %{
+      conn: conn,
+      alice: alice,
+      library: library
+    } do
+      assert {:error, {_kind, %{to: to}}} =
+               live(log_in_user(conn, alice), Routes.path("/admin/libraries"))
+
+      assert to == Routes.path("/admin/media/my/#{library.slug}")
+
+      assert {:error, {_kind, %{to: to}}} =
+               live(
+                 log_in_user(build_conn(), alice),
+                 Routes.path("/admin/libraries/#{library.slug}")
+               )
+
+      assert to == Routes.path("/admin/media/my/#{library.slug}")
+    end
+
+    test "a holder of storage alone keeps using /admin/libraries", %{conn: conn, carol: carol} do
+      assert {:ok, _view, html} = live(log_in_user(conn, carol), Routes.path("/admin/libraries"))
+      assert html =~ "Manage libraries"
+    end
+
+    test "an Admin keeps /admin/libraries, for other people's libraries", %{
+      conn: conn,
+      admin: admin
+    } do
+      assert {:ok, _view, _html} = live(log_in_user(conn, admin), Routes.path("/admin/libraries"))
+    end
+
+    test "the sidebar entry is for those who do not have Media", %{
+      alice: alice,
+      carol: carol,
+      admin: admin
+    } do
+      refute Libraries.show_libraries_entry?(Scope.for_user(alice))
+      assert Libraries.show_libraries_entry?(Scope.for_user(carol))
+      assert Libraries.show_libraries_entry?(Scope.for_user(admin))
+    end
+
+    test "the profile's Media tab opens a library where its holder browses", %{
+      conn: conn,
+      alice: alice,
+      carol: carol,
+      library: library
+    } do
+      {:ok, _view, html} = live(log_in_user(conn, alice), Routes.path("/profile/settings/media"))
+      assert html =~ ~s(href="#{Routes.path("/admin/media/my/#{library.slug}")}")
+
+      {:ok, _} = Libraries.create_user_library(Scope.for_user(carol), %{"name" => "Carol's"})
+
+      {:ok, _view, html} =
+        live(log_in_user(build_conn(), carol), Routes.path("/profile/settings/media"))
+
+      assert html =~ ~s(href="#{Routes.path("/admin/libraries/carol-s")}")
+    end
+  end
 end

@@ -49,6 +49,7 @@ defmodule PhoenixKitWeb.StorageApiAuthzTest do
     user = plain_user()
     user_role = Roles.get_role_by_name("User")
     {:ok, _} = Permissions.grant_permission(user_role.uuid, "media")
+    {:ok, _} = Permissions.grant_permission(user_role.uuid, "media.view_all")
     Repo.get!(Auth.User, user.uuid)
   end
 
