@@ -913,7 +913,7 @@ msgstr "Contact du DPO enregistré"
 #: lib/phoenix_kit_web/components/media_browser.html.heex:870
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1537
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2239
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:806
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:812
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:486
 #: lib/phoenix_kit_web/live/settings/send_profiles.html.heex:114
 #: lib/phoenix_kit_web/live/settings/send_profiles.html.heex:146
@@ -1802,7 +1802,7 @@ msgstr "SWIFT/BIC"
 msgid "Save"
 msgstr "Enregistrer"
 
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:608
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:614
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:263
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:489
 #, elixir-autogen, elixir-format
@@ -3123,7 +3123,7 @@ msgstr "Un seul bucket actif disponible. Ajoutez d'autres buckets pour activer l
 #: lib/modules/storage/web/dimensions.html.heex:290
 #: lib/modules/storage/web/dimensions.html.heex:433
 #: lib/modules/storage/web/dimensions.html.heex:497
-#: lib/phoenix_kit_web/live/users/media_detail.ex:578
+#: lib/phoenix_kit_web/live/users/media_detail.ex:579
 #, elixir-autogen, elixir-format
 msgid "Original"
 msgstr "Original"
@@ -3891,7 +3891,7 @@ msgstr "Annuler cette invitation ?"
 msgid "Cannot be changed"
 msgstr "Ne peut pas être modifié"
 
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:572
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:578
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:62
 #, elixir-autogen, elixir-format
 msgid "Choose a different service"
@@ -3995,7 +3995,7 @@ msgstr "Connecté"
 msgid "Connected on"
 msgstr "Connecté le"
 
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:584
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:590
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:208
 #, elixir-autogen, elixir-format
 msgid "Connection Name"
@@ -4554,7 +4554,7 @@ msgstr "Préférences de notification enregistrées."
 
 #: lib/phoenix_kit_web/components/profile_settings_tabs.ex:111
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1718
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:649
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:655
 #: lib/phoenix_kit_web/live/settings.html.heex:397
 #, elixir-autogen, elixir-format
 msgid "Notifications"
@@ -4778,8 +4778,8 @@ msgid "Tax settings saved"
 msgstr "Paramètres fiscaux enregistrés"
 
 #: lib/modules/storage/web/bucket_form.html.heex:344
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:624
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:635
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:630
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:641
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:297
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:329
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:297
@@ -4798,7 +4798,7 @@ msgstr "Échec du test"
 
 #: lib/modules/storage/web/bucket_form.html.heex:341
 #: lib/phoenix_kit_web/live/components/library_settings.ex:745
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:635
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:641
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:192
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:265
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:297
@@ -5057,7 +5057,7 @@ msgstr "Copiez la colonne **Value** (pas le Secret ID) dans le formulaire ci-des
 msgid "Copy the key (shown once) and paste it into the form above"
 msgstr "Copiez la clé (affichée une seule fois) et collez-la dans le formulaire ci-dessus"
 
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:607
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:613
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:263
 #, elixir-autogen, elixir-format
 msgid "Create Connection"
@@ -5073,7 +5073,7 @@ msgstr "Créer un compte DeepSeek"
 msgid "Create a Mistral account"
 msgstr "Créer un compte Mistral"
 
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:783
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:789
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:430
 #, elixir-autogen, elixir-format
 msgid "Danger Zone"
@@ -5089,7 +5089,7 @@ msgstr "DeepSeek"
 msgid "DeepSeek requires a positive balance before you can call the chat or reasoner endpoints, even on cheap models"
 msgstr "DeepSeek exige un solde positif avant de pouvoir appeler les points de terminaison chat ou reasoner, même sur les modèles bon marché"
 
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:791
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:797
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:471
 #, elixir-autogen, elixir-format
 msgid "Delete this connection"
@@ -5251,7 +5251,7 @@ msgstr "Supprimer définitivement cette connexion ? Cette action est irréversib
 msgid "Register an application in Microsoft Entra ID (Azure AD)"
 msgstr "Enregistrer une application dans Microsoft Entra ID (Azure AD)"
 
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:793
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:799
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:473
 #, elixir-autogen, elixir-format
 msgid "Removes the integration permanently. Any module pinned to this connection will stop working until repointed."
@@ -6728,7 +6728,7 @@ msgstr "Génération des tuiles Deep Zoom"
 msgid "Delete Permanently"
 msgstr "Supprimer définitivement"
 
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:803
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:809
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:483
 #, elixir-autogen, elixir-format
 msgid "Deleting…"
@@ -6854,14 +6854,14 @@ msgid "Redirecting…"
 msgstr "Redirection…"
 
 #: lib/phoenix_kit_web/components/core/form_actions.ex:95
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:605
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:611
 #: lib/phoenix_kit_web/live/notifications/settings.ex:347
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:261
 #, elixir-autogen, elixir-format
 msgid "Saving…"
 msgstr "Enregistrement…"
 
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:621
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:627
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:437
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:525
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:614
@@ -8225,11 +8225,6 @@ msgstr "Sélecteur de comptes pour se connecter à plusieurs comptes à la fois"
 msgid "Applying…"
 msgstr "Application en cours…"
 
-#: lib/phoenix_kit_web/live/settings/authorization.html.heex:715
-#, elixir-autogen, elixir-format
-msgid "Enable the multi-account switcher in the header"
-msgstr "Activer le sélecteur multi-comptes dans l'en-tête"
-
 #: lib/phoenix_kit_web/components/core/pagination.ex:407
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1877
 #: lib/phoenix_kit_web/live/notifications/inbox.ex:381
@@ -8670,8 +8665,8 @@ msgid "Language"
 msgstr "Langue"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:571
-#: lib/phoenix_kit_web/live/users/media_detail.ex:579
-#: lib/phoenix_kit_web/live/users/media_detail.ex:583
+#: lib/phoenix_kit_web/live/users/media_detail.ex:580
+#: lib/phoenix_kit_web/live/users/media_detail.ex:584
 #, elixir-autogen, elixir-format
 msgid "Large"
 msgstr "Grand"
@@ -8696,8 +8691,8 @@ msgid "Magic link"
 msgstr "Lien magique"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:570
-#: lib/phoenix_kit_web/live/users/media_detail.ex:580
-#: lib/phoenix_kit_web/live/users/media_detail.ex:584
+#: lib/phoenix_kit_web/live/users/media_detail.ex:581
+#: lib/phoenix_kit_web/live/users/media_detail.ex:585
 #, elixir-autogen, elixir-format
 msgid "Medium"
 msgstr "Moyen"
@@ -8820,7 +8815,7 @@ msgid "Sign up"
 msgstr "S'inscrire"
 
 #: lib/phoenix_kit_web/components/media_browser.html.heex:569
-#: lib/phoenix_kit_web/live/users/media_detail.ex:581
+#: lib/phoenix_kit_web/live/users/media_detail.ex:582
 #, elixir-autogen, elixir-format
 msgid "Small"
 msgstr "Petit"
@@ -10484,7 +10479,7 @@ msgstr "Saisissez l'adresse e-mail d'un destinataire"
 msgid "Every 12 hours"
 msgstr "Toutes les 12 heures"
 
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:663
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:669
 #, elixir-autogen, elixir-format
 msgid "Everyone who starts the bot"
 msgstr "À tous ceux qui démarrent le bot"
@@ -10654,7 +10649,7 @@ msgstr "Nombre maximal de comptes atteint — supprimez-en un d'abord."
 msgid "Message tags"
 msgstr "Tags du message"
 
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:651
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:657
 #, elixir-autogen, elixir-format
 msgid "Message your bot, then press Test above — we'll capture your chat so it can notify you."
 msgstr "Écrivez à votre bot, puis appuyez sur « Tester » ci-dessus — nous enregistrerons votre conversation pour qu'il puisse vous notifier."
@@ -10763,7 +10758,7 @@ msgstr "ID numérique d'un expéditeur Brevo vérifié. Laissez vide pour envoye
 msgid "Only an owner can sign in as another administrator."
 msgstr "Seul un propriétaire peut se connecter en tant qu'autre administrateur."
 
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:662
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:668
 #, elixir-autogen, elixir-format
 msgid "Only me"
 msgstr "Moi uniquement"
@@ -11097,7 +11092,7 @@ msgstr "Transport"
 msgid "Turning verification off means the login travels to whoever answers, including an impostor. Use a CA certificate below instead whenever you can."
 msgstr "Désactiver la vérification signifie que l'identifiant est transmis à quiconque répond, y compris à un imposteur. Utilisez plutôt un certificat CA ci-dessous dès que possible."
 
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:698
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:704
 #, elixir-autogen, elixir-format
 msgid "Unlink"
 msgstr "Dissocier"
@@ -11137,7 +11132,7 @@ msgstr "Où arrive un compte fraîchement inscrit. Vide = chemin après connexio
 msgid "Whether to send the login at all. “If offered” follows the relay; “Never” is for relays that authenticate by IP."
 msgstr "Faut-il envoyer l'identifiant du tout. « Si proposé » suit le relais ; « Jamais » est destiné aux relais qui authentifient par IP."
 
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:659
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:665
 #, elixir-autogen, elixir-format
 msgid "Who does this bot message?"
 msgstr "À qui ce bot écrit-il ?"
@@ -11177,7 +11172,7 @@ msgstr "Vos propres connexions de services — vous seul pouvez les voir"
 msgid "adapter"
 msgstr "adaptateur"
 
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:592
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:598
 #, elixir-autogen, elixir-format
 msgid "e.g. My personal key"
 msgstr "ex. « Ma clé personnelle »"
@@ -14869,12 +14864,12 @@ msgstr "Trop de requêtes simultanées vers DataForSEO — réessayez dans un in
 msgid "A chat id you already know can be typed into **Link a chat by ID**"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:749
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:755
 #, elixir-autogen, elixir-format
 msgid "A group:"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:669
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:675
 #, elixir-autogen, elixir-format
 msgid "Anyone who starts this bot will be linked on the next Test and will receive every notification sent here. Use it only for a bot you hand out deliberately."
 msgstr ""
@@ -14925,18 +14920,18 @@ msgstr "E-mail Google"
 
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:427
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:435
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:721
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:727
 #, elixir-autogen, elixir-format
 msgid "Group"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:740
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:746
 #, elixir-autogen, elixir-format
 msgid "How to link a chat"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:731
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:769
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:737
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:775
 #, elixir-autogen, elixir-format
 msgid "Link"
 msgstr ""
@@ -14951,7 +14946,7 @@ msgstr ""
 msgid "Linked %{count} chat(s)"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:678
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:684
 #, elixir-autogen, elixir-format
 msgid "No chats linked yet — nothing will be delivered."
 msgstr ""
@@ -14961,7 +14956,7 @@ msgstr ""
 msgid "Not a chat id — expected a number like -1001234567890, or @channelname"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:764
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:770
 #, elixir-autogen, elixir-format
 msgid "Or link a chat by ID"
 msgstr ""
@@ -14971,7 +14966,7 @@ msgstr ""
 msgid "Send **/start** to your bot in Telegram, then press **Test Connection**"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:694
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:700
 #, elixir-autogen, elixir-format
 msgid "Stop sending notifications to this chat?"
 msgstr ""
@@ -14996,17 +14991,17 @@ msgstr ""
 msgid "Used when something is shared with you through Google. Leave empty to use your account email."
 msgstr "Utilisé lorsque quelque chose vous est partagé via Google. Laissez vide pour utiliser l'adresse e-mail de votre compte."
 
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:742
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:748
 #, elixir-autogen, elixir-format
 msgid "Your own chat:"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:749
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:755
 #, elixir-autogen, elixir-format
 msgid "add the bot to the group, then send"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:746
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:752
 #, elixir-autogen, elixir-format
 msgid "the bot in Telegram, then press Test Connection above."
 msgstr ""
@@ -15275,12 +15270,12 @@ msgstr "Vos couleurs de dessin, l'épaisseur des traits, la taille des libellés
 msgid "Found a group — confirm it below to link it."
 msgstr "Un groupe a été trouvé — confirmez-le ci-dessous pour le lier."
 
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:711
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:717
 #, elixir-autogen, elixir-format
 msgid "Found by the last Test. Link a group only if you recognise it — anyone can add a bot to a group of their own."
 msgstr "Trouvé lors du dernier test. Ne liez un groupe que si vous le reconnaissez — n'importe qui peut ajouter un bot à son propre groupe."
 
-#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:751
+#: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:757
 #, elixir-autogen, elixir-format
 msgid "there, press Test Connection and confirm the group it finds. A group needs that command — bots cannot read ordinary group messages."
 msgstr "là, cliquez sur « Tester la connexion » et confirmez le groupe trouvé. Un groupe a besoin de cette commande — les bots ne peuvent pas lire les messages ordinaires d'un groupe."
@@ -15299,7 +15294,7 @@ msgstr "Texte alternatif"
 msgid "Describe the image for someone who cannot see it"
 msgstr "Décrivez l'image pour quelqu'un qui ne peut pas la voir"
 
-#: lib/phoenix_kit_web/live/users/media_detail.ex:187
+#: lib/phoenix_kit_web/live/users/media_detail.ex:188
 #, elixir-autogen, elixir-format
 msgid "Details saved"
 msgstr "Détails enregistrés"
@@ -15314,7 +15309,7 @@ msgstr "Saisissez une description"
 msgid "Enter title"
 msgstr "Saisissez un titre"
 
-#: lib/phoenix_kit_web/live/users/media_detail.ex:193
+#: lib/phoenix_kit_web/live/users/media_detail.ex:194
 #, elixir-autogen, elixir-format
 msgid "Failed to save details"
 msgstr "Impossible d'enregistrer les détails"
@@ -15537,7 +15532,7 @@ msgstr "%{count} sur %{limit} bibliothèques"
 msgid "Allow user libraries"
 msgstr "Autoriser les bibliothèques utilisateur"
 
-#: lib/phoenix_kit_web/live/users/media_detail.ex:550
+#: lib/phoenix_kit_web/live/users/media_detail.ex:551
 #, elixir-autogen, elixir-format
 msgid "Annotated"
 msgstr "Annotées"
@@ -15712,12 +15707,12 @@ msgstr "La bibliothèque n’a pas pu être enregistrée"
 msgid "The owner is always in the library"
 msgstr "Le propriétaire fait toujours partie de la bibliothèque"
 
-#: lib/phoenix_kit_web/live/users/media_detail.ex:549
+#: lib/phoenix_kit_web/live/users/media_detail.ex:550
 #, elixir-autogen, elixir-format
 msgid "The picture"
 msgstr "L’image"
 
-#: lib/phoenix_kit_web/live/users/media_detail.ex:582
+#: lib/phoenix_kit_web/live/users/media_detail.ex:583
 #, elixir-autogen, elixir-format
 msgid "Thumbnail"
 msgstr "Miniature"
@@ -16794,3 +16789,8 @@ msgstr "Site"
 #, elixir-autogen, elixir-format
 msgid "That is not yours"
 msgstr "Cela ne vous appartient pas"
+
+#: lib/phoenix_kit_web/live/settings/authorization.html.heex:715
+#, elixir-autogen, elixir-format
+msgid "Enable multiple sessions"
+msgstr "Activer les sessions multiples"
