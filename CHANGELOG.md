@@ -1,3 +1,26 @@
+## Unreleased
+
+### Fixed
+
+- **S3 and Cloudflare R2 buckets can be read again under hackney 4 (#882).**
+  ExAws's default HTTP client did not handle hackney 4's reply to a `HEAD`,
+  so every `HEAD` raised: an object on an S3/R2 bucket read as missing, and
+  every download (which starts with a `HEAD`) failed with "File not found
+  in any bucket", so uploads that landed there got no sizes and the
+  reconciler never counted its copies. The S3 provider now sends its
+  requests through `ExAws.Request.Req` (already a dependency), whatever
+  the host's `config :ex_aws, http_client:` says; hosts need no change. The
+  workaround from the issue (`http_client: ExAws.Request.Req` in the host)
+  can stay or go.
+- **A bucket that cannot answer no longer reads as missing data.**
+  `Providers.S3.file_exists?/2` returns false only for a 404; any other
+  failure is logged with the bucket and the reason. The location backfill
+  leaves an object unchecked when a bucket could not answer, instead of
+  recording it as found nowhere (which made reads stop looking for it).
+  Files hit by #882 recover by themselves once this is deployed: the
+  reconciler copies and counts them again, and a missing size is queued
+  the next time it is requested.
+
 ## 2.41.5 - 2026-09-29
 
 ### Fixed

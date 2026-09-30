@@ -88,8 +88,9 @@ defmodule PhoenixKit.Modules.Storage.Workers.LocationBackfillJob do
 
   @doc """
   Runs a whole pass in the calling process, batch after batch, and returns
-  how many instances were `:recorded` and how many were `:missing` (in no
-  enabled bucket). `progress` is called with the running totals.
+  how many instances were `:recorded`, how many were `:missing` (in no
+  enabled bucket) and how many `:unsure` (a bucket could not answer; left
+  unchecked for the next pass). `progress` is called with the running totals.
   """
   @spec run_pass((map() -> any())) :: %{atom() => non_neg_integer()}
   def run_pass(progress \\ fn _totals -> :ok end), do: run_pass(nil, %{}, progress)
@@ -119,10 +120,22 @@ defmodule PhoenixKit.Modules.Storage.Workers.LocationBackfillJob do
 
     totals =
       Enum.reduce(batch, totals, fn {uuid, key}, acc ->
-        found = locate(key, buckets)
-        # Checked, found or not: a miss is remembered, so it is not work again.
-        Locations.mark_checked([uuid], found)
-        outcome = if found > 0, do: :recorded, else: :missing
+        outcome =
+          case locate(key, buckets) do
+            # A bucket could not answer: nothing is concluded, and the
+            # instance stays unchecked for the next pass. Marking it would
+            # turn a broken connection into "found nowhere", which reads
+            # then take as the object being gone (#882).
+            {:unsure, _found} ->
+              :unsure
+
+            # Checked, found or not: a miss is remembered, so it is not
+            # work again.
+            {:ok, found} ->
+              Locations.mark_checked([uuid], found)
+              if found > 0, do: :recorded, else: :missing
+          end
+
         Map.update(acc, outcome, 1, &(&1 + 1))
       end)
 
@@ -133,24 +146,30 @@ defmodule PhoenixKit.Modules.Storage.Workers.LocationBackfillJob do
     end
   end
 
-  # Checks every enabled bucket for `key` once; returns how many hold it,
-  # each one recorded.
+  # Checks every enabled bucket for `key` once and records each that holds
+  # it: `{:ok, count}`, or `{:unsure, count}` when a bucket could not
+  # answer (the ones that did are still recorded).
   defp locate(key, buckets) when is_binary(key) do
-    buckets
-    |> Enum.filter(fn bucket ->
-      case ProviderRegistry.get_provider(bucket.provider) do
-        {:ok, provider} -> safe_exists?(provider, bucket, key)
-        _ -> false
+    answers =
+      Enum.map(buckets, fn bucket ->
+        case ProviderRegistry.get_provider(bucket.provider) do
+          {:ok, provider} -> {bucket, safe_exists?(provider, bucket, key)}
+          _ -> {bucket, :error}
+        end
+      end)
+
+    found =
+      for {bucket, true} <- answers do
+        Locations.record(key, bucket.uuid)
+        bucket
       end
-    end)
-    |> Enum.map(fn bucket ->
-      Locations.record(key, bucket.uuid)
-      bucket
-    end)
-    |> length()
+
+    if Enum.any?(answers, &match?({_, :error}, &1)),
+      do: {:unsure, length(found)},
+      else: {:ok, length(found)}
   end
 
-  defp locate(_key, _buckets), do: 0
+  defp locate(_key, _buckets), do: {:ok, 0}
 
   defp safe_exists?(provider, bucket, key) do
     provider.file_exists?(bucket, key)
@@ -160,7 +179,7 @@ defmodule PhoenixKit.Modules.Storage.Workers.LocationBackfillJob do
         "LocationBackfillJob: could not check #{key} on #{bucket.name}: #{Exception.message(error)}"
       )
 
-      false
+      :error
   end
 
   defp missing_query(nil), do: Locations.unchecked_query()

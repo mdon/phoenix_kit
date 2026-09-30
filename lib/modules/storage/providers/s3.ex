@@ -65,16 +65,24 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3 do
     error -> {:error, "Error deleting file from S3: #{inspect(error)}"}
   end
 
+  # Only a 404 means the object is not there. Any other failure (denied,
+  # a timeout, a client that cannot parse the reply) raises, naming the
+  # bucket and the reason, never a credential: a broken connection must not
+  # read as missing data. Every caller rescues it into "not here, for this
+  # request" and logs it (`Manager`, the location backfill).
   @impl true
   def file_exists?(bucket, file_path) do
     case ExAws.S3.head_object(bucket.bucket_name, file_path)
          |> ExAws.request(aws_config(bucket)) do
-      {:ok, _result} -> true
-      {:error, {:http_error, 404, _}} -> false
-      {:error, _reason} -> false
+      {:ok, _result} ->
+        true
+
+      {:error, {:http_error, 404, _}} ->
+        false
+
+      {:error, reason} ->
+        raise "S3 HEAD on bucket #{bucket.name} failed: #{inspect(reason, limit: 5)}"
     end
-  rescue
-    _error -> false
   end
 
   @impl true
@@ -273,13 +281,22 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3 do
 
   # Build per-request ExAws config from bucket credentials.
   # Passed to ExAws.request/2 instead of using global Application.put_env.
-  defp aws_config(bucket) do
+  #
+  # The HTTP client is Req, set here rather than left to the host's
+  # `config :ex_aws, http_client:`. ExAws's default, hackney, returns a
+  # 3-tuple for a HEAD under hackney 4 (which PhoenixKit requires), and
+  # ExAws 2.7's hackney adapter does not match it: every HEAD raised, so
+  # every object on an S3/R2 bucket read as missing and every download
+  # (which starts with a HEAD) failed (#882; ex-aws/ex_aws#1255).
+  @doc false
+  def aws_config(bucket) do
     {access_key_id, secret_access_key} = resolve_credentials(bucket)
 
     config = [
       access_key_id: access_key_id,
       secret_access_key: secret_access_key,
-      region: bucket.region || "us-east-1"
+      region: bucket.region || "us-east-1",
+      http_client: ExAws.Request.Req
     ]
 
     config = if virtual_host?(bucket), do: config ++ [virtual_host: true], else: config
