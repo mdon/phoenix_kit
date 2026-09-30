@@ -587,6 +587,12 @@ As built (2026-09-30), where it differs from the list above:
   counts a user's bucket) even on the site's libraries; the upload then fails with
   "no available storage buckets".
 
+### Next: Media by viewer (2026-09-30)
+
+Media becomes the one browser: it shows each viewer only what is theirs, user libraries
+join its switcher, and `/admin/libraries` goes. Plan and work order:
+`dev_docs/plans/2026-09-30-media-by-viewer.md`.
+
 ## 1. The idea
 
 Every stored file belongs to exactly one **library**. A library is a partition
