@@ -1286,12 +1286,12 @@ msgstr "Ostatnia aktualizacja"
 msgid "Legal Settings"
 msgstr "Ustawienia prawne"
 
-#: lib/phoenix_kit_web/live/modules.ex:384
+#: lib/phoenix_kit_web/live/modules.ex:388
 #, elixir-autogen, elixir-format
 msgid "Legal module disabled"
 msgstr "Moduł Informacje prawne wyłączony"
 
-#: lib/phoenix_kit_web/live/modules.ex:385
+#: lib/phoenix_kit_web/live/modules.ex:389
 #, elixir-autogen, elixir-format
 msgid "Legal module enabled"
 msgstr "Moduł Informacje prawne włączony"
@@ -1562,7 +1562,7 @@ msgstr "Zaktualizowano uprawnienia roli %{role_name}"
 msgid "PhoenixKit Version"
 msgstr "Wersja PhoenixKit"
 
-#: lib/phoenix_kit_web/live/modules.ex:371
+#: lib/phoenix_kit_web/live/modules.ex:375
 #, elixir-autogen, elixir-format
 msgid "Please enable Publishing module first"
 msgstr "Najpierw włącz moduł Publikowanie"
@@ -2283,7 +2283,7 @@ msgstr "Włącz"
 msgid "Expires"
 msgstr "Wygasa"
 
-#: lib/phoenix_kit_web/live/modules.ex:403
+#: lib/phoenix_kit_web/live/modules.ex:407
 #, elixir-autogen, elixir-format
 msgid "Failed to %{action} Legal module"
 msgstr "Nie udało się %{action} moduł Informacje prawne"

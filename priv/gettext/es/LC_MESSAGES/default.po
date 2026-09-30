@@ -1289,12 +1289,12 @@ msgstr "Última actualización"
 msgid "Legal Settings"
 msgstr "Configuración legal"
 
-#: lib/phoenix_kit_web/live/modules.ex:384
+#: lib/phoenix_kit_web/live/modules.ex:388
 #, elixir-autogen, elixir-format
 msgid "Legal module disabled"
 msgstr "Módulo Legal desactivado"
 
-#: lib/phoenix_kit_web/live/modules.ex:385
+#: lib/phoenix_kit_web/live/modules.ex:389
 #, elixir-autogen, elixir-format
 msgid "Legal module enabled"
 msgstr "Módulo Legal activado"
@@ -1565,7 +1565,7 @@ msgstr "Permisos actualizados para %{role_name}"
 msgid "PhoenixKit Version"
 msgstr "Versión de PhoenixKit"
 
-#: lib/phoenix_kit_web/live/modules.ex:371
+#: lib/phoenix_kit_web/live/modules.ex:375
 #, elixir-autogen, elixir-format
 msgid "Please enable Publishing module first"
 msgstr "Active primero el módulo Publicación"
@@ -2288,7 +2288,7 @@ msgstr "Habilitar"
 msgid "Expires"
 msgstr "Caduca"
 
-#: lib/phoenix_kit_web/live/modules.ex:403
+#: lib/phoenix_kit_web/live/modules.ex:407
 #, elixir-autogen, elixir-format
 msgid "Failed to %{action} Legal module"
 msgstr "No se pudo %{action} el módulo Legal"

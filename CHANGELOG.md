@@ -20,6 +20,10 @@
   Files hit by #882 recover by themselves once this is deployed: the
   reconciler copies and counts them again, and a missing size is queued
   the next time it is requested.
+- **An external module that requires Storage no longer shows "Requires
+  Storage"** on the Modules page. The badge read the required module's
+  `enabled` flag, and Storage (always on) reports `module_enabled`; the
+  card now reads either, as the built-in modules' cards already did.
 
 ## 2.41.5 - 2026-09-29
 

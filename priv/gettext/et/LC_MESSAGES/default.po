@@ -1289,12 +1289,12 @@ msgstr "Viimati uuendatud"
 msgid "Legal Settings"
 msgstr "Juriidilised seaded"
 
-#: lib/phoenix_kit_web/live/modules.ex:384
+#: lib/phoenix_kit_web/live/modules.ex:388
 #, elixir-autogen, elixir-format
 msgid "Legal module disabled"
 msgstr "Juriidiline moodul keelatud"
 
-#: lib/phoenix_kit_web/live/modules.ex:385
+#: lib/phoenix_kit_web/live/modules.ex:389
 #, elixir-autogen, elixir-format
 msgid "Legal module enabled"
 msgstr "Juriidiline moodul lubatud"
@@ -1565,7 +1565,7 @@ msgstr "Õigused uuendatud rollile %{role_name}"
 msgid "PhoenixKit Version"
 msgstr "PhoenixKit versioon"
 
-#: lib/phoenix_kit_web/live/modules.ex:371
+#: lib/phoenix_kit_web/live/modules.ex:375
 #, elixir-autogen, elixir-format
 msgid "Please enable Publishing module first"
 msgstr "Palun luba kõigepealt Avaldamise moodul"
@@ -2287,7 +2287,7 @@ msgstr "Luba"
 msgid "Expires"
 msgstr "Aegub"
 
-#: lib/phoenix_kit_web/live/modules.ex:403
+#: lib/phoenix_kit_web/live/modules.ex:407
 #, elixir-autogen, elixir-format
 msgid "Failed to %{action} Legal module"
 msgstr "Juriidilise mooduli %{action} ebaõnnestus"

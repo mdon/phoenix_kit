@@ -219,7 +219,11 @@ defmodule PhoenixKitWeb.Live.Modules do
 
   @doc """
   Normalizes a module's enabled flag across the two config key spellings
-  internal modules use (`:enabled` for most, `:module_enabled` for Crawlers).
+  modules use: `:enabled` for most, `:module_enabled` for Crawlers and
+  Storage (whose `get_config/0` reports `module_enabled: true`; it is always
+  on). Use it wherever a module's config is read for "is it on", or a
+  module keyed the other way reads as off (every external module that
+  required Storage used to show "Requires Storage").
   """
   def module_enabled?(config) do
     cond do
@@ -512,7 +516,7 @@ defmodule PhoenixKitWeb.Live.Modules do
       name: mod.module_name(),
       icon: (perm && perm[:icon]) || "hero-puzzle-piece",
       description: (perm && perm[:description]) || "External module",
-      enabled: config[:enabled] || false,
+      enabled: module_enabled?(config),
       config: safe_get_config(mod),
       version: if(function_exported?(mod, :version, 0), do: mod.version(), else: "0.0.0"),
       required_modules:

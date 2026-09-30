@@ -1286,12 +1286,12 @@ msgstr "Zuletzt aktualisiert"
 msgid "Legal Settings"
 msgstr "Rechtliche Einstellungen"
 
-#: lib/phoenix_kit_web/live/modules.ex:384
+#: lib/phoenix_kit_web/live/modules.ex:388
 #, elixir-autogen, elixir-format
 msgid "Legal module disabled"
 msgstr "Modul „Rechtliches“ deaktiviert"
 
-#: lib/phoenix_kit_web/live/modules.ex:385
+#: lib/phoenix_kit_web/live/modules.ex:389
 #, elixir-autogen, elixir-format
 msgid "Legal module enabled"
 msgstr "Modul „Rechtliches“ aktiviert"
@@ -1562,7 +1562,7 @@ msgstr "Berechtigungen für %{role_name} aktualisiert"
 msgid "PhoenixKit Version"
 msgstr "PhoenixKit-Version"
 
-#: lib/phoenix_kit_web/live/modules.ex:371
+#: lib/phoenix_kit_web/live/modules.ex:375
 #, elixir-autogen, elixir-format
 msgid "Please enable Publishing module first"
 msgstr "Bitte aktivieren Sie zuerst das Modul „Publishing“"
@@ -2283,7 +2283,7 @@ msgstr "Aktivieren"
 msgid "Expires"
 msgstr "Läuft ab"
 
-#: lib/phoenix_kit_web/live/modules.ex:403
+#: lib/phoenix_kit_web/live/modules.ex:407
 #, elixir-autogen, elixir-format
 msgid "Failed to %{action} Legal module"
 msgstr "Modul „Rechtliches“ konnte nicht %{action} werden"
