@@ -465,4 +465,41 @@ defmodule PhoenixKitWeb.Components.Core.TableDefaultTest do
       assert html =~ ~s(phx-value-mode="table")
     end
   end
+
+  describe "toolbar_primary slot" do
+    test "renders the primary action after the view toggle, actions before it" do
+      assigns = %{}
+
+      html =
+        rendered_to_string(~H"""
+        <.table_default id="t" toggleable items={[]}>
+          <.table_default_body></.table_default_body>
+          <:toolbar_actions><span id="secondary">S</span></:toolbar_actions>
+          <:toolbar_primary><a id="primary" href="/new">New</a></:toolbar_primary>
+        </.table_default>
+        """)
+
+      {secondary, _} = :binary.match(html, ~s(id="secondary"))
+      {toggle, _} = :binary.match(html, ~s(data-view-action="card"))
+      {primary, _} = :binary.match(html, ~s(id="primary"))
+
+      assert secondary < toggle
+      assert toggle < primary
+    end
+
+    test "alone it still renders the toolbar row" do
+      assigns = %{}
+
+      html =
+        rendered_to_string(~H"""
+        <.table_default id="t" items={[%{uuid: "1"}]} show_toggle={false}>
+          <.table_default_body></.table_default_body>
+          <:toolbar_primary><a id="primary" href="/new">New</a></:toolbar_primary>
+        </.table_default>
+        """)
+
+      assert html =~ ~s(id="primary")
+      refute html =~ ~s(data-view-action)
+    end
+  end
 end
