@@ -27,12 +27,15 @@ defmodule PhoenixKit.Utils.PublicAddress do
 
   def public?({_, _, _, _} = ip), do: not Enum.any?(v4_blocked(), &in_range?(ip, &1))
 
-  def public?({_, _, _, _, _, _, _, _} = ip) do
-    case embedded_v4(ip) do
-      {:ok, v4} -> public?(v4) and not Enum.any?(v6_blocked(), &in_range?(ip, &1))
-      :none -> not Enum.any?(v6_blocked(), &in_range?(ip, &1))
-    end
-  end
+  # Only global unicast space (2000::/3) is ever public; everything outside it
+  # is reserved or local. Inside it, every form that carries an IPv4 address
+  # (6to4, Teredo, NAT64 and the mapped/compatible forms below 2000::/3) is
+  # refused outright rather than judged by the IPv4 inside: a tunnel or
+  # translator can deliver it to any address, internal ones included.
+  def public?({_, _, _, _, _, _, _, _} = ip),
+    do:
+      in_range?(ip, {{0x2000, 0, 0, 0, 0, 0, 0, 0}, 3}) and
+        not Enum.any?(v6_blocked(), &in_range?(ip, &1))
 
   def public?(_ip), do: false
 
@@ -71,16 +74,6 @@ defmodule PhoenixKit.Utils.PublicAddress do
   end
 
   defp prefer_v4(addresses), do: Enum.find(addresses, hd(addresses), &(tuple_size(&1) == 4))
-
-  # An IPv6 address that carries an IPv4 one: mapped (::ffff:a.b.c.d),
-  # compatible (::a.b.c.d), NAT64 (64:ff9b::a.b.c.d). The embedded address
-  # must itself be public.
-  defp embedded_v4({0, 0, 0, 0, 0, 0xFFFF, a, b}), do: {:ok, v4_of(a, b)}
-  defp embedded_v4({0, 0, 0, 0, 0, 0, a, b}) when a != 0 or b > 1, do: {:ok, v4_of(a, b)}
-  defp embedded_v4({0x64, 0xFF9B, 0, 0, 0, 0, a, b}), do: {:ok, v4_of(a, b)}
-  defp embedded_v4(_ip), do: :none
-
-  defp v4_of(a, b), do: {a >>> 8, a &&& 0xFF, b >>> 8, b &&& 0xFF}
 
   # {network, prefix length}
   defp v4_blocked do

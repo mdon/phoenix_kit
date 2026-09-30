@@ -24,6 +24,18 @@ defmodule PhoenixKit.Utils.PublicAddressTest do
   test "an IPv6 form carrying an IPv4 address is refused even when that IPv4 is public" do
     # Stricter than necessary on purpose: a fetch never needs these forms.
     refute PublicAddress.public?("::ffff:8.8.8.8")
+    refute PublicAddress.public?("64:ff9b::8.8.8.8")
+    refute PublicAddress.public?("2002:808:808::1")
+    refute PublicAddress.public?("2001::1")
+  end
+
+  test "IPv6 outside global unicast space (2000::/3) is never public" do
+    for ip <- ["4000::1", "1::1", "fe00::1", "8000::1", "e000::1"] do
+      refute PublicAddress.public?(ip), ip
+    end
+
+    assert PublicAddress.public?("2a00:1450:4001:80b::200e")
+    refute PublicAddress.public?("3fff:abc::1"), "3fff::/20 is documentation"
   end
 
   test "resolve_public refuses a host with any internal address, and literal IPs are checked" do
