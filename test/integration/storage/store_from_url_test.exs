@@ -17,11 +17,16 @@ defmodule PhoenixKit.Integration.Storage.StoreFromUrlTest do
 
   defmodule Server do
     use Plug.Router
+
+    @png <<0x89, "PNG", 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, "IHDR", 0, 0, 0, 1, 0, 0, 0, 1, 8, 6,
+           0, 0, 0, 0x1F, 0x15, 0xC4, 0x89, 0, 0, 0, 10, "IDAT", 0x78, 0x9C, 0x63, 0, 1, 0, 0, 5,
+           0, 1, 0x0D, 0x0A, 0x2D, 0xB4, 0, 0, 0, 0, "IEND", 0xAE, 0x42, 0x60, 0x82>>
+
     plug(:match)
     plug(:dispatch)
 
     get "/pic.png" do
-      send_resp(conn, 200, PhoenixKit.Integration.Storage.StoreFromUrlTest.png())
+      send_resp(conn, 200, @png)
     end
 
     get("/text.png", do: send_resp(conn, 200, "not an image at all"))
@@ -30,8 +35,6 @@ defmodule PhoenixKit.Integration.Storage.StoreFromUrlTest do
     get("/loop", do: conn |> put_resp_header("location", "/loop") |> send_resp(302, ""))
     match(_, do: send_resp(conn, 404, ""))
   end
-
-  def png, do: @png
 
   @buckets_cache :phoenix_kit_buckets_cache
 

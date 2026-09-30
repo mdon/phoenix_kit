@@ -3,6 +3,8 @@ defmodule PhoenixKit.Modules.Storage.URLSigner do
   import Bitwise
 
   alias PhoenixKit.Config
+  alias PhoenixKit.Modules.Storage
+  alias PhoenixKit.Modules.Storage.Libraries
   alias PhoenixKit.Modules.Storage.VariantSets
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
@@ -88,7 +90,7 @@ defmodule PhoenixKit.Modules.Storage.URLSigner do
   @spec verify_file_token(map(), String.t(), String.t()) ::
           :ok | {:error, :invalid_token | :expired_token}
   def verify_file_token(file, variant, token) do
-    if PhoenixKit.Modules.Storage.Libraries.private_file?(file) do
+    if Libraries.private_file?(file) do
       case verify_private_token(file.uuid, variant, token) do
         :ok -> :ok
         :expired -> {:error, :expired_token}
@@ -120,7 +122,7 @@ defmodule PhoenixKit.Modules.Storage.URLSigner do
   end
 
   defp servable_file(uuid, opts) do
-    case PhoenixKit.Modules.Storage.get_file(uuid) do
+    case Storage.get_file(uuid) do
       nil ->
         {:error, :not_found}
 

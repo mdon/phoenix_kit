@@ -1066,12 +1066,7 @@ defmodule PhoenixKit.Dashboard.Registry do
 
           case Tab.new(tab_config) do
             {:ok, tab} ->
-              tab = Tab.resolve_path(tab, :admin)
-
-              unless hidden_admin_tab?(tab) do
-                :ets.insert(@ets_table, {{:tab, tab.id}, tab})
-                :ets.insert(@ets_table, {{:namespace, :admin_config, tab.id}, true})
-              end
+              insert_config_admin_tab(Tab.resolve_path(tab, :admin))
 
               # Auto-register custom permission key and cache view mapping
               auto_register_custom_permission(tab_config)
@@ -1080,6 +1075,13 @@ defmodule PhoenixKit.Dashboard.Registry do
               :ok
           end
         end)
+    end
+  end
+
+  defp insert_config_admin_tab(tab) do
+    unless hidden_admin_tab?(tab) do
+      :ets.insert(@ets_table, {{:tab, tab.id}, tab})
+      :ets.insert(@ets_table, {{:namespace, :admin_config, tab.id}, true})
     end
   end
 

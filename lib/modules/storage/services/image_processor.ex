@@ -12,8 +12,8 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
 
   require Logger
 
-  alias PhoenixKit.Modules.Storage.Sniff
   alias PhoenixKit.Modules.Storage.ImageEdit
+  alias PhoenixKit.Modules.Storage.Sniff
 
   # Resource ceilings on EVERY ImageMagick call, applied here rather than
   # trusted to the host's policy.xml: a decompression bomb is a small file

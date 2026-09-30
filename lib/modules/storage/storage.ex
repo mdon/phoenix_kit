@@ -107,14 +107,14 @@ defmodule PhoenixKit.Modules.Storage do
   alias PhoenixKit.Modules.Storage.FolderLink
   alias PhoenixKit.Modules.Storage.ImageEditing
   alias PhoenixKit.Modules.Storage.Libraries
-  alias PhoenixKit.Modules.Storage.RemoteFetch
-  alias PhoenixKit.Modules.Storage.Sniff
   alias PhoenixKit.Modules.Storage.Library
   alias PhoenixKit.Modules.Storage.Locations
   alias PhoenixKit.Modules.Storage.Manager
   alias PhoenixKit.Modules.Storage.ProcessFileJob
   alias PhoenixKit.Modules.Storage.Profiles
   alias PhoenixKit.Modules.Storage.ProviderRegistry
+  alias PhoenixKit.Modules.Storage.RemoteFetch
+  alias PhoenixKit.Modules.Storage.Sniff
   alias PhoenixKit.Modules.Storage.StorageProfile
   # NOTE: Temporary helper for Publishing component system.
   # The dedicated storage/media APIs under development should replace this fallback once available.

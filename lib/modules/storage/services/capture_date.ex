@@ -42,6 +42,8 @@ defmodule PhoenixKit.Modules.Storage.CaptureDate do
   stronger source, and a manual date never.
   """
 
+  alias PhoenixKit.Modules.Storage.ImageProcessor
+
   @typedoc "Where a capture date came from. See the moduledoc."
   @type source :: String.t()
 
@@ -165,11 +167,11 @@ defmodule PhoenixKit.Modules.Storage.CaptureDate do
     # Decoder pinned to the sniffed raster format, with the processor's
     # resource limits; anything that is not a known raster image has no EXIF
     # worth reading here.
-    with {:ok, input} <- PhoenixKit.Modules.Storage.ImageProcessor.pinned_input(path, "[0]"),
+    with {:ok, input} <- ImageProcessor.pinned_input(path, "[0]"),
          {output, 0} <-
            System.cmd(
              "identify",
-             PhoenixKit.Modules.Storage.ImageProcessor.limit_args() ++
+             ImageProcessor.limit_args() ++
                ["-format", "%[EXIF:*]", input],
              stderr_to_stdout: true
            ) do

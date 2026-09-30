@@ -43,6 +43,7 @@ defmodule PhoenixKit.Cache do
   """
 
   use GenServer
+  alias PhoenixKit.Utils.TimeZone
   require Logger
 
   @type cache_name :: atom()
@@ -331,14 +332,14 @@ defmodule PhoenixKit.Cache do
 
   def ttl_until({boundary, zone}, %DateTime{} = now)
       when boundary in [:end_of_minute, :end_of_hour, :end_of_day] do
-    database = PhoenixKit.Utils.TimeZone.database()
+    database = TimeZone.database()
 
     # An unknown or missing zone falls back to UTC rather than failing.
     at =
       with true <- is_binary(zone) and zone != "",
            {:ok, local} <- DateTime.shift_zone(now, zone, database),
            naive = next_boundary(boundary, DateTime.to_naive(local)),
-           {:ok, at} <- PhoenixKit.Utils.TimeZone.from_wall(naive, zone) do
+           {:ok, at} <- TimeZone.from_wall(naive, zone) do
         at
       else
         _ -> boundary |> next_boundary(DateTime.to_naive(now)) |> DateTime.from_naive!("Etc/UTC")
