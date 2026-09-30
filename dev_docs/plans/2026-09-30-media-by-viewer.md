@@ -1,6 +1,6 @@
 # Media that shows each viewer only what is theirs
 
-Status: plan, 2026-09-30. Builds on `2026-09-22-storage-libraries.md` (V202–V206).
+Status: built, 2026-09-30 (see "As built" at the end). Builds on `2026-09-22-storage-libraries.md` (V202–V206).
 Decided with the maintainer the same day; the work order at the bottom is what is built.
 
 ## 1. The idea
@@ -76,6 +76,10 @@ else's file. It grows a second half: for a restricted viewer, any event that nam
 theirs (or the folder is visible to them), and the site-wide actions (`empty_trash`,
 `delete_all_orphaned`) need `media.manage`.
 
+**Outside the browser** (and the same guard, by another door: a `?file=<uuid>` link that
+missed the loaded listing used to open any file, of any library, in the viewer; it now opens
+only a file of the library shown that the viewer may see).
+
 **Outside the browser.** `MediaDetail` (same rule as the browser), the trashed-file
 branch of `FileController` (today "any `media` holder", becomes "uploader, Owner/Admin or
 `media.view_all`"), and `Libraries.can?/3` (`media` alone stays write-only for `:edit`).
@@ -87,12 +91,17 @@ Site library files stay publicly served by URL, as now: they are site assets.
   viewer's own and shared user libraries) are served by the same LiveView and the same
   switcher, grouped "Site" and "Mine". A separate path segment avoids a slug clash between
   a site library and someone's own.
-- The page opens for `media` **or** `storage` (user libraries on). A viewer with only
-  `storage` lands in their default library.
-- `/admin/libraries` and `/admin/libraries/:id` redirect to the new URLs (old links and
-  bookmarks keep working); the sidebar's "Libraries" entry goes.
-- The profile's Media tab keeps creating and managing libraries, and its library names
-  link straight into the browser.
+- The page opens for `media`. A user library appears in the switcher when user libraries
+  are on and the viewer also holds `storage` (which is what creating and sharing need).
+- `/admin/libraries` stays, but only as the entry for people who hold `storage` without
+  `media`, and for an Owner/Admin's audited list of other people's libraries. For any other
+  holder of `media` it redirects into Media (old links and bookmarks keep working), and the
+  sidebar's "Libraries" entry is shown only to those who do not have Media.
+  *(Changed from the first draft, which retired it entirely: the permission gate resolves one
+  key per view, and letting one page open for either of two keys meant changing the auth core
+  for little gain.)*
+- The profile's Media tab keeps creating and managing libraries; each library has an "Open"
+  link to wherever its holder browses.
 - Settings → Media → Libraries (the admin's metadata list) is unchanged.
 
 ## 5. Decided, and what I took as the default
@@ -112,7 +121,10 @@ Taken as defaults (say if you want any of them changed):
   the viewer rule needs its own decision (an opt-in `viewer` on the picker), so it is out of
   scope here and listed in §7.
 - A restricted viewer's trash is their own files' trash; orphans (files in no folder) are
-  likewise only theirs.
+  likewise only theirs. They may empty their own trash and clear their own orphans (scoped by
+  the viewer filter), so `media.manage` does not gate those, only the storage screens.
+- A restricted viewer changes only folders they created (rename, colour, header, trash,
+  delete, move), although they may see and upload into a folder that merely holds their files.
 
 ## 6. Risks, and how each is closed
 
@@ -132,14 +144,32 @@ Taken as defaults (say if you want any of them changed):
 
 ## 8. Work order
 
-1. [ ] **Permissions.** `@core_sub_permissions` (`media.view_all`, `media.manage`) merged
+1. [x] **Permissions.** `@core_sub_permissions` (`media.view_all`, `media.manage`) merged
    into the sub-permission registry reads; one-time backfill to existing `media` holders;
    map the storage admin views to `media.manage`; tests incl. the upgrade case.
-2. [ ] **Storage.** `:viewer_uuid` through the listed functions, `viewer_folder_uuids/2`,
+2. [x] **Storage.** `:viewer_uuid` through the listed functions, `viewer_folder_uuids/2`,
    `Storage.viewer_can_see_file?/2`; leak tests at the data layer.
-3. [ ] **Browser.** `viewer_uuid` assign + `lib_opts`; the guard's read half; site-wide
+3. [x] **Browser.** `viewer_uuid` assign + `lib_opts`; the guard's read half; site-wide
    actions behind `media.manage`; previews and counts; event tests.
-4. [ ] **Media page.** Load user libraries into the switcher, `/admin/media/my/…`, gate on
+4. [x] **Media page.** Load user libraries into the switcher, `/admin/media/my/…`, gate on
    `media` or `storage`, viewer kind from the scope; `MediaDetail` and `FileController`.
-5. [ ] **Retire `/admin/libraries`.** Redirects, sidebar entry, links from the profile tab.
+5. [x] **Narrow `/admin/libraries`.** Redirects for media holders, the sidebar rule, links from the profile tab.
 6. [ ] **Docs, changelog, translations, precommit, full suite.**
+
+## 9. As built
+
+- `media.view_all` / `media.manage` are sub-permissions of the core `media` section
+  (`Permissions` `@core_sub_permissions`), shown in the permissions matrix under Media, and
+  backfilled once at boot to every role that held `media` (flag `media_sub_permissions_backfilled`).
+  The test helper gives the Admin role both, as the boot sweep does in production.
+- `Storage` `:viewer_uuid` on the file and folder listings, the tree, search, counts, trash and
+  orphans (`viewer_folder_uuids/2`: created ∪ homes ∪ ancestors), plus `viewer_can_see_file?/2`
+  and `viewer_can_see_folder?/3`.
+- `MediaBrowser`: `viewer_uuid` assign (in `lib_opts/1`, so every read carries it), a first
+  `handle_event` clause that refuses an event naming another's file or an invisible folder or
+  changing a folder the viewer did not create, the `own_files_only` guard (the Media page sets
+  it to the viewer for a site library) with empty-trash and orphan-clearing allowed because they
+  are scoped, folder cover previews scoped, and the `?file=` deep link gated by library and viewer.
+- `Libraries.can?/3` `:edit` on a site file needs `media.view_all` for a holder of `media`;
+  `FileController.authorize_trashed_read/2` (new, per file) and `MediaDetail` follow the rule.
+- Not done, as planned: the media pickers, per-folder sharing.
