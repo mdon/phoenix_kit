@@ -54,9 +54,9 @@
 
 ### Changed
 
-- **Test Connection on a bucket lists, writes and deletes** a small object
-  (`.phoenix_kit/connection-test`) and says which step failed ("can be read
-  but not written to"). It no longer gates Save: a bucket can be saved
+- **Test Connection on a bucket writes, reads back and deletes** a small object
+  (a fresh `.phoenix_kit/connection-test-…` key each time) and says which step
+  failed. It no longer gates Save: a bucket can be saved
   without a passing test, and editing its priority no longer needs a re-test.
 - The bucket edit page no longer renders the stored secret (the encrypted
   value was written into the password input).
@@ -84,6 +84,46 @@
   endpoint (a MinIO on the same network). The check is not a connect-time
   pin: a name whose DNS changes between the check and the request is not
   caught.
+
+### Fixed (from the second review of the above)
+
+- **A crafted "Test the bucket" event could make the server create and delete a
+  file in any directory** of a user who had no own-storage permission (the
+  wizard's handlers trusted what the page showed). The test now goes through
+  `Libraries.probe_own_storage/3`, which asks again who may and validates the
+  fields as a real bucket would be; an owned probe is refused the `local`
+  provider in the storage context itself.
+- **A Tigris request is checked at the host it is sent to** (bucket name in
+  front of the endpoint's host), for ordinary requests, the probe, multipart and
+  presigned URLs alike. An owned bucket's name must be a valid S3 bucket name,
+  so it cannot carry URL delimiters that move a request or a presigned URL.
+- **The connection test no longer overwrites or deletes an object of the
+  bucket's.** It writes a throwaway object under a fresh, unpredictable key,
+  **reads it back** (a key that can list but not read is no longer called
+  readable, and a key scoped to a prefix that cannot list is no longer refused),
+  deletes it, and removes it again if a later stage failed. It runs in a
+  hard-deadline probe process, and creating a library does its bucket check off
+  the page's process with a pending state.
+- **A backup can no longer satisfy an upload by itself.** `min_copies_on_write`
+  now counts copies on buckets that can be served from; a copy on a backup does
+  not count (this holds for any profile with a `backup` row, site profiles
+  included). Backup mode needs a site bucket an original can actually be written
+  to (a read-only one does not count), and its minimum follows the writable
+  ones.
+- **Backup mode keeps derived-only site buckets.** Only the original-capable
+  rows are limited to four (active before read-only); thumbnails and tiles keep
+  a destination, and copy counts follow the buckets of each kind.
+- **The final storage choice is judged on the library as it is now**, under a row
+  lock: a stale copy of the library cannot be moved off (or onto) user storage,
+  and a library that already has its own storage cannot be given another.
+- **Purging a library on a user's own bucket no longer forgets objects it could
+  not delete.** Each file's objects are deleted before its rows; if one cannot be
+  (the key was revoked for delete, the bucket is down) the file, library, profile
+  and bucket row stay and the purge job is retried. When the credentials are
+  gone (the account was deleted) the purge goes on, as before.
+- **A user's bucket is edited under the rules it was created under** (their own
+  connection, the personal endpoint policy, an S3-protocol provider), and the
+  site's bucket screens (edit, toggle, delete) no longer find it.
 
 ### i18n
 

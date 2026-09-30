@@ -575,6 +575,14 @@ As built (2026-09-30), where it differs from the list above:
   while `storage_user_buckets_enabled` is on.
 - Deleting a user account deletes their personal connections first, so the purge
   of their libraries cannot reach their own bucket: those objects are left there.
+- After the Codex review (2026-09-30, `dev_docs/reviews/2026-09-30-user-owned-storage/`):
+  the personal probe rechecks permissions and validates the fields; Tigris is
+  checked at the prefixed host and owned bucket names are syntax-checked; the
+  probe uses a fresh key, reads back and is deadline-bounded; `min_copies_on_write`
+  ignores backups; backup trimming limits only original-capable rows; the final
+  choice is decided under a row lock; purge deletes objects before rows and
+  retries (`:objects_remain`) instead of forgetting them; owned buckets are edited
+  under the owned rules.
 - Open: a site with no site bucket at all offers uploads (`buckets_available?/0`
   counts a user's bucket) even on the site's libraries; the upload then fails with
   "no available storage buckets".

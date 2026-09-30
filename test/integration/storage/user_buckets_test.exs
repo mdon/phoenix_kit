@@ -189,16 +189,17 @@ defmodule PhoenixKit.Modules.Storage.UserBucketsTest do
   end
 
   describe "editing a user's bucket" do
-    test "cannot make it public or local: an error, not a raise", %{owner: owner} do
+    test "cannot make it public or local", %{owner: owner} do
       {:ok, bucket} = Storage.create_owned_bucket(owner, attrs(personal_connection(owner)))
 
-      assert {:error, changeset} = Storage.update_bucket(bucket, %{access_type: "public"})
-      assert %{owner_uuid: [_]} = errors(changeset)
+      # Not castable: an edit leaves it signed.
+      assert {:ok, same} = Storage.update_bucket(bucket, %{access_type: "public"})
+      assert same.access_type == "signed"
 
       assert {:error, changeset} =
                Storage.update_bucket(bucket, %{provider: "local", endpoint: "/tmp"})
 
-      assert %{owner_uuid: [_]} = errors(changeset)
+      assert %{provider: [_]} = errors(changeset)
     end
   end
 
@@ -268,6 +269,7 @@ defmodule PhoenixKit.Modules.Storage.UserBucketsTest do
         name: "x",
         provider: "s3",
         owner_uuid: owner,
+        bucket_name: "review-bucket",
         integration_uuid: connection,
         endpoint: "https://10.0.0.5"
       }

@@ -7,7 +7,8 @@ defmodule PhoenixKit.Modules.Storage.Workers.PurgeLibraryJob do
   Queued when a user's libraries are trashed because the user is deleted,
   and by the daily trash prune for libraries trashed longer ago than the
   retention period. A library that is gone, or no longer trashed, is left
-  alone.
+  alone. A library on a user's own bucket whose objects could not all be
+  deleted is retried (`{:error, :objects_remain}`).
   """
 
   use Oban.Worker, queue: :file_processing, max_attempts: 5, unique: [period: 3600]
@@ -20,6 +21,9 @@ defmodule PhoenixKit.Modules.Storage.Workers.PurgeLibraryJob do
       :ok -> :ok
       {:error, :not_found} -> :ok
       {:error, :not_trashed} -> {:cancel, :not_trashed}
+      # Objects on a user's own bucket could not be deleted yet: nothing was
+      # forgotten, so try again later.
+      {:error, :objects_remain} -> {:error, :objects_remain}
     end
   end
 end

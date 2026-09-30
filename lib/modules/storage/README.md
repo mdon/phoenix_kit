@@ -640,10 +640,12 @@ picker only while the setting is on).
   site's buckets stay the primaries (a **snapshot of the Default profile at
   creation**; a site bucket added later is not used) and the user's bucket holds a
   `backup` of the originals. An original is kept on every snapshotted site bucket
-  that stores originals and on the backup (at most 5 copies: placement writes all
-  primaries before any backup, so anything less and the backup would never get
-  one). Uploads still succeed on the Default's terms; the reconciler makes a
-  backup the write missed.
+  that is writable and stores originals, and on the backup (at most 5 copies, so
+  four original-capable site buckets; derived-only ones are kept too: placement
+  writes all primaries before any backup, so anything less and the backup would
+  never get one). Uploads succeed on the Default's terms counting the site's
+  copies only (`min_copies_on_write` ignores a backup: it is never served); the
+  reconciler makes a backup the write missed.
 - **Schema**: `owner_uuid` on `phoenix_kit_buckets` and `phoenix_kit_storage_profiles`
   (NULL = the site's; **no foreign key**, so a deleted user's bucket can never
   become a site bucket), and `phoenix_kit_buckets_owned_check`: an owned bucket is
@@ -661,7 +663,9 @@ picker only while the setting is on).
   (`Storage.Endpoint`); files are served through signed links or the proxy, never a
   plain object URL.
 - **Purge**: trashing a library and purging it deletes the objects it wrote in the
-  user's bucket, then the user's profile and bucket. Deleting a *user account* also
+  user's bucket **before** its rows; if an object cannot be deleted the file, library,
+  profile and bucket row stay and the purge job retries (`{:error, :objects_remain}`),
+  then the user's profile and bucket go. Deleting a *user account* also
   deletes their personal connections, so the keys are gone by the time the purge
   runs and the objects in their own bucket are left there.
 - **Admin**: the Libraries tab shows each user library's storage (site, own bucket,
@@ -1399,7 +1403,8 @@ lib/
 - ✅ A bucket reads credentials from a connection owned by its own owner only
   (`S3.resolve_credentials/1` passes `owner:`); every bucket is system-owned until user-owned
   buckets exist
-- ✅ "Test Connection" lists, writes and deletes a small object (`.phoenix_kit/connection-test`):
+- ✅ "Test Connection" writes, reads back and deletes a small object under a fresh
+  `.phoenix_kit/connection-test-…` key (it never touches an object it did not write):
   read-only keys are the common misconfiguration
 - ⚠️ No bulk backfill for a `secret_access_key` already in the column when encryption was
   added — it stays plaintext until the next save of the bucket for ANY reason (the

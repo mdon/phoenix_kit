@@ -316,36 +316,65 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
   become stale unless the new profile is the one they were placed by.
   """
   @spec set_library_profile(Library.t(), term()) ::
-          {:ok, Library.t()} | {:error, Ecto.Changeset.t() | :not_found}
-  def set_library_profile(%Library{} = library, profile_uuid) do
+          {:ok, Library.t()}
+          | {:error, Ecto.Changeset.t() | :not_found | :user_storage_locked}
+  def set_library_profile(%Library{uuid: uuid}, profile_uuid) do
     profile_uuid = if default?(profile_uuid), do: nil, else: profile_uuid
-    target = profile_uuid && get_profile(profile_uuid)
 
-    cond do
-      profile_uuid && is_nil(target) ->
-        {:error, :not_found}
+    # Decided on the library as it is NOW, under a row lock: the struct the
+    # caller holds may be stale (another request may have put the library on a
+    # user's storage since), and two callers must not both pass the check.
+    locked_library_update(uuid, fn current ->
+      target = profile_uuid && get_profile(profile_uuid)
 
-      # Where a user library keeps its bytes is chosen when it is created and
-      # does not change: not off the user's own storage, and not onto anyone's.
-      user_profile?(library.storage_profile_uuid) or (target && target.owner_uuid != nil) ->
-        {:error, :user_storage_locked}
-
-      true ->
-        do_set_library_profile(library, profile_uuid)
-    end
+      cond do
+        is_nil(current) -> {:error, :not_found}
+        profile_uuid && is_nil(target) -> {:error, :not_found}
+        # Where a user library keeps its bytes is chosen when it is created and
+        # does not change: not off the user's own storage, and not onto anyone's.
+        user_profile?(current.storage_profile_uuid) -> {:error, :user_storage_locked}
+        target && target.owner_uuid != nil -> {:error, :user_storage_locked}
+        true -> do_set_library_profile(current, profile_uuid)
+      end
+    end)
   end
 
   @doc false
-  # Points a NEW user library at its own profile (V206). The one way a library
-  # gets a user's profile; `set_library_profile/2` refuses it.
+  # Points a NEW user library at its own profile (V206): the one way a library
+  # gets a user's profile, and only a library that has none yet (the row as it
+  # is now, under a lock): anything else is `{:error, :user_storage_locked}`.
+  # `set_library_profile/2` refuses a user's profile altogether.
   def assign_user_profile(
-        %Library{kind: "user", owner_uuid: owner} = library,
+        %Library{kind: "user", owner_uuid: owner, uuid: uuid},
         %StorageProfile{
           owner_uuid: owner
         } = profile
       )
       when is_binary(owner) do
-    do_set_library_profile(library, profile.uuid)
+    locked_library_update(uuid, fn
+      %Library{kind: "user", owner_uuid: ^owner, storage_profile_uuid: nil} = current ->
+        do_set_library_profile(current, profile.uuid)
+
+      %Library{} ->
+        {:error, :user_storage_locked}
+
+      nil ->
+        {:error, :not_found}
+    end)
+  end
+
+  # Runs `fun` with the library row as it is now, locked for the rest of the
+  # transaction (`FOR NO KEY UPDATE`: other rows reference it by foreign key).
+  defp locked_library_update(uuid, fun) do
+    repo().transaction(fn ->
+      current =
+        repo().one(from(l in Library, where: l.uuid == ^uuid, lock: "FOR NO KEY UPDATE"))
+
+      case fun.(current) do
+        {:ok, library} -> library
+        {:error, reason} -> repo().rollback(reason)
+      end
+    end)
   end
 
   defp user_profile?(nil), do: false
@@ -377,13 +406,16 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
       is a `backup` of the originals. The site buckets are a **snapshot of the
       Default profile taken now**: a site bucket added later is not used by
       this library (removing or disabling one already reaches every profile).
-      An original is kept on every one of those site buckets that stores
-      originals (not only as many as the Default's copy count: placement writes
-      all primaries before any backup, so the backup would otherwise never get
-      one) and on the backup, at most 5 copies in all. An upload still succeeds
-      on the Default's terms; the backup copy is made by the reconciler if the
-      write missed it. Sizes and tiles are not backed up (they can be
-      regenerated).
+      An original is kept on every one of those site buckets that is writable
+      and stores originals (not only as many as the Default's copy count:
+      placement writes all primaries before any backup, so the backup would
+      otherwise never get one) and on the backup, at most 5 copies in all (the
+      original-capable site rows are limited to four). An upload still succeeds
+      on the Default's terms, counting the site's copies only; the backup copy is
+      made by the reconciler if the write missed it. Sizes and tiles are not
+      backed up (they can be regenerated), and the site's derived-only buckets
+      are kept. A site with no writable bucket for originals has nothing to
+      back up: `{:error, :no_site_storage}`.
 
   The profile is the user's (`owner_uuid`), named by its own uuid (the name is
   never shown), and `bucket` must be theirs. Returns `{:error, :no_site_storage}`
@@ -423,12 +455,15 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
 
   # Placement writes every primary before any backup, up to the copy count, so
   # a backup only gets a copy when the profile wants MORE copies than it has
-  # primaries and replicas. The profile therefore wants one original on every
-  # site bucket that stores originals, plus the backup (at most 5 copies: with
-  # more site buckets than that, the first four by serve order are kept). The
-  # upload still succeeds on the Default's terms (`min_copies_on_write`); a
+  # writable primaries and replicas. The profile therefore wants one original on
+  # every writable site bucket that stores originals, plus the backup (at most 5
+  # copies). Only the ORIGINAL-capable rows are limited to four (kept: active
+  # before read-only, then by serve order): derived-only buckets do not use up a
+  # copy of an original and all stay, or thumbnails and tiles would have nowhere
+  # to go. An upload succeeds on the Default's terms: `min_copies_on_write` counts
+  # the site's copies only (`Manager`), because a backup is never served; a
   # backup the write missed is made by the reconciler.
-  @max_copies 5
+  @max_original_site_rows 4
 
   defp user_profile_plan(:backup, bucket) do
     case default_profile() do
@@ -448,11 +483,18 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
           )
           |> keep_room_for_backup()
 
-        if Enum.all?(site_rows, &(&1.stores == "derived")) do
+        writable_originals =
+          Enum.count(site_rows, &(&1.status == "active" and stores?(&1, :originals)))
+
+        writable_derived =
+          Enum.count(site_rows, &(&1.status == "active" and stores?(&1, :derived)))
+
+        # Without a bucket an original can be WRITTEN to, the backup alone would
+        # hold it: never served, and gone if the backup is. A read-only site
+        # bucket does not count.
+        if writable_originals == 0 do
           {:error, :no_site_storage}
         else
-          originals = Enum.count(site_rows, &(&1.stores in ["all", "originals"]))
-
           backup = %{
             bucket_uuid: bucket.uuid,
             role: "backup",
@@ -464,9 +506,9 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
 
           {:ok, site_rows ++ [backup],
            %{
-             copies_originals: originals + 1,
-             copies_variants: min(default.copies_variants, length(site_rows)),
-             min_copies_on_write: min(default.min_copies_on_write, originals)
+             copies_originals: writable_originals + 1,
+             copies_variants: min(default.copies_variants, max(writable_derived, 1)),
+             min_copies_on_write: min(default.min_copies_on_write, writable_originals)
            }}
         end
 
@@ -475,10 +517,20 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
     end
   end
 
-  # At most `@max_copies - 1` site rows, by serve order, so the backup fits in
-  # the copy count.
+  defp stores?(%{stores: "all"}, _kind), do: true
+  defp stores?(%{stores: "originals"}, :originals), do: true
+  defp stores?(%{stores: "derived"}, :derived), do: true
+  defp stores?(_row, _kind), do: false
+
   defp keep_room_for_backup(rows) do
-    rows |> Enum.sort_by(& &1.serve_order) |> Enum.take(@max_copies - 1)
+    {original_capable, derived_only} = Enum.split_with(rows, &stores?(&1, :originals))
+
+    kept =
+      original_capable
+      |> Enum.sort_by(&{&1.status != "active", &1.serve_order})
+      |> Enum.take(@max_original_site_rows)
+
+    kept ++ derived_only
   end
 
   defp insert_user_profile(owner_uuid, copies) do

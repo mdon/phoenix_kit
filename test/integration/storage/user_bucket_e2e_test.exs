@@ -20,6 +20,10 @@ defmodule PhoenixKit.Modules.Storage.UserBucketE2ETest do
 
   @stub __MODULE__.S3
 
+  # The bucket check runs in `Integrations.Probe`'s own process, which Req.Test's
+  # per-process stubs do not reach.
+  setup {Req.Test, :set_req_test_to_shared}
+
   setup do
     {:ok, store} = Agent.start_link(fn -> %{} end)
 

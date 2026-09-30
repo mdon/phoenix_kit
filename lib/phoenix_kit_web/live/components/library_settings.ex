@@ -24,7 +24,6 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
   use PhoenixKitWeb, :live_component
 
   alias PhoenixKit.Integrations
-  alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.{Libraries, Library, LibraryMember, Profiles, VariantSets}
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
@@ -40,6 +39,8 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
       |> assign_new(:open_members, fn -> nil end)
       |> assign_new(:form, fn -> new_form() end)
       |> assign_new(:testing, fn -> false end)
+      |> assign_new(:creating, fn -> false end)
+      |> assign_new(:pending_create, fn -> nil end)
       |> assign_new(:test_result, fn -> nil end)
       |> load()
 
@@ -95,67 +96,31 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
 
   def handle_event("test_storage", _params, socket) do
     scope = socket.assigns.scope
-    params = own_storage_params(socket.assigns.form, Scope.user_uuid(scope))
+    params = socket.assigns.form
+    probe_opts = probe_opts(socket)
 
-    # Unlinked, and run as the signed-in user: the owner comes from the scope,
-    # never from the form.
+    # Through `Libraries.probe_own_storage/3`, which asks again whether this user
+    # may use their own storage and validates the bucket fields as a real one
+    # would be: the events of this component come from the client, and what the
+    # page hides is a courtesy. Unlinked, so a stalled endpoint cannot hold the
+    # page.
     {:noreply,
      socket
      |> assign(:testing, true)
      |> assign(:test_result, nil)
-     |> start_async(:test_storage, fn -> Storage.test_connection(params) end)}
+     |> start_async(:test_storage, fn ->
+       Libraries.probe_own_storage(scope, params, probe_opts)
+     end)}
   end
 
   def handle_event("create", %{"library" => params}, socket) do
     form = merge_form(socket, params)
     attrs = %{"name" => form["name"]}
 
-    attrs =
-      if form["kind"] == "own" and socket.assigns.can_own_storage,
-        do:
-          Map.put(
-            attrs,
-            "storage",
-            Map.take(form, ~w(mode integration_uuid provider bucket_name region endpoint))
-          ),
-        else: attrs
-
-    # `:probe` (an assign, unset in production) replaces the bucket check that
-    # runs before a library on the user's own storage is created.
-    opts = if probe = socket.assigns[:probe], do: [probe: probe], else: []
-
-    case Libraries.create_user_library(socket.assigns.scope, attrs, opts) do
-      {:ok, library} ->
-        socket = assign(socket, form: new_form(), test_result: nil)
-        reply(socket, :success, gettext("Library “%{name}” created", name: library.name))
-
-      {:error, :limit_reached} ->
-        reply(socket, :error, gettext("You have reached the number of libraries you may own"))
-
-      {:error, :not_allowed} ->
-        reply(socket, :error, gettext("You may not create libraries"))
-
-      {:error, :no_site_storage} ->
-        reply(
-          socket,
-          :error,
-          gettext(
-            "The site has no storage of its own to keep the originals on, so a backup is not possible."
-          )
-        )
-
-      {:error, {:storage, message}} when is_binary(message) ->
-        reply(
-          socket,
-          :error,
-          gettext("Your storage could not be used: %{reason}", reason: message)
-        )
-
-      {:error, {:storage, %Ecto.Changeset{} = changeset}} ->
-        reply(socket, :error, storage_message(changeset))
-
-      {:error, %Ecto.Changeset{} = changeset} ->
-        reply(socket, :error, changeset_message(changeset))
+    if form["kind"] == "own" and socket.assigns.can_own_storage do
+      create_on_own_storage(socket, form, attrs)
+    else
+      finish_create(socket, attrs, probe_opts(socket))
     end
   end
 
@@ -300,7 +265,7 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
 
   @impl true
   def handle_async(:test_storage, {:ok, result}, socket) do
-    {:noreply, assign(socket, testing: false, test_result: result)}
+    {:noreply, assign(socket, testing: false, test_result: probe_message(result))}
   end
 
   def handle_async(:test_storage, {:exit, _reason}, socket) do
@@ -310,6 +275,108 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
        test_result: {:error, gettext("The test stopped unexpectedly")}
      )}
   end
+
+  # The bucket was checked off the page's process; now the library is created
+  # (database only) without checking it again.
+  def handle_async(:probe_storage, {:ok, :ok}, socket) do
+    attrs = socket.assigns.pending_create
+    socket = assign(socket, creating: false, pending_create: nil)
+    finish_create(socket, attrs, probe: fn _params -> :ok end)
+  end
+
+  def handle_async(:probe_storage, {:ok, result}, socket) do
+    socket = assign(socket, creating: false, pending_create: nil)
+
+    case probe_message(result) do
+      {:error, message} ->
+        reply(
+          socket,
+          :error,
+          gettext("Your storage could not be used: %{reason}", reason: message)
+        )
+    end
+  end
+
+  def handle_async(:probe_storage, {:exit, _reason}, socket) do
+    socket = assign(socket, creating: false, pending_create: nil)
+    reply(socket, :error, gettext("The test stopped unexpectedly"))
+  end
+
+  # `:probe` (an assign, unset in production) replaces the bucket check, and with
+  # it the wait: the library is created at once.
+  defp probe_opts(socket), do: if(probe = socket.assigns[:probe], do: [probe: probe], else: [])
+
+  defp create_on_own_storage(socket, form, attrs) do
+    attrs =
+      Map.put(
+        attrs,
+        "storage",
+        Map.take(form, ~w(mode integration_uuid provider bucket_name region endpoint))
+      )
+
+    case socket.assigns[:probe] do
+      nil ->
+        # The network check runs off the page's process, with a pending state;
+        # the library itself is created when it passes.
+        scope = socket.assigns.scope
+
+        {:noreply,
+         socket
+         |> assign(:creating, true)
+         |> assign(:pending_create, attrs)
+         |> start_async(:probe_storage, fn -> Libraries.probe_own_storage(scope, form) end)}
+
+      probe ->
+        finish_create(socket, attrs, probe: probe)
+    end
+  end
+
+  defp finish_create(socket, attrs, opts) do
+    case Libraries.create_user_library(socket.assigns.scope, attrs, opts) do
+      {:ok, library} ->
+        socket = assign(socket, form: new_form(), test_result: nil)
+        reply(socket, :success, gettext("Library “%{name}” created", name: library.name))
+
+      {:error, :limit_reached} ->
+        reply(socket, :error, gettext("You have reached the number of libraries you may own"))
+
+      {:error, :not_allowed} ->
+        reply(socket, :error, gettext("You may not create libraries"))
+
+      {:error, :no_site_storage} ->
+        reply(
+          socket,
+          :error,
+          gettext(
+            "The site has no storage of its own to keep the originals on, so a backup is not possible."
+          )
+        )
+
+      {:error, {:storage, message}} when is_binary(message) ->
+        reply(
+          socket,
+          :error,
+          gettext("Your storage could not be used: %{reason}", reason: message)
+        )
+
+      {:error, {:storage, %Ecto.Changeset{} = changeset}} ->
+        reply(socket, :error, storage_message(changeset))
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        reply(socket, :error, changeset_message(changeset))
+    end
+  end
+
+  # What the wizard shows for a `Libraries.probe_own_storage/3` result.
+  defp probe_message(:ok), do: :ok
+
+  defp probe_message({:error, :not_allowed}),
+    do: {:error, gettext("You may not use your own storage")}
+
+  defp probe_message({:error, %Ecto.Changeset{} = changeset}),
+    do: {:error, storage_message(changeset)}
+
+  defp probe_message({:error, message}) when is_binary(message), do: {:error, message}
 
   @storage_fields ~w(kind mode integration_uuid provider bucket_name region endpoint)
 
@@ -348,15 +415,6 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
     if form[key] in [nil, ""] and value not in [nil, ""],
       do: Map.put(form, key, value),
       else: form
-  end
-
-  # What the probe is asked: the bucket fields as typed, and the signed-in user
-  # as owner (so their connection is read and the strict endpoint policy
-  # applies). Never taken from the form.
-  defp own_storage_params(form, user_uuid) do
-    form
-    |> Map.take(~w(integration_uuid provider bucket_name region endpoint))
-    |> Map.merge(%{"name" => "probe", "owner_uuid" => user_uuid})
   end
 
   # The user's own Object Storage connections, reduced to what the form shows
@@ -496,7 +554,13 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
               class="input input-sm input-bordered w-full"
             />
           </label>
-          <button type="submit" class="btn btn-sm btn-primary" phx-disable-with={gettext("Creating…")}>
+          <button
+            type="submit"
+            class="btn btn-sm btn-primary"
+            disabled={@creating}
+            phx-disable-with={gettext("Creating…")}
+          >
+            <span :if={@creating} class="loading loading-spinner loading-xs"></span>
             {gettext("Create")}
           </button>
         </div>

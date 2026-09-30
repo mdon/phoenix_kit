@@ -188,59 +188,83 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3 do
     error -> {:error, "Error signing S3 download URL: #{Exception.message(error)}"}
   end
 
-  # A bucket is usable only if it can be read, written and deleted from, so the
-  # check does all three: read-only keys are the most common misconfiguration,
-  # and a list that passes says nothing about the write that follows. The probe
-  # object is a few bytes under a fixed, recognizable key and is removed again.
+  # A bucket is usable only if an object can be written, read back and deleted,
+  # so the check does all three with one throwaway object: read-only keys are
+  # the most common misconfiguration, and listing the bucket (which a key scoped
+  # to a prefix may not do) says nothing about object reads. The key is fresh
+  # and unpredictable for every call, so it can never overwrite, or delete, an
+  # object the bucket already holds, and two checks at once do not meet. What
+  # this call wrote is removed again whatever stage failed.
   @impl true
   def test_connection(bucket) do
     config = aws_config(bucket)
+    key = probe_key()
 
-    with :ok <- probe_list(bucket, config),
-         :ok <- probe_put(bucket, config) do
-      probe_delete(bucket, config)
+    with :ok <- probe_put(bucket, config, key) do
+      read = probe_get(bucket, config, key)
+      deleted = probe_delete(bucket, config, key)
+
+      case {read, deleted} do
+        {:ok, :ok} -> :ok
+        {{:error, _} = error, _} -> error
+        {:ok, {:error, _} = error} -> error
+      end
     end
   rescue
     error -> {:error, "Error testing S3 connection: #{Exception.message(error)}"}
   end
 
-  @probe_key ".phoenix_kit/connection-test"
+  defp probe_key,
+    do:
+      ".phoenix_kit/connection-test-" <>
+        Base.encode16(:crypto.strong_rand_bytes(12), case: :lower)
 
-  defp probe_list(bucket, config) do
-    case ExAws.S3.list_objects(bucket.bucket_name, max_keys: 1) |> ExAws.request(config) do
-      {:ok, _result} -> :ok
-      {:error, {:http_error, 403, _}} -> {:error, "Access denied - check permissions"}
-      {:error, {:http_error, 404, _}} -> {:error, "Bucket not found"}
-      {:error, reason} -> {:error, "S3 connection test failed: #{inspect(reason, limit: 5)}"}
-    end
-  end
-
-  defp probe_put(bucket, config) do
-    case ExAws.S3.put_object(bucket.bucket_name, @probe_key, "ok", acl: "private")
+  defp probe_put(bucket, config, key) do
+    case ExAws.S3.put_object(bucket.bucket_name, key, "ok", acl: "private")
          |> ExAws.request(config) do
       {:ok, _result} ->
         :ok
 
+      {:error, {:http_error, 404, _}} ->
+        {:error, "Bucket not found"}
+
       {:error, {:http_error, 403, _}} ->
-        {:error, "The bucket can be read but not written to - the key needs write permission"}
+        {:error, "The bucket could not be written to - check the key's write permission"}
 
       {:error, reason} ->
         {:error, "Could not write a test file: #{inspect(reason, limit: 5)}"}
     end
   end
 
-  defp probe_delete(bucket, config) do
-    case ExAws.S3.delete_object(bucket.bucket_name, @probe_key) |> ExAws.request(config) do
+  defp probe_get(bucket, config, key) do
+    case ExAws.S3.get_object(bucket.bucket_name, key) |> ExAws.request(config) do
+      {:ok, %{body: "ok"}} ->
+        :ok
+
+      {:ok, _other} ->
+        {:error, "The test file read back differently from what was written"}
+
+      {:error, {:http_error, 403, _}} ->
+        {:error,
+         "A test file was written but could not be read back - the key needs read permission"}
+
+      {:error, reason} ->
+        {:error, "Could not read the test file back: #{inspect(reason, limit: 5)}"}
+    end
+  end
+
+  defp probe_delete(bucket, config, key) do
+    case ExAws.S3.delete_object(bucket.bucket_name, key) |> ExAws.request(config) do
       {:ok, _result} ->
         :ok
 
       {:error, {:http_error, 403, _}} ->
         {:error,
-         "The bucket can be read and written to but files cannot be deleted - " <>
-           "the key needs delete permission (a test file was left at #{@probe_key})"}
+         "The bucket can be written to but files cannot be deleted - the key needs delete " <>
+           "permission (a test file was left at #{key})"}
 
       {:error, reason} ->
-        {:error, "Could not delete the test file: #{inspect(reason, limit: 5)}"}
+        {:error, "Could not delete the test file #{key}: #{inspect(reason, limit: 5)}"}
     end
   end
 
@@ -314,6 +338,7 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3 do
     ]
 
     config = if virtual_host?(bucket), do: config ++ [virtual_host: true], else: config
+    ensure_bucket_name!(bucket)
 
     case endpoint(bucket) do
       nil ->
@@ -326,11 +351,16 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3 do
         raise ArgumentError, "bucket #{bucket.name}: the endpoint is not a usable URL"
 
       %{scheme: scheme, host: host, port: port} = endpoint ->
+        # The host a request really goes to: a virtual-host bucket (Tigris) puts
+        # its name in front of the endpoint's host, and it is THAT host the
+        # policy must see — a name can resolve somewhere the base host does not.
+        request = %{endpoint | host: request_host(bucket, host)}
+
         # An IP literal in a metadata/link-local/reserved range is never a
-        # storage endpoint, whoever set it. Names are not resolved here (this
-        # runs per request); the bucket changeset and the connection check
-        # resolve them when an endpoint is saved or tested.
-        case Endpoint.check(endpoint, endpoint_policy(bucket), endpoint_check_opts(bucket)) do
+        # storage endpoint, whoever set it. Names are not resolved here for the
+        # site's buckets (this runs per request); the bucket changeset and the
+        # connection check resolve them when an endpoint is saved or tested.
+        case Endpoint.check(request, endpoint_policy(bucket), endpoint_check_opts(bucket)) do
           :ok ->
             config ++ [host: host, scheme: scheme <> "://", port: port]
 
@@ -340,6 +370,39 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3 do
         end
     end
   end
+
+  # Where a request for `bucket` is sent: its name in front of the endpoint's
+  # host when the provider addresses buckets by host, the endpoint's host
+  # otherwise.
+  @doc false
+  def request_host(bucket, host) do
+    if virtual_host?(bucket) and is_binary(bucket.bucket_name),
+      do: "#{bucket.bucket_name}.#{host}",
+      else: host
+  end
+
+  # An owned bucket's name goes into the request's host or path: a delimiter in
+  # it would change where a request or a presigned URL points.
+  defp ensure_bucket_name!(%{owner_uuid: owner} = bucket) when is_binary(owner) do
+    unless valid_bucket_name?(bucket.bucket_name),
+      do: raise(ArgumentError, "bucket #{bucket.name}: the bucket name is not valid")
+  end
+
+  defp ensure_bucket_name!(_bucket), do: :ok
+
+  @doc """
+  Whether `name` is a bucket name an S3-protocol service accepts: 3 to 63
+  lowercase letters, digits, dots and hyphens, starting and ending with a letter
+  or digit, no `..`, and not shaped like an IP address. Nothing that could
+  change the host or path of a request.
+  """
+  @spec valid_bucket_name?(term()) :: boolean()
+  def valid_bucket_name?(name) when is_binary(name) do
+    name =~ ~r/\A[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]\z/ and not String.contains?(name, "..") and
+      not (name =~ ~r/\A\d+\.\d+\.\d+\.\d+\z/)
+  end
+
+  def valid_bucket_name?(_name), do: false
 
   # A user's own bucket is held to the strict policy every time a request is
   # built, with the host resolved: the name may have changed since it was saved.

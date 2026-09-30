@@ -46,7 +46,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
   def handle_params(params, _uri, socket) do
     bucket_uuid = params["id"]
     mode = if bucket_uuid, do: :edit, else: :new
-    bucket = if mode == :edit, do: Storage.get_bucket(bucket_uuid)
+    bucket = if mode == :edit, do: Storage.get_site_bucket(bucket_uuid)
 
     if mode == :edit and is_nil(bucket) do
       {:noreply,
@@ -329,7 +329,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
   end
 
   defp update_bucket(socket, bucket_params) do
-    bucket = Storage.get_bucket(socket.assigns.bucket_uuid)
+    bucket = Storage.get_site_bucket(socket.assigns.bucket_uuid)
 
     case Storage.update_bucket(bucket, bucket_params) do
       {:ok, _bucket} ->

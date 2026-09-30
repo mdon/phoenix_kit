@@ -95,6 +95,7 @@ defmodule PhoenixKit.Modules.Storage do
   import Ecto.Query, warn: false
   require Logger
 
+  alias PhoenixKit.Integrations.Probe
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
   alias PhoenixKit.Modules.Storage.Bucket
@@ -361,6 +362,22 @@ defmodule PhoenixKit.Modules.Storage do
   def get_bucket(id), do: repo().get(Bucket, id)
 
   @doc """
+  Gets a site bucket by id, or nil: a user's own bucket (V206) is not one, and is
+  not found here. The site's bucket screens load through this, so an id of a
+  user's bucket cannot be edited, toggled or deleted from them.
+  """
+  @spec get_site_bucket(term()) :: Bucket.t() | nil
+  def get_site_bucket(id) do
+    case Ecto.UUID.cast(id) do
+      {:ok, uuid} ->
+        repo().one(from(b in Bucket, where: b.uuid == ^uuid and is_nil(b.owner_uuid)))
+
+      :error ->
+        nil
+    end
+  end
+
+  @doc """
   Gets a bucket by name.
   """
   def get_bucket_by_name(name) do
@@ -477,7 +494,7 @@ defmodule PhoenixKit.Modules.Storage do
 
   """
   def update_bucket(%Bucket{} = bucket, attrs) do
-    changeset = Bucket.changeset(bucket, attrs)
+    changeset = bucket_update_changeset(bucket, attrs)
 
     repo().transaction(fn ->
       case repo().update(changeset) do
@@ -493,6 +510,16 @@ defmodule PhoenixKit.Modules.Storage do
     end)
     |> tap(&bucket_changed/1)
   end
+
+  # A user's own bucket is edited under the rules it was created under (its
+  # owner's connection, the personal endpoint policy, an S3-protocol provider),
+  # not the site's: the general changeset knows none of them.
+  defp bucket_update_changeset(%Bucket{owner_uuid: owner} = bucket, attrs)
+       when is_binary(owner) do
+    Bucket.owned_changeset(bucket, attrs, owner, connection_owned?: &owns_connection?(owner, &1))
+  end
+
+  defp bucket_update_changeset(%Bucket{} = bucket, attrs), do: Bucket.changeset(bucket, attrs)
 
   defp sync_default_priority(%Bucket{} = bucket) do
     case Profiles.default_profile() do
@@ -568,13 +595,32 @@ defmodule PhoenixKit.Modules.Storage do
   def test_connection(bucket_params) when is_map(bucket_params) do
     bucket = build_probe_bucket(bucket_params)
 
-    with :ok <- check_endpoint(bucket),
+    with :ok <- check_probe_provider(bucket),
+         :ok <- check_endpoint(bucket),
          {:ok, provider_module} <- ProviderRegistry.get_provider(bucket.provider) do
-      provider_module.test_connection(bucket)
+      probe(provider_module, bucket)
     end
   rescue
     error -> {:error, "Connection test failed: #{Exception.message(error)}"}
   end
+
+  # A local bucket's check is a few file operations; a remote one talks to the
+  # network, through a client that retries, so it runs in `Integrations.Probe`:
+  # isolated from the caller and under a hard deadline.
+  defp probe(provider_module, %Bucket{provider: "local"} = bucket),
+    do: provider_module.test_connection(bucket)
+
+  defp probe(provider_module, bucket),
+    do: Probe.run(fn -> provider_module.test_connection(bucket) end)
+
+  # A user's own bucket is an S3-protocol bucket or nothing: the `local` provider
+  # would create and delete files in a directory of the server's choosing. The
+  # owner is set by the caller from the signed-in user, never from a form.
+  defp check_probe_provider(%Bucket{owner_uuid: owner, provider: provider})
+       when is_binary(owner) and provider not in ~w(s3 b2 r2 tigris),
+       do: {:error, "Your own storage must be an S3-compatible bucket"}
+
+  defp check_probe_provider(_bucket), do: :ok
 
   # The endpoint a probe is about to connect to, looked up and checked here (a
   # hostname is resolved: this is a save/test path, not a per-request one). A

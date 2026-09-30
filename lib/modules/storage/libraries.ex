@@ -43,6 +43,7 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
   alias PhoenixKit.Modules.Storage.{Folder, Library, LibraryMember, Profiles}
+  alias PhoenixKit.Modules.Storage.Providers.S3
   alias PhoenixKit.Modules.Storage.Workers.PurgeLibraryJob
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth.{Scope, User}
@@ -668,7 +669,7 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
         params = Map.take(storage, ~w(integration_uuid provider bucket_name region endpoint))
         probe = Keyword.get(opts, :probe, &Storage.test_connection/1)
 
-        case probe_own_storage(params, user_uuid, probe) do
+        case probe_owned(params, user_uuid, probe) do
           :ok -> {:ok, %{mode: String.to_existing_atom(mode), params: params}}
           {:error, message} -> {:error, {:storage, message}}
         end
@@ -677,10 +678,31 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
 
   defp own_storage_request(_scope, _user_uuid, _storage, _opts), do: {:error, :not_allowed}
 
+  @doc """
+  Checks a bucket for `scope`'s user to put a library on (what the wizard's "Test
+  the bucket" asks, and what creating the library asks again): they may use their
+  own storage at all, the fields pass `Bucket.owned_changeset/4` (an S3-protocol
+  provider, their own connection, a host the server may reach), and a small
+  object can be written, read back and deleted.
+
+  Returns `:ok`, `{:error, :not_allowed}`, `{:error, message}` from the bucket, or
+  `{:error, %Ecto.Changeset{}}` for the fields. `:probe` replaces the network
+  check (a function of the bucket params), for tests.
+  """
+  @spec probe_own_storage(Scope.t() | nil, map(), keyword()) ::
+          :ok | {:error, :not_allowed | String.t() | Ecto.Changeset.t()}
+  def probe_own_storage(scope, params, opts \\ []) do
+    with true <- may_use_own_storage?(scope) || {:error, :not_allowed},
+         user_uuid when is_binary(user_uuid) <- Scope.user_uuid(scope) || {:error, :not_allowed} do
+      fields = Map.take(params, ~w(integration_uuid provider bucket_name region endpoint))
+      probe_owned(fields, user_uuid, Keyword.get(opts, :probe, &Storage.test_connection/1))
+    end
+  end
+
   # The probe runs before anything is written, as the user the bucket would
   # belong to: their connection, the strict endpoint policy. A bucket that does
   # not even pass the changeset is not probed.
-  defp probe_own_storage(params, user_uuid, probe) do
+  defp probe_owned(params, user_uuid, probe) do
     # The bucket gets the library's name when it is created; the probe only
     # needs one to be valid.
     params = Map.put(params, "name", "probe")
@@ -1101,8 +1123,18 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   ones included) through the normal delete path, which deletes the bytes
   no other file still names; then its folders; then the library row (its
   members go with it). A live library is refused.
+
+  A library on a user's own storage (V206) is purged more carefully: each file's
+  objects are deleted BEFORE its rows, and a file whose objects could not be
+  deleted is left as it was, along with the library, its profile and the bucket
+  row (the record of where the objects are and how to reach them). The purge then
+  returns `{:error, :objects_remain}`, so the job is retried, and nothing is
+  forgotten that could not be cleaned up. If the user's credentials are gone
+  (their account was deleted, taking their connections with it) nothing can be
+  deleted from their bucket, and the purge goes on without waiting for it.
   """
-  @spec purge_library(Library.t() | term()) :: :ok | {:error, :not_trashed | :not_found}
+  @spec purge_library(Library.t() | term()) ::
+          :ok | {:error, :not_trashed | :not_found | :objects_remain}
   def purge_library(%Library{trashed_at: nil}), do: {:error, :not_trashed}
 
   def purge_library(%Library{uuid: uuid} = library) do
@@ -1137,21 +1169,85 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   end
 
   defp do_purge(%Library{uuid: uuid} = library) do
+    confirm? = confirm_objects?(library)
+
     # Parents first: a parent's delete takes its system-managed children
     # (tiles, edit backups) with it.
-    from(f in StorageFile,
-      where: f.library_uuid == ^uuid,
-      order_by: [asc: not is_nil(f.parent_file_uuid)],
-      select: f.uuid
-    )
-    |> repo().all()
-    |> Enum.each(fn file_uuid ->
-      case repo().get(StorageFile, file_uuid) do
-        nil -> :ok
-        file -> Storage.delete_file_completely(file)
-      end
-    end)
+    remaining =
+      from(f in StorageFile,
+        where: f.library_uuid == ^uuid,
+        order_by: [asc: not is_nil(f.parent_file_uuid)],
+        select: f.uuid
+      )
+      |> repo().all()
+      |> Enum.count(fn file_uuid ->
+        case repo().get(StorageFile, file_uuid) do
+          nil -> false
+          file -> not purge_file(file, confirm?)
+        end
+      end)
 
+    if remaining > 0 do
+      Logger.warning(
+        "Storage: #{remaining} file(s) of library #{uuid} kept their objects on the user's own bucket; the purge will be retried"
+      )
+
+      {:error, :objects_remain}
+    else
+      finish_purge(library)
+    end
+  rescue
+    error ->
+      Logger.error("Storage: purging library #{uuid} failed: #{Exception.message(error)}")
+      reraise error, __STACKTRACE__
+  end
+
+  # Whether the purge waits for each file's objects to be confirmed deleted: the
+  # library is on a user's own bucket, and that bucket can still be reached.
+  defp confirm_objects?(%Library{} = library) do
+    case Profiles.user_storage_for([library]) do
+      %{} = own when map_size(own) == 0 ->
+        false
+
+      own ->
+        reachable? =
+          Enum.all?(own, fn {_uuid, %{bucket: bucket}} ->
+            match?(
+              {key, secret}
+              when is_binary(key) and key != "" and is_binary(secret) and secret != "",
+              S3.resolve_credentials(bucket)
+            )
+          end)
+
+        if not reachable?,
+          do:
+            Logger.warning(
+              "Storage: library #{library.uuid} is on a bucket whose credentials are gone; its objects there cannot be deleted and are left"
+            )
+
+        reachable?
+    end
+  end
+
+  # `true` when the file is gone. With `confirm?`, its objects go first and the
+  # rows stay until they have: `false` leaves the file for the retry.
+  defp purge_file(file, false) do
+    Storage.delete_file_completely(file)
+    true
+  end
+
+  defp purge_file(file, true) do
+    case Storage.delete_file_data(file) do
+      result when result == :ok or result == {:error, "No file instances found"} ->
+        Storage.delete_file_completely(file)
+        true
+
+      {:error, _reason} ->
+        false
+    end
+  end
+
+  defp finish_purge(%Library{uuid: uuid} = library) do
     # Folders go deepest first, so no parent is deleted under a child.
     from(f in Folder, where: f.library_uuid == ^uuid)
     |> repo().all()
@@ -1171,10 +1267,6 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
     end
 
     :ok
-  rescue
-    error ->
-      Logger.error("Storage: purging library #{uuid} failed: #{Exception.message(error)}")
-      reraise error, __STACKTRACE__
   end
 
   defp folder_depth(%Folder{} = folder), do: folder_depth(folder, 0)

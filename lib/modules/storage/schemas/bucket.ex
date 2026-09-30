@@ -96,6 +96,7 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
 
   alias PhoenixKit.Integrations.Encryption
   alias PhoenixKit.Modules.Storage.Endpoint
+  alias PhoenixKit.Modules.Storage.Providers.S3
 
   # Every provider that speaks the S3 protocol and so needs a bucket name and
   # credentials. Tigris is one: it was once left out of this list, so a Tigris
@@ -245,11 +246,31 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
     |> put_change(:secret_access_key, nil)
     |> validate_required([:name, :provider, :bucket_name, :integration_uuid])
     |> validate_inclusion(:provider, @cloud_providers)
-    |> validate_length(:bucket_name, max: 255)
+    |> validate_bucket_name_syntax()
     |> validate_endpoint_required()
     |> validate_owned_endpoint()
     |> validate_connection_owned(owned?)
     |> check_owned_rules()
+  end
+
+  # The name goes into a request's host or path (and a presigned URL), so an
+  # owned bucket's must be one an S3-protocol service accepts, nothing with a
+  # delimiter in it.
+  defp validate_bucket_name_syntax(changeset) do
+    case get_field(changeset, :bucket_name) do
+      nil ->
+        changeset
+
+      name ->
+        if S3.valid_bucket_name?(name),
+          do: changeset,
+          else:
+            add_error(
+              changeset,
+              :bucket_name,
+              "must be 3-63 lowercase letters, digits, dots or hyphens"
+            )
+    end
   end
 
   # B2, R2 and Tigris have no default host: without an endpoint every request
