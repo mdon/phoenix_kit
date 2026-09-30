@@ -25,6 +25,33 @@
   list and the connection's own page.
 - `/admin/settings/integrations/new?provider=<key>` opens on that provider.
 
+### Added (V206: user-owned storage)
+
+- **A user can keep a library in their own S3-compatible bucket** (AWS S3,
+  Backblaze B2, Cloudflare R2, Tigris), chosen when the library is created on
+  the profile's Media tab: **only there**, or **the site's storage with the
+  originals backed up there**. The bucket is tested first (list, write, delete)
+  and nothing is created if it fails; the choice is final. Off by default: the
+  site turns it on (Settings → Media → Libraries → "Allow their own buckets"),
+  and a user needs the new `storage.own_storage` sub-permission and the
+  Integrations permission (their keys are a personal Object Storage connection,
+  which is offered on their "add integration" page only while it is on). Backup
+  mode snapshots the Default profile's buckets at creation and keeps an original
+  on each of them plus the backup.
+- **V206**: `owner_uuid` on `phoenix_kit_buckets` and `phoenix_kit_storage_profiles`
+  (nullable, no foreign key: a deleted user's bucket can never become a site
+  bucket) and a check that an owned bucket is never `local`, always on a
+  connection and never public. Nothing is moved or rewritten.
+- The site never sees a user's bucket: the site's bucket and profile listings,
+  placement, the read fallback, the location backfill and Health leave it out.
+  Reads reach it through the file's location rows; deleting a file, or purging a
+  library, deletes the objects from it (the user's profile and bucket go with a
+  purged library; deleting a user *account* removes their connections first, so
+  objects in their own bucket are left there).
+- The Libraries tab lists each user library's storage (never a credential);
+  removing a connection a user's bucket uses is warned about on both the
+  admin and the personal Integrations pages.
+
 ### Changed
 
 - **Test Connection on a bucket lists, writes and deletes** a small object
@@ -60,7 +87,7 @@
 
 ### i18n
 
-- New strings extracted and translated in all locales.
+- New strings (the bucket form and the own-storage wizard) extracted and translated in all locales.
 
 ## 2.41.6 - 2026-09-30
 

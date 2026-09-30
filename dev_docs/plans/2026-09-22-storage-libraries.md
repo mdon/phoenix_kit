@@ -547,18 +547,37 @@ Risks this design answers (found reading the code, 2026-09-30):
 
 Work order (tick as built):
 
-1. [ ] V206: `owner_uuid` on buckets and profiles, two partial indexes, the
+1. [x] V206: `owner_uuid` on buckets and profiles, two partial indexes, the
    CHECK; manifest objects; `v206_test`; `Bucket`/`StorageProfile` schemas.
-2. [ ] System-only `list_buckets`/`list_enabled_buckets`; owner-aware getters;
+2. [x] System-only `list_buckets`/`list_enabled_buckets`; owner-aware getters;
    the changeset rules for an owned bucket.
-3. [ ] `S3`: credential owner and personal endpoint guard at config time.
-4. [ ] `Manager`: read order, serving and deletes for user buckets.
-5. [ ] `Profiles`: create a user profile (only/backup), exclusions, refusals.
-6. [ ] `Libraries.create_user_library` with a storage choice; purge and user
+3. [x] `S3`: credential owner and personal endpoint guard at config time.
+4. [x] `Manager`: read order, serving and deletes for user buckets.
+5. [x] `Profiles`: create a user profile (only/backup), exclusions, refusals.
+6. [x] `Libraries.create_user_library` with a storage choice; purge and user
    deletion clean up the owner's buckets and profiles.
-7. [ ] Profile → Settings → Media: the creation wizard, the setting and the
+7. [x] Profile → Settings → Media: the creation wizard, the setting and the
    sub-permission; admin metadata shows the storage kind, never credentials.
 8. [ ] Tests, README, CHANGELOG, translations, `mix precommit`, full suite.
+
+As built (2026-09-30), where it differs from the list above:
+
+- The owned-bucket check also forbids `access_type = 'public'`.
+- A user's own buckets are found for deletion through the **library's profile**,
+  not its owner (a library of a deleted user has no owner left).
+- **Backup mode wants one original on every snapshotted site bucket plus the
+  backup**, not "the Default's count + 1": placement fills primaries before
+  backups, so the latter never wrote the backup when the site had more buckets
+  than its copy count (found by the end-to-end test). At most 5 copies: more than
+  four site buckets are trimmed to four by serve order.
+- Object Storage was not on the personal provider allowlist
+  (`@personal_offered`), so a user could not make the connection; it is offered
+  while `storage_user_buckets_enabled` is on.
+- Deleting a user account deletes their personal connections first, so the purge
+  of their libraries cannot reach their own bucket: those objects are left there.
+- Open: a site with no site bucket at all offers uploads (`buckets_available?/0`
+  counts a user's bucket) even on the site's libraries; the upload then fails with
+  "no available storage buckets".
 
 ## 1. The idea
 

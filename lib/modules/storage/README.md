@@ -620,6 +620,54 @@ members are `manager`, `contributor` or `viewer` (`Libraries.allows?/2`).
   `/admin/libraries/<uuid>`; every opening is audit-logged
   (`storage.library_opened`).
 
+
+### User-owned storage (V206)
+
+A user may keep a library's files in their **own S3-compatible bucket** (AWS S3,
+Backblaze B2, Cloudflare R2, Tigris) instead of the site's storage. Off until the
+site turns it on (`storage_user_buckets_enabled`, Settings → Media → Libraries);
+needs the `"storage.own_storage"` sub-permission and `"integrations"` (the keys are
+a personal `object_storage` connection, offered on the user's "add integration"
+picker only while the setting is on).
+
+- **Created with the library**, on the profile's Media tab, in one transaction:
+  `Libraries.create_user_library/3` with a `"storage"` map (`mode` `only` or
+  `backup`, the user's connection, provider, bucket, region/endpoint). The bucket
+  is probed first (list, write, delete); a failure creates nothing. **The choice
+  is final**: `Profiles.set_library_profile/2` refuses to move a library off or
+  onto user storage.
+- **`only`**: the user's bucket is the profile's one `primary`. **`backup`**: the
+  site's buckets stay the primaries (a **snapshot of the Default profile at
+  creation**; a site bucket added later is not used) and the user's bucket holds a
+  `backup` of the originals. An original is kept on every snapshotted site bucket
+  that stores originals and on the backup (at most 5 copies: placement writes all
+  primaries before any backup, so anything less and the backup would never get
+  one). Uploads still succeed on the Default's terms; the reconciler makes a
+  backup the write missed.
+- **Schema**: `owner_uuid` on `phoenix_kit_buckets` and `phoenix_kit_storage_profiles`
+  (NULL = the site's; **no foreign key**, so a deleted user's bucket can never
+  become a site bucket), and `phoenix_kit_buckets_owned_check`: an owned bucket is
+  never `local`, always on a connection, never `public`.
+- **The site never sees it**: `Storage.list_buckets/0`, `list_enabled_buckets/0`
+  and `Profiles.list_profiles/0` return the site's rows only. A user's bucket is
+  reached only through the file location rows and its owner's profile: reads
+  resolve located buckets by uuid (`Manager.read_order/4`; the fallback that probes
+  other buckets is the site's pool alone), and the objects of a user library are
+  deleted from its profile's own buckets (`Storage.owned_buckets_for_dir/1`,
+  found through the library's `key_prefix`).
+- **Safety**: credentials are read as the owner (`owner: {:user, uuid}`); the
+  endpoint is held to the `:personal` policy (https, no local/private/metadata
+  address, host resolved) when the bucket is saved and whenever a request is built
+  (`Storage.Endpoint`); files are served through signed links or the proxy, never a
+  plain object URL.
+- **Purge**: trashing a library and purging it deletes the objects it wrote in the
+  user's bucket, then the user's profile and bucket. Deleting a *user account* also
+  deletes their personal connections, so the keys are gone by the time the purge
+  runs and the objects in their own bucket are left there.
+- **Admin**: the Libraries tab shows each user library's storage (site, own bucket,
+  or backup) by bucket provider, never a credential. Removing a connection a bucket
+  uses says so first, on the admin and the personal pages.
+
 ### Private files
 
 A file in a private library (every user library) is served only with a
