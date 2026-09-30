@@ -248,6 +248,17 @@ defmodule PhoenixKit.TestSupport.PostgresPreflight do
     {reason, detail}
   end
 
+  # Every DBConnection-level failure here is "nothing answered on that
+  # endpoint" — econnrefused, nxdomain, ehostunreach, enoent on a socket path,
+  # a connect timeout. The distinction between them is in the message, which
+  # is passed through, and does not change the advice.
+  def classify(%DBConnection.ConnectionError{} = error) do
+    {:unreachable, Exception.message(error)}
+  end
+
+  def classify(error) when is_exception(error), do: {:unknown, Exception.message(error)}
+  def classify(other), do: {:unknown, inspect(other, limit: 5)}
+
   defp classify_protocol_violation(detail) do
     text = to_string(detail)
 
@@ -263,17 +274,6 @@ defmodule PhoenixKit.TestSupport.PostgresPreflight do
         :protocol_violation
     end
   end
-
-  # Every DBConnection-level failure here is "nothing answered on that
-  # endpoint" — econnrefused, nxdomain, ehostunreach, enoent on a socket path,
-  # a connect timeout. The distinction between them is in the message, which
-  # is passed through, and does not change the advice.
-  def classify(%DBConnection.ConnectionError{} = error) do
-    {:unreachable, Exception.message(error)}
-  end
-
-  def classify(error) when is_exception(error), do: {:unknown, Exception.message(error)}
-  def classify(other), do: {:unknown, inspect(other, limit: 5)}
 
   defp message(opts, reason, detail) do
     """
