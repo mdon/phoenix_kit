@@ -3633,6 +3633,12 @@ defmodule PhoenixKit.Modules.Storage do
           key: "create_library",
           label: "Create libraries",
           description: "Create storage libraries of their own (up to the per-user limit)"
+        },
+        %{
+          key: "own_storage",
+          label: "Use their own storage",
+          description:
+            "Keep a library they create on their own S3-compatible bucket, when the site allows it"
         }
       ]
     }

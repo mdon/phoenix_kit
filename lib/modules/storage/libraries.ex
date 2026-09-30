@@ -427,6 +427,28 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   def may_use_libraries?(_scope), do: false
 
   @doc """
+  Whether the site lets users keep a library on their own bucket (the
+  `storage_user_buckets_enabled` setting, off by default: the site answers for
+  nothing that lands outside its own storage until it says so).
+  """
+  @spec user_buckets_enabled?() :: boolean()
+  def user_buckets_enabled?,
+    do: Settings.get_boolean_setting("storage_user_buckets_enabled", false)
+
+  @doc """
+  Whether `scope` may put a new library on their own storage:
+  `may_create_library?/1`, the site allowing it (`user_buckets_enabled?/0`), and
+  the `"storage.own_storage"` permission.
+  """
+  @spec may_use_own_storage?(Scope.t() | nil) :: boolean()
+  def may_use_own_storage?(%Scope{} = scope) do
+    may_create_library?(scope) and user_buckets_enabled?() and
+      Scope.can?(scope, "storage.own_storage")
+  end
+
+  def may_use_own_storage?(_scope), do: false
+
+  @doc """
   Whether `scope` may create user libraries: `may_use_libraries?/1`, and the
   `"storage.create_library"` permission.
   """
@@ -563,28 +585,129 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   def url_id(%Library{uuid: uuid}, _user_uuid), do: to_string(uuid)
 
   @doc """
-  Creates a user library owned by `scope`'s user. `attrs` takes a `"name"`.
-  The first live library a user has becomes their default. Refused with
-  `:not_allowed` without `may_create_library?/1`, and `:limit_reached` at
-  `user_library_limit/0` live libraries.
-  """
-  @spec create_user_library(Scope.t() | nil, map()) ::
-          {:ok, Library.t()} | {:error, :not_allowed | :limit_reached | Ecto.Changeset.t()}
-  def create_user_library(scope, attrs) do
-    with true <- may_create_library?(scope) || {:error, :not_allowed},
-         user_uuid when is_binary(user_uuid) <- Scope.user_uuid(scope) || {:error, :not_allowed} do
-      attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
+  Creates a user library owned by `scope`'s user. `attrs` takes a `"name"` and
+  optionally a `"storage"` (below). The first live library a user has becomes
+  their default. Refused with `:not_allowed` without `may_create_library?/1`,
+  and `:limit_reached` at `user_library_limit/0` live libraries.
 
+  ## Where the library keeps its files
+
+  By default on the site's storage (the Default profile). With `"storage"` a map
+  the user chooses their own instead, and **the choice is final**: the library's
+  profile can never be changed afterwards (`Profiles.set_library_profile/2`
+  refuses it).
+
+      %{"name" => "Photos",
+        "storage" => %{
+          "mode" => "only",               # or "backup"
+          "integration_uuid" => "…",      # one of the user's own connections
+          "provider" => "s3",             # s3 | b2 | r2 | tigris
+          "bucket_name" => "my-photos",
+          "region" => "eu-central-1",     # and/or
+          "endpoint" => "https://…"}}
+
+  `"only"` keeps everything in their bucket; `"backup"` keeps the site's
+  storage as it is and copies the originals to theirs (see
+  `Profiles.create_user_profile/3`). Needs `may_use_own_storage?/1`
+  (`{:error, :not_allowed}` otherwise).
+
+  The bucket is probed first, reading, writing and deleting a small object
+  (`:probe`, a function of the bucket params, `Storage.test_connection/1` by
+  default): a library that could not store anything is not created, and the
+  reason is `{:error, {:storage, message}}`. A bucket, profile or library that
+  cannot be created undoes the rest. Problems with the bucket fields are
+  `{:error, {:storage, %Ecto.Changeset{}}}`.
+  """
+  @spec create_user_library(Scope.t() | nil, map(), keyword()) ::
+          {:ok, Library.t()}
+          | {:error,
+             :not_allowed
+             | :limit_reached
+             | :no_site_storage
+             | {:storage, String.t() | Ecto.Changeset.t()}
+             | Ecto.Changeset.t()}
+  def create_user_library(scope, attrs, opts \\ []) do
+    attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
+    {storage, attrs} = Map.pop(attrs, "storage")
+
+    with true <- may_create_library?(scope) || {:error, :not_allowed},
+         user_uuid when is_binary(user_uuid) <- Scope.user_uuid(scope) || {:error, :not_allowed},
+         {:ok, own} <- own_storage_request(scope, user_uuid, storage, opts) do
       repo().transaction(fn ->
         # One creation per user at a time, so two tabs cannot both pass the
         # limit check.
         lock_user(user_uuid)
         owned = count_owned(user_uuid)
 
-        if owned >= user_library_limit(),
-          do: repo().rollback(:limit_reached),
-          else: insert_owned(attrs, user_uuid, owned == 0)
+        if owned >= user_library_limit() do
+          repo().rollback(:limit_reached)
+        else
+          library = insert_owned(attrs, user_uuid, owned == 0)
+          attach_own_storage(library, user_uuid, own)
+        end
       end)
+    end
+  end
+
+  # No `"storage"` (or the site's own): the library stays on the Default.
+  defp own_storage_request(_scope, _user_uuid, nil, _opts), do: {:ok, nil}
+  defp own_storage_request(_scope, _user_uuid, %{"mode" => "site"}, _opts), do: {:ok, nil}
+
+  defp own_storage_request(scope, user_uuid, %{} = storage, opts) do
+    mode = storage["mode"]
+
+    cond do
+      not may_use_own_storage?(scope) ->
+        {:error, :not_allowed}
+
+      mode not in ["only", "backup"] ->
+        {:error, :not_allowed}
+
+      true ->
+        params = Map.take(storage, ~w(integration_uuid provider bucket_name region endpoint))
+        probe = Keyword.get(opts, :probe, &Storage.test_connection/1)
+
+        case probe_own_storage(params, user_uuid, probe) do
+          :ok -> {:ok, %{mode: String.to_existing_atom(mode), params: params}}
+          {:error, message} -> {:error, {:storage, message}}
+        end
+    end
+  end
+
+  defp own_storage_request(_scope, _user_uuid, _storage, _opts), do: {:error, :not_allowed}
+
+  # The probe runs before anything is written, as the user the bucket would
+  # belong to: their connection, the strict endpoint policy. A bucket that does
+  # not even pass the changeset is not probed.
+  defp probe_own_storage(params, user_uuid, probe) do
+    # The bucket gets the library's name when it is created; the probe only
+    # needs one to be valid.
+    params = Map.put(params, "name", "probe")
+
+    changeset =
+      Storage.Bucket.owned_changeset(%Storage.Bucket{}, params, user_uuid,
+        connection_owned?: &Storage.owns_connection?(user_uuid, &1)
+      )
+
+    if changeset.valid?,
+      do: probe.(Map.put(params, "owner_uuid", user_uuid)),
+      else: {:error, changeset}
+  end
+
+  # Inside the creation transaction: the bucket, its profile, then the library
+  # pointed at it. Any failure rolls the whole library back.
+  defp attach_own_storage(library, _user_uuid, nil), do: library
+
+  defp attach_own_storage(library, user_uuid, %{mode: mode, params: params}) do
+    attrs = Map.put(params, "name", library.name)
+
+    with {:ok, bucket} <- Storage.create_owned_bucket(user_uuid, attrs),
+         {:ok, profile} <- Profiles.create_user_profile(user_uuid, bucket, mode),
+         {:ok, library} <- Profiles.assign_user_profile(library, profile) do
+      library
+    else
+      {:error, %Ecto.Changeset{} = changeset} -> repo().rollback({:storage, changeset})
+      {:error, reason} -> repo().rollback(reason)
     end
   end
 
