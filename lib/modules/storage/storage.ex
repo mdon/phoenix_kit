@@ -1175,7 +1175,11 @@ defmodule PhoenixKit.Modules.Storage do
   For nil scope, returns the real-root tree.
   """
   def list_folder_tree(scope_folder_id \\ nil, opts \\ []) do
-    all_folders = list_all_folders() |> in_library(opts[:library_uuid])
+    all_folders =
+      list_all_folders()
+      |> in_library(opts[:library_uuid])
+      |> only_viewer_folders(opts)
+
     by_parent = Enum.group_by(all_folders, & &1.parent_uuid)
 
     if scope_folder_id do
@@ -1203,22 +1207,25 @@ defmodule PhoenixKit.Modules.Storage do
       order_by: [asc: f.name]
     )
     |> where_library(opts[:library_uuid])
+    |> where_viewer_folders(opts)
     |> repo().all()
   end
 
-  def list_folders(nil, scope_folder_id, _opts) do
+  def list_folders(nil, scope_folder_id, opts) do
     from(f in Folder,
       where: f.parent_uuid == ^scope_folder_id and is_nil(f.trashed_at),
       order_by: [asc: f.name]
     )
+    |> where_viewer_folders(opts)
     |> repo().all()
   end
 
-  def list_folders(parent_uuid, _scope_folder_id, _opts) do
+  def list_folders(parent_uuid, _scope_folder_id, opts) do
     from(f in Folder,
       where: f.parent_uuid == ^parent_uuid and is_nil(f.trashed_at),
       order_by: [asc: f.name]
     )
+    |> where_viewer_folders(opts)
     |> repo().all()
   end
 
@@ -1254,6 +1261,7 @@ defmodule PhoenixKit.Modules.Storage do
     base
     |> where([f], is_nil(f.trashed_at))
     |> where_library(opts[:library_uuid])
+    |> where_viewer_folders(opts)
     |> where([f], ilike(f.name, ^"%#{search}%"))
     |> order_by([f], asc: f.name)
     |> repo().all()
@@ -1784,6 +1792,7 @@ defmodule PhoenixKit.Modules.Storage do
     )
     |> scope_trashed_folders(scope_folder_id)
     |> where_library(opts[:library_uuid])
+    |> where_viewer_folders(opts)
     |> repo().all()
   end
 
@@ -1792,6 +1801,7 @@ defmodule PhoenixKit.Modules.Storage do
     from(f in Folder, where: not is_nil(f.trashed_at), select: count(f.uuid))
     |> scope_trashed_folders(scope_folder_id)
     |> where_library(opts[:library_uuid])
+    |> where_viewer_folders(opts)
     |> repo().one()
     |> Kernel.||(0)
   end
@@ -1979,6 +1989,7 @@ defmodule PhoenixKit.Modules.Storage do
         |> exclude_system_managed()
         |> maybe_filter_file_type(file_type)
         |> where_library(opts[:library_uuid])
+        |> where_viewer(opts[:viewer_uuid])
 
       total = repo().aggregate(query, :count, :uuid)
 
@@ -2606,6 +2617,108 @@ defmodule PhoenixKit.Modules.Storage do
   defp where_library(query, nil), do: Libraries.exclude_private(query)
   defp where_library(query, library_uuid), do: where(query, [r], r.library_uuid == ^library_uuid)
 
+  # A restricted viewer's view of a site library (`:viewer_uuid`, see
+  # `viewer_folder_uuids/2`): only the files they uploaded, only the folders they
+  # created, hold a file of theirs in, or that lead to one of those. `nil` (every
+  # caller that does not pass it) is unrestricted.
+  defp where_viewer(query, nil), do: query
+  defp where_viewer(query, viewer_uuid), do: where(query, [r], r.user_uuid == ^viewer_uuid)
+
+  defp where_viewer_folders(query, opts) do
+    case opts[:viewer_uuid] do
+      nil ->
+        query
+
+      viewer_uuid ->
+        visible = viewer_folder_uuids(viewer_uuid, opts[:library_uuid])
+        where(query, [f], f.uuid in ^visible)
+    end
+  end
+
+  defp only_viewer_folders(folders, opts) do
+    case opts[:viewer_uuid] do
+      nil ->
+        folders
+
+      viewer_uuid ->
+        visible =
+          viewer_uuid |> viewer_folder_uuids(opts[:library_uuid]) |> MapSet.new(&to_string/1)
+
+        Enum.filter(folders, &MapSet.member?(visible, to_string(&1.uuid)))
+    end
+  end
+
+  @doc """
+  The folders of a library that a restricted viewer may see (`:viewer_uuid`): the
+  ones they created, the ones that hold a file they uploaded (whatever its status,
+  so the path to a trashed file of theirs reads), and every ancestor of those, so
+  a path reads from the root. `library_uuid` narrows it to one library; `nil`
+  leaves out the private ones, as the other listings do.
+
+  An ancestor's name is visible, as in any breadcrumb; nothing else of it is.
+  """
+  @spec viewer_folder_uuids(String.t(), term()) :: [String.t()]
+  def viewer_folder_uuids(viewer_uuid, library_uuid \\ nil) when is_binary(viewer_uuid) do
+    created =
+      from(f in Folder, where: f.user_uuid == ^viewer_uuid, select: f.uuid)
+      |> where_library(library_uuid)
+      |> repo().all()
+
+    homes =
+      from(f in PhoenixKit.Modules.Storage.File,
+        where: f.user_uuid == ^viewer_uuid and not is_nil(f.folder_uuid),
+        distinct: true,
+        select: f.folder_uuid
+      )
+      |> where_library(library_uuid)
+      |> repo().all()
+
+    (created ++ homes) |> Enum.map(&to_string/1) |> Enum.uniq() |> with_ancestors()
+  end
+
+  # Adds the ancestors of `uuids`, level by level (a folder tree is a few levels
+  # deep; the depth guard is for a cycle that should not exist).
+  defp with_ancestors(uuids), do: with_ancestors(uuids, MapSet.new(uuids), uuids, 0)
+
+  defp with_ancestors(_all, seen, [], _depth), do: MapSet.to_list(seen)
+  defp with_ancestors(_all, seen, _frontier, depth) when depth >= 100, do: MapSet.to_list(seen)
+
+  defp with_ancestors(all, seen, frontier, depth) do
+    parents =
+      from(f in Folder,
+        where: f.uuid in ^frontier and not is_nil(f.parent_uuid),
+        select: f.parent_uuid
+      )
+      |> repo().all()
+      |> Enum.map(&to_string/1)
+      |> Enum.reject(&MapSet.member?(seen, &1))
+      |> Enum.uniq()
+
+    with_ancestors(all, Enum.reduce(parents, seen, &MapSet.put(&2, &1)), parents, depth + 1)
+  end
+
+  @doc """
+  Whether a restricted viewer (`:viewer_uuid`) may see `file`: only a file they
+  uploaded. `nil` for the viewer is unrestricted.
+  """
+  @spec viewer_can_see_file?(String.t() | nil, map()) :: boolean()
+  def viewer_can_see_file?(nil, _file), do: true
+
+  def viewer_can_see_file?(viewer_uuid, %{user_uuid: uploader}),
+    do: to_string(uploader) == viewer_uuid
+
+  def viewer_can_see_file?(_viewer_uuid, _file), do: false
+
+  @doc """
+  Whether a restricted viewer may see the folder `folder_uuid` of `library_uuid`
+  (`viewer_folder_uuids/2`). `nil` for the viewer is unrestricted.
+  """
+  @spec viewer_can_see_folder?(String.t() | nil, term(), term()) :: boolean()
+  def viewer_can_see_folder?(nil, _folder_uuid, _library_uuid), do: true
+
+  def viewer_can_see_folder?(viewer_uuid, folder_uuid, library_uuid),
+    do: to_string(folder_uuid) in viewer_folder_uuids(viewer_uuid, library_uuid)
+
   defp in_library(folders, nil) do
     private = folders |> Enum.map(& &1.library_uuid) |> Libraries.private_among()
     Enum.reject(folders, &(to_string(&1.library_uuid) in private))
@@ -3119,6 +3232,7 @@ defmodule PhoenixKit.Modules.Storage do
   def find_orphaned_files(opts \\ []) do
     orphaned_files_query()
     |> where_library(opts[:library_uuid])
+    |> where_viewer(opts[:viewer_uuid])
     |> order_by([f], desc: f.inserted_at)
     |> maybe_limit(opts[:limit])
     |> maybe_offset(opts[:offset])
@@ -3138,6 +3252,7 @@ defmodule PhoenixKit.Modules.Storage do
   def count_orphaned_files(nil, opts) do
     orphaned_files_query()
     |> where_library(opts[:library_uuid])
+    |> where_viewer(opts[:viewer_uuid])
     |> repo().aggregate(:count, :uuid)
   end
 
@@ -4335,6 +4450,7 @@ defmodule PhoenixKit.Modules.Storage do
     query =
       build_trashed_query(scope)
       |> where_library(opts[:library_uuid])
+      |> where_viewer(opts[:viewer_uuid])
       |> order_by([f], desc: f.trashed_at)
 
     query = if opts[:limit], do: limit(query, ^opts[:limit]), else: query
@@ -4346,6 +4462,7 @@ defmodule PhoenixKit.Modules.Storage do
   def count_trashed_files(scope \\ nil, opts \\ []) do
     build_trashed_query(scope)
     |> where_library(opts[:library_uuid])
+    |> where_viewer(opts[:viewer_uuid])
     |> repo().aggregate(:count, :uuid)
   end
 
@@ -4385,7 +4502,7 @@ defmodule PhoenixKit.Modules.Storage do
   subtree, and with `library_uuid:` to one storage library.
   """
   def empty_trash(scope \\ nil, opts \\ []) do
-    trashed = list_trashed_files(scope, Keyword.take(opts, [:library_uuid]))
+    trashed = list_trashed_files(scope, Keyword.take(opts, [:library_uuid, :viewer_uuid]))
     Enum.each(trashed, &delete_file_completely/1)
     {:ok, length(trashed)}
   end
