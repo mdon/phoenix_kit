@@ -313,8 +313,11 @@ defmodule PhoenixKit.Migrations.Postgres.V205Test do
       maintain_aspect_ratio: true
     }
 
-    assert spec_hash(instances["medium"]) == VariantSets.spec_hash(medium)
-    assert spec_hash(instances["medium_webp"]) == VariantSets.spec_hash(medium, "webp")
+    # V205 stamped the pipeline-1 hash; the current pipeline's differs, so
+    # the reconciler remakes these sizes (see VariantSets @pipeline).
+    assert spec_hash(instances["medium"]) == VariantSets.legacy_spec_hash(medium, nil)
+    assert spec_hash(instances["medium_webp"]) == VariantSets.legacy_spec_hash(medium, "webp")
+    refute spec_hash(instances["medium"]) == VariantSets.spec_hash(medium)
     refute spec_hash(instances["medium"]) == spec_hash(instances["medium_webp"])
     assert spec_hash(instances["original"]) == nil
   end

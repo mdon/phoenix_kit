@@ -163,26 +163,32 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
   defp do_generate_variant(file, dimension, variant_name, format_override, key_suffix \\ "") do
     Logger.info("Generating variant: #{variant_name} for file: #{file.uuid}")
 
-    # Generate variant filename using file checksum + variant name for uniqueness
-    variant_ext = determine_variant_extension(file.ext, format_override)
-    # Use file_checksum or file_name basename for naming (works with any path structure)
-    base_name = file.file_checksum || Path.basename(file.file_name, Path.extname(file.file_name))
-    variant_filename = "#{base_name}_#{variant_name}#{key_suffix}.#{variant_ext}"
-    variant_mime_type = determine_variant_mime_type(file.mime_type, format_override)
-
-    # Build the variant storage path using file_path as base directory
-    # file_path can be any directory structure (timestamp-based or hierarchical)
-    variant_storage_path = "#{file.file_path}/#{variant_filename}"
-
-    # Generate temp path for processing
-    variant_path = generate_temp_path(variant_ext)
-
-    # Override dimension format for alternative format variants
-    effective_dimension = %{dimension | format: format_override}
-
     # Download original file to temp location
     result =
       with {:ok, original_path, source_key} <- retrieve_original_file(file) do
+        # The format is decided from the pixels, so it comes after the
+        # download: a JPEG size of a see-through image would turn its
+        # transparent background black.
+        output_format = output_format(format_override, file, original_path)
+
+        # Generate variant filename using file checksum + variant name for uniqueness
+        variant_ext = determine_variant_extension(file.ext, output_format)
+        # Use file_checksum or file_name basename for naming (works with any path structure)
+        base_name =
+          file.file_checksum || Path.basename(file.file_name, Path.extname(file.file_name))
+
+        variant_filename = "#{base_name}_#{variant_name}#{key_suffix}.#{variant_ext}"
+        variant_mime_type = determine_variant_mime_type(file.mime_type, output_format)
+
+        # Build the variant storage path using file_path as base directory
+        # file_path can be any directory structure (timestamp-based or hierarchical)
+        variant_storage_path = "#{file.file_path}/#{variant_filename}"
+
+        # Generate temp path for processing
+        variant_path = generate_temp_path(variant_ext)
+
+        # Override dimension format for alternative format variants
+        effective_dimension = %{dimension | format: output_format}
         # Both temp files go whatever the outcome: a format ImageMagick cannot
         # decode fails on every attempt, and each request for the missing
         # variant re-queues the job — a copy left behind per failure fills
@@ -481,6 +487,34 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
     {result, failed == []}
   end
 
+  @alpha_capable ~w(png webp gif avif)
+
+  @doc false
+  # The format a size is actually written in. A size configured as JPEG (or
+  # one that keeps a JPEG original's format) of an image with an alpha
+  # channel is written as PNG instead — WebP when the host sets
+  # `config :phoenix_kit, :variant_alpha_format, "webp"` — because JPEG has
+  # no transparency and the see-through background would come out black.
+  # Opaque images, other formats and non-images are unchanged.
+  @spec output_format(String.t() | nil, map(), String.t()) :: String.t() | nil
+  def output_format(format, file, original_path) do
+    target = format || String.trim_leading(to_string(file.ext), ".")
+
+    if file.file_type == "image" and target in ["jpg", "jpeg"] and
+         ImageProcessor.has_alpha_channel?(original_path) do
+      alpha_format()
+    else
+      format
+    end
+  end
+
+  defp alpha_format do
+    case Application.get_env(:phoenix_kit, :variant_alpha_format, "png") do
+      f when f in @alpha_capable -> f
+      _ -> "png"
+    end
+  end
+
   defp determine_variant_mime_type(original_mime, format_override) do
     if format_override do
       case format_override do
@@ -567,7 +601,9 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
           dimension.height,
           quality: quality,
           format: format,
-          background: "white"
+          # Keep transparency for a format that has it; flatten on white
+          # (never black) for one that does not.
+          background: if(format in ["png", "webp", "gif", "avif"], do: "none", else: "white")
         )
     end
   end

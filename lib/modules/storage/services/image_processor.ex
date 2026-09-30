@@ -209,21 +209,20 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
         if alpha?, do: "none", else: "white"
       end
 
-    format =
-      if format == "jpg" and alpha? do
-        Logger.warning(
-          "Image #{input_path} has alpha channel but format is jpg — overriding to webp to preserve transparency"
-        )
-
-        "webp"
-      else
-        format
-      end
+    # (It used to switch a "jpg" of a see-through image to WebP here — while
+    # the caller went on naming and recording the output as JPEG. The
+    # variant generator now picks a transparent format itself; a direct
+    # caller asking for JPEG gets a white background, never black.)
+    _ = alpha?
 
     with {:w, true} <- {:w, not (is_nil(width) or is_nil(height))},
          {:ok, input} <- pinned_input(input_path),
          {:ok, {cur_w, cur_h}} <- extract_dimensions(input_path),
          :ok <- check_pixel_budget(cur_w, cur_h, @resize_max_pixels) do
+      # Never enlarge: a crop box bigger than the original shrinks, keeping
+      # its shape, until it fits inside the original.
+      {width, height} = cap_to_original({width, height}, {cur_w, cur_h})
+
       Logger.info(
         "Center-cropping image: #{input_path} -> #{output_path}, target: #{width}x#{height}"
       )
@@ -530,12 +529,13 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
         "#{w}x#{h}>"
 
       {w, nil} when w != nil ->
-        # Only width specified - maintain aspect ratio
-        "#{w}x"
+        # Only width specified - maintain aspect ratio; `>` never enlarges,
+        # so a 1448px original is not blown up to a 1920px "large".
+        "#{w}x>"
 
       {nil, h} when h != nil ->
-        # Only height specified - maintain aspect ratio
-        "x#{h}"
+        # Only height specified - maintain aspect ratio, never enlarge
+        "x#{h}>"
 
       _ ->
         # No dimensions - return original size
@@ -543,8 +543,25 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
     end
   end
 
+  @doc false
+  # Shrinks a crop box that is larger than the original, keeping its aspect
+  # ratio, so the crop never upscales.
+  @spec cap_to_original({pos_integer(), pos_integer()}, {pos_integer(), pos_integer()}) ::
+          {pos_integer(), pos_integer()}
+  def cap_to_original({w, h}, {cur_w, cur_h}) do
+    scale = Enum.min([cur_w / w, cur_h / h, 1.0])
+    {max(round(w * scale), 1), max(round(h * scale), 1)}
+  end
+
   defp build_convert_args(input_path, output_path, resize_spec, quality, format) do
     args = [input_path]
+
+    # A format without transparency is flattened on white; left to
+    # ImageMagick, a see-through PNG turned into a JPEG comes out black.
+    args =
+      if format in ["jpg", "jpeg"],
+        do: args ++ ["-background", "white", "-alpha", "remove", "-alpha", "off"],
+        else: args
 
     # Add resize operation
     args = args ++ ["-resize", resize_spec]
@@ -569,6 +586,13 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
 
     # Set background color for padding/extension (rarely used with ^ resize)
     args = args ++ ["-background", background]
+
+    # JPEG has no alpha: flatten onto that background, or ImageMagick's
+    # JPEG writer shows the transparent pixels' (usually black) colour.
+    args =
+      if format in ["jpg", "jpeg"],
+        do: args ++ ["-alpha", "remove", "-alpha", "off"],
+        else: args
 
     # Resize to fill/cover the target dimensions (with the ^ flag)
     # The ^ flag means "resize to FILL the box" - scales up to ensure both dimensions
