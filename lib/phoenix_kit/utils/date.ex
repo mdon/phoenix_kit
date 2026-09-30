@@ -51,6 +51,8 @@ defmodule PhoenixKit.Utils.Date do
   with extensive format support.
   """
 
+  use Gettext, backend: PhoenixKitWeb.Gettext
+
   alias PhoenixKit.Utils.TimeZone
 
   alias PhoenixKit.Settings
@@ -83,18 +85,43 @@ defmodule PhoenixKit.Utils.Date do
       "Jan"
   """
   @spec short_month(1..12) :: String.t()
-  def short_month(1), do: Gettext.dgettext(PhoenixKitWeb.Gettext, "default", "Jan")
-  def short_month(2), do: Gettext.dgettext(PhoenixKitWeb.Gettext, "default", "Feb")
-  def short_month(3), do: Gettext.dgettext(PhoenixKitWeb.Gettext, "default", "Mar")
-  def short_month(4), do: Gettext.dgettext(PhoenixKitWeb.Gettext, "default", "Apr")
-  def short_month(5), do: Gettext.dgettext(PhoenixKitWeb.Gettext, "default", "May")
-  def short_month(6), do: Gettext.dgettext(PhoenixKitWeb.Gettext, "default", "Jun")
-  def short_month(7), do: Gettext.dgettext(PhoenixKitWeb.Gettext, "default", "Jul")
-  def short_month(8), do: Gettext.dgettext(PhoenixKitWeb.Gettext, "default", "Aug")
-  def short_month(9), do: Gettext.dgettext(PhoenixKitWeb.Gettext, "default", "Sep")
-  def short_month(10), do: Gettext.dgettext(PhoenixKitWeb.Gettext, "default", "Oct")
-  def short_month(11), do: Gettext.dgettext(PhoenixKitWeb.Gettext, "default", "Nov")
-  def short_month(12), do: Gettext.dgettext(PhoenixKitWeb.Gettext, "default", "Dec")
+  def short_month(1), do: gettext("Jan")
+  def short_month(2), do: gettext("Feb")
+  def short_month(3), do: gettext("Mar")
+  def short_month(4), do: gettext("Apr")
+  def short_month(5), do: gettext("May")
+  def short_month(6), do: gettext("Jun")
+  def short_month(7), do: gettext("Jul")
+  def short_month(8), do: gettext("Aug")
+  def short_month(9), do: gettext("Sep")
+  def short_month(10), do: gettext("Oct")
+  def short_month(11), do: gettext("Nov")
+  def short_month(12), do: gettext("Dec")
+
+  @doc """
+  A short, localized day and month — "3 Oct" in English, "3. okt" in
+  Estonian. The order and punctuation come from the translation of
+  `"%{day} %{month}"`, so each language writes it its own way.
+
+  Accepts a `Date`, `DateTime` or `NaiveDateTime`; `nil` gives `""`.
+  """
+  @spec short(Elixir.Date.t() | DateTime.t() | NaiveDateTime.t() | nil) :: String.t()
+  def short(nil), do: ""
+
+  def short(%{day: day, month: month}) do
+    gettext("%{day} %{month}", day: day, month: short_month(month))
+  end
+
+  @doc """
+  `short/1` with the year — "3 Oct 2026". Translated from
+  `"%{day} %{month} %{year}"`.
+  """
+  @spec short_with_year(Elixir.Date.t() | DateTime.t() | NaiveDateTime.t() | nil) :: String.t()
+  def short_with_year(nil), do: ""
+
+  def short_with_year(%{day: day, month: month, year: year}) do
+    gettext("%{day} %{month} %{year}", day: day, month: short_month(month), year: year)
+  end
 
   @doc """
   A short, localized "MMM D, YYYY at HH:MM" rendering of a datetime.

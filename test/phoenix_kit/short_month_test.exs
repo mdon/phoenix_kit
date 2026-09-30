@@ -50,4 +50,19 @@ defmodule PhoenixKit.ShortMonthTest do
       assert UtilsDate.format_short_datetime(nil) == ""
     end
   end
+
+  describe "short/1 and short_with_year/1" do
+    test "English: day, month abbreviation, year" do
+      Gettext.put_locale(PhoenixKitWeb.Gettext, "en")
+      assert UtilsDate.short(~D[2026-10-03]) == "3 Oct"
+      assert UtilsDate.short_with_year(~D[2026-10-03]) == "3 Oct 2026"
+      assert UtilsDate.short_with_year(~U[2026-12-25 10:00:00Z]) == "25 Dec 2026"
+      assert UtilsDate.short_with_year(~N[2026-01-09 08:00:00]) == "9 Jan 2026"
+    end
+
+    test "nil renders as an empty string" do
+      assert UtilsDate.short(nil) == ""
+      assert UtilsDate.short_with_year(nil) == ""
+    end
+  end
 end
