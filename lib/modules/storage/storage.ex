@@ -3638,7 +3638,7 @@ defmodule PhoenixKit.Modules.Storage do
           key: "own_storage",
           label: "Use their own storage",
           description:
-            "Keep a library they create on their own S3-compatible bucket, when the site allows it"
+            "Keep a library they create on their own S3-compatible bucket, when the site allows it (also needs the Integrations permission, for the bucket's keys)"
         }
       ]
     }
@@ -4713,12 +4713,13 @@ defmodule PhoenixKit.Modules.Storage do
         original_filename \\ nil,
         opts \\ []
       ) do
-    # Check if any enabled buckets exist
-    case list_enabled_buckets() do
-      [] ->
+    # Check if any enabled bucket exists, a user's own included (V206): the
+    # library's profile then decides which of them this file goes to.
+    case buckets_available?() do
+      false ->
         {:error, :no_buckets_configured}
 
-      _buckets ->
+      true ->
         # Proceed with storage
         store_file_with_buckets_available(
           source_path,

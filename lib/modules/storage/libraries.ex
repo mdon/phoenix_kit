@@ -437,13 +437,14 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
 
   @doc """
   Whether `scope` may put a new library on their own storage:
-  `may_create_library?/1`, the site allowing it (`user_buckets_enabled?/0`), and
-  the `"storage.own_storage"` permission.
+  `may_create_library?/1`, the site allowing it (`user_buckets_enabled?/0`), the
+  `"storage.own_storage"` permission, and the `"integrations"` permission: the
+  bucket's keys are a personal connection, which only a holder of it can make.
   """
   @spec may_use_own_storage?(Scope.t() | nil) :: boolean()
   def may_use_own_storage?(%Scope{} = scope) do
     may_create_library?(scope) and user_buckets_enabled?() and
-      Scope.can?(scope, "storage.own_storage")
+      Scope.can?(scope, "storage.own_storage") and Scope.has_module_access?(scope, "integrations")
   end
 
   def may_use_own_storage?(_scope), do: false
@@ -1084,9 +1085,15 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
       |> repo().all()
       |> Map.new()
 
+    own_storage = Profiles.user_storage_for(libraries)
+
     libraries
     |> with_stats()
-    |> Enum.map(&Map.put(&1, :members, Map.get(members, &1.library.uuid, 0)))
+    |> Enum.map(fn row ->
+      row
+      |> Map.put(:members, Map.get(members, row.library.uuid, 0))
+      |> Map.put(:own_storage, Map.get(own_storage, to_string(row.library.uuid)))
+    end)
   end
 
   @doc """

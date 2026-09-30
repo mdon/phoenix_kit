@@ -17,7 +17,9 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
   ## User libraries (V203)
 
   A second card turns user libraries on for the install
-  (`storage_user_libraries_enabled`, off by default), sets how many each
+  (`storage_user_libraries_enabled`, off by default), whether they may keep a
+  library on their own bucket (`storage_user_buckets_enabled`, off by
+  default), sets how many each
   user may own (`storage_user_library_limit`) and how long a private file
   URL stays valid (`storage_private_url_window_hours`), and lists every
   user library as **metadata only**: owner, members, files, size and trash
@@ -125,6 +127,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
 
   def handle_event("save_user_libraries", %{"user_libraries" => params}, socket) do
     enabled? = params["enabled"] == "true"
+    buckets? = params["own_buckets"] == "true"
 
     limit =
       case Integer.parse(to_string(params["limit"])) do
@@ -139,6 +142,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
       end
 
     with {:ok, _} <- Settings.update_boolean_setting("storage_user_libraries_enabled", enabled?),
+         {:ok, _} <- Settings.update_boolean_setting("storage_user_buckets_enabled", buckets?),
          {:ok, _} <- Settings.update_setting("storage_user_library_limit", to_string(limit)),
          {:ok, _} <- Settings.update_setting("storage_private_url_window_hours", to_string(hours)) do
       {:noreply, socket |> load() |> flash(:info, gettext("User library settings saved"))}
@@ -187,6 +191,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
     |> assign(:rows, Libraries.list_system_libraries_with_stats())
     |> assign(:user_rows, Libraries.list_user_libraries_for_admin())
     |> assign(:user_libraries_enabled, Libraries.user_libraries_enabled?())
+    |> assign(:user_buckets_enabled, Libraries.user_buckets_enabled?())
     |> assign(:user_library_limit, Libraries.user_library_limit())
     |> assign(:window_hours, div(URLSigner.private_url_window_seconds(), 3600))
     |> assign(:profiles, Profiles.list_profiles())
@@ -212,6 +217,16 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
 
   defp media_path(%{is_default: true}), do: Routes.path("/admin/media")
   defp media_path(%{slug: slug}), do: Routes.path("/admin/media/library/#{slug}")
+
+  # Where a user library keeps its files, for the admin's list. The bucket's
+  # name and provider only: never its connection, keys or endpoint.
+  defp storage_label(nil), do: gettext("Site storage")
+
+  defp storage_label(%{mode: :only, bucket: bucket}),
+    do: gettext("Own %{provider} bucket", provider: String.upcase(bucket.provider))
+
+  defp storage_label(%{mode: :backup, bucket: bucket}),
+    do: gettext("Site storage + own %{provider} backup", provider: String.upcase(bucket.provider))
 
   @impl true
   def render(assigns) do
@@ -418,6 +433,24 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
               />
               <span class="label-text">{gettext("Allow user libraries")}</span>
             </label>
+            <label
+              class="label cursor-pointer gap-2"
+              title={
+                gettext(
+                  "Users who also hold the Storage own-storage and Integrations permissions may keep a library on their own S3-compatible bucket. Their files then live outside the site's storage."
+                )
+              }
+            >
+              <input type="hidden" name="user_libraries[own_buckets]" value="false" />
+              <input
+                type="checkbox"
+                name="user_libraries[own_buckets]"
+                value="true"
+                checked={@user_buckets_enabled}
+                class="toggle toggle-primary"
+              />
+              <span class="label-text">{gettext("Allow their own buckets")}</span>
+            </label>
             <label class="form-control">
               <span class="label-text text-sm">{gettext("Libraries per user")}</span>
               <input
@@ -453,6 +486,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
                 <tr>
                   <th>{gettext("Name")}</th>
                   <th>{gettext("Owner")}</th>
+                  <th>{gettext("Storage")}</th>
                   <th class="text-right">{gettext("Members")}</th>
                   <th class="text-right">{gettext("Files")}</th>
                   <th class="text-right">{gettext("Size")}</th>
@@ -468,6 +502,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
                     </span>
                   </td>
                   <td class="text-sm">{(library.owner && library.owner.email) || "—"}</td>
+                  <td class="text-sm">{storage_label(row.own_storage)}</td>
                   <td class="text-right">{row.members}</td>
                   <td class="text-right">{row.files}</td>
                   <td class="text-right">{Format.bytes(row.bytes)}</td>

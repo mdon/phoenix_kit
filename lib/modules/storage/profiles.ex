@@ -478,6 +478,37 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
   end
 
   @doc """
+  What each of these libraries keeps its files on, for the ones on a user's own
+  storage (V206): `%{library_uuid => %{mode: :only | :backup, bucket: Bucket.t()}}`.
+  A library on the site's storage has no entry. One query.
+  """
+  @spec user_storage_for([Library.t()]) :: %{
+          String.t() => %{mode: :only | :backup, bucket: PhoenixKit.Modules.Storage.Bucket.t()}
+        }
+  def user_storage_for([]), do: %{}
+
+  def user_storage_for(libraries) do
+    uuids = Enum.map(libraries, & &1.uuid)
+
+    from(l in Library,
+      join: p in StorageProfile,
+      on: p.uuid == l.storage_profile_uuid and not is_nil(p.owner_uuid),
+      join: pb in ProfileBucket,
+      on: pb.profile_uuid == p.uuid,
+      join: b in PhoenixKit.Modules.Storage.Bucket,
+      on: b.uuid == pb.bucket_uuid and not is_nil(b.owner_uuid),
+      where: l.uuid in ^uuids,
+      select: {l.uuid, pb.role, b}
+    )
+    |> repo().all()
+    |> Enum.group_by(fn {library_uuid, _role, _bucket} -> to_string(library_uuid) end)
+    |> Map.new(fn {library_uuid, rows} ->
+      {_uuid, role, bucket} = hd(rows)
+      {library_uuid, %{mode: if(role == "backup", do: :backup, else: :only), bucket: bucket}}
+    end)
+  end
+
+  @doc """
   Removes a user's own profile (V206) and the buckets that were in it and are
   in no profile now: what is left of a user's storage once their library is
   purged. A site profile, or one a library still uses, is left alone.

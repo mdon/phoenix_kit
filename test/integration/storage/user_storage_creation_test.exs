@@ -34,6 +34,7 @@ defmodule PhoenixKit.Modules.Storage.UserStorageCreationTest do
     {:ok, _} = Permissions.grant_permission(role.uuid, "storage")
     {:ok, _} = Permissions.grant_permission(role.uuid, "storage.create_library")
     {:ok, _} = Permissions.grant_permission(role.uuid, "storage.own_storage")
+    {:ok, _} = Permissions.grant_permission(role.uuid, "integrations")
 
     {:ok, plain_role} = Roles.create_role(%{name: "Plain #{n}"})
     {:ok, _} = Permissions.grant_permission(plain_role.uuid, "storage")
@@ -109,6 +110,19 @@ defmodule PhoenixKit.Modules.Storage.UserStorageCreationTest do
       refute Libraries.may_use_own_storage?(scope(user))
       assert {:error, :not_allowed} = create(user, storage(user))
       assert Storage.list_owned_buckets(user.uuid) == []
+    end
+
+    test "needs the Integrations permission: the keys are a personal connection", %{role: role} do
+      {:ok, no_integrations} =
+        Roles.create_role(%{name: "No integrations #{System.unique_integer([:positive])}"})
+
+      for key <- ["storage", "storage.create_library", "storage.own_storage"],
+          do: {:ok, _} = Permissions.grant_permission(no_integrations.uuid, key)
+
+      user = user!(no_integrations)
+      refute Libraries.may_use_own_storage?(scope(user))
+
+      assert Libraries.may_use_own_storage?(scope(user!(role)))
     end
 
     test "needs the site to allow it", %{role: role} do
