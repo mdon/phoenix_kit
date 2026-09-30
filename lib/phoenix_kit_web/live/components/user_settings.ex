@@ -142,6 +142,10 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
       |> assign(:id, assigns.id)
       |> assign(:user, user)
       |> assign(:sections, sections)
+      |> assign(
+        :show_google_email,
+        Map.get(assigns, :show_google_email, PhoenixKitWeb.Components.ProfileSettingsTabs.google_email_shown?())
+      )
       |> assign(:email_confirm_url_fn, email_confirm_url_fn)
       |> assign(:return_to, return_to)
       |> assign_new(:profile_success_message, fn -> nil end)
@@ -1149,7 +1153,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
               <%!-- it is where we SHARE (a Drive file, a calendar invite), not --%>
               <%!-- an identity, so it is optional and nothing authenticates    --%>
               <%!-- against it. Left empty, a Gmail sign-in address is used.    --%>
-              <div>
+              <div :if={@show_google_email}>
                 <.input
                   field={@profile_form[:google_email]}
                   type="email"
