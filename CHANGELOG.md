@@ -1,4 +1,4 @@
-## Unreleased
+## 2.42.0 - 2026-09-30
 
 ### Added
 
@@ -124,6 +124,24 @@
 - **A user's bucket is edited under the rules it was created under** (their own
   connection, the personal endpoint policy, an S3-protocol provider), and the
   site's bucket screens (edit, toggle, delete) no longer find it.
+
+### Upgrading
+
+- Run `mix phoenix_kit.update` (migration **V206**): two nullable columns
+  (`owner_uuid` on buckets and storage profiles), two partial indexes and a check
+  constraint. Nothing is moved, copied or rewritten, and every existing row keeps a
+  NULL owner (the site's).
+- Nothing changes for an existing bucket until someone acts: a bucket that carries
+  its own keys keeps working (it shows "Keys on bucket" on Settings → Media and can
+  be moved into an Integrations connection one by one, or all at once), and user
+  libraries stay on the site's storage. Users can keep a library on their own
+  bucket only after the site turns on **Settings → Media → Libraries → "Allow their
+  own buckets"** and grants them `storage.own_storage` (and Integrations).
+- Behavior changes worth knowing: "Test Connection" on a bucket now writes, reads
+  back and deletes a small object, and no longer gates Save; an existing Tigris
+  bucket saved without a bucket name or keys fails validation on its next save;
+  `min_copies_on_write` no longer counts a copy on a bucket a profile marks
+  `backup` (it is never served).
 
 ### i18n
 
