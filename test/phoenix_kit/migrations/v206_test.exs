@@ -31,15 +31,15 @@ defmodule PhoenixKit.Migrations.Postgres.V206Test do
     )
   end
 
-  defp bucket(provider, owner, integration) do
+  defp bucket(provider, owner, integration, access_type \\ "signed") do
     query(
       """
       INSERT INTO public.phoenix_kit_buckets
-        (name, provider, owner_uuid, integration_uuid, enabled, priority, inserted_at, updated_at)
-      VALUES ($1, $2, $3::text::uuid, $4::text::uuid, true, 0, NOW(), NOW())
+        (name, provider, owner_uuid, integration_uuid, access_type, enabled, priority, inserted_at, updated_at)
+      VALUES ($1, $2, $3::text::uuid, $4::text::uuid, $5, true, 0, NOW(), NOW())
       RETURNING uuid::text
       """,
-      ["v206-#{System.unique_integer([:positive])}", provider, owner, integration]
+      ["v206-#{System.unique_integer([:positive])}", provider, owner, integration, access_type]
     )
   end
 
@@ -57,8 +57,8 @@ defmodule PhoenixKit.Migrations.Postgres.V206Test do
   end
 
   test "a site bucket needs no owner, and a cloud bucket of the site needs no connection" do
-    assert [[_]] = bucket("local", nil, nil)
-    assert [[_]] = bucket("s3", nil, nil)
+    assert [[_]] = bucket("local", nil, nil, "public")
+    assert [[_]] = bucket("s3", nil, nil, "public")
   end
 
   describe "an owned bucket" do
@@ -69,6 +69,11 @@ defmodule PhoenixKit.Migrations.Postgres.V206Test do
 
     test "is never a filesystem path" do
       assert check_violation?(fn -> bucket("local", @owner, @connection) end)
+    end
+
+    test "never hands out a plain object URL" do
+      assert check_violation?(fn -> bucket("s3", @owner, @connection, "public") end)
+      assert [[_]] = bucket("s3", @owner, @connection, "private")
     end
 
     test "never carries keys of its own: it needs a connection" do

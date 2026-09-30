@@ -511,7 +511,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "6272d014b7137c22aab4ae0933c6519c601e103a2dd82aa0831aa97ef5139c61"
+  @chain_hash "bbb8557a14ef744498a227c7199af91b0f0aceff58dcae3a1ea83bf416ddf795"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -74961,16 +74961,16 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              kind: :constraint
            }},
         create:
-          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_buckets_owned_check'\n      AND t.relname = 'phoenix_kit_buckets'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_buckets ADD CONSTRAINT phoenix_kit_buckets_owned_check CHECK (((owner_uuid IS NULL) OR (((provider)::text <> 'local'::text) AND (integration_uuid IS NOT NULL))));\n  END IF;\nEND\n$$",
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_buckets_owned_check'\n      AND t.relname = 'phoenix_kit_buckets'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_buckets ADD CONSTRAINT phoenix_kit_buckets_owned_check CHECK (((owner_uuid IS NULL) OR (((provider)::text <> 'local'::text) AND (integration_uuid IS NOT NULL) AND ((access_type)::text <> 'public'::text))));\n  END IF;\nEND\n$$",
         since: 206,
         class: :constraint,
         revisions: [
           {206,
            %{
              type: "c",
-             columns: ["owner_uuid", "provider", "integration_uuid"],
+             columns: ["owner_uuid", "provider", "integration_uuid", "access_type"],
              definition:
-               "CHECK (((owner_uuid IS NULL) OR (((provider)::text <> 'local'::text) AND (integration_uuid IS NOT NULL))))",
+               "CHECK (((owner_uuid IS NULL) OR (((provider)::text <> 'local'::text) AND (integration_uuid IS NOT NULL) AND ((access_type)::text <> 'public'::text))))",
              on_delete: nil,
              on_update: nil,
              name_template: nil,

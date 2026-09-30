@@ -188,6 +188,20 @@ defmodule PhoenixKit.Modules.Storage.UserBucketsTest do
     end
   end
 
+  describe "editing a user's bucket" do
+    test "cannot make it public or local: an error, not a raise", %{owner: owner} do
+      {:ok, bucket} = Storage.create_owned_bucket(owner, attrs(personal_connection(owner)))
+
+      assert {:error, changeset} = Storage.update_bucket(bucket, %{access_type: "public"})
+      assert %{owner_uuid: [_]} = errors(changeset)
+
+      assert {:error, changeset} =
+               Storage.update_bucket(bucket, %{provider: "local", endpoint: "/tmp"})
+
+      assert %{owner_uuid: [_]} = errors(changeset)
+    end
+  end
+
   describe "the site's listings never return a user's bucket" do
     test "list_buckets/0 and list_enabled_buckets/0", %{owner: owner} do
       connection = personal_connection(owner)

@@ -22,10 +22,12 @@ defmodule PhoenixKit.Migrations.Postgres.V206 do
   One check keeps an owned bucket safe whatever the application does:
 
     * `phoenix_kit_buckets_owned_check` — `owner_uuid IS NULL OR
-      (provider <> 'local' AND integration_uuid IS NOT NULL)`. A user bucket is
-      never a filesystem path (that would be arbitrary write access on the
-      server) and never carries keys of its own (they live in the user's
-      personal Integrations connection).
+      (provider <> 'local' AND integration_uuid IS NOT NULL AND access_type <>
+      'public')`. A user bucket is never a filesystem path (that would be
+      arbitrary write access on the server), never carries keys of its own
+      (they live in the user's personal Integrations connection), and never
+      hands out a plain object URL (a private library's files are served
+      through short-lived links only).
 
   Nothing is copied, moved or rewritten, and every existing row has a NULL
   owner, so the check holds for all of them.
@@ -79,7 +81,7 @@ defmodule PhoenixKit.Migrations.Postgres.V206 do
         prefix,
         "phoenix_kit_buckets",
         @check,
-        "CHECK (owner_uuid IS NULL OR (provider <> 'local' AND integration_uuid IS NOT NULL))"
+        "CHECK (owner_uuid IS NULL OR (provider <> 'local' AND integration_uuid IS NOT NULL AND access_type <> 'public'))"
       ),
       "ALTER TABLE #{p}phoenix_kit_buckets VALIDATE CONSTRAINT #{@check}",
       "COMMENT ON TABLE #{p}phoenix_kit IS '206'"

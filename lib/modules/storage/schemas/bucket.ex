@@ -199,6 +199,17 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
     |> validate_cloud_credentials()
     |> validate_endpoint()
     |> encrypt_secret_access_key()
+    |> check_owned_rules()
+  end
+
+  # The database refuses an owned bucket that is `local`, carries keys of its
+  # own, or serves plain object URLs (`phoenix_kit_buckets_owned_check`); as an
+  # error on the changeset rather than a raise, for anything that edits one.
+  defp check_owned_rules(changeset) do
+    check_constraint(changeset, :owner_uuid,
+      name: :phoenix_kit_buckets_owned_check,
+      message: "a user's bucket must be S3-protocol, on a connection, and not public"
+    )
   end
 
   @doc """
@@ -238,6 +249,7 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
     |> validate_endpoint_required()
     |> validate_owned_endpoint()
     |> validate_connection_owned(owned?)
+    |> check_owned_rules()
   end
 
   # B2, R2 and Tigris have no default host: without an endpoint every request
