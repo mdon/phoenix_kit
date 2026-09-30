@@ -106,6 +106,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   alias PhoenixKit.Modules.Sitemap
   alias PhoenixKit.Modules.Sitemap.RouteResolver
   alias PhoenixKit.Modules.Storage.Dimension
+  alias PhoenixKit.Modules.Storage.VariantSets
   alias PhoenixKit.Utils.Routes
 
   @shortdoc "Diagnoses PhoenixKit installation, migration, and runtime issues"
@@ -176,6 +177,7 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
         run_check("Crawler Visibility", fn -> check_crawler_visibility(prefix) end),
         run_check("Demo Auth Pages", fn -> check_demo_routes() end),
         run_check("Variant Set Standard Sizes", fn -> check_variant_sets(prefix) end),
+        run_check("Image Sizes From an Older Pipeline", fn -> check_variant_pipeline(prefix) end),
         run_check("Manifest Repair (dry-run)", fn -> check_manifest_repair(prefix) end),
         run_check("Integration Key", fn -> check_integration_key(opts[:fingerprint] || false) end)
       ] ++ git_hooks_check()
@@ -2497,6 +2499,76 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
     else
       {:pass, "No variant sets yet (before V205)."}
     end
+  end
+
+  # Sizes made before the current rendering rules (`VariantSets` @pipeline)
+  # keep working but look as they did — a see-through PNG's JPEG size on
+  # black, an upscaled small original. Remaking them is deliberately manual:
+  # `remake_all/0` touches every size of every file, which a host with a
+  # large library schedules itself. The count stops at @pipeline_scan_cap so
+  # the check stays cheap on millions of rows.
+  @pipeline_scan_cap 10_000
+
+  defp check_variant_pipeline(prefix) do
+    repo = get_repo!()
+    p = if prefix == "public", do: "public.", else: "#{prefix}."
+
+    %{rows: [[present?]]} =
+      repo.query!(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = $1 AND table_name = 'phoenix_kit_file_instances' AND column_name = 'spec_hash')",
+        [prefix]
+      )
+
+    if present? do
+      %{rows: dimensions} =
+        repo.query!(
+          "SELECT width, height, quality, format, maintain_aspect_ratio, alternative_formats FROM #{p}phoenix_kit_storage_dimensions"
+        )
+
+      legacy = legacy_hashes(dimensions)
+
+      %{rows: [[count]]} =
+        repo.query!(
+          "SELECT count(*) FROM (SELECT 1 FROM #{p}phoenix_kit_file_instances WHERE spec_hash = ANY($1) LIMIT $2) s",
+          [legacy, @pipeline_scan_cap]
+        )
+
+      pipeline_verdict(count)
+    else
+      {:pass, "No sized variants yet (before V205)."}
+    end
+  end
+
+  @doc false
+  # The pipeline-1 spec hashes of every size (and alternative format) the
+  # dimension rows `[width, height, quality, format, keep_aspect, alts]` make.
+  @spec legacy_hashes([list()]) :: [String.t()]
+  def legacy_hashes(dimensions) do
+    for [w, h, q, format, keep_aspect, alternatives] <- dimensions,
+        f <- Enum.uniq([format | alternatives || []]) do
+      VariantSets.legacy_spec_hash(
+        %Dimension{width: w, height: h, quality: q, maintain_aspect_ratio: keep_aspect},
+        f
+      )
+    end
+    |> Enum.uniq()
+  end
+
+  @doc false
+  # The verdict for `count` sizes still carrying a pipeline-1 spec hash.
+  @spec pipeline_verdict(non_neg_integer()) :: {:pass | :warn, String.t()}
+  def pipeline_verdict(0), do: {:pass, "Every image size was made by the current pipeline."}
+
+  def pipeline_verdict(count) do
+    shown = if count >= @pipeline_scan_cap, do: "#{@pipeline_scan_cap}+", else: "#{count}"
+
+    {:warn,
+     "#{shown} image sizes were made by an older version of the image pipeline " <>
+       "(before see-through images got PNG sizes and sizes stopped upscaling). They " <>
+       "still work and are left as they are. To remake them, run " <>
+       "PhoenixKit.Modules.Storage.VariantSets.remake_all() from a remote console: " <>
+       "it queues EVERY size of EVERY file for the background reconciler, so on a " <>
+       "large library pick a quiet time."}
   end
 
   # :staging / :production by hostname shape, :unknown when no URL is
