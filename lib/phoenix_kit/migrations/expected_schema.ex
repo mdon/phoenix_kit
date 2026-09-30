@@ -202,6 +202,11 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # access to; the real-database integration suite re-ran clean against a DB
   # migrated through V196, which is the property s7/s8 exist to prove.
   #
+  # V206 (2026-09-30, user-owned storage) DECLARES five objects: `owner_uuid`
+  # on `phoenix_kit_buckets` and `phoenix_kit_storage_profiles`, a partial
+  # index on each, and `phoenix_kit_buckets_owned_check`. Shapes are
+  # CATALOG-EXACT from `Repair.Probe.snapshot/2`. `chain_hash` restamped.
+  #
   # V205 (2026-09-25, storage profiles and variant sets) DECLARES 60 objects
   # here and RESHAPES one. New: `table:phoenix_kit_storage_profiles`,
   # `table:phoenix_kit_storage_profile_buckets` and
@@ -506,7 +511,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "3d135535d01cd31136f165d0685586839caa51af9b41b9d71c4b06554d0f4395"
+  @chain_hash "6272d014b7137c22aab4ae0933c6519c601e103a2dd82aa0831aa97ef5139c61"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -74835,6 +74840,142 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              name_template: nil,
              foreign_columns: ["uuid"],
              foreign_table: "phoenix_kit_variant_sets"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+
+      # ── V206: user-owned storage ──
+      # Five objects, CATALOG-EXACT from `Repair.Probe.snapshot/2` on a test
+      # database migrated through V206: `owner_uuid` on buckets and storage
+      # profiles (NULL is the site's), a partial index on each, and the check
+      # that keeps an owned bucket off the filesystem and off keys of its own.
+      # No foreign key on `owner_uuid`, on purpose (see V206's moduledoc).
+      %{
+        id: "column:phoenix_kit_buckets.owner_uuid",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             table: "phoenix_kit_buckets",
+             column: "owner_uuid",
+             kind: :column
+           }},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_buckets ADD COLUMN IF NOT EXISTS \"owner_uuid\" uuid",
+        since: 206,
+        class: :column,
+        revisions: [{206, %{default: nil, type: "uuid", pos: 18, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_storage_profiles.owner_uuid",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             table: "phoenix_kit_storage_profiles",
+             column: "owner_uuid",
+             kind: :column
+           }},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_storage_profiles ADD COLUMN IF NOT EXISTS \"owner_uuid\" uuid",
+        since: 206,
+        class: :column,
+        revisions: [{206, %{default: nil, type: "uuid", pos: 10, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_buckets_owner_uuid_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_buckets_owner_uuid_index",
+             table: "phoenix_kit_buckets",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_buckets_owner_uuid_index ON __SCHEMA__.phoenix_kit_buckets USING btree (owner_uuid) WHERE (owner_uuid IS NOT NULL)",
+        since: 206,
+        class: :index,
+        revisions: [
+          {206,
+           %{
+             table: "phoenix_kit_buckets",
+             keys: ["owner_uuid"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_buckets_owner_uuid_index ON __SCHEMA__.phoenix_kit_buckets USING btree (owner_uuid) WHERE (owner_uuid IS NOT NULL)",
+             predicate: "(owner_uuid IS NOT NULL)",
+             opclasses: ["uuid_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_storage_profiles_owner_uuid_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_storage_profiles_owner_uuid_index",
+             table: "phoenix_kit_storage_profiles",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_storage_profiles_owner_uuid_index ON __SCHEMA__.phoenix_kit_storage_profiles USING btree (owner_uuid) WHERE (owner_uuid IS NOT NULL)",
+        since: 206,
+        class: :index,
+        revisions: [
+          {206,
+           %{
+             table: "phoenix_kit_storage_profiles",
+             keys: ["owner_uuid"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_storage_profiles_owner_uuid_index ON __SCHEMA__.phoenix_kit_storage_profiles USING btree (owner_uuid) WHERE (owner_uuid IS NOT NULL)",
+             predicate: "(owner_uuid IS NOT NULL)",
+             opclasses: ["uuid_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "constraint:phoenix_kit_buckets.phoenix_kit_buckets_owned_check",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_buckets_owned_check",
+             table: "phoenix_kit_buckets",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_buckets_owned_check'\n      AND t.relname = 'phoenix_kit_buckets'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_buckets ADD CONSTRAINT phoenix_kit_buckets_owned_check CHECK (((owner_uuid IS NULL) OR (((provider)::text <> 'local'::text) AND (integration_uuid IS NOT NULL))));\n  END IF;\nEND\n$$",
+        since: 206,
+        class: :constraint,
+        revisions: [
+          {206,
+           %{
+             type: "c",
+             columns: ["owner_uuid", "provider", "integration_uuid"],
+             definition:
+               "CHECK (((owner_uuid IS NULL) OR (((provider)::text <> 'local'::text) AND (integration_uuid IS NOT NULL))))",
+             on_delete: nil,
+             on_update: nil,
+             name_template: nil,
+             foreign_columns: nil,
+             foreign_table: nil
            }}
         ],
         presence: :required,

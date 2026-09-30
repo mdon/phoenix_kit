@@ -310,12 +310,44 @@ defmodule PhoenixKit.Modules.Storage do
   # ===== BUCKETS =====
 
   @doc """
-  Returns a list of all storage buckets, ordered by priority.
+  Returns the site's storage buckets, ordered by priority.
+
+  A user's own bucket (V206, `owner_uuid` set) is **not** here: everything
+  that enumerates the site's storage (placement, the read fallback, the
+  location backfill, Health, the admin list) goes through this function or
+  `list_enabled_buckets/0`, so a user's bucket never reaches any of it. Use
+  `list_owned_buckets/1` for a user's own.
   """
   def list_buckets do
     Bucket
+    |> where([b], is_nil(b.owner_uuid))
     |> order_by(asc: :priority)
     |> repo().all()
+  end
+
+  @doc """
+  A user's own buckets (V206), oldest first.
+  """
+  @spec list_owned_buckets(String.t() | nil) :: [Bucket.t()]
+  def list_owned_buckets(owner_uuid) when is_binary(owner_uuid) do
+    Bucket
+    |> where([b], b.owner_uuid == ^owner_uuid)
+    |> order_by(asc: :inserted_at)
+    |> repo().all()
+  end
+
+  def list_owned_buckets(_owner_uuid), do: []
+
+  @doc """
+  The buckets with these uuids, whoever owns them. For resolving the buckets a
+  file's location rows name: the read path must reach a user's own bucket
+  although the site's listings leave it out.
+  """
+  @spec get_buckets([String.t()]) :: [Bucket.t()]
+  def get_buckets([]), do: []
+
+  def get_buckets(uuids) when is_list(uuids) do
+    Bucket |> where([b], b.uuid in ^uuids) |> repo().all()
   end
 
   @doc """
@@ -353,11 +385,12 @@ defmodule PhoenixKit.Modules.Storage do
   end
 
   @doc """
-  Gets enabled buckets, ordered by priority.
+  Gets the site's enabled buckets, ordered by priority. A user's own bucket is
+  not here (see `list_buckets/0`).
   """
   def list_enabled_buckets do
     Bucket
-    |> where([b], b.enabled == true)
+    |> where([b], b.enabled == true and is_nil(b.owner_uuid))
     |> order_by(asc: :priority)
     |> repo().all()
   end
@@ -388,6 +421,35 @@ defmodule PhoenixKit.Modules.Storage do
       end
     end)
     |> tap(&bucket_changed/1)
+  end
+
+  @doc """
+  Creates a user's own bucket (V206).
+
+  Through `Bucket.owned_changeset/4`, which fixes everything a user must not
+  choose: the owner (this function's argument, never `attrs`), an S3-protocol
+  provider, `signed` access, the owner's own connection for the keys. The
+  bucket does **not** join the Default storage profile (it is nobody's but its
+  owner's); put it in one with `Profiles.create_user_profile/3`.
+  """
+  @spec create_owned_bucket(String.t(), map()) :: {:ok, Bucket.t()} | {:error, Ecto.Changeset.t()}
+  def create_owned_bucket(owner_uuid, attrs) when is_binary(owner_uuid) do
+    %Bucket{}
+    |> Bucket.owned_changeset(attrs, owner_uuid,
+      connection_owned?: &owns_connection?(owner_uuid, &1)
+    )
+    |> repo().insert()
+    |> tap(&bucket_changed/1)
+  end
+
+  # Whether `owner_uuid` owns the Object Storage connection `uuid`: the lookup
+  # is owner-scoped, so another user's (or a site) connection is "not found".
+  @doc false
+  def owns_connection?(owner_uuid, uuid) do
+    match?(
+      {:ok, %{provider: "object_storage"}},
+      PhoenixKit.Integrations.get_integration_by_uuid(uuid, {:user, owner_uuid})
+    )
   end
 
   @doc """
@@ -507,8 +569,10 @@ defmodule PhoenixKit.Modules.Storage do
   # local bucket's endpoint is a filesystem path, not a URL.
   defp check_endpoint(%Bucket{provider: "local"}), do: :ok
 
-  defp check_endpoint(%Bucket{endpoint: endpoint}) do
-    case Endpoint.check(endpoint, :system, resolve: true) do
+  defp check_endpoint(%Bucket{endpoint: endpoint, owner_uuid: owner_uuid}) do
+    policy = if is_binary(owner_uuid), do: :personal, else: :system
+
+    case Endpoint.check(endpoint, policy, resolve: true) do
       :ok -> :ok
       {:error, reason} -> {:error, "The endpoint " <> Endpoint.error_message(reason)}
     end
@@ -533,7 +597,11 @@ defmodule PhoenixKit.Modules.Storage do
       bucket_name: bucket_params["bucket_name"],
       access_key_id: bucket_params["access_key_id"],
       secret_access_key: bucket_params["secret_access_key"],
-      integration_uuid: bucket_params["integration_uuid"]
+      integration_uuid: bucket_params["integration_uuid"],
+      # Set by the caller from the signed-in user, never from a form: it picks
+      # the connections the probe may read and how strictly the endpoint is
+      # checked.
+      owner_uuid: bucket_params["owner_uuid"]
     }
   end
 

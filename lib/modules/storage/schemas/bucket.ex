@@ -38,6 +38,13 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
   - `enabled` - Whether bucket is active
   - `priority` - Selection priority (0 = random/emptiest)
   - `max_size_mb` - Maximum storage capacity in MB (nullable = unlimited)
+  - `owner_uuid` - Whose bucket it is (V206). NULL is the site's, which is every
+    bucket an admin creates. A user's own bucket carries its owner, never
+    appears in a site listing (`Storage.list_buckets/0`,
+    `Storage.list_enabled_buckets/0`), cannot be `local`, and takes its keys
+    from the owner's personal connection only. **Never cast from params**:
+    only `owned_changeset/3` sets it, from the signed-in user. No foreign key
+    (see `Migrations.Postgres.V206`).
 
   ## Access Types
 
@@ -113,6 +120,7 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
           enabled: boolean(),
           priority: integer(),
           max_size_mb: integer() | nil,
+          owner_uuid: UUIDv7.t() | nil,
           file_locations:
             [PhoenixKit.Modules.Storage.FileLocation.t()] | Ecto.Association.NotLoaded.t(),
           inserted_at: DateTime.t() | nil,
@@ -133,6 +141,7 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
     field :enabled, :boolean, default: true
     field :priority, :integer, default: 0
     field :max_size_mb, :integer
+    field :owner_uuid, UUIDv7
 
     has_many :file_locations, PhoenixKit.Modules.Storage.FileLocation, foreign_key: :bucket_uuid
 
@@ -190,6 +199,72 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
     |> validate_cloud_credentials()
     |> validate_endpoint()
     |> encrypt_secret_access_key()
+  end
+
+  @doc """
+  Changeset for a user's own bucket (V206).
+
+  `owner_uuid` comes from the signed-in user, never from `attrs`. Only S3
+  protocol providers (a `local` bucket would be arbitrary filesystem access on
+  the server), always on a connection the owner owns (never keys stored on the
+  bucket), always `signed` (the plain object URL is never handed out), with no
+  `cdn_url` and no priority: the owner's storage profile decides how it is used.
+
+  The endpoint is checked under the `:personal` policy, resolving the host, at
+  save time; `Providers.S3` checks it again whenever a request is built.
+  `:connection_owned?` (a function of the connection uuid) says whether the
+  owner owns the connection; `Storage` passes the real check.
+  """
+  def owned_changeset(bucket, attrs, owner_uuid, opts \\ []) when is_binary(owner_uuid) do
+    owned? = Keyword.get(opts, :connection_owned?, fn _uuid -> false end)
+
+    bucket
+    |> cast(attrs, [
+      :name,
+      :provider,
+      :region,
+      :endpoint,
+      :bucket_name,
+      :integration_uuid,
+      :enabled
+    ])
+    |> put_change(:owner_uuid, owner_uuid)
+    |> put_change(:access_type, "signed")
+    |> put_change(:access_key_id, nil)
+    |> put_change(:secret_access_key, nil)
+    |> validate_required([:name, :provider, :bucket_name, :integration_uuid])
+    |> validate_inclusion(:provider, @cloud_providers)
+    |> validate_length(:bucket_name, max: 255)
+    |> validate_endpoint_required()
+    |> validate_owned_endpoint()
+    |> validate_connection_owned(owned?)
+  end
+
+  # B2, R2 and Tigris have no default host: without an endpoint every request
+  # would go to AWS.
+  defp validate_endpoint_required(changeset) do
+    if get_field(changeset, :provider) in ["b2", "r2", "tigris"],
+      do: validate_required(changeset, [:endpoint]),
+      else: changeset
+  end
+
+  defp validate_owned_endpoint(changeset) do
+    case Endpoint.check(get_field(changeset, :endpoint), :personal, resolve: true) do
+      :ok -> changeset
+      {:error, reason} -> add_error(changeset, :endpoint, Endpoint.error_message(reason))
+    end
+  end
+
+  defp validate_connection_owned(changeset, owned?) do
+    case get_field(changeset, :integration_uuid) do
+      nil ->
+        changeset
+
+      uuid ->
+        if owned?.(uuid),
+          do: changeset,
+          else: add_error(changeset, :integration_uuid, "is not one of your connections")
+    end
   end
 
   # A cloud bucket's endpoint must be one `Endpoint.parse/1` can use: a set but

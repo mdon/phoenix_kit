@@ -330,7 +330,7 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3 do
         # storage endpoint, whoever set it. Names are not resolved here (this
         # runs per request); the bucket changeset and the connection check
         # resolve them when an endpoint is saved or tested.
-        case Endpoint.check(endpoint, :system) do
+        case Endpoint.check(endpoint, endpoint_policy(bucket), endpoint_check_opts(bucket)) do
           :ok ->
             config ++ [host: host, scheme: scheme <> "://", port: port]
 
@@ -340,6 +340,15 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3 do
         end
     end
   end
+
+  # A user's own bucket is held to the strict policy every time a request is
+  # built, with the host resolved: the name may have changed since it was saved.
+  # The site's buckets are literal-only here (this is a per-request path).
+  defp endpoint_policy(%{owner_uuid: owner}) when is_binary(owner), do: :personal
+  defp endpoint_policy(_bucket), do: :system
+
+  defp endpoint_check_opts(%{owner_uuid: owner}) when is_binary(owner), do: [resolve: true]
+  defp endpoint_check_opts(_bucket), do: []
 
   # Resolves the actual (plaintext) access key id / secret access key for a
   # bucket — the one place this happens, right where the ExAws config needs
@@ -412,6 +421,8 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3 do
     {bucket.access_key_id, secret}
   end
 
-  # Whose connections a bucket may read. Buckets are all site-wide today.
+  # Whose connections a bucket may read: the owner's, for a user's own bucket
+  # (V206); the site's for every other.
+  defp credential_owner(%{owner_uuid: owner}) when is_binary(owner), do: {:user, owner}
   defp credential_owner(_bucket), do: :system
 end
