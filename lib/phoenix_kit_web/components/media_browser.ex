@@ -1056,8 +1056,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     scope_folder = if scope, do: Storage.get_folder(scope)
     scope_invalid = not is_nil(scope) and is_nil(scope_folder)
 
-    enabled_buckets = Storage.list_enabled_buckets()
-    has_buckets = not Enum.empty?(enabled_buckets)
+    has_buckets = Storage.buckets_available?()
 
     scope_name = if scope_folder, do: scope_folder.name, else: "Root"
 

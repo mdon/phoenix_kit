@@ -385,6 +385,18 @@ defmodule PhoenixKit.Modules.Storage do
   end
 
   @doc """
+  Whether any enabled bucket exists, the site's or a user's own (V206): what
+  the upload screens ask before offering an upload. A site with no bucket of
+  its own may still let users keep libraries on their own storage. (The upload
+  that follows still picks the library's own buckets; this only answers "is
+  there anywhere at all".)
+  """
+  @spec buckets_available?() :: boolean()
+  def buckets_available? do
+    repo().exists?(from(b in Bucket, where: b.enabled == true))
+  end
+
+  @doc """
   Gets the site's enabled buckets, ordered by priority. A user's own bucket is
   not here (see `list_buckets/0`).
   """
@@ -3947,9 +3959,11 @@ defmodule PhoenixKit.Modules.Storage do
       fn ->
         lock_storage_paths([dir])
 
+        owned = owned_buckets_for_dir(dir)
+
         keys
         |> unreferenced_keys(exclude_file_uuids: excluded)
-        |> Enum.map(&delete_stored_object/1)
+        |> Enum.map(&delete_stored_object(&1, owned))
       end,
       timeout: :infinity
     )
@@ -4095,14 +4109,49 @@ defmodule PhoenixKit.Modules.Storage do
     end
   end
 
-  defp delete_stored_object(key) do
-    case Manager.delete_file(key) do
-      :ok ->
+  # The object goes from every bucket of the site, and from the owner's own
+  # buckets when the key belongs to a user's library (V206). `Manager.delete_file/1`
+  # only reaches the site's pool, and by the time a key is deleted its location
+  # rows are gone, so a user's bucket is found through the library that owns the
+  # key's first segment (`owned_buckets_for_dir/1`).
+  defp delete_stored_object(key, owned) do
+    results = [Manager.delete_file(key) | Enum.map(owned, &delete_from_owned(&1, key))]
+
+    case Enum.find(results, &(&1 != :ok)) do
+      nil ->
         :ok
 
       error ->
         Logger.warning("Storage: could not delete #{key}: #{inspect(error)}")
         error
+    end
+  end
+
+  defp delete_from_owned(%Bucket{} = bucket, key) do
+    case Manager.delete_from_bucket(bucket, key) do
+      :ok -> :ok
+      error -> {:error, {bucket.name, error}}
+    end
+  end
+
+  # The buckets of the user who owns the library whose `key_prefix` is the first
+  # segment of `dir`: where that library's objects may live besides the site's
+  # buckets. Nothing for a key of a site library (no user library has its
+  # prefix). One query per directory.
+  @doc false
+  def owned_buckets_for_dir(dir) do
+    case dir |> String.split("/", parts: 2) |> hd() do
+      prefix when prefix in ["", "."] ->
+        []
+
+      prefix ->
+        from(l in Library,
+          join: b in Bucket,
+          on: b.owner_uuid == l.owner_uuid,
+          where: l.kind == "user" and l.key_prefix == ^prefix,
+          select: b
+        )
+        |> repo().all()
     end
   end
 

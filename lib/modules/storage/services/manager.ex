@@ -396,13 +396,19 @@ defmodule PhoenixKit.Modules.Storage.Manager do
       false
   end
 
+  # Exactly these buckets, enabled ones only, in the order given. Looked up by
+  # uuid rather than in the site's pool: an edit's output goes where the key it
+  # replaces is, and that may be a user's own bucket (V206).
   defp forced_buckets(bucket_uuids) do
-    enabled = Map.new(Storage.list_enabled_buckets(), &{to_string(&1.uuid), &1})
+    uuids = bucket_uuids |> Enum.map(&to_string/1) |> Enum.uniq()
 
-    bucket_uuids
-    |> Enum.map(&to_string/1)
-    |> Enum.uniq()
-    |> Enum.flat_map(&List.wrap(Map.get(enabled, &1)))
+    enabled =
+      uuids
+      |> Storage.get_buckets()
+      |> Enum.filter(& &1.enabled)
+      |> Map.new(&{to_string(&1.uuid), &1})
+
+    Enum.flat_map(uuids, &List.wrap(Map.get(enabled, &1)))
   end
 
   defp select_buckets_for_retrieval(priority_buckets) do
@@ -428,9 +434,10 @@ defmodule PhoenixKit.Modules.Storage.Manager do
   #
   # `file_uuid` (serving) is the file whose copy is wanted: its own profile
   # ranks the buckets, and a bucket it marks `backup` is not probed either.
-  defp read_order(file_path, priority_buckets, purpose, file_uuid \\ nil)
+  @doc false
+  def read_order(file_path, priority_buckets, purpose, file_uuid \\ nil)
 
-  defp read_order(file_path, [], purpose, file_uuid) do
+  def read_order(file_path, [], purpose, file_uuid) do
     case Locations.ranked(file_path, file_uuid) do
       # Checked and found in no bucket: not asked about again on every
       # request (the backfill remembered the miss).
@@ -441,7 +448,7 @@ defmodule PhoenixKit.Modules.Storage.Manager do
 
       ranked ->
         enabled = select_buckets_for_retrieval([])
-        by_uuid = Map.new(enabled, &{to_string(&1.uuid), &1})
+        by_uuid = enabled |> Map.new(&{to_string(&1.uuid), &1}) |> with_owned_buckets(ranked)
         named = MapSet.new(ranked, & &1.bucket_uuid)
 
         located =
@@ -454,8 +461,23 @@ defmodule PhoenixKit.Modules.Storage.Manager do
     end
   end
 
-  defp read_order(_file_path, priority_buckets, _purpose, _file_uuid),
+  def read_order(_file_path, priority_buckets, _purpose, _file_uuid),
     do: {select_buckets_for_retrieval(priority_buckets), []}
+
+  # A user's own bucket (V206) is not in the site's pool, so the located
+  # buckets that are not there are looked up by uuid, and only an enabled,
+  # user-owned one is added: a site bucket that is disabled or gone stays out,
+  # exactly as before. This is the ONLY way a user's bucket is reached for a
+  # read: the fallback that tries every other bucket is built from the site's
+  # pool alone, so a miss never probes anyone's own storage.
+  defp with_owned_buckets(by_uuid, ranked) do
+    missing = for %{bucket_uuid: uuid} <- ranked, not Map.has_key?(by_uuid, uuid), do: uuid
+
+    missing
+    |> Storage.get_buckets()
+    |> Enum.filter(&(&1.enabled and is_binary(&1.owner_uuid)))
+    |> Enum.reduce(by_uuid, &Map.put(&2, to_string(&1.uuid), &1))
+  end
 
   defp serve_fallback(buckets, :serve, file_uuid) when not is_nil(file_uuid) do
     backups = Locations.backup_buckets(file_uuid)
