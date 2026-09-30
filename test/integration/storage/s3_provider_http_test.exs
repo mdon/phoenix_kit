@@ -10,7 +10,7 @@ defmodule PhoenixKit.Modules.Storage.S3ProviderHTTPTest do
   use PhoenixKit.DataCase, async: false
 
   alias PhoenixKit.Modules.Storage
-  alias PhoenixKit.Modules.Storage.{Locations, LocationCheck}
+  alias PhoenixKit.Modules.Storage.{LocationCheck, Locations}
   alias PhoenixKit.Modules.Storage.Providers.S3
   alias PhoenixKit.Modules.Storage.Workers.LocationBackfillJob
   alias PhoenixKit.Test.Repo
