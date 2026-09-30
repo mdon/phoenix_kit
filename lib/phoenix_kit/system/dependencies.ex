@@ -148,56 +148,62 @@ defmodule PhoenixKit.System.Dependencies do
 
   # The external programs PhoenixKit shells out to. `args` print the
   # version; `pattern` pulls the bare version number out of that output.
-  @tools [
-    %{
-      id: :imagemagick,
-      name: "ImageMagick",
-      command: "identify",
-      args: ["-version"],
-      pattern: ~r/ImageMagick\s+(\S+)/,
-      used_for: :images
-    },
-    %{
-      id: :magick,
-      name: "ImageMagick 7",
-      command: "magick",
-      args: ["-version"],
-      pattern: ~r/ImageMagick\s+(\S+)/,
-      used_for: :tiles
-    },
-    %{
-      id: :ffmpeg,
-      name: "FFmpeg",
-      command: "ffmpeg",
-      args: ["-version"],
-      pattern: ~r/version\s+(\S+)/,
-      used_for: :video
-    },
-    %{
-      id: :ffprobe,
-      name: "FFprobe",
-      command: "ffprobe",
-      args: ["-version"],
-      pattern: ~r/version\s+(\S+)/,
-      used_for: :video_metadata
-    },
-    %{
-      id: :pdftoppm,
-      name: "Poppler pdftoppm",
-      command: "pdftoppm",
-      args: ["-v"],
-      pattern: ~r/version\s+(\S+)/,
-      used_for: :pdf_previews
-    },
-    %{
-      id: :pdfinfo,
-      name: "Poppler pdfinfo",
-      command: "pdfinfo",
-      args: ["-v"],
-      pattern: ~r/version\s+(\S+)/,
-      used_for: :pdf_metadata
-    }
-  ]
+  # A compiled `~r` carries a runtime reference on OTP 28, so a list of them
+  # cannot live in a module attribute that a function body reads — Elixir
+  # refuses to escape it at compile time. Building the list in a function
+  # keeps the sigils and compiles everywhere.
+  defp tools do
+    [
+      %{
+        id: :imagemagick,
+        name: "ImageMagick",
+        command: "identify",
+        args: ["-version"],
+        pattern: ~r/ImageMagick\s+(\S+)/,
+        used_for: :images
+      },
+      %{
+        id: :magick,
+        name: "ImageMagick 7",
+        command: "magick",
+        args: ["-version"],
+        pattern: ~r/ImageMagick\s+(\S+)/,
+        used_for: :tiles
+      },
+      %{
+        id: :ffmpeg,
+        name: "FFmpeg",
+        command: "ffmpeg",
+        args: ["-version"],
+        pattern: ~r/version\s+(\S+)/,
+        used_for: :video
+      },
+      %{
+        id: :ffprobe,
+        name: "FFprobe",
+        command: "ffprobe",
+        args: ["-version"],
+        pattern: ~r/version\s+(\S+)/,
+        used_for: :video_metadata
+      },
+      %{
+        id: :pdftoppm,
+        name: "Poppler pdftoppm",
+        command: "pdftoppm",
+        args: ["-v"],
+        pattern: ~r/version\s+(\S+)/,
+        used_for: :pdf_previews
+      },
+      %{
+        id: :pdfinfo,
+        name: "Poppler pdfinfo",
+        command: "pdfinfo",
+        args: ["-v"],
+        pattern: ~r/version\s+(\S+)/,
+        used_for: :pdf_metadata
+      }
+    ]
+  end
 
   @typedoc "One external program and whether it was found."
   @type tool :: %{
@@ -217,7 +223,7 @@ defmodule PhoenixKit.System.Dependencies do
   """
   @spec external_tools() :: [tool()]
   def external_tools do
-    Enum.map(@tools, fn tool ->
+    Enum.map(tools(), fn tool ->
       status =
         case get_cached("tool_#{tool.id}") do
           nil ->
@@ -266,7 +272,7 @@ defmodule PhoenixKit.System.Dependencies do
     :persistent_term.erase(:phoenix_kit_deps_imagemagick)
     :persistent_term.erase(:phoenix_kit_deps_ffmpeg)
     :persistent_term.erase(:phoenix_kit_deps_poppler)
-    Enum.each(@tools, &:persistent_term.erase(:"phoenix_kit_deps_tool_#{&1.id}"))
+    Enum.each(tools(), &:persistent_term.erase(:"phoenix_kit_deps_tool_#{&1.id}"))
     :ok
   end
 
