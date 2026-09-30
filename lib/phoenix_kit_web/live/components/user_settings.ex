@@ -62,6 +62,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Utils.TimeZone
+  alias PhoenixKitWeb.Components.ProfileSettingsTabs
 
   # `:integrations` deliberately NOT in the default list — unlike every
   # other section it needs the independent `integrations` permission the
@@ -144,7 +145,11 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
       |> assign(:sections, sections)
       |> assign(
         :show_google_email,
-        Map.get(assigns, :show_google_email, PhoenixKitWeb.Components.ProfileSettingsTabs.google_email_shown?())
+        Map.get(
+          assigns,
+          :show_google_email,
+          ProfileSettingsTabs.google_email_shown?()
+        )
       )
       |> assign(:email_confirm_url_fn, email_confirm_url_fn)
       |> assign(:return_to, return_to)

@@ -9,7 +9,6 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
   """
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKitWeb.Components.ProfileSettingsTabs
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.ActiveRole
   alias PhoenixKit.Users.CustomFields
@@ -18,6 +17,7 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
   alias PhoenixKit.Users.Roles
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Actor
+  alias PhoenixKitWeb.Components.ProfileSettingsTabs
 
   def mount(_params, _session, socket) do
     # Set locale for LiveView process
