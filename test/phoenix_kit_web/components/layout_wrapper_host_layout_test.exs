@@ -90,4 +90,29 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperHostLayoutTest do
       assert occurrences(html, @marker) == 1
     end
   end
+
+  describe "mark_kit_content/1 — the kit's page inside a host layout" do
+    test "the body is wrapped in a display:contents marker with the phone input style" do
+      html =
+        assigns_with_block()
+        |> Map.put(:current_path, "/profile/settings")
+        |> LayoutWrapper.mark_kit_content()
+        |> LayoutWrapper.apply_host_layout(InnerBlockHost, :frontend)
+        |> rendered_to_string()
+
+      assert html =~ ~r{<div id="host-shell">\s*<div data-phoenix-kit class="contents">}
+      assert html =~ "<style data-pk-mobile-inputs>"
+      assert occurrences(html, @marker) == 1
+    end
+
+    test "an admin page is left alone — #admin-drawer already marks it" do
+      assigns = Map.put(assigns_with_block(), :current_path, "/admin/users")
+      assert LayoutWrapper.mark_kit_content(assigns) == assigns
+    end
+
+    test "no inner block, nothing to wrap" do
+      assigns = %{__changed__: nil, current_path: "/profile/settings"}
+      assert LayoutWrapper.mark_kit_content(assigns) == assigns
+    end
+  end
 end

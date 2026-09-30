@@ -866,6 +866,36 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
     }
   end
 
+  # A non-admin kit page (profile settings, the user dashboard's pages) inside
+  # the HOST's layout has no kit `<body>` to carry `data-phoenix-kit`, and the
+  # host's root layout does not render `phoenix_kit_globals`. Mark the kit's
+  # own content instead — `display: contents`, so the host's flex/grid sees
+  # the children as before — and bring the phone form-control style with it.
+  # Admin pages are already marked by `#admin-drawer`. Public for testing.
+  @doc false
+  def mark_kit_content(assigns) do
+    if admin_page?(assigns) or assigns[:inner_block] in [nil, []] do
+      assigns
+    else
+      original_inner_block = assigns[:inner_block]
+
+      assign(assigns, :inner_block, [
+        %{
+          inner_block: fn _slot_assigns, _index ->
+            assigns = %{original_inner_block: original_inner_block}
+
+            ~H"""
+            <div data-phoenix-kit class="contents">
+              <PhoenixKitWeb.Components.Core.PhoenixKitGlobals.mobile_inputs_style />
+              {render_slot(@original_inner_block)}
+            </div>
+            """
+          end
+        }
+      ])
+    end
+  end
+
   defp wrap_inner_block_with_admin_nav_if_needed(assigns) do
     if admin_page?(assigns) do
       # Mark that admin chrome is being rendered by this (LiveView) call.
@@ -1313,7 +1343,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   # Phoenix v1.8+ approach - function components
   defp render_modern_parent_layout(assigns, module, function) do
     # Wrap inner content with admin navigation if needed
-    assigns = wrap_inner_block_with_admin_nav_if_needed(assigns)
+    assigns = assigns |> wrap_inner_block_with_admin_nav_if_needed() |> mark_kit_content()
 
     # `app_layout` is the single owner of the host layout (the native `:layout`
     # is a passthrough — see `PhoenixKitWeb.__using__(:live_view)`), so this is
@@ -1357,7 +1387,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   defp render_legacy_parent_layout(assigns, _module, _function) do
     # For legacy Phoenix, layouts are handled at router level
     # Wrap inner content with admin navigation if needed
-    assigns = wrap_inner_block_with_admin_nav_if_needed(assigns)
+    assigns = assigns |> wrap_inner_block_with_admin_nav_if_needed() |> mark_kit_content()
 
     # Just render content without wrapper - layout comes from router
     ~H"""

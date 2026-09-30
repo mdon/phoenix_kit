@@ -101,7 +101,7 @@ defmodule PhoenixKitWeb.Components.Core.DateNav do
             min={@min && Date.to_iso8601(@min)}
             max={@max && Date.to_iso8601(@max)}
             aria-label={gettext("Date")}
-            class="input input-sm join-item rounded-none"
+            class="input input-sm join-item rounded-none w-38"
           />
         </form>
         <span :if={!@picker} class="btn btn-sm join-item pointer-events-none font-normal">
