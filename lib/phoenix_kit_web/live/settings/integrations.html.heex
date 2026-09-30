@@ -193,11 +193,7 @@
                   icon="hero-trash"
                   label={gettext("Remove")}
                   variant="error"
-                  data-confirm={
-                    gettext(
-                      "This integration may be in use by other parts of the system. Remove it permanently?"
-                    )
-                  }
+                  data-confirm={remove_confirm(@bucket_counts, conn.uuid)}
                 />
               </.table_row_menu>
             </.table_default_cell>
@@ -238,11 +234,7 @@
               icon="hero-trash"
               label={gettext("Remove")}
               variant="error"
-              data-confirm={
-                gettext(
-                  "This integration may be in use by other parts of the system. Remove it permanently?"
-                )
-              }
+              data-confirm={remove_confirm(@bucket_counts, conn.uuid)}
             />
           </.table_row_menu>
         </:card_actions>

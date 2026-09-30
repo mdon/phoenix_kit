@@ -204,4 +204,58 @@ defmodule PhoenixKit.Modules.Storage.BucketTest do
   defp errors_by_field(changeset) do
     Map.new(changeset.errors, fn {field, _} -> {field, true} end)
   end
+
+  describe "Tigris is a cloud provider like the others" do
+    test "needs a bucket name and credentials" do
+      changeset = Bucket.changeset(%Bucket{}, %{name: "T", provider: "tigris"})
+
+      refute changeset.valid?
+      assert %{bucket_name: _, access_key_id: _, secret_access_key: _} = errors_on(changeset)
+    end
+
+    test "cloud?/1 covers every S3-protocol provider" do
+      for provider <- ~w(s3 b2 r2 tigris), do: assert(Bucket.cloud?(%Bucket{provider: provider}))
+      refute Bucket.cloud?(%Bucket{provider: "local"})
+    end
+  end
+
+  describe "endpoint" do
+    @cloud %{
+      name: "B",
+      provider: "s3",
+      bucket_name: "b",
+      access_key_id: "AKIA",
+      secret_access_key: "s"
+    }
+
+    test "a metadata or link-local address is refused" do
+      changeset =
+        Bucket.changeset(%Bucket{}, Map.put(@cloud, :endpoint, "http://169.254.169.254"))
+
+      refute changeset.valid?
+      assert %{endpoint: [message]} = errors_on(changeset)
+      assert message =~ "metadata"
+    end
+
+    test "a local MinIO endpoint is fine: an admin set it" do
+      changeset = Bucket.changeset(%Bucket{}, Map.put(@cloud, :endpoint, "http://127.0.0.1:9000"))
+
+      assert changeset.valid?
+    end
+
+    test "an unusable endpoint is still refused" do
+      changeset = Bucket.changeset(%Bucket{}, Map.put(@cloud, :endpoint, "ftp://nope"))
+
+      refute changeset.valid?
+      assert %{endpoint: [_]} = errors_on(changeset)
+    end
+  end
+
+  defp errors_on(changeset) do
+    Ecto.Changeset.traverse_errors(changeset, fn {message, opts} ->
+      Regex.replace(~r"%{(\w+)}", message, fn _, key ->
+        opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
+      end)
+    end)
+  end
 end

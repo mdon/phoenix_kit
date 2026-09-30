@@ -983,7 +983,7 @@ defmodule PhoenixKit.Integrations do
             cond do
               is_nil(provider) -> {:error, gettext("Unknown provider")}
               not has_credentials?(data) -> {:error, gettext("Not configured")}
-              true -> do_validate(provider, data)
+              true -> do_validate(provider, data, owner: Keyword.get(opts, :owner, :system))
             end
 
           {inner, base_provider, name}
@@ -1091,14 +1091,18 @@ defmodule PhoenixKit.Integrations do
 
   Returns `:unverified` when the provider has no way to check a
   connection at all — see `do_validate/2`.
+
+  `opts[:owner]` (`:system`, the default, or `{:user, uuid}`) picks how strictly
+  a provider that connects to a user-typed host checks it — a personal
+  connection may not point at a local or private address.
   """
-  @spec validate_credentials(String.t(), map()) ::
+  @spec validate_credentials(String.t(), map(), keyword()) ::
           :ok | {:ok, Probe.note()} | :unverified | {:error, String.t()}
-  def validate_credentials(provider_key, attrs)
+  def validate_credentials(provider_key, attrs, opts \\ [])
       when is_binary(provider_key) and is_map(attrs) do
     case Providers.get(provider_key) do
       nil -> {:error, gettext("Unknown provider")}
-      provider -> do_validate(provider, attrs)
+      provider -> do_validate(provider, attrs, owner: Keyword.get(opts, :owner, :system))
     end
   rescue
     # Mirror the narrow rescue on `validate_connection/2` — same
@@ -1112,6 +1116,17 @@ defmodule PhoenixKit.Integrations do
 
       {:error, gettext("Validation failed unexpectedly")}
   end
+
+  # Only a provider that connects to a host the operator typed needs to know
+  # whose connection it is checking; every other one ignores the owner.
+  defp do_validate(
+         %{auth_type: :key_secret, validation: %{strategy: :object_storage}},
+         data,
+         opts
+       ),
+       do: Validators.object_storage(data, opts)
+
+  defp do_validate(provider, data, _opts), do: do_validate(provider, data)
 
   defp do_validate(%{auth_type: :oauth2} = provider, data) do
     token = data["access_token"]
@@ -1133,9 +1148,6 @@ defmodule PhoenixKit.Integrations do
   # anything useful beyond a bare pass.
   defp do_validate(%{auth_type: :key_secret, validation: %{strategy: :aws_ses}}, data),
     do: Validators.aws_ses(data)
-
-  defp do_validate(%{auth_type: :key_secret, validation: %{strategy: :object_storage}}, data),
-    do: Validators.object_storage(data)
 
   defp do_validate(%{auth_type: :credentials, validation: %{strategy: :smtp}}, data),
     do: Validators.smtp(data)

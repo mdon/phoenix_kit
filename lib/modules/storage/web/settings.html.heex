@@ -74,6 +74,37 @@
               </div>
             </div>
           <% else %>
+            <%= if legacy_bucket_count(@buckets) > 0 do %>
+              <div id="legacy-keys-notice" class="alert alert-warning mb-4">
+                <.icon name="hero-key" class="w-5 h-5" />
+                <div class="flex-1">
+                  <p class="font-semibold">
+                    {ngettext(
+                      "%{count} bucket uses keys saved on the bucket itself.",
+                      "%{count} buckets use keys saved on the bucket itself.",
+                      legacy_bucket_count(@buckets)
+                    )}
+                  </p>
+                  <p class="text-sm">
+                    {gettext(
+                      "They keep working. Move the keys into an integration to rotate or revoke them in one place."
+                    )}
+                  </p>
+                </div>
+                <%= if can_manage_integrations?(assigns) do %>
+                  <button
+                    type="button"
+                    phx-click="move_all_credentials"
+                    data-confirm={
+                      gettext("Move the keys of every such bucket into integrations?")
+                    }
+                    class="btn btn-sm btn-warning"
+                  >
+                    {gettext("Move all to integrations")}
+                  </button>
+                <% end %>
+              </div>
+            <% end %>
             <.table_default
               id="buckets-table"
               variant="zebra"
@@ -148,6 +179,11 @@
                       <span class="badge badge-ghost badge-sm h-auto">
                         {String.upcase(bucket.provider)}
                       </span>
+                      <%= if BucketCredentials.legacy?(bucket) do %>
+                        <span class="badge badge-warning badge-soft badge-sm h-auto">
+                          {gettext("Keys on bucket")}
+                        </span>
+                      <% end %>
                     </.table_default_cell>
                     <.table_default_cell>
                       <%= if bucket.priority == 0 do %>

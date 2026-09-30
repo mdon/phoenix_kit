@@ -100,6 +100,7 @@ defmodule PhoenixKit.Modules.Storage do
   alias PhoenixKit.Modules.Storage.Bucket
   alias PhoenixKit.Modules.Storage.CaptureDate
   alias PhoenixKit.Modules.Storage.Dimension
+  alias PhoenixKit.Modules.Storage.Endpoint
   alias PhoenixKit.Modules.Storage.FileDetails
   alias PhoenixKit.Modules.Storage.FileInstance
   alias PhoenixKit.Modules.Storage.FileLocation
@@ -335,6 +336,23 @@ defmodule PhoenixKit.Modules.Storage do
   end
 
   @doc """
+  How many buckets use each Integrations connection, as `%{connection_uuid => count}`.
+
+  Removing a connection does not check who uses it (a missing one fails loudly
+  at the next use), so the Integrations pages read this to say so before it
+  happens.
+  """
+  @spec bucket_counts_by_connection() :: %{String.t() => pos_integer()}
+  def bucket_counts_by_connection do
+    Bucket
+    |> where([b], not is_nil(b.integration_uuid))
+    |> group_by([b], b.integration_uuid)
+    |> select([b], {b.integration_uuid, count(b.uuid)})
+    |> repo().all()
+    |> Map.new()
+  end
+
+  @doc """
   Gets enabled buckets, ordered by priority.
   """
   def list_enabled_buckets do
@@ -476,12 +494,24 @@ defmodule PhoenixKit.Modules.Storage do
   def test_connection(bucket_params) when is_map(bucket_params) do
     bucket = build_probe_bucket(bucket_params)
 
-    case ProviderRegistry.get_provider(bucket.provider) do
-      {:ok, provider_module} -> provider_module.test_connection(bucket)
-      {:error, reason} -> {:error, reason}
+    with :ok <- check_endpoint(bucket),
+         {:ok, provider_module} <- ProviderRegistry.get_provider(bucket.provider) do
+      provider_module.test_connection(bucket)
     end
   rescue
     error -> {:error, "Connection test failed: #{Exception.message(error)}"}
+  end
+
+  # The endpoint a probe is about to connect to, looked up and checked here (a
+  # hostname is resolved: this is a save/test path, not a per-request one). A
+  # local bucket's endpoint is a filesystem path, not a URL.
+  defp check_endpoint(%Bucket{provider: "local"}), do: :ok
+
+  defp check_endpoint(%Bucket{endpoint: endpoint}) do
+    case Endpoint.check(endpoint, :system, resolve: true) do
+      :ok -> :ok
+      {:error, reason} -> {:error, "The endpoint " <> Endpoint.error_message(reason)}
+    end
   end
 
   # Builds the throwaway %Bucket{} test_connection/1 probes with, before any

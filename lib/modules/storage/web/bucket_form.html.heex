@@ -13,7 +13,13 @@
   project_title={@project_title}
 >
   <div class="mx-auto px-4 py-8 max-w-3xl">
-    <.form for={@changeset} phx-change="validate" phx-submit="save" class="space-y-6">
+    <.form
+      id="bucket-form"
+      for={@changeset}
+      phx-change="validate"
+      phx-submit="save"
+      class="space-y-6"
+    >
       <%!-- Basic Information --%>
       <div class="card bg-base-100 shadow-sm">
         <div class="card-body gap-4">
@@ -111,7 +117,7 @@
       <% end %>
 
       <%!-- Cloud Provider Settings --%>
-      <%= if @current_provider in ["s3", "b2", "r2", "tigris"] do %>
+      <%= if cloud_provider?(@current_provider) do %>
         <div class="card bg-base-100 shadow-sm">
           <div class="p-8 space-y-4">
             <h2 class="card-title text-lg">
@@ -187,72 +193,140 @@
               />
             </fieldset>
 
-            <%= if @current_provider in ["b2", "r2", "tigris"] do %>
-              <fieldset class="fieldset">
-                <legend class="fieldset-legend font-semibold">
-                  {case @current_provider do
-                    "b2" -> gettext("Backblaze Endpoint")
-                    "r2" -> gettext("Cloudflare Endpoint")
-                    "tigris" -> gettext("Tigris Endpoint")
-                    _ -> gettext("Endpoint")
-                  end} *
-                </legend>
-                <.input
-                  type="text"
-                  name="bucket[endpoint]"
-                  value={Ecto.Changeset.get_field(@changeset, :endpoint)}
-                  class={input_class(@changeset, :endpoint)}
-                  placeholder={
-                    case @current_provider do
-                      "b2" -> "e.g., s3.us-west-002.backblazeb2.com"
-                      "r2" -> "e.g., {account_id}.r2.cloudflarestorage.com"
-                      "tigris" -> "e.g., fly.storage.tigris.dev"
-                      _ -> "e.g., endpoint.example.com"
-                    end
-                  }
-                  required={@current_provider in ["b2", "r2", "tigris"]}
-                />
-              </fieldset>
-            <% end %>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-semibold">
+                {case @current_provider do
+                  "b2" -> gettext("Backblaze Endpoint")
+                  "r2" -> gettext("Cloudflare Endpoint")
+                  "tigris" -> gettext("Tigris Endpoint")
+                  _ -> gettext("Custom Endpoint")
+                end}
+                <%= if @current_provider in ["b2", "r2", "tigris"] do %>
+                  *
+                <% end %>
+              </legend>
+              <.input
+                type="text"
+                name="bucket[endpoint]"
+                value={Ecto.Changeset.get_field(@changeset, :endpoint)}
+                class={input_class(@changeset, :endpoint)}
+                placeholder={
+                  case @current_provider do
+                    "b2" -> "e.g., s3.us-west-002.backblazeb2.com"
+                    "r2" -> "e.g., {account_id}.r2.cloudflarestorage.com"
+                    "tigris" -> "e.g., fly.storage.tigris.dev"
+                    _ -> "e.g., minio.example.com:9000"
+                  end
+                }
+                required={@current_provider in ["b2", "r2", "tigris"]}
+              />
+              <%= if @current_provider == "s3" do %>
+                <p class="text-xs text-base-content/50 mt-1">
+                  {gettext(
+                    "Leave empty for AWS S3. Set it for an S3-compatible service such as MinIO, Wasabi or DigitalOcean Spaces."
+                  )}
+                </p>
+              <% end %>
+            </fieldset>
+
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-semibold">{gettext("Public URL (CDN)")}</legend>
+              <.input
+                type="text"
+                name="bucket[cdn_url]"
+                value={Ecto.Changeset.get_field(@changeset, :cdn_url)}
+                class={input_class(@changeset, :cdn_url)}
+                placeholder="https://cdn.example.com"
+              />
+              <p class="text-xs text-base-content/50 mt-1">
+                <%= if @current_provider == "r2" do %>
+                  {gettext(
+                    "The bucket's r2.dev or custom domain. Without one, files are served through this server."
+                  )}
+                <% else %>
+                  {gettext(
+                    "Files are served from this address instead of the bucket's own URL. Optional."
+                  )}
+                <% end %>
+              </p>
+            </fieldset>
           </div>
         </div>
 
-        <%!-- Access Credentials --%>
+        <%!-- Connection (keys live in Integrations) --%>
         <div class="card bg-base-100 shadow-sm">
           <div class="card-body gap-4">
             <h2 class="card-title text-lg">
               <.icon name="hero-key" class="w-5 h-5" /> {gettext("Access Credentials")}
             </h2>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <fieldset class="fieldset">
-                <legend class="fieldset-legend font-semibold">
-                  {gettext("Access Key ID")} *
-                </legend>
-                <.input
-                  type="text"
-                  name="bucket[access_key_id]"
-                  value={Ecto.Changeset.get_field(@changeset, :access_key_id)}
-                  class={input_class(@changeset, :access_key_id)}
-                  placeholder="AKIA..."
-                  required={@current_provider in ["b2", "r2", "tigris"]}
-                />
-              </fieldset>
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-semibold">
+                {gettext("Connection")}
+                <%= unless legacy_bucket?(@bucket) do %>
+                  *
+                <% end %>
+              </legend>
+              <.select
+                name="bucket[integration_uuid]"
+                value={@selected_connection_uuid}
+                prompt={gettext("Select a connection...")}
+                options={Enum.map(@connections, &{&1.name, &1.uuid})}
+              />
+              <p class="text-xs text-base-content/50 mt-1">
+                {gettext("The access keys come from an Object Storage connection.")}
+                <%= if can_manage_integrations?(assigns) do %>
+                  <a
+                    href={
+                      PhoenixKit.Utils.Routes.path(
+                        "/admin/settings/integrations/new?provider=object_storage"
+                      )
+                    }
+                    target="_blank"
+                    rel="noopener"
+                    class="link link-primary"
+                  >
+                    {gettext("Add a connection")}
+                  </a>
+                <% end %>
+              </p>
+              <%= if @connections == [] do %>
+                <p class="text-xs text-warning mt-1">
+                  {gettext("No Object Storage connection exists yet.")}
+                </p>
+              <% end %>
+            </fieldset>
 
-              <fieldset class="fieldset">
-                <legend class="fieldset-legend font-semibold">
-                  {gettext("Secret Access Key")} *
-                </legend>
-                <.input
-                  type="password"
-                  name="bucket[secret_access_key]"
-                  value={Ecto.Changeset.get_field(@changeset, :secret_access_key)}
-                  class={input_class(@changeset, :secret_access_key)}
-                  placeholder="•••••••••••••••••••••••••••••••••"
-                  required={@current_provider in ["b2", "r2", "tigris"]}
-                />
-              </fieldset>
-            </div>
+            <%= if legacy_bucket?(@bucket) and is_nil(@selected_connection_uuid) do %>
+              <div class="alert alert-warning">
+                <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
+                <div class="flex-1">
+                  <p class="font-semibold">
+                    {gettext("This bucket uses keys saved on the bucket itself.")}
+                  </p>
+                  <p class="text-sm">
+                    {gettext(
+                      "It keeps working. Move the keys into an integration to manage them in one place."
+                    )}
+                    <span class="font-mono">{@bucket.access_key_id}</span>
+                  </p>
+                </div>
+                <%= if can_manage_integrations?(assigns) do %>
+                  <button
+                    type="button"
+                    phx-click="move_credentials"
+                    data-confirm={
+                      gettext(
+                        "Move this bucket's keys into an integration? The bucket keeps working."
+                      )
+                    }
+                    class="btn btn-sm btn-warning"
+                  >
+                    {gettext("Move keys to an integration")}
+                  </button>
+                <% end %>
+              </div>
+            <% end %>
 
             <%!-- Test Connection --%>
             <div class="pt-2">
@@ -260,7 +334,7 @@
                 type="button"
                 phx-click="test_connection"
                 class={"btn btn-outline btn-sm #{if @connection_status == :success, do: "btn-success", else: ""}"}
-                disabled={@testing_connection}
+                disabled={@testing_connection or connection_missing?(@changeset, @bucket)}
               >
                 <%= if @testing_connection do %>
                   <span class="loading loading-spinner loading-xs"></span>
@@ -274,7 +348,7 @@
               <%= if @connection_status == :success do %>
                 <span class="text-sm text-success ml-2">
                   <.icon name="hero-check-circle" class="w-4 h-4 inline" />
-                  {gettext("Connection successful")}
+                  {gettext("The bucket can be read, written to and deleted from")}
                 </span>
               <% end %>
               <%= if @connection_status == :failed do %>
@@ -286,6 +360,11 @@
                   <% end %>
                 </div>
               <% end %>
+              <p class="text-xs text-base-content/50 mt-2">
+                {gettext(
+                  "The test saves and removes a small file. It is optional: a bucket can be saved without it."
+                )}
+              </p>
             </div>
           </div>
         </div>
@@ -299,7 +378,7 @@
           </h2>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <%= if @current_provider in ["s3", "b2", "r2", "tigris"] do %>
+            <%= if cloud_provider?(@current_provider) do %>
               <fieldset class="fieldset">
                 <legend class="fieldset-legend font-semibold">{gettext("Access Type")}</legend>
                 <.select
@@ -326,6 +405,21 @@
               />
               <p class="text-xs text-base-content/50 mt-1">
                 {gettext("0 = auto, 1+ = higher priority")}
+              </p>
+            </fieldset>
+
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend font-semibold">{gettext("Size limit (MB)")}</legend>
+              <.input
+                type="number"
+                name="bucket[max_size_mb]"
+                value={Ecto.Changeset.get_field(@changeset, :max_size_mb)}
+                class={input_class(@changeset, :max_size_mb)}
+                placeholder={gettext("No limit")}
+                min="1"
+              />
+              <p class="text-xs text-base-content/50 mt-1">
+                {gettext("Stop storing new files here once it holds this much. Empty = no limit.")}
               </p>
             </fieldset>
           </div>
@@ -355,10 +449,7 @@
         <button
           type="submit"
           class="btn btn-primary"
-          disabled={
-            !@changeset.valid? ||
-              (@current_provider in ["s3", "b2", "r2", "tigris"] && @connection_status != :success)
-          }
+          disabled={!@changeset.valid? || connection_missing?(@changeset, @bucket)}
         >
           <.icon name="hero-check" class="w-4 h-4" /> {gettext("Save Bucket")}
         </button>

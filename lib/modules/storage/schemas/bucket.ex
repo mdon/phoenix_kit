@@ -7,6 +7,7 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
   - **AWS S3** buckets
   - **Backblaze B2** buckets
   - **Cloudflare R2** buckets
+  - **Tigris** buckets
 
   ## Priority System
 
@@ -16,7 +17,7 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
   ## Fields
 
   - `name` - Display name for the bucket
-  - `provider` - Storage provider: "local", "s3", "b2", "r2"
+  - `provider` - Storage provider: "local", "s3", "b2", "r2", "tigris"
   - `region` - AWS region or equivalent (nullable)
   - `endpoint` - Custom S3-compatible endpoint (nullable)
   - `bucket_name` - S3 bucket name (nullable)
@@ -86,9 +87,13 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
   use PhoenixKit.SchemaPrefix
   import Ecto.Changeset
 
-  alias PhoenixKit.Modules.Storage.Providers.S3
-
   alias PhoenixKit.Integrations.Encryption
+  alias PhoenixKit.Modules.Storage.Endpoint
+
+  # Every provider that speaks the S3 protocol and so needs a bucket name and
+  # credentials. Tigris is one: it was once left out of this list, so a Tigris
+  # bucket saved with neither.
+  @cloud_providers ~w(s3 b2 r2 tigris)
 
   @primary_key {:uuid, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
@@ -140,7 +145,7 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
   ## Required Fields
 
   - `name`
-  - `provider` (must be one of: "local", "s3", "b2", "r2")
+  - `provider` (must be one of: "local", "s3", "b2", "r2", "tigris")
 
   ## Validation Rules
 
@@ -187,23 +192,21 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
     |> encrypt_secret_access_key()
   end
 
-  # A cloud bucket's endpoint must be one `S3.endpoint/1` can use: a set but
-  # unusable one would otherwise fail every operation. A local bucket's
-  # endpoint is a filesystem path, not a URL.
+  # A cloud bucket's endpoint must be one `Endpoint.parse/1` can use: a set but
+  # unusable one would otherwise fail every operation. Its literal address is
+  # checked too (no metadata or link-local target); a hostname is resolved by
+  # the connection test, not on every keystroke. A local bucket's endpoint is
+  # a filesystem path, not a URL.
   defp validate_endpoint(changeset) do
     provider = get_field(changeset, :provider)
-    endpoint = get_field(changeset, :endpoint)
 
-    if provider != "local" and
-         S3.endpoint(%{endpoint: endpoint}) ==
-           {:error, :invalid_endpoint} do
-      add_error(
-        changeset,
-        :endpoint,
-        "must be a host, host:port, or an http(s) URL with no path"
-      )
-    else
+    if provider == "local" do
       changeset
+    else
+      case Endpoint.check(get_field(changeset, :endpoint), :system) do
+        :ok -> changeset
+        {:error, reason} -> add_error(changeset, :endpoint, Endpoint.error_message(reason))
+      end
     end
   end
 
@@ -235,7 +238,7 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
   defp validate_cloud_credentials(changeset) do
     provider = get_field(changeset, :provider)
 
-    if provider in ["s3", "b2", "r2"] do
+    if provider in @cloud_providers do
       changeset
       |> validate_required([:bucket_name])
       |> validate_credentials_present()
@@ -271,8 +274,8 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
   def local?(_), do: false
 
   @doc """
-  Returns whether this bucket is a cloud storage bucket (S3, B2, R2).
+  Returns whether this bucket is a cloud storage bucket (S3, B2, R2, Tigris).
   """
-  def cloud?(%__MODULE__{provider: provider}) when provider in ["s3", "b2", "r2"], do: true
+  def cloud?(%__MODULE__{provider: provider}) when provider in @cloud_providers, do: true
   def cloud?(_), do: false
 end

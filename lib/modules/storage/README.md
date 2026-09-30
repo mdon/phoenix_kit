@@ -15,19 +15,19 @@ Comprehensive distributed file storage system for PhoenixKit with multi-location
 ### Database Schema (5 Tables with UUIDv7)
 
 #### 1. phoenix_kit_buckets
-Storage provider configurations (local disk, AWS S3, Backblaze B2, Cloudflare R2)
+Storage provider configurations (local disk, AWS S3, Backblaze B2, Cloudflare R2, Tigris)
 
 ```elixir
 - id (uuid_v7, PK)
 - name (string, required) - Display name
-- provider (string, required) - "local", "s3", "b2", "r2"
+- provider (string, required) - "local", "s3", "b2", "r2", "tigris"
 - region (string, nullable) - AWS region or equivalent
 - endpoint (string, nullable) - Custom S3-compatible endpoint: a bare host (`s3.us-west-002.backblazeb2.com`), host:port, or a full URL (`http://minio.local:9000`); read in one place (`S3.endpoint/1`) for both requests and public URLs
 - access_type (string, default "public") - How a remote bucket serves files: "public" (redirect to the object URL, or cdn_url), "private" (proxied through the app), "signed" (redirect to a presigned URL made for the request, 5 minutes)
 - bucket_name (string, nullable) - S3 bucket name
-- access_key_id (string, nullable) - Credentials identifier, not a secret — not encrypted
-- secret_access_key (string, nullable) - Encrypted at rest
-- integration_uuid (uuid, nullable, no FK) - Alternative credential source (a PhoenixKit.Integrations connection); mutually exclusive with access_key_id/secret_access_key
+- integration_uuid (uuid, nullable, no FK) - Where the keys come from: an `object_storage` PhoenixKit.Integrations connection (Settings → Integrations). The bucket form only offers this. Mutually exclusive with access_key_id/secret_access_key
+- access_key_id (string, nullable) - LEGACY: a key saved on the bucket itself, not a secret — not encrypted
+- secret_access_key (string, nullable) - LEGACY: encrypted at rest
 - cdn_url (string, nullable) - CDN endpoint for file serving
 - path_prefix (string, nullable) - Base path for files
 - enabled (boolean, default: true)
@@ -1179,7 +1179,7 @@ def get_redundancy_health()
 # Bucket selection logic
 def select_buckets_cloud_backup_mode(buckets, redundancy_count) do
   local = Enum.filter(buckets, & &1.provider == "local")
-  cloud = Enum.filter(buckets, & &1.provider in ["s3", "b2", "r2"])
+  cloud = Enum.filter(buckets, & &1.provider in ["s3", "b2", "r2", "tigris"])
 
   local_selected = select_by_priority_and_space(local, redundancy_count)
 
@@ -1335,8 +1335,24 @@ lib/
 ### Credentials Storage
 - ✅ Encrypt `secret_access_key` at rest (`PhoenixKit.Integrations.Encryption`, AES-256-GCM)
 - ✅ `access_key_id` is a credentials identifier, not a secret — stored as-is, not encrypted
-- ✅ Cloud buckets may reference a `PhoenixKit.Integrations` connection (`integration_uuid`)
-  instead of storing keys directly — mutually exclusive with direct credentials
+- ✅ Cloud buckets reference a `PhoenixKit.Integrations` `object_storage` connection
+  (`integration_uuid`); the bucket form has no key fields. A bucket that still carries its
+  own keys (legacy) keeps working, and `Storage.BucketCredentials.move_to_integration/2`
+  (bucket form button, or "Move all" on Settings → Media) moves them — never automatically,
+  and never clearing a key it cannot read back through the new connection. Direct keys stay
+  supported through `Storage.create_bucket/1` for scripts and seeds. A bucket's `region` and
+  `endpoint` stay on the bucket (the form prefills them from the connection).
+- ✅ Endpoints are parsed in one place (`Storage.Endpoint.parse/1`, shared with the
+  `object_storage` validator) and guarded by `Storage.Endpoint.check/3`: a system bucket may
+  use a local or private endpoint (a MinIO on the same network), but never a metadata,
+  link-local or reserved address; a personal connection needs https and no local/private
+  address, with the host resolved and every address checked. The check is not a connect-time
+  pin — a name whose DNS changes between the check and the request is not caught.
+- ✅ A bucket reads credentials from a connection owned by its own owner only
+  (`S3.resolve_credentials/1` passes `owner:`); every bucket is system-owned until user-owned
+  buckets exist
+- ✅ "Test Connection" lists, writes and deletes a small object (`.phoenix_kit/connection-test`):
+  read-only keys are the common misconfiguration
 - ⚠️ No bulk backfill for a `secret_access_key` already in the column when encryption was
   added — it stays plaintext until the next save of the bucket for ANY reason (the
   changeset re-derives and re-encrypts it opportunistically, not on a schedule)

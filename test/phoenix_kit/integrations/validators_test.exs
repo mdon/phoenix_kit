@@ -420,8 +420,56 @@ defmodule PhoenixKit.Integrations.ValidatorsTest do
       # No region: still attempts a real request (the default region is filled
       # in behind the scenes) rather than being rejected up front.
       creds = %{"access_key" => "AKIA_T", "secret_key" => "S", "endpoint" => "127.0.0.1"}
-      assert {:error, message} = Validators.object_storage(creds)
+      assert {:error, message} = Validators.object_storage(creds, owner: :system)
       assert message =~ "reach"
+    end
+  end
+
+  describe "object_storage/2 refuses an endpoint the server must not connect to" do
+    @creds %{"access_key" => "AKIA_T", "secret_key" => "S"}
+
+    test "a personal connection may not use a local or private address, or plain http" do
+      for endpoint <- ["127.0.0.1", "https://10.0.0.5", "http://8.8.8.8", "https://[::1]"] do
+        creds = Map.put(@creds, "endpoint", endpoint)
+
+        assert {:error, message} = Validators.object_storage(creds, owner: {:user, "u"})
+        refute message =~ "reach", endpoint
+        assert message =~ "endpoint", endpoint
+      end
+    end
+
+    test "no owner given is read as personal, the strict default" do
+      creds = Map.put(@creds, "endpoint", "127.0.0.1")
+
+      assert {:error, message} = Validators.object_storage(creds)
+      assert message =~ "local, private or metadata"
+    end
+
+    test "a system connection may use a local endpoint, but nobody a metadata one" do
+      assert {:error, message} =
+               Validators.object_storage(Map.put(@creds, "endpoint", "127.0.0.1"),
+                 owner: :system
+               )
+
+      assert message =~ "reach"
+
+      for owner <- [:system, {:user, "u"}] do
+        assert {:error, message} =
+                 Validators.object_storage(Map.put(@creds, "endpoint", "169.254.169.254"),
+                   owner: owner
+                 )
+
+        assert message =~ "local, private or metadata", inspect(owner)
+      end
+    end
+
+    test "an unusable endpoint is named, not reported as unreachable" do
+      assert {:error, message} =
+               Validators.object_storage(Map.put(@creds, "endpoint", "ftp://nope"),
+                 owner: :system
+               )
+
+      assert message =~ "not a usable"
     end
   end
 
@@ -431,7 +479,7 @@ defmodule PhoenixKit.Integrations.ValidatorsTest do
       # immediately, no outside network needed (mirrors the SMTP relay test).
       creds = %{"access_key" => "AKIA_T", "secret_key" => "S", "endpoint" => "127.0.0.1"}
 
-      assert {:error, message} = Validators.object_storage(creds)
+      assert {:error, message} = Validators.object_storage(creds, owner: :system)
       assert message =~ "reach"
       refute message =~ "credentials"
       refute message =~ "Incomplete"
@@ -446,7 +494,7 @@ defmodule PhoenixKit.Integrations.ValidatorsTest do
       # nothing raises uncaught along the way.
       creds = %{"access_key" => "AKIA_T", "secret_key" => "S", "endpoint" => "https://127.0.0.1/"}
 
-      assert {:error, message} = Validators.object_storage(creds)
+      assert {:error, message} = Validators.object_storage(creds, owner: :system)
       assert message =~ "reach"
     end
   end

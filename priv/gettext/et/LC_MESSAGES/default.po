@@ -398,8 +398,8 @@ msgstr "Aktiivne"
 #: lib/modules/storage/web/dimensions.html.heex:303
 #: lib/modules/storage/web/dimensions.html.heex:437
 #: lib/modules/storage/web/dimensions.html.heex:510
-#: lib/modules/storage/web/settings.html.heex:104
-#: lib/modules/storage/web/settings.html.heex:167
+#: lib/modules/storage/web/settings.html.heex:135
+#: lib/modules/storage/web/settings.html.heex:203
 #: lib/phoenix_kit_web/components/core/dashboard_overview.ex:467
 #: lib/phoenix_kit_web/live/modules.html.heex:86
 #: lib/phoenix_kit_web/live/modules.html.heex:122
@@ -483,8 +483,8 @@ msgstr "Õiguste kohta"
 msgid "Accept All"
 msgstr "Nõustu kõigega"
 
-#: lib/phoenix_kit/integrations/integrations.ex:1192
-#: lib/phoenix_kit/integrations/validators.ex:806
+#: lib/phoenix_kit/integrations/integrations.ex:1204
+#: lib/phoenix_kit/integrations/validators.ex:829
 #: lib/phoenix_kit_web/live/activity/index.ex:68
 #: lib/phoenix_kit_web/live/activity/show.ex:63
 #, elixir-autogen, elixir-format
@@ -501,13 +501,13 @@ msgstr "Konto teave"
 #: lib/modules/sitemap/web/settings.html.heex:66
 #: lib/modules/storage/web/dimensions.html.heex:248
 #: lib/modules/storage/web/dimensions.html.heex:455
-#: lib/modules/storage/web/settings.html.heex:117
+#: lib/modules/storage/web/settings.html.heex:148
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:212
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:264
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:296
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:110
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:164
-#: lib/phoenix_kit_web/live/settings/integrations.html.heex:211
+#: lib/phoenix_kit_web/live/settings/integrations.html.heex:207
 #: lib/phoenix_kit_web/live/settings/send_profiles.html.heex:52
 #: lib/phoenix_kit_web/live/settings/send_profiles.html.heex:95
 #: lib/phoenix_kit_web/live/settings/send_profiles.html.heex:127
@@ -601,7 +601,7 @@ msgstr "Kas oled kindel, et soovid jäädavalt kustutada"
 msgid "Bank Name"
 msgstr "Panga nimi"
 
-#: lib/modules/storage/web/bucket_form.html.heex:21
+#: lib/modules/storage/web/bucket_form.html.heex:27
 #: lib/modules/storage/web/dimension_form.html.heex:35
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:205
 #, elixir-autogen, elixir-format
@@ -624,8 +624,8 @@ msgstr "Paks"
 msgid "Bullet List"
 msgstr "Punktloend"
 
-#: lib/modules/storage/web/bucket_form.html.heex:353
-#: lib/modules/storage/web/bucket_form.html.heex:381
+#: lib/modules/storage/web/bucket_form.html.heex:447
+#: lib/modules/storage/web/bucket_form.html.heex:472
 #: lib/modules/storage/web/dimension_form.html.heex:240
 #: lib/modules/storage/web/libraries_component.ex:262
 #: lib/modules/storage/web/libraries_component.ex:307
@@ -756,7 +756,7 @@ msgstr "Ettevõtte nimi on kohustuslik"
 #: lib/phoenix_kit_web/live/modules.html.heex:379
 #: lib/phoenix_kit_web/live/modules.html.heex:403
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:171
-#: lib/phoenix_kit_web/live/settings/integrations.html.heex:216
+#: lib/phoenix_kit_web/live/settings/integrations.html.heex:212
 #, elixir-autogen, elixir-format
 msgid "Configure"
 msgstr "Seadista"
@@ -908,7 +908,7 @@ msgstr "Andmekaitsejärelevaataja kontakt salvestatud"
 #: lib/modules/storage/web/dimensions.html.heex:586
 #: lib/modules/storage/web/libraries_component.ex:383
 #: lib/modules/storage/web/profiles_component.ex:305
-#: lib/modules/storage/web/settings.html.heex:243
+#: lib/modules/storage/web/settings.html.heex:279
 #: lib/phoenix_kit_web/components/core/bulk_select.ex:224
 #: lib/phoenix_kit_web/components/image_editor.ex:1032
 #: lib/phoenix_kit_web/components/media_browser.html.heex:863
@@ -961,8 +961,8 @@ msgstr "Kirjeldus"
 #: lib/modules/storage/web/dimensions.html.heex:437
 #: lib/modules/storage/web/dimensions.html.heex:514
 #: lib/modules/storage/web/profiles_component.ex:333
-#: lib/modules/storage/web/settings.html.heex:104
-#: lib/modules/storage/web/settings.html.heex:171
+#: lib/modules/storage/web/settings.html.heex:135
+#: lib/modules/storage/web/settings.html.heex:207
 #: lib/phoenix_kit_web/components/core/badge.ex:191
 #: lib/phoenix_kit_web/live/modules.html.heex:41
 #: lib/phoenix_kit_web/live/modules.html.heex:86
@@ -992,7 +992,7 @@ msgstr "Mustand"
 #: lib/modules/storage/web/dimensions.html.heex:361
 #: lib/modules/storage/web/dimensions.html.heex:530
 #: lib/modules/storage/web/dimensions.html.heex:568
-#: lib/modules/storage/web/settings.html.heex:224
+#: lib/modules/storage/web/settings.html.heex:260
 #: lib/phoenix_kit_web/components/core/admin_edit_link.ex:53
 #: lib/phoenix_kit_web/components/core/admin_edit_link.ex:63
 #: lib/phoenix_kit_web/helpers/admin_edit_helper.ex:104
@@ -1058,7 +1058,7 @@ msgstr "Sisesta rolli nimi (nt Manager, Editor)"
 #: lib/phoenix_kit_web/components/core/modal.ex:536
 #: lib/phoenix_kit_web/live/settings/email_sending.ex:313
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:99
-#: lib/phoenix_kit_web/live/settings/integrations.ex:207
+#: lib/phoenix_kit_web/live/settings/integrations.ex:226
 #, elixir-autogen, elixir-format
 msgid "Error"
 msgstr "Viga"
@@ -1146,8 +1146,8 @@ msgstr "Funktsionaalsed moodulid"
 
 #: lib/modules/storage/web/libraries_component.ex:272
 #: lib/modules/storage/web/libraries_component.ex:457
-#: lib/modules/storage/web/settings.html.heex:99
-#: lib/modules/storage/web/settings.html.heex:115
+#: lib/modules/storage/web/settings.html.heex:130
+#: lib/modules/storage/web/settings.html.heex:146
 #: lib/phoenix_kit/users/auth.ex:3241
 #: lib/phoenix_kit_web/components/core/preview_card.ex:284
 #: lib/phoenix_kit_web/live/users/libraries.html.heex:105
@@ -1407,12 +1407,12 @@ msgstr "Autentimata"
 
 #: lib/phoenix_kit/integrations/integrations.ex:985
 #: lib/phoenix_kit/integrations/integrations.ex:992
-#: lib/phoenix_kit/integrations/integrations.ex:1259
-#: lib/phoenix_kit/integrations/integrations.ex:1263
+#: lib/phoenix_kit/integrations/integrations.ex:1271
+#: lib/phoenix_kit/integrations/integrations.ex:1275
 #: lib/phoenix_kit_web/components/core/integrations_ui.ex:29
 #: lib/phoenix_kit_web/live/settings/email_sending.ex:314
 #: lib/phoenix_kit_web/live/settings/email_sending.html.heex:118
-#: lib/phoenix_kit_web/live/settings/integrations.ex:208
+#: lib/phoenix_kit_web/live/settings/integrations.ex:227
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:607
 #, elixir-autogen, elixir-format
 msgid "Not configured"
@@ -1588,9 +1588,9 @@ msgstr "Peamine"
 msgid "Primary: %{lang}"
 msgstr "Peamine: %{lang}"
 
-#: lib/modules/storage/web/bucket_form.html.heex:318
-#: lib/modules/storage/web/settings.html.heex:91
-#: lib/modules/storage/web/settings.html.heex:114
+#: lib/modules/storage/web/bucket_form.html.heex:397
+#: lib/modules/storage/web/settings.html.heex:122
+#: lib/modules/storage/web/settings.html.heex:145
 #, elixir-autogen, elixir-format
 msgid "Priority"
 msgstr "Prioriteet"
@@ -1682,7 +1682,7 @@ msgstr "Keeldu kõigest"
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:128
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:194
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:194
-#: lib/phoenix_kit_web/live/settings/integrations.html.heex:239
+#: lib/phoenix_kit_web/live/settings/integrations.html.heex:235
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:269
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:391
 #, elixir-autogen, elixir-format
@@ -1828,7 +1828,7 @@ msgstr "Salvesta eelistused"
 #: lib/phoenix_kit_web/components/core/markdown_editor.ex:424
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:655
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:193
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:611
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:642
 #, elixir-autogen, elixir-format
 msgid "Saved"
 msgstr "Salvestatud"
@@ -1855,7 +1855,7 @@ msgstr "Vali, millistele lõikudele ja moodulitele see roll pääseb juurde. Sa 
 #: lib/modules/maintenance/web/maintenance_page_live.ex:127
 #: lib/modules/sitemap/web/settings.html.heex:5
 #: lib/modules/storage/web/bucket_form.html.heex:5
-#: lib/modules/storage/web/bucket_form.html.heex:298
+#: lib/modules/storage/web/bucket_form.html.heex:377
 #: lib/modules/storage/web/dimension_form.html.heex:5
 #: lib/modules/storage/web/dimensions.html.heex:5
 #: lib/modules/storage/web/health.html.heex:5
@@ -1920,9 +1920,9 @@ msgstr "Maakond/provints"
 #: lib/modules/storage/web/dimensions.html.heex:436
 #: lib/modules/storage/web/dimensions.html.heex:454
 #: lib/modules/storage/web/profiles_component.ex:318
-#: lib/modules/storage/web/settings.html.heex:103
-#: lib/modules/storage/web/settings.html.heex:116
-#: lib/modules/storage/web/settings.html.heex:627
+#: lib/modules/storage/web/settings.html.heex:134
+#: lib/modules/storage/web/settings.html.heex:147
+#: lib/modules/storage/web/settings.html.heex:663
 #: lib/phoenix_kit/users/table_columns.ex:291
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:168
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:211
@@ -2245,7 +2245,7 @@ msgstr "Rakenda"
 msgid "Deactivate"
 msgstr "Deaktiveeri"
 
-#: lib/modules/storage/web/settings.html.heex:206
+#: lib/modules/storage/web/settings.html.heex:242
 #, elixir-autogen, elixir-format
 msgid "Delete bucket"
 msgstr "Kustuta bucket"
@@ -2254,8 +2254,8 @@ msgstr "Kustuta bucket"
 #: lib/modules/storage/web/dimensions.html.heex:369
 #: lib/modules/storage/web/dimensions.html.heex:538
 #: lib/modules/storage/web/dimensions.html.heex:576
-#: lib/modules/storage/web/settings.html.heex:194
-#: lib/modules/storage/web/settings.html.heex:231
+#: lib/modules/storage/web/settings.html.heex:230
+#: lib/modules/storage/web/settings.html.heex:267
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:128
 #: lib/phoenix_kit_web/live/settings/users.html.heex:657
 #: lib/phoenix_kit_web/live/settings/users.html.heex:703
@@ -2263,7 +2263,7 @@ msgstr "Kustuta bucket"
 msgid "Disable"
 msgstr "Keela"
 
-#: lib/modules/storage/web/settings.html.heex:187
+#: lib/modules/storage/web/settings.html.heex:223
 #, elixir-autogen, elixir-format
 msgid "Edit bucket"
 msgstr "Muuda bucket"
@@ -2272,8 +2272,8 @@ msgstr "Muuda bucket"
 #: lib/modules/storage/web/dimensions.html.heex:369
 #: lib/modules/storage/web/dimensions.html.heex:538
 #: lib/modules/storage/web/dimensions.html.heex:576
-#: lib/modules/storage/web/settings.html.heex:194
-#: lib/modules/storage/web/settings.html.heex:231
+#: lib/modules/storage/web/settings.html.heex:230
+#: lib/modules/storage/web/settings.html.heex:267
 #: lib/phoenix_kit_web/live/settings/users.html.heex:658
 #: lib/phoenix_kit_web/live/settings/users.html.heex:705
 #, elixir-autogen, elixir-format
@@ -2315,8 +2315,8 @@ msgstr "Keele sisu laadimine"
 msgid "Marketing"
 msgstr "Turundus"
 
-#: lib/modules/storage/web/settings.html.heex:87
-#: lib/modules/storage/web/settings.html.heex:113
+#: lib/modules/storage/web/settings.html.heex:118
+#: lib/modules/storage/web/settings.html.heex:144
 #: lib/phoenix_kit_web/live/settings/send_profiles.ex:84
 #: lib/phoenix_kit_web/live/settings/send_profiles.html.heex:48
 #, elixir-autogen, elixir-format
@@ -2430,24 +2430,23 @@ msgstr "3. Salvesta seaded uuesti mandaatide salvestamiseks"
 msgid "4. Click \"Test Credentials\" to verify configuration"
 msgstr "4. Klõpsake \"Test Credentials\", et kontrollida seadistust"
 
-#: lib/modules/storage/web/bucket_form.html.heex:224
+#: lib/modules/storage/web/bucket_form.html.heex:260
 #, elixir-autogen, elixir-format
 msgid "Access Credentials"
 msgstr "Juurdepääsumandaadid"
 
-#: lib/modules/storage/web/bucket_form.html.heex:230
 #: lib/phoenix_kit/integrations/providers.ex:849
 #: lib/phoenix_kit/integrations/providers.ex:933
 #, elixir-autogen, elixir-format
 msgid "Access Key ID"
 msgstr "Juurdepääsuvõtme ID"
 
-#: lib/modules/storage/web/bucket_form.html.heex:304
+#: lib/modules/storage/web/bucket_form.html.heex:383
 #, elixir-autogen, elixir-format
 msgid "Access Type"
 msgstr "Juurdepääsu tüüp"
 
-#: lib/modules/storage/web/settings.html.heex:256
+#: lib/modules/storage/web/settings.html.heex:292
 #, elixir-autogen, elixir-format
 msgid "Active Buckets"
 msgstr "Aktiivsed bucketid"
@@ -2538,18 +2537,18 @@ msgstr "Rakenduse saladus"
 msgid "Application name display"
 msgstr "Rakenduse nime kuvamine"
 
-#: lib/modules/storage/web/settings.html.heex:485
+#: lib/modules/storage/web/settings.html.heex:521
 #, elixir-autogen, elixir-format
 msgid "Apply Changes"
 msgstr "Rakenda muudatused"
 
-#: lib/modules/storage/web/settings.html.heex:482
+#: lib/modules/storage/web/settings.html.heex:518
 #, elixir-autogen, elixir-format
 msgid "Applying..."
 msgstr "Rakendamine..."
 
-#: lib/modules/storage/web/settings.html.heex:201
 #: lib/modules/storage/web/settings.html.heex:237
+#: lib/modules/storage/web/settings.html.heex:273
 #, elixir-autogen, elixir-format
 msgid "Are you sure you want to delete this bucket? This will remove all location records."
 msgstr "Kas oled kindel, et soovid kustutada selle bucketi? See eemaldab kõik asukoharekordid."
@@ -2585,7 +2584,7 @@ msgstr "%{type} väljade jaoks on vaja vähemalt ühte valikut"
 msgid "Authentication Methods"
 msgstr "Autentimismeetodid"
 
-#: lib/modules/storage/web/settings.html.heex:358
+#: lib/modules/storage/web/settings.html.heex:394
 #, elixir-autogen, elixir-format
 msgid "Auto-Generate Variants"
 msgstr "Automaatselt genereeri variante"
@@ -2615,8 +2614,8 @@ msgstr "Autentimislehtede taustapilt lauaarvuti ekraanidel (laiem kui 768px)."
 msgid "Background image for auth pages on mobile screens (768px and below). Falls back to desktop image if not set."
 msgstr "Autentimislehtede taustapilt mobiiliekraanidel (768px ja alla). Kasutab lauaarvuti pilti, kui pole määratud."
 
-#: lib/modules/storage/web/bucket_form.html.heex:25
-#: lib/modules/storage/web/bucket_form.html.heex:177
+#: lib/modules/storage/web/bucket_form.html.heex:31
+#: lib/modules/storage/web/bucket_form.html.heex:183
 #, elixir-autogen, elixir-format
 msgid "Bucket Name"
 msgstr "Bucketi nimi"
@@ -2636,7 +2635,7 @@ msgstr "CSS värv või gradient autentimislehe taustaks. Ignoreeritakse, kui tau
 msgid "Callback URL"
 msgstr "Tagasihelistamise URL"
 
-#: lib/modules/storage/web/settings.html.heex:491
+#: lib/modules/storage/web/settings.html.heex:527
 #, elixir-autogen, elixir-format
 msgid "Changes will be saved immediately"
 msgstr "Muudatused salvestatakse kohe"
@@ -2732,12 +2731,12 @@ msgstr "Kopeeri lõikelauale"
 msgid "Crawlers are allowed to index the site. Enable the toggle to hide staging deployments."
 msgstr "Roomajad võivad saiti indekseerida. Luba lüliti, et peita vahe-paigaldused."
 
-#: lib/modules/storage/web/bucket_form.html.heex:388
+#: lib/modules/storage/web/bucket_form.html.heex:479
 #, elixir-autogen, elixir-format
 msgid "Create Path"
 msgstr "Loo tee"
 
-#: lib/modules/storage/web/bucket_form.html.heex:373
+#: lib/modules/storage/web/bucket_form.html.heex:464
 #, elixir-autogen, elixir-format
 msgid "Create Storage Path"
 msgstr "Loo salvestustee"
@@ -2762,7 +2761,7 @@ msgstr "Loo projekt või vali olemasolev"
 msgid "Create your first dimension preset to start generating file variants."
 msgstr "Loo oma esimene dimensioonipresett failivariantide genereerimiseks."
 
-#: lib/modules/storage/web/settings.html.heex:260
+#: lib/modules/storage/web/settings.html.heex:296
 #, elixir-autogen, elixir-format
 msgid "Currently in use"
 msgstr "Praegu kasutusel"
@@ -2817,7 +2816,6 @@ msgstr "Luba Magic Link registreerimiseks"
 msgid "Enable OAuth (Master Switch)"
 msgstr "Luba OAuth (peamine lüliti)"
 
-#: lib/modules/storage/web/bucket_form.html.heex:197
 #: lib/phoenix_kit/integrations/providers.ex:963
 #, elixir-autogen, elixir-format
 msgid "Endpoint"
@@ -2828,7 +2826,7 @@ msgstr "Lõpp-punkt"
 msgid "Enter"
 msgstr "Sisesta"
 
-#: lib/modules/storage/web/settings.html.heex:337
+#: lib/modules/storage/web/settings.html.heex:373
 #, elixir-autogen, elixir-format
 msgid "Enter number of copies"
 msgstr "Sisesta koopiate arv"
@@ -2973,8 +2971,8 @@ msgstr "Jäta tühjaks algse vormingu säilitamiseks või täpsusta jpg/png/webp
 msgid "Legal"
 msgstr "Juriidiline"
 
-#: lib/modules/storage/web/bucket_form.html.heex:51
-#: lib/modules/storage/web/bucket_form.html.heex:67
+#: lib/modules/storage/web/bucket_form.html.heex:57
+#: lib/modules/storage/web/bucket_form.html.heex:73
 #, elixir-autogen, elixir-format
 msgid "Local Filesystem"
 msgstr "Kohalik failisüsteem"
@@ -3009,7 +3007,7 @@ msgstr "Halda sisselogimislehe kujundust ja autentimismeetodeid"
 msgid "Manage user registration, defaults, and custom fields"
 msgstr "Halda kasutajate registreerimist, vaikimisi seadeid ja kohandatud välju"
 
-#: lib/modules/storage/web/settings.html.heex:343
+#: lib/modules/storage/web/settings.html.heex:379
 #, elixir-autogen, elixir-format
 msgid "Maximum %{count} copies based on %{buckets} active bucket(s)."
 msgstr "Maksimaalselt %{count} koopiat, arvestades %{buckets} aktiivset bucket(i)."
@@ -3021,7 +3019,7 @@ msgstr "Maksimaalselt %{count} koopiat, arvestades %{buckets} aktiivset bucket(i
 #: lib/modules/storage/web/libraries_component.ex:270
 #: lib/modules/storage/web/libraries_component.ex:454
 #: lib/modules/storage/web/profiles_component.ex:243
-#: lib/modules/storage/web/settings.html.heex:112
+#: lib/modules/storage/web/settings.html.heex:143
 #: lib/phoenix_kit_web/components/media_browser.html.heex:427
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1941
 #: lib/phoenix_kit_web/live/components/library_settings.ex:305
@@ -3054,7 +3052,7 @@ msgstr "Uue kasutaja vaikimisi olek"
 msgid "New users will be created as inactive and will not be able to log in until an admin activates their account."
 msgstr "Uued kasutajad luuakse mitteaktiivsena ja nad ei saa sisse logida, kuni administraator aktiveerib nende konto."
 
-#: lib/modules/storage/web/settings.html.heex:310
+#: lib/modules/storage/web/settings.html.heex:346
 #, elixir-autogen, elixir-format
 msgid "No active buckets available. Enable buckets to configure redundancy."
 msgstr "Aktiivseid buckete pole saadaval. Luba bucketid redundantsuse konfigureerimiseks."
@@ -3064,7 +3062,7 @@ msgstr "Aktiivseid buckete pole saadaval. Luba bucketid redundantsuse konfiguree
 msgid "No active sessions found."
 msgstr "Aktiivseid seansse ei leitud."
 
-#: lib/modules/storage/web/settings.html.heex:489
+#: lib/modules/storage/web/settings.html.heex:525
 #, elixir-autogen, elixir-format
 msgid "No changes to apply"
 msgstr "Pole muudatusi rakendamiseks"
@@ -3115,7 +3113,7 @@ msgstr "OAuth teenusepakkujad"
 msgid "OAuth Setup Instructions"
 msgstr "OAuth seadistamisjuhised"
 
-#: lib/modules/storage/web/settings.html.heex:339
+#: lib/modules/storage/web/settings.html.heex:375
 #, elixir-autogen, elixir-format
 msgid "Only 1 active bucket available. Add more buckets to enable redundancy."
 msgstr "Ainult 1 aktiivne bucket saadaval. Lisa rohkem buckete redundantsuse lubamiseks."
@@ -3168,18 +3166,18 @@ msgstr "Kvaliteet (CRF)"
 msgid "Quality Settings:"
 msgstr "Kvaliteedi seaded:"
 
-#: lib/modules/storage/web/settings.html.heex:94
-#: lib/modules/storage/web/settings.html.heex:154
+#: lib/modules/storage/web/settings.html.heex:125
+#: lib/modules/storage/web/settings.html.heex:190
 #, elixir-autogen, elixir-format
 msgid "Random"
 msgstr "Juhuslik"
 
-#: lib/modules/storage/web/settings.html.heex:324
+#: lib/modules/storage/web/settings.html.heex:360
 #, elixir-autogen, elixir-format
 msgid "Reduce redundancy or enable more buckets."
 msgstr "Vähenda redundantsust või luba rohkem buckete."
 
-#: lib/modules/storage/web/settings.html.heex:299
+#: lib/modules/storage/web/settings.html.heex:335
 #, elixir-autogen, elixir-format
 msgid "Redundancy Copies"
 msgstr "Redundantsuse koopiad"
@@ -3254,7 +3252,6 @@ msgstr "Salvesta kasutaja seaded"
 msgid "Search engines are instructed to skip this environment. Remove this before launch."
 msgstr "Otsingumootorid on juhendatud seda keskkonda vahele jätma. Eemalda see enne käivitamist."
 
-#: lib/modules/storage/web/bucket_form.html.heex:244
 #: lib/phoenix_kit/integrations/providers.ex:858
 #: lib/phoenix_kit/integrations/providers.ex:942
 #, elixir-autogen, elixir-format
@@ -3286,7 +3283,7 @@ msgstr "Vali"
 msgid "Select Image"
 msgstr "Vali pilt"
 
-#: lib/modules/storage/web/bucket_form.html.heex:49
+#: lib/modules/storage/web/bucket_form.html.heex:55
 #, elixir-autogen, elixir-format
 msgid "Select provider..."
 msgstr "Vali teenusepakkuja..."
@@ -3314,18 +3311,18 @@ msgstr "Näita kasutajanime välja registreerimisel"
 msgid "Site Address (URL)"
 msgstr "Saidi aadress (URL)"
 
-#: lib/modules/storage/web/settings.html.heex:536
+#: lib/modules/storage/web/settings.html.heex:572
 #, elixir-autogen, elixir-format
 msgid "Soon"
 msgstr "Varsti"
 
-#: lib/modules/storage/web/bucket_form.html.heex:96
+#: lib/modules/storage/web/bucket_form.html.heex:102
 #, elixir-autogen, elixir-format
 msgid "Storage Path"
 msgstr "Salvestustee"
 
-#: lib/modules/storage/web/bucket_form.html.heex:42
-#: lib/modules/storage/web/bucket_form.html.heex:62
+#: lib/modules/storage/web/bucket_form.html.heex:48
+#: lib/modules/storage/web/bucket_form.html.heex:68
 #, elixir-autogen, elixir-format
 msgid "Storage Provider"
 msgstr "Salvestuspakkuja"
@@ -3370,7 +3367,7 @@ msgstr "Esimene kasutaja (Omanik) on alati aktiivne, sõltumata sellest seadest.
 msgid "The migration seeds 8 default dimensions: 4 image sizes (thumbnail, small, medium, large) and 4 video variants (360p, 720p, 1080p, video_thumbnail)."
 msgstr "Migratsioon loob 8 vaikimisi dimensiooni: 4 pildi suurust (pisipilt, väike, keskmine, suur) ja 4 videovarianti (360p, 720p, 1080p, video_thumbnail)."
 
-#: lib/modules/storage/web/bucket_form.html.heex:375
+#: lib/modules/storage/web/bucket_form.html.heex:466
 #, elixir-autogen, elixir-format
 msgid "The storage path"
 msgstr "Salvestustee"
@@ -3391,7 +3388,7 @@ msgstr "Ajavöönd"
 msgid "Token"
 msgstr "Token"
 
-#: lib/modules/storage/web/settings.html.heex:250
+#: lib/modules/storage/web/settings.html.heex:286
 #, elixir-autogen, elixir-format
 msgid "Total Buckets"
 msgstr "Buckete kokku"
@@ -3488,7 +3485,7 @@ msgstr "Kui lubatud, kogutakse analüütika jaoks registreerimise IP-aadressid j
 msgid "Width (px)"
 msgstr "Laius (px)"
 
-#: lib/modules/storage/web/bucket_form.html.heex:378
+#: lib/modules/storage/web/bucket_form.html.heex:469
 #, elixir-autogen, elixir-format
 msgid "Would you like to create it now?"
 msgstr "Kas soovid selle nüüd luua?"
@@ -3525,7 +3522,7 @@ msgstr "Teie Google OAuth kliendi saladus"
 
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:551
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:653
-#: lib/phoenix_kit_web/live/settings/integrations.ex:197
+#: lib/phoenix_kit_web/live/settings/integrations.ex:216
 #, elixir-autogen, elixir-format
 msgid "and"
 msgstr "ja"
@@ -3535,7 +3532,7 @@ msgstr "ja"
 msgid "and generate/copy"
 msgstr "ja genereeri/kopeeri"
 
-#: lib/modules/storage/web/bucket_form.html.heex:376
+#: lib/modules/storage/web/bucket_form.html.heex:467
 #, elixir-autogen, elixir-format
 msgid "does not exist."
 msgstr "ei eksisteeri."
@@ -3545,7 +3542,7 @@ msgstr "ei eksisteeri."
 msgid "e.g., thumbnail, medium, 720p"
 msgstr "nt pisipilt, keskmine, 720p"
 
-#: lib/modules/storage/web/settings.html.heex:161
+#: lib/modules/storage/web/settings.html.heex:197
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1866
 #, elixir-autogen, elixir-format
 msgid "files"
@@ -3689,7 +3686,7 @@ msgstr "Kasutatakse personaliseeritud reklaami ja reklaamiefektiivsuse mõõtmis
 msgid "%{language} (Disabled — %{status})"
 msgstr "%{language} (Keelatud — %{status})"
 
-#: lib/modules/storage/web/bucket_form.html.heex:328
+#: lib/modules/storage/web/bucket_form.html.heex:407
 #, elixir-autogen, elixir-format
 msgid "0 = auto, 1+ = higher priority"
 msgstr "0 = automaatne, 1+ = kõrgem prioriteet"
@@ -3699,7 +3696,7 @@ msgstr "0 = automaatne, 1+ = kõrgem prioriteet"
 msgid "1-100, higher = better quality. 80-90 recommended."
 msgstr "1-100, kõrgem = parem kvaliteet. 80-90 on soovituslik."
 
-#: lib/modules/storage/web/bucket_form.html.heex:35
+#: lib/modules/storage/web/bucket_form.html.heex:41
 #, elixir-autogen, elixir-format
 msgid "A friendly name to identify this storage location"
 msgstr "Sõbralik nimi selle salvestuskoha tuvastamiseks"
@@ -3731,17 +3728,17 @@ msgstr "API mandaadid"
 msgid "API Key"
 msgstr "API võti"
 
-#: lib/modules/storage/web/bucket_form.html.heex:173
+#: lib/modules/storage/web/bucket_form.html.heex:179
 #, elixir-autogen, elixir-format
 msgid "AWS Bucket Name"
 msgstr "AWS bucketi nimi"
 
-#: lib/modules/storage/web/bucket_form.html.heex:127
+#: lib/modules/storage/web/bucket_form.html.heex:133
 #, elixir-autogen, elixir-format
 msgid "AWS Region"
 msgstr "AWS piirkond"
 
-#: lib/modules/storage/web/bucket_form.html.heex:106
+#: lib/modules/storage/web/bucket_form.html.heex:112
 #, elixir-autogen, elixir-format
 msgid "Absolute path where files will be stored on disk"
 msgstr "Absoluutne tee, kuhu failid kettale salvestatakse"
@@ -3768,7 +3765,7 @@ msgstr "Konto"
 msgid "Account Type"
 msgstr "Konto tüüp"
 
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:221
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:252
 #, elixir-autogen, elixir-format
 msgid "Account disconnected"
 msgstr "Konto lahti ühendatud"
@@ -3777,9 +3774,9 @@ msgstr "Konto lahti ühendatud"
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:195
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:333
 #: lib/phoenix_kit_web/live/settings/integration_form.ex:31
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:71
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:76
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:91
-#: lib/phoenix_kit_web/live/settings/integrations.html.heex:263
+#: lib/phoenix_kit_web/live/settings/integrations.html.heex:255
 #, elixir-autogen, elixir-format
 msgid "Add Integration"
 msgstr "Lisa integratsioon"
@@ -3834,7 +3831,7 @@ msgstr "Kas oled kindel, et soovid lahti ühendada?"
 msgid "Are you sure you want to remove this member?"
 msgstr "Kas oled kindel, et soovid selle liikme eemaldada?"
 
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:120
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:129
 #, elixir-autogen, elixir-format
 msgid "Authorization failed: %{reason}"
 msgstr "Volitamine ebaõnnestus: %{reason}"
@@ -3849,17 +3846,17 @@ msgstr "Volita juurdepääs oma %{provider} kontole. See avab sisselogimislehe, 
 msgid "Avatar updated successfully!"
 msgstr "Avatar uuendatud edukalt!"
 
-#: lib/modules/storage/web/bucket_form.html.heex:174
+#: lib/modules/storage/web/bucket_form.html.heex:180
 #, elixir-autogen, elixir-format
 msgid "Backblaze Bucket Name"
 msgstr "Backblaze bucketi nimi"
 
-#: lib/modules/storage/web/bucket_form.html.heex:194
+#: lib/modules/storage/web/bucket_form.html.heex:199
 #, elixir-autogen, elixir-format
 msgid "Backblaze Endpoint"
 msgstr "Backblaze lõpp-punkt"
 
-#: lib/modules/storage/web/bucket_form.html.heex:143
+#: lib/modules/storage/web/bucket_form.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "Backblaze Region"
 msgstr "Backblaze piirkond"
@@ -3869,7 +3866,7 @@ msgstr "Backblaze piirkond"
 msgid "Both width and height are used for fixed dimensions"
 msgstr "Fikseeritud dimensioonide jaoks kasutatakse nii laiust kui ka kõrgust"
 
-#: lib/modules/storage/web/settings.html.heex:178
+#: lib/modules/storage/web/settings.html.heex:214
 #, elixir-autogen, elixir-format
 msgid "Bucket actions"
 msgstr "Bucketi tegevused"
@@ -3889,7 +3886,7 @@ msgstr "Tühista kutse"
 msgid "Cancel this invitation?"
 msgstr "Kas tühistada see kutse?"
 
-#: lib/modules/storage/web/bucket_form.html.heex:80
+#: lib/modules/storage/web/bucket_form.html.heex:86
 #, elixir-autogen, elixir-format
 msgid "Cannot be changed"
 msgstr "Ei saa muuta"
@@ -3922,12 +3919,12 @@ msgstr "Klõpsa **Loo võti**"
 msgid "Click **Save**, then **Connect Account**"
 msgstr "Klõpsa **Salvesta**, seejärel **Ühenda konto**"
 
-#: lib/modules/storage/web/bucket_form.html.heex:175
+#: lib/modules/storage/web/bucket_form.html.heex:181
 #, elixir-autogen, elixir-format
 msgid "Cloudflare Bucket Name"
 msgstr "Cloudflare bucketi nimi"
 
-#: lib/modules/storage/web/bucket_form.html.heex:195
+#: lib/modules/storage/web/bucket_form.html.heex:200
 #, elixir-autogen, elixir-format
 msgid "Cloudflare Endpoint"
 msgstr "Cloudflare lõpp-punkt"
@@ -3952,7 +3949,7 @@ msgstr "Lõpeta esmalt 1. samm konto ühendamise lubamiseks."
 msgid "Configure storage provider settings"
 msgstr "Seadista salvestuspakkuja seaded"
 
-#: lib/modules/storage/web/settings.html.heex:252
+#: lib/modules/storage/web/settings.html.heex:288
 #, elixir-autogen, elixir-format
 msgid "Configured media locations"
 msgstr "Konfigureeritud meedia asukohad"
@@ -3986,7 +3983,7 @@ msgstr "Ühenda välised teenused kasutamiseks kõigis moodulites"
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:94
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:148
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:334
-#: lib/phoenix_kit_web/live/settings/integrations.ex:204
+#: lib/phoenix_kit_web/live/settings/integrations.ex:223
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:111
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:191
 #, elixir-autogen, elixir-format
@@ -4004,29 +4001,24 @@ msgstr "Ühendatud"
 msgid "Connection Name"
 msgstr "Ühenduse nimi"
 
-#: lib/modules/storage/web/bucket_form.html.heex:283
+#: lib/modules/storage/web/bucket_form.html.heex:357
 #, elixir-autogen, elixir-format
 msgid "Connection failed"
 msgstr "Ühendus ebaõnnestus"
 
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:71
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:302
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:333
 #: lib/phoenix_kit_web/live/settings/integrations.ex:76
 #, elixir-autogen, elixir-format
 msgid "Connection removed"
 msgstr "Ühendus eemaldatud"
 
-#: lib/modules/storage/web/bucket_form.html.heex:277
-#, elixir-autogen, elixir-format
-msgid "Connection successful"
-msgstr "Ühendus õnnestus"
-
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:359
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:370
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:479
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:488
-#: lib/phoenix_kit_web/live/settings/integrations.ex:488
-#: lib/phoenix_kit_web/live/settings/integrations.ex:489
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:390
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:401
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:510
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:519
+#: lib/phoenix_kit_web/live/settings/integrations.ex:507
+#: lib/phoenix_kit_web/live/settings/integrations.ex:508
 #, elixir-autogen, elixir-format
 msgid "Connection verified"
 msgstr "Ühendus kontrollitud"
@@ -4041,7 +4033,7 @@ msgstr "Kopeeri **Kliendi ID** ja **Kliendi saladus** ülalolevasse vormi"
 msgid "Copy the key and paste it into the form above"
 msgstr "Kopeeri võti ja kleebi see ülalolevasse vormi"
 
-#: lib/phoenix_kit/integrations/integrations.ex:1194
+#: lib/phoenix_kit/integrations/integrations.ex:1206
 #: lib/phoenix_kit/integrations/probe.ex:132
 #, elixir-autogen, elixir-format
 msgid "Could not reach the service"
@@ -4077,7 +4069,7 @@ msgstr "Loo OAuth klient"
 msgid "Create an OpenRouter account"
 msgstr "Loo OpenRouteri konto"
 
-#: lib/modules/storage/web/settings.html.heex:464
+#: lib/modules/storage/web/settings.html.heex:500
 #, elixir-autogen, elixir-format
 msgid "Current limit: %{size} MB"
 msgstr "Praegune limiit: %{size} MB"
@@ -4110,12 +4102,12 @@ msgstr "Dimensiooni tegevused"
 
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:461
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:186
-#: lib/phoenix_kit_web/live/settings/integrations.html.heex:231
+#: lib/phoenix_kit_web/live/settings/integrations.html.heex:227
 #, elixir-autogen, elixir-format
 msgid "Disconnect"
 msgstr "Ühenda lahti"
 
-#: lib/phoenix_kit_web/live/settings/integrations.html.heex:233
+#: lib/phoenix_kit_web/live/settings/integrations.html.heex:229
 #, elixir-autogen, elixir-format
 msgid "Disconnect?"
 msgstr "Ühenda lahti?"
@@ -4136,7 +4128,7 @@ msgstr "Drive API haldab failide loetlemist, loomist, kopeerimist ja PDF-eksport
 msgid "EU format: %{country}123456789"
 msgstr "EL-i vorming: %{country}123456789"
 
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:89
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:94
 #, elixir-autogen, elixir-format
 msgid "Edit Integration"
 msgstr "Muuda integratsiooni"
@@ -4146,7 +4138,7 @@ msgstr "Muuda integratsiooni"
 msgid "Enable Tax"
 msgstr "Luba maks"
 
-#: lib/modules/storage/web/bucket_form.html.heex:338
+#: lib/modules/storage/web/bucket_form.html.heex:432
 #, elixir-autogen, elixir-format
 msgid "Enable bucket"
 msgstr "Luba bucket"
@@ -4186,7 +4178,7 @@ msgstr "Kutse vastuvõtmine ebaõnnestus. Palun proovi uuesti."
 msgid "Failed to add member"
 msgstr "Liikme lisamine ebaõnnestus"
 
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:248
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:279
 #, elixir-autogen, elixir-format
 msgid "Failed to build authorization URL"
 msgstr "Volitamise URL-i loomine ebaõnnestus"
@@ -4196,7 +4188,7 @@ msgstr "Volitamise URL-i loomine ebaõnnestus"
 msgid "Failed to cancel invitation"
 msgstr "Kutse tühistamine ebaõnnestus"
 
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:437
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:468
 #, elixir-autogen, elixir-format
 msgid "Failed to connect. Please try again."
 msgstr "Ühendamine ebaõnnestus. Palun proovi uuesti."
@@ -4218,8 +4210,8 @@ msgstr "Ühenduse eemaldamine ebaõnnestus"
 msgid "Failed to remove member"
 msgstr "Liikme eemaldamine ebaõnnestus"
 
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:559
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:577
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:590
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:608
 #, elixir-autogen, elixir-format
 msgid "Failed to save"
 msgstr "Salvestamine ebaõnnestus"
@@ -4331,7 +4323,7 @@ msgstr "Anna juurdepääs Google Docs'ile ja Google Drive'ile"
 
 #: lib/modules/storage/web/health.ex:29
 #: lib/modules/storage/web/health.html.heex:59
-#: lib/modules/storage/web/settings.html.heex:554
+#: lib/modules/storage/web/settings.html.heex:590
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:356
 #, elixir-autogen, elixir-format
 msgid "Health"
@@ -4352,17 +4344,17 @@ msgstr "Integratsioon kustutatud"
 msgid "Integrations"
 msgstr "Integratsioonid"
 
-#: lib/phoenix_kit/integrations/integrations.ex:1191
-#: lib/phoenix_kit/integrations/validators.ex:232
-#: lib/phoenix_kit/integrations/validators.ex:402
-#: lib/phoenix_kit/integrations/validators.ex:436
-#: lib/phoenix_kit/integrations/validators.ex:635
-#: lib/phoenix_kit/integrations/validators.ex:803
+#: lib/phoenix_kit/integrations/integrations.ex:1203
+#: lib/phoenix_kit/integrations/validators.ex:233
+#: lib/phoenix_kit/integrations/validators.ex:403
+#: lib/phoenix_kit/integrations/validators.ex:437
+#: lib/phoenix_kit/integrations/validators.ex:667
+#: lib/phoenix_kit/integrations/validators.ex:826
 #, elixir-autogen, elixir-format
 msgid "Invalid credentials"
 msgstr "Valed mandaadid"
 
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:140
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:149
 #, elixir-autogen, elixir-format
 msgid "Invalid integration URL"
 msgstr "Vale integratsiooni URL"
@@ -4402,7 +4394,7 @@ msgstr "Kutsutud"
 msgid "Leave empty to preserve the original file format"
 msgstr "Jäta tühjaks algse failivormingu säilitamiseks"
 
-#: lib/modules/storage/web/bucket_form.html.heex:92
+#: lib/modules/storage/web/bucket_form.html.heex:98
 #, elixir-autogen, elixir-format
 msgid "Local Storage"
 msgstr "Kohalik salvestus"
@@ -4427,12 +4419,12 @@ msgstr "Hooldus pole aktiivne — see on lehe eelvaade."
 msgid "Manage your account settings and preferences"
 msgstr "Halda oma konto seadeid ja eelistusi"
 
-#: lib/modules/storage/web/settings.html.heex:452
+#: lib/modules/storage/web/settings.html.heex:488
 #, elixir-autogen, elixir-format
 msgid "Max Upload Size (MB)"
 msgstr "Maksimaalne üleslaadimise suurus (MB)"
 
-#: lib/modules/storage/web/settings.html.heex:454
+#: lib/modules/storage/web/settings.html.heex:490
 #, elixir-autogen, elixir-format
 msgid "Maximum file size allowed per upload"
 msgstr "Maksimaalne failisuurus üleslaadimise kohta"
@@ -4442,12 +4434,12 @@ msgstr "Maksimaalne failisuurus üleslaadimise kohta"
 msgid "Media Buckets"
 msgstr "Meedia bucketid"
 
-#: lib/modules/storage/web/settings.html.heex:287
+#: lib/modules/storage/web/settings.html.heex:323
 #, elixir-autogen, elixir-format
 msgid "Media Configuration"
 msgstr "Meedia konfiguratsioon"
 
-#: lib/modules/storage/web/settings.html.heex:535
+#: lib/modules/storage/web/settings.html.heex:571
 #, elixir-autogen, elixir-format
 msgid "Media Stats"
 msgstr "Meedia statistika"
@@ -4472,7 +4464,7 @@ msgstr "Liige eemaldatud organisatsioonist"
 msgid "Members"
 msgstr "Liikmed"
 
-#: lib/modules/storage/web/settings.html.heex:647
+#: lib/modules/storage/web/settings.html.heex:683
 #: lib/phoenix_kit_web/components/core/integration_picker.ex:186
 #, elixir-autogen, elixir-format
 msgid "Missing"
@@ -4493,21 +4485,21 @@ msgstr "Navigeerige OAuth jaotisesse otsinguribi või hamburgeri menüü abil: o
 msgid "No Media Buckets Configured"
 msgstr "Meedia bucketid pole konfigureeritud"
 
-#: lib/phoenix_kit/integrations/integrations.ex:1122
+#: lib/phoenix_kit/integrations/integrations.ex:1137
 #, elixir-autogen, elixir-format
 msgid "No access token"
 msgstr "Juurdepääsutokenit pole"
 
-#: lib/phoenix_kit/integrations/integrations.ex:1164
-#: lib/phoenix_kit/integrations/validators.ex:192
-#: lib/phoenix_kit/integrations/validators.ex:785
-#: lib/phoenix_kit/integrations/validators.ex:943
-#: lib/phoenix_kit/integrations/validators.ex:1106
+#: lib/phoenix_kit/integrations/integrations.ex:1176
+#: lib/phoenix_kit/integrations/validators.ex:193
+#: lib/phoenix_kit/integrations/validators.ex:808
+#: lib/phoenix_kit/integrations/validators.ex:966
+#: lib/phoenix_kit/integrations/validators.ex:1129
 #, elixir-autogen, elixir-format
 msgid "No credentials configured"
 msgstr "Mandaadid pole konfigureeritud"
 
-#: lib/phoenix_kit_web/live/settings/integrations.html.heex:256
+#: lib/phoenix_kit_web/live/settings/integrations.html.heex:248
 #, elixir-autogen, elixir-format
 msgid "No integrations configured"
 msgstr "Integratsioonid pole konfigureeritud"
@@ -4539,7 +4531,7 @@ msgstr "Ootel kutseid pole"
 #: lib/phoenix_kit_web/components/core/integrations_ui.ex:180
 #: lib/phoenix_kit_web/live/settings/email_sending.ex:312
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:101
-#: lib/phoenix_kit_web/live/settings/integrations.ex:206
+#: lib/phoenix_kit_web/live/settings/integrations.ex:225
 #, elixir-autogen, elixir-format
 msgid "Not connected"
 msgstr "Ühendamata"
@@ -4549,7 +4541,7 @@ msgstr "Ühendamata"
 #: lib/phoenix_kit_web/components/core/integrations_ui.ex:176
 #: lib/phoenix_kit_web/live/settings/email_sending.ex:311
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:97
-#: lib/phoenix_kit_web/live/settings/integrations.ex:205
+#: lib/phoenix_kit_web/live/settings/integrations.ex:224
 #, elixir-autogen, elixir-format
 msgid "Not tested"
 msgstr "Testimata"
@@ -4568,7 +4560,7 @@ msgstr "Teatiste eelistused salvestatud."
 msgid "Notifications"
 msgstr "Teavitused"
 
-#: lib/modules/storage/web/bucket_form.html.heex:340
+#: lib/modules/storage/web/bucket_form.html.heex:434
 #, elixir-autogen, elixir-format
 msgid "Only enabled buckets receive new uploads"
 msgstr "Ainult lubatud bucketid saavad uusi üleslaadimisi"
@@ -4640,17 +4632,17 @@ msgstr "Eraisik"
 msgid "Pick which notification types you want to receive. Unchecked types are muted — activities still record in the audit log but no bell notification is created for you."
 msgstr "Vali, milliseid teatiste tüüpe soovid saada. Märkimata tüübid on summutatud — tegevused salvestatakse ikkagi auditilogi, kuid kellukese teatist ei looda."
 
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:182
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:213
 #, elixir-autogen, elixir-format
 msgid "Please enter a connection name."
 msgstr "Palun sisesta ühenduse nimi."
 
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:245
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:276
 #, elixir-autogen, elixir-format
 msgid "Please save your Client ID first"
 msgstr "Palun salvesta kõigepealt oma Kliendi ID"
 
-#: lib/modules/storage/web/bucket_form.html.heex:311
+#: lib/modules/storage/web/bucket_form.html.heex:390
 #, elixir-autogen, elixir-format
 msgid "Private (proxied)"
 msgstr "Privaatne (puhverdatud)"
@@ -4660,12 +4652,12 @@ msgstr "Privaatne (puhverdatud)"
 msgid "Project Logo"
 msgstr "Projekti logo"
 
-#: lib/modules/storage/web/bucket_form.html.heex:118
+#: lib/modules/storage/web/bucket_form.html.heex:124
 #, elixir-autogen, elixir-format
 msgid "Provider Configuration"
 msgstr "Teenusepakkuja konfiguratsioon"
 
-#: lib/modules/storage/web/bucket_form.html.heex:309
+#: lib/modules/storage/web/bucket_form.html.heex:388
 #, elixir-autogen, elixir-format
 msgid "Public (direct URL)"
 msgstr "Avalik (otselink)"
@@ -4686,12 +4678,12 @@ msgstr "Eemalda organisatsioonist"
 msgid "Remove this member from the organization?"
 msgstr "Eemaldada see liige organisatsioonist?"
 
-#: lib/modules/storage/web/settings.html.heex:595
+#: lib/modules/storage/web/settings.html.heex:631
 #, elixir-autogen, elixir-format
 msgid "Repair Media Module"
 msgstr "Paranda meediamoodul"
 
-#: lib/modules/storage/web/bucket_form.html.heex:363
+#: lib/modules/storage/web/bucket_form.html.heex:454
 #, elixir-autogen, elixir-format
 msgid "Save Bucket"
 msgstr "Salvesta bucket"
@@ -4717,7 +4709,7 @@ msgstr "Otsi **Google Drive API**, klõpsa seda, seejärel klõpsa **Luba**"
 msgid "Search integrations..."
 msgstr "Otsi integratsioone..."
 
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:445
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:476
 #, elixir-autogen, elixir-format
 msgid "Security check failed. Please try connecting again."
 msgstr "Turvaline kontroll ebaõnnestus. Palun proovi uuesti ühendada."
@@ -4734,7 +4726,7 @@ msgstr "Vali lisatav kasutaja..."
 msgid "Service"
 msgstr "Teenus"
 
-#: lib/phoenix_kit/integrations/integrations.ex:1193
+#: lib/phoenix_kit/integrations/integrations.ex:1205
 #, elixir-autogen, elixir-format
 msgid "Service error %{status}"
 msgstr "Teenuse viga %{status}"
@@ -4785,26 +4777,26 @@ msgstr "Maksuseaded"
 msgid "Tax settings saved"
 msgstr "Maksuseaded salvestatud"
 
-#: lib/modules/storage/web/bucket_form.html.heex:270
+#: lib/modules/storage/web/bucket_form.html.heex:344
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:603
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:614
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:276
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:308
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:297
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:178
-#: lib/phoenix_kit_web/live/settings/integrations.html.heex:223
+#: lib/phoenix_kit_web/live/settings/integrations.html.heex:219
 #, elixir-autogen, elixir-format
 msgid "Test Connection"
 msgstr "Testi ühendust"
 
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:389
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:505
-#: lib/phoenix_kit_web/live/settings/integrations.ex:484
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:420
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:536
+#: lib/phoenix_kit_web/live/settings/integrations.ex:503
 #, elixir-autogen, elixir-format
 msgid "Test failed"
 msgstr "Test ebaõnnestus"
 
-#: lib/modules/storage/web/bucket_form.html.heex:267
+#: lib/modules/storage/web/bucket_form.html.heex:341
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:614
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:171
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:244
@@ -4820,8 +4812,7 @@ msgstr "Testimine..."
 msgid "The selected integration no longer exists. Please choose a different one."
 msgstr "Valitud integratsioon ei eksisteeri enam. Palun vali mõni muu."
 
-#: lib/phoenix_kit_web/live/settings/integrations.html.heex:197
-#: lib/phoenix_kit_web/live/settings/integrations.html.heex:242
+#: lib/phoenix_kit_web/live/settings/integrations.ex:165
 #, elixir-autogen, elixir-format
 msgid "This integration may be in use by other parts of the system. Remove it permanently?"
 msgstr "See integratsioon võib olla kasutusel muudes süsteemi osades. Eemaldada jäädavalt?"
@@ -4831,17 +4822,17 @@ msgstr "See integratsioon võib olla kasutusel muudes süsteemi osades. Eemaldad
 msgid "This invitation has expired."
 msgstr "See kutse on aegunud."
 
-#: lib/modules/storage/web/bucket_form.html.heex:176
+#: lib/modules/storage/web/bucket_form.html.heex:182
 #, elixir-autogen, elixir-format
 msgid "Tigris Bucket Name"
 msgstr "Tigris bucketi nimi"
 
-#: lib/modules/storage/web/bucket_form.html.heex:196
+#: lib/modules/storage/web/bucket_form.html.heex:201
 #, elixir-autogen, elixir-format
 msgid "Tigris Endpoint"
 msgstr "Tigris lõpp-punkt"
 
-#: lib/modules/storage/web/bucket_form.html.heex:159
+#: lib/modules/storage/web/bucket_form.html.heex:165
 #, elixir-autogen, elixir-format
 msgid "Tigris Region"
 msgstr "Tigris piirkond"
@@ -4857,8 +4848,8 @@ msgid "Under **Authorized redirect URIs**, add: `{redirect_uri}`"
 msgstr "**Volitatud ümbersuunamise URL-id** all lisage: `{redirect_uri}`"
 
 #: lib/phoenix_kit/integrations/integrations.ex:984
-#: lib/phoenix_kit/integrations/integrations.ex:1100
-#: lib/phoenix_kit/integrations/integrations.ex:1254
+#: lib/phoenix_kit/integrations/integrations.ex:1104
+#: lib/phoenix_kit/integrations/integrations.ex:1266
 #, elixir-autogen, elixir-format
 msgid "Unknown provider"
 msgstr "Tundmatu teenusepakkuja"
@@ -4869,7 +4860,7 @@ msgid "Use the dropdown above to add members"
 msgstr "Kasuta ülalolevat rippmenüüd liikmete lisamiseks"
 
 #: lib/phoenix_kit/integrations/integrations.ex:1073
-#: lib/phoenix_kit/integrations/integrations.ex:1113
+#: lib/phoenix_kit/integrations/integrations.ex:1117
 #, elixir-autogen, elixir-format
 msgid "Validation failed unexpectedly"
 msgstr "Valideerimine ebaõnnestus ootamatult"
@@ -4916,7 +4907,7 @@ msgstr "ühendust"
 msgid "e.g. Welcome to My Site"
 msgstr "nt Tere tulemast minu saidile"
 
-#: lib/modules/storage/web/bucket_form.html.heex:31
+#: lib/modules/storage/web/bucket_form.html.heex:37
 #, elixir-autogen, elixir-format
 msgid "e.g., Production Media, Backup Storage"
 msgstr "nt Tootmise meedia, Varukoopia salvestus"
@@ -4932,37 +4923,37 @@ msgid "roles"
 msgstr "rolli"
 
 #: lib/phoenix_kit_web/components/core/integrations_ui.ex:84
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:779
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:810
 #, elixir-autogen, elixir-format
 msgid "%{n} days ago"
 msgstr "%{n} päeva tagasi"
 
 #: lib/phoenix_kit_web/components/core/integrations_ui.ex:81
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:776
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:807
 #, elixir-autogen, elixir-format
 msgid "%{n} hours ago"
 msgstr "%{n} tundi tagasi"
 
 #: lib/phoenix_kit_web/components/core/integrations_ui.ex:78
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:773
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:804
 #, elixir-autogen, elixir-format
 msgid "%{n} minutes ago"
 msgstr "%{n} minutit tagasi"
 
 #: lib/phoenix_kit_web/components/core/integrations_ui.ex:83
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:778
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:809
 #, elixir-autogen, elixir-format
 msgid "1 day ago"
 msgstr "1 päev tagasi"
 
 #: lib/phoenix_kit_web/components/core/integrations_ui.ex:80
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:775
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:806
 #, elixir-autogen, elixir-format
 msgid "1 hour ago"
 msgstr "1 tund tagasi"
 
 #: lib/phoenix_kit_web/components/core/integrations_ui.ex:77
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:772
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:803
 #, elixir-autogen, elixir-format
 msgid "1 minute ago"
 msgstr "1 minut tagasi"
@@ -5035,18 +5026,18 @@ msgstr "Klõpsa **Registreeri**"
 msgid "Configure API permissions"
 msgstr "Seadista API õigused"
 
-#: lib/phoenix_kit_web/live/settings/integrations.html.heex:258
+#: lib/phoenix_kit_web/live/settings/integrations.html.heex:250
 #, elixir-autogen, elixir-format
 msgid "Connect external services like %{providers}."
 msgstr "Ühenda välised teenused nagu %{providers}."
 
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:331
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:530
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:362
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:561
 #, elixir-autogen, elixir-format
 msgid "Connection name can't be blank."
 msgstr "Ühenduse nimi ei saa olla tühi."
 
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:325
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:356
 #, elixir-autogen, elixir-format
 msgid "Connection renamed"
 msgstr "Ühendus ümber nimetatud"
@@ -5115,13 +5106,13 @@ msgstr "Ühenda konto lahti"
 msgid "Drag to reorder"
 msgstr "Lohistage järjestuse muutmiseks"
 
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:306
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:337
 #, elixir-autogen, elixir-format
 msgid "Failed to remove connection."
 msgstr "Ühenduse eemaldamine ebaõnnestus."
 
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:334
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:536
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:365
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:567
 #, elixir-autogen, elixir-format
 msgid "Failed to rename connection."
 msgstr "Ühenduse ümbernimetamine ebaõnnestus."
@@ -5207,7 +5198,7 @@ msgid "If your tenant requires admin consent, click **Grant admin consent for <t
 msgstr "Kui teie rentnik nõuab administraatori nõusolekut, klõpsake **Anna administraatori nõusolek <tenant> jaoks** enne kui ühenduse voog töötab"
 
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:101
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:133
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:142
 #, elixir-autogen, elixir-format
 msgid "Integration not found"
 msgstr "Integratsiooni ei leitud"
@@ -5249,7 +5240,7 @@ msgid "Mistral does not offer credits without billing setup; this is a hard requ
 msgstr "Mistral ei paku krediite ilma arvelduse seadistamiseta; see on kohustuslik nõue enne võtmete loomist."
 
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:781
-#: lib/phoenix_kit_web/live/settings/integration_form.html.heex:482
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:156
 #, elixir-autogen, elixir-format
 msgid "Permanently delete this connection? This cannot be undone."
 msgstr "Kustutada see ühendus jäädavalt? Seda ei saa tagasi võtta."
@@ -5304,7 +5295,7 @@ msgstr "Enne API võtmete loomist võib olla vaja telefoninumber kinnitada"
 
 #: lib/phoenix_kit_web/components/core/integrations_ui.ex:65
 #: lib/phoenix_kit_web/live/notifications/inbox.ex:164
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:760
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:791
 #, elixir-autogen, elixir-format
 msgid "just now"
 msgstr "just nüüd"
@@ -5513,7 +5504,7 @@ msgstr "nõuab, et"
 #: lib/modules/storage/web/dimension_form.html.heex:8
 #: lib/modules/storage/web/dimensions.html.heex:8
 #: lib/modules/storage/web/health.html.heex:8
-#: lib/modules/storage/web/settings.ex:61
+#: lib/modules/storage/web/settings.ex:64
 #: lib/modules/storage/web/settings.html.heex:4
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:161
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:333
@@ -6724,7 +6715,7 @@ msgstr "Kausta ei saa teisaldada lubatud ulatusest väljaspool"
 msgid "Could not post comment"
 msgstr "Kommentaari postitamine ebaõnnestus"
 
-#: lib/modules/storage/web/settings.html.heex:374
+#: lib/modules/storage/web/settings.html.heex:410
 #, elixir-autogen, elixir-format
 msgid "Deep Zoom Tile Generation"
 msgstr "Sügava suumi plaadigeneratsioon"
@@ -6825,7 +6816,7 @@ msgstr "Kaust jäädavalt kustutatud"
 msgid "Giphy search failed"
 msgstr "Giphy otsing ebaõnnestus"
 
-#: lib/modules/storage/web/settings.html.heex:377
+#: lib/modules/storage/web/settings.html.heex:413
 #, elixir-autogen, elixir-format
 msgid "Lazily generate DZI tile pyramids when users zoom deeply into images. With this off the MediaBrowser still swaps between medium/large variants while zooming, but never generates tiles or hits the lazy tile endpoint. ImageMagick is required when enabled."
 msgstr "Genereeri DZI-plaadipüramiide laisklaadimisega suurendamisel. Väljalylitatuna vahetab MediaBrowser variantide vahel, kuid ei genereeri plaate. Vajalik ImageMagick."
@@ -7447,7 +7438,7 @@ msgstr "Tühjenda filtrid"
 msgid "Date & Time"
 msgstr "Kuupäev ja kellaaeg"
 
-#: lib/modules/storage/web/settings.ex:529
+#: lib/modules/storage/web/settings.ex:582
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:569
 #: lib/phoenix_kit_web/live/activity/index.html.heex:310
 #, elixir-autogen, elixir-format
@@ -8410,7 +8401,7 @@ msgstr "Lisa kirjeldus"
 msgid "All types"
 msgstr "Kõik tüübid"
 
-#: lib/modules/storage/web/settings.html.heex:393
+#: lib/modules/storage/web/settings.html.heex:429
 #, elixir-autogen, elixir-format
 msgid "Annotated Thumbnails"
 msgstr "Märgistatud pisipildid"
@@ -8438,12 +8429,12 @@ msgstr "Tagasi"
 msgid "Background image"
 msgstr "Taustapilt"
 
-#: lib/modules/storage/web/settings.html.heex:396
+#: lib/modules/storage/web/settings.html.heex:432
 #, elixir-autogen, elixir-format
 msgid "Bake Etcher annotation shapes (rectangles, marker strokes, etc.) into a file's grid thumbnail, regenerated in the background when annotations change. With this off the grid shows the plain thumbnail and no annotated variant is generated. ImageMagick is required when enabled."
 msgstr "Küpseta Etcheri märgistuskujundid (ristkülikud, markerijooned jne) faili ruudustiku pisipildile, mis genereeritakse taustal uuesti, kui märgistused muutuvad. Väljalülitatuna kuvab ruudustik tavalist pisipilti ja märgistatud varianti ei genereerita. Sisselülitatuna on vajalik ImageMagick."
 
-#: lib/modules/storage/web/settings.html.heex:563
+#: lib/modules/storage/web/settings.html.heex:599
 #, elixir-autogen, elixir-format
 msgid "Browse files no longer attached to any record (orphaned media) so you can review or delete them."
 msgstr "Sirvi faile, mis pole enam ühegi kirjega seotud (orvuks jäänud meedia), et neid üle vaadata või kustutada."
@@ -8589,7 +8580,7 @@ msgstr "Päise uuendamine ebaõnnestus"
 msgid "Filter"
 msgstr "Filter"
 
-#: lib/modules/storage/web/settings.html.heex:572
+#: lib/modules/storage/web/settings.html.heex:608
 #, elixir-autogen, elixir-format
 msgid "Find Orphaned Files"
 msgstr "Leia sidumata failid"
@@ -8865,7 +8856,7 @@ msgstr "Tasuta tase sisaldab igakuist märkide kvooti; tasulised paketid tõstav
 msgid "Unread"
 msgstr "Lugemata"
 
-#: lib/modules/storage/web/settings.html.heex:532
+#: lib/modules/storage/web/settings.html.heex:568
 #, elixir-autogen, elixir-format
 msgid "View storage usage and media statistics. Coming soon."
 msgstr "Vaata salvestusruumi kasutust ja meedia statistikat. Tulekul varsti."
@@ -9313,92 +9304,93 @@ msgstr "salvestatud:"
 msgid "New User Defaults"
 msgstr "Uue kasutaja vaikeseaded"
 
-#: lib/modules/storage/web/settings.ex:333
+#: lib/modules/storage/web/settings.ex:336
 #, elixir-autogen, elixir-format
 msgid "Auto-variant generation disabled"
 msgstr "Variantide automaatne genereerimine keelatud"
 
-#: lib/modules/storage/web/settings.ex:332
+#: lib/modules/storage/web/settings.ex:335
 #, elixir-autogen, elixir-format
 msgid "Auto-variant generation enabled"
 msgstr "Variantide automaatne genereerimine lubatud"
 
-#: lib/modules/storage/web/settings.ex:384
+#: lib/modules/storage/web/settings.ex:432
 #, elixir-autogen, elixir-format
 msgid "Bucket deleted successfully"
 msgstr "Bucket kustutati edukalt"
 
-#: lib/modules/storage/web/settings.ex:358
+#: lib/modules/storage/web/settings.ex:361
 #, elixir-autogen, elixir-format
 msgid "Bucket disabled successfully"
 msgstr "Bucket keelati edukalt"
 
-#: lib/modules/storage/web/settings.ex:357
+#: lib/modules/storage/web/settings.ex:360
 #, elixir-autogen, elixir-format
 msgid "Bucket enabled successfully"
 msgstr "Bucket lubati edukalt"
 
-#: lib/modules/storage/web/settings.ex:348
+#: lib/modules/storage/web/bucket_form.ex:54
+#: lib/modules/storage/web/settings.ex:351
 #, elixir-autogen, elixir-format
 msgid "Bucket not found"
 msgstr "Salvestuskohta ei leitud"
 
-#: lib/modules/storage/web/settings.ex:103
-#: lib/modules/storage/web/settings.ex:242
+#: lib/modules/storage/web/settings.ex:106
+#: lib/modules/storage/web/settings.ex:245
 #, elixir-autogen, elixir-format
 msgid "Cannot set redundancy to %{count} copies. Only %{max} active bucket(s) available."
 msgstr "Liiasust ei saa määrata %{count} koopiale. Saadaval on ainult %{max} aktiivset salvestuskohta."
 
-#: lib/modules/storage/web/settings.html.heex:320
+#: lib/modules/storage/web/settings.html.heex:356
 #, elixir-autogen, elixir-format
 msgid "Current setting (%{count} copies) exceeds available buckets (%{max})."
 msgstr "Praegune seade (%{count} koopiat) ületab saadaolevad salvestuskohad (%{max})."
 
-#: lib/modules/storage/web/settings.ex:395
+#: lib/modules/storage/web/settings.ex:443
 #, elixir-autogen, elixir-format
 msgid "Failed to delete bucket"
 msgstr "Bucketi kustutamine ebaõnnestus"
 
-#: lib/modules/storage/web/settings.ex:422
+#: lib/modules/storage/web/settings.ex:470
 #, elixir-autogen, elixir-format
 msgid "Failed to repair: %{reason}"
 msgstr "Parandamine ebaõnnestus: %{reason}"
 
-#: lib/modules/storage/web/settings.ex:364
+#: lib/modules/storage/web/settings.ex:367
 #, elixir-autogen, elixir-format
 msgid "Failed to update bucket"
 msgstr "Bucketi uuendamine ebaõnnestus"
 
-#: lib/modules/storage/web/settings.ex:130
-#: lib/modules/storage/web/settings.ex:306
+#: lib/modules/storage/web/settings.ex:133
+#: lib/modules/storage/web/settings.ex:309
 #, elixir-autogen, elixir-format
 msgid "Failed to update redundancy settings"
 msgstr "Liiasuse seadete uuendamine ebaõnnestus"
 
-#: lib/modules/storage/web/settings.ex:314
+#: lib/modules/storage/web/settings.ex:317
 #, elixir-autogen, elixir-format
 msgid "Failed to update storage settings"
 msgstr "Salvestusseadete uuendamine ebaõnnestus"
 
-#: lib/modules/storage/web/settings.ex:310
-#: lib/modules/storage/web/settings.ex:340
+#: lib/modules/storage/web/settings.ex:313
+#: lib/modules/storage/web/settings.ex:343
 #, elixir-autogen, elixir-format
 msgid "Failed to update variant settings"
 msgstr "Variandiseadete uuendamine ebaõnnestus"
 
-#: lib/modules/storage/web/settings.ex:120
+#: lib/modules/storage/web/settings.ex:123
 #, elixir-autogen, elixir-format
 msgid "Redundancy settings updated to %{count} copy"
 msgid_plural "Redundancy settings updated to %{count} copies"
 msgstr[0] "Liiasuse seaded uuendatud: %{count} koopia"
 msgstr[1] "Liiasuse seaded uuendatud: %{count} koopiat"
 
-#: lib/modules/storage/web/settings.ex:412
+#: lib/modules/storage/web/settings.ex:460
 #, elixir-autogen, elixir-format
 msgid "Storage module repaired: %{summary}"
 msgstr "Salvestusmoodul parandatud: %{summary}"
 
-#: lib/modules/storage/web/settings.ex:301
+#: lib/modules/storage/web/settings.ex:304
 #, elixir-autogen, elixir-format
 msgid "Storage settings updated successfully"
 msgstr "Salvestusseaded uuendati edukalt"
@@ -10013,12 +10005,12 @@ msgstr "Ühtegi faili ei vasta otsingule."
 msgid "Try a different term or clear the search"
 msgstr "Proovi teist otsingusõna või tühjenda otsing"
 
-#: lib/modules/storage/web/bucket_form.ex:299
+#: lib/modules/storage/web/bucket_form.ex:415
 #, elixir-autogen, elixir-format
 msgid "Add Storage Bucket"
 msgstr "Lisa salvestusbucket"
 
-#: lib/modules/storage/web/bucket_form.ex:300
+#: lib/modules/storage/web/bucket_form.ex:416
 #, elixir-autogen, elixir-format
 msgid "Edit Storage Bucket"
 msgstr "Muuda salvestusbucketit"
@@ -10107,22 +10099,22 @@ msgstr "%{n} min tagasi"
 msgid "%{provider} settings"
 msgstr "%{provider} seaded"
 
-#: lib/phoenix_kit/integrations/validators.ex:851
+#: lib/phoenix_kit/integrations/validators.ex:874
 #, elixir-autogen, elixir-format
 msgid "%{text} · resets %{date}"
 msgstr "%{text} · lähtestub %{date}"
 
-#: lib/phoenix_kit/integrations/validators.ex:840
+#: lib/phoenix_kit/integrations/validators.ex:863
 #, elixir-autogen, elixir-format
 msgid "%{type} · %{credits} credits left"
 msgstr "%{type} · krediiti jäänud: %{credits}"
 
-#: lib/phoenix_kit/integrations/validators.ex:536
+#: lib/phoenix_kit/integrations/validators.ex:537
 #, elixir-autogen, elixir-format
 msgid "AWS SES error: %{code}"
 msgstr "AWS SES viga: %{code}"
 
-#: lib/phoenix_kit/integrations/validators.ex:511
+#: lib/phoenix_kit/integrations/validators.ex:512
 #, elixir-autogen, elixir-format
 msgid "AWS SES is busy — try again in a moment"
 msgstr "AWS SES on hõivatud — proovige hetke pärast uuesti"
@@ -10213,7 +10205,7 @@ msgstr "Boti token"
 msgid "BotFather replies with an HTTP API token like `123456789:ABCdef...` — copy it"
 msgstr "BotFather saadab HTTP API tokeni kujul `123456789:ABCdef...` — kopeerige see"
 
-#: lib/phoenix_kit/integrations/validators.ex:809
+#: lib/phoenix_kit/integrations/validators.ex:832
 #, elixir-autogen, elixir-format
 msgid "Brevo error %{status}"
 msgstr "Brevo viga %{status}"
@@ -10268,7 +10260,7 @@ msgstr "Seadistatud"
 msgid "Connect your own API keys and services. Only you can see these."
 msgstr "Ühendage oma API-võtmed ja teenused. Neid näete ainult teie."
 
-#: lib/phoenix_kit/integrations/validators.ex:901
+#: lib/phoenix_kit/integrations/validators.ex:924
 #, elixir-autogen, elixir-format
 msgid "Connected as @%{username}"
 msgstr "Ühendatud kasutajana @%{username}"
@@ -10295,26 +10287,26 @@ msgstr "Kopeerige boti token"
 msgid "Could not add integration"
 msgstr "Integratsiooni ei saanud lisada"
 
-#: lib/phoenix_kit/integrations/validators.ex:486
-#: lib/phoenix_kit/integrations/validators.ex:492
-#: lib/phoenix_kit/integrations/validators.ex:533
-#: lib/phoenix_kit/integrations/validators.ex:540
+#: lib/phoenix_kit/integrations/validators.ex:487
+#: lib/phoenix_kit/integrations/validators.ex:493
+#: lib/phoenix_kit/integrations/validators.ex:534
+#: lib/phoenix_kit/integrations/validators.ex:541
 #, elixir-autogen, elixir-format
 msgid "Could not reach AWS SES"
 msgstr "AWS SES-iga ei saanud ühendust"
 
-#: lib/phoenix_kit/integrations/validators.ex:813
+#: lib/phoenix_kit/integrations/validators.ex:836
 #, elixir-autogen, elixir-format
 msgid "Could not reach Brevo"
 msgstr "Brevoga ei saanud ühendust"
 
-#: lib/phoenix_kit/integrations/validators.ex:913
+#: lib/phoenix_kit/integrations/validators.ex:936
 #, elixir-autogen, elixir-format
 msgid "Could not reach Telegram"
 msgstr "Telegramiga ei saanud ühendust"
 
-#: lib/phoenix_kit/integrations/validators.ex:383
-#: lib/phoenix_kit/integrations/validators.ex:408
+#: lib/phoenix_kit/integrations/validators.ex:384
+#: lib/phoenix_kit/integrations/validators.ex:409
 #, elixir-autogen, elixir-format
 msgid "Could not reach the SMTP server"
 msgstr "SMTP-serveriga ei saanud ühendust"
@@ -10392,7 +10384,7 @@ msgstr "Loo esimene saatmisprofiil"
 msgid "Create send profile"
 msgstr "Loo saatmisprofiil"
 
-#: lib/phoenix_kit/integrations/validators.ex:527
+#: lib/phoenix_kit/integrations/validators.ex:528
 #, elixir-autogen, elixir-format
 msgid "Credentials are valid, but not authorised for GetSendQuota — sending was not verified"
 msgstr "Mandaadid on kehtivad, kuid puudub õigus GetSendQuota jaoks — saatmist ei kontrollitud"
@@ -10557,14 +10549,14 @@ msgstr "Kaudne TLS / SMTPS"
 msgid "In-app"
 msgstr "Rakenduses"
 
-#: lib/phoenix_kit/integrations/validators.ex:379
-#: lib/phoenix_kit/integrations/validators.ex:392
+#: lib/phoenix_kit/integrations/validators.ex:380
+#: lib/phoenix_kit/integrations/validators.ex:393
 #, elixir-autogen, elixir-format
 msgid "Incomplete SMTP settings"
 msgstr "Puudulikud SMTP seaded"
 
-#: lib/phoenix_kit/integrations/validators.ex:85
-#: lib/phoenix_kit/integrations/validators.ex:609
+#: lib/phoenix_kit/integrations/validators.ex:86
+#: lib/phoenix_kit/integrations/validators.ex:618
 #, elixir-autogen, elixir-format
 msgid "Incomplete credentials"
 msgstr "Puudulikud mandaadid"
@@ -10586,32 +10578,32 @@ msgstr "Integratsioon lisatud"
 msgid "Integration removed"
 msgstr "Integratsioon eemaldatud"
 
-#: lib/phoenix_kit/integrations/validators.ex:312
+#: lib/phoenix_kit/integrations/validators.ex:313
 #, elixir-autogen, elixir-format
 msgid "Invalid %{setting}: %{value}"
 msgstr "Vigane %{setting}: %{value}"
 
-#: lib/phoenix_kit/integrations/validators.ex:394
+#: lib/phoenix_kit/integrations/validators.ex:395
 #, elixir-autogen, elixir-format
 msgid "Invalid SMTP settings"
 msgstr "Vigased SMTP seaded"
 
-#: lib/phoenix_kit/integrations/validators.ex:321
+#: lib/phoenix_kit/integrations/validators.ex:322
 #, elixir-autogen, elixir-format
 msgid "Invalid SMTP settings: %{reason}"
 msgstr "Vigased SMTP seaded: %{reason}"
 
-#: lib/phoenix_kit/integrations/validators.ex:906
+#: lib/phoenix_kit/integrations/validators.ex:929
 #, elixir-autogen, elixir-format
 msgid "Invalid bot token"
 msgstr "Vigane boti token"
 
-#: lib/phoenix_kit/integrations/validators.ex:294
+#: lib/phoenix_kit/integrations/validators.ex:295
 #, elixir-autogen, elixir-format
 msgid "Invalid port: %{port}"
 msgstr "Vigane port: %{port}"
 
-#: lib/phoenix_kit/integrations/validators.ex:307
+#: lib/phoenix_kit/integrations/validators.ex:308
 #, elixir-autogen, elixir-format
 msgid "Invalid timeout: %{value}"
 msgstr "Vigane ajalimiit: %{value}"
@@ -10702,7 +10694,7 @@ msgstr "Uus saatmisprofiil"
 msgid "No adapter configured for the static mailer. Set one in your application config, or connect an email-capable integration below and pick it as the default transactional integration."
 msgstr "Staatilisele mailerile pole adapterit seadistatud. Määrake see rakenduse seadistuses või ühendage allpool e-posti toega integratsioon ja valige see vaikimisi tehinguintegratsiooniks."
 
-#: lib/phoenix_kit/integrations/validators.ex:890
+#: lib/phoenix_kit/integrations/validators.ex:913
 #, elixir-autogen, elixir-format
 msgid "No bot token configured"
 msgstr "Boti tokenit pole määratud"
@@ -10727,7 +10719,7 @@ msgstr "Isiklikke integratsioone veel pole"
 msgid "No send profiles yet"
 msgstr "Saatmisprofiile veel pole"
 
-#: lib/phoenix_kit/integrations/validators.ex:298
+#: lib/phoenix_kit/integrations/validators.ex:299
 #, elixir-autogen, elixir-format
 msgid "No system CA certificates found, so the relay's certificate cannot be verified"
 msgstr "Süsteemi CA-sertifikaate ei leitud, seetõttu ei saa relee sertifikaati kontrollida"
@@ -10797,7 +10789,7 @@ msgstr "Paus saatmiste vahel (sekundites)"
 msgid "Persistent sessions last 60 days. Magic-link and social logins have no checkbox to tick, so they follow the default above. Turning the first option off hides the checkbox everywhere and keeps every login to the browser session."
 msgstr "Püsivad sessioonid kestavad 60 päeva. Võlulingi ja sotsiaalvõrgustike kaudu sisselogimisel linnukest pole, seega järgitakse ülalolevat vaikeväärtust. Esimese valiku väljalülitamine peidab linnukese kõikjal ja piirab iga sisselogimise brauseri sessiooniga."
 
-#: lib/phoenix_kit/integrations/validators.ex:824
+#: lib/phoenix_kit/integrations/validators.ex:847
 #, elixir-autogen, elixir-format
 msgid "Plan: %{entries}"
 msgstr "Pakett: %{entries}"
@@ -10817,7 +10809,7 @@ msgstr "Suunamised pärast sisselogimist"
 msgid "Profile Details"
 msgstr "Profiili üksikasjad"
 
-#: lib/phoenix_kit/integrations/validators.ex:567
+#: lib/phoenix_kit/integrations/validators.ex:568
 #, elixir-autogen, elixir-format
 msgid "Quota: %{sent} / %{max} sent last 24h · max %{rate}/s"
 msgstr "Kvoot: saadetud %{sent} / %{max} viimase 24 tunni jooksul · kuni %{rate}/s"
@@ -10838,8 +10830,8 @@ msgstr "Piirang päevas"
 msgid "Rate per hour"
 msgstr "Piirang tunnis"
 
-#: lib/phoenix_kit/integrations/validators.ex:91
-#: lib/phoenix_kit/integrations/validators.ex:195
+#: lib/phoenix_kit/integrations/validators.ex:92
+#: lib/phoenix_kit/integrations/validators.ex:196
 #, elixir-autogen, elixir-format
 msgid "Region is required"
 msgstr "Piirkond on kohustuslik"
@@ -10896,7 +10888,7 @@ msgstr "SES-i konfiguratsioonikomplekt, mida rakendatakse igale selle profiili s
 msgid "SMTP has no per-profile provider settings — relay, port and TLS come from the integration itself."
 msgstr "SMTP-l pole profiilipõhiseid teenusepakkuja seadeid — relee, port ja TLS tulevad integratsioonist endast."
 
-#: lib/phoenix_kit/integrations/validators.ex:411
+#: lib/phoenix_kit/integrations/validators.ex:412
 #, elixir-autogen, elixir-format
 msgid "SMTP server rejected the connection"
 msgstr "SMTP-server lükkas ühenduse tagasi"
@@ -11007,7 +10999,7 @@ msgstr "Staatiline mailer: sisseehitatud PhoenixKiti mailer"
 msgid "Static mailer: parent app mailer (%{module})"
 msgstr "Staatiline mailer: ülemrakenduse mailer (%{module})"
 
-#: lib/phoenix_kit/integrations/validators.ex:405
+#: lib/phoenix_kit/integrations/validators.ex:406
 #, elixir-autogen, elixir-format
 msgid "TLS handshake failed"
 msgstr "TLS-ühenduse loomine ebaõnnestus"
@@ -11024,7 +11016,7 @@ msgstr "Sildid"
 msgid "Telegram"
 msgstr "Telegram"
 
-#: lib/phoenix_kit/integrations/validators.ex:909
+#: lib/phoenix_kit/integrations/validators.ex:932
 #, elixir-autogen, elixir-format
 msgid "Telegram error %{status}"
 msgstr "Telegrami viga %{status}"
@@ -11060,7 +11052,7 @@ msgstr "See konto on deaktiveeritud."
 msgid "That is already your account."
 msgstr "See on juba teie konto."
 
-#: lib/phoenix_kit/integrations/validators.ex:302
+#: lib/phoenix_kit/integrations/validators.ex:303
 #, elixir-autogen, elixir-format
 msgid "The CA certificate is not a valid PEM bundle (expected a -----BEGIN CERTIFICATE----- block)"
 msgstr "CA sertifikaat pole kehtiv PEM-komplekt (oodati plokki -----BEGIN CERTIFICATE-----)"
@@ -11227,7 +11219,7 @@ msgstr "võrgus"
 msgid "status unknown"
 msgstr "olek teadmata"
 
-#: lib/phoenix_kit/integrations/validators.ex:565
+#: lib/phoenix_kit/integrations/validators.ex:566
 #, elixir-autogen, elixir-format
 msgid "unlimited"
 msgstr "piiramatu"
@@ -11451,7 +11443,7 @@ msgstr "AWS konsool → Amazon Bedrock → API võtmed (pikaajaline võti)"
 msgid "Access requested."
 msgstr "Ligipääsu taotletud."
 
-#: lib/phoenix_kit/integrations/validators.ex:128
+#: lib/phoenix_kit/integrations/validators.ex:129
 #, elixir-autogen, elixir-format
 msgid "Account %{id}"
 msgstr "Konto %{id}"
@@ -11486,7 +11478,7 @@ msgstr "Autentimiskirjad sisaldavad ühekordseid tokeneid ja /dev/mailbox ei nõ
 msgid "Bedrock API key"
 msgstr "Bedrocki API võti"
 
-#: lib/phoenix_kit/integrations/validators.ex:246
+#: lib/phoenix_kit/integrations/validators.ex:247
 #, elixir-autogen, elixir-format
 msgid "Bedrock error %{status}"
 msgstr "Bedrock viga %{status}"
@@ -11527,7 +11519,7 @@ msgstr "Kopeeri võti (kuvatakse ainult üks kord, `ABSK…`) ja kleebi see üla
 msgid "Copy the token and paste it into the form above"
 msgstr "Kopeeri token ja kleebi see ülalolevasse vormi"
 
-#: lib/phoenix_kit/integrations/validators.ex:250
+#: lib/phoenix_kit/integrations/validators.ex:251
 #, elixir-autogen, elixir-format
 msgid "Could not reach Bedrock in %{region}"
 msgstr "Bedrockiga ei saanud regioonis %{region} ühendust"
@@ -11654,12 +11646,12 @@ msgstr "Loo [IAM konsoolis](https://console.aws.amazon.com/iam/home#/users) prog
 msgid "In the [SES console](https://console.aws.amazon.com/ses/home#/identities) verify your domain or sender address — SES refuses to send from unverified identities"
 msgstr "Kinnita [SES konsoolis](https://console.aws.amazon.com/ses/home#/identities) oma domeen või saatja aadress — SES keeldub saatmast kinnitamata identiteetidelt"
 
-#: lib/phoenix_kit/integrations/validators.ex:199
+#: lib/phoenix_kit/integrations/validators.ex:200
 #, elixir-autogen, elixir-format
 msgid "Invalid region format (expected e.g. eu-central-1)"
 msgstr "Vigane regiooni vorming (oodatud nt eu-central-1)"
 
-#: lib/phoenix_kit/integrations/validators.ex:240
+#: lib/phoenix_kit/integrations/validators.ex:241
 #, elixir-autogen, elixir-format
 msgid "Key authenticated but not authorised in %{region} — allow bedrock:CallWithBearerToken (and ListFoundationModels) on its IAM identity, or check the key was issued for this region"
 msgstr "Võti autenditi, kuid sellel puuduvad õigused regioonis %{region} — luba selle IAM identiteedil bedrock:CallWithBearerToken (ja ListFoundationModels) või kontrolli, kas võti väljastati selle regiooni jaoks"
@@ -11689,7 +11681,7 @@ msgstr "Kohalik postkast on sisse lülitatud — autentimiskirjade tokenid on n�
 msgid "Mentions and record links"
 msgstr "Mainimised ja kirjeviited"
 
-#: lib/phoenix_kit/integrations/validators.ex:264
+#: lib/phoenix_kit/integrations/validators.ex:265
 #, elixir-autogen, elixir-format
 msgid "Model catalog in %{region}: %{count} (grants are configured separately)"
 msgstr "Mudelikataloog regioonis %{region}: %{count} (õigused seadistatakse eraldi)"
@@ -11897,7 +11889,7 @@ msgstr "github.com/settings/personal-access-tokens — peeneteraline, kirjutuska
 msgid "llms.txt content saved."
 msgstr "llms.txt sisu salvestatud."
 
-#: lib/phoenix_kit/integrations/validators.ex:169
+#: lib/phoenix_kit/integrations/validators.ex:170
 #, elixir-autogen, elixir-format
 msgid "management API: %{services}"
 msgstr "haldus-API: %{services}"
@@ -12045,42 +12037,42 @@ msgstr "Kuvatud"
 msgid "Reply to this annotation"
 msgstr "Vasta sellele märkusele"
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:256
+#: lib/phoenix_kit_web/live/settings/integrations.ex:275
 #, elixir-autogen, elixir-format
 msgid "Credentials are protected only by a shared application secret"
 msgstr "Mandaadid on kaitstud ainult rakenduse jagatud saladusega"
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:259
+#: lib/phoenix_kit_web/live/settings/integrations.ex:278
 #, elixir-autogen, elixir-format
 msgid "Credentials are stored in plain text"
 msgstr "Mandaadid salvestatakse selgel kujul"
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:262
+#: lib/phoenix_kit_web/live/settings/integrations.ex:281
 #, elixir-autogen, elixir-format
 msgid "Encryption is turned off for integration credentials"
 msgstr "Krüpteerimine on integratsioonide mandaatide jaoks välja lülitatud"
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:390
+#: lib/phoenix_kit_web/live/settings/integrations.ex:409
 #, elixir-autogen, elixir-format
 msgid "No dedicated encryption key is configured, so credentials below fall back to a key derived from secret_key_base — a secret shared with session signing and CSRF tokens. Anyone who can read secret_key_base can decrypt every credential here. Run mix phoenix_kit.integrations.rotate_key to fix this."
 msgstr "Eraldi krüpteerimisvõtit pole seadistatud, seega kasutavad allolevad mandaadid secret_key_base'ist tuletatud võtit — saladust, mida jagatakse seansi allkirjastamise ja CSRF-lubadega. Igaüks, kes saab lugeda secret_key_base'i, saab siin dešifreerida iga mandaadi. Selle parandamiseks käivitage mix phoenix_kit.integrations.rotate_key."
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:399
+#: lib/phoenix_kit_web/live/settings/integrations.ex:418
 #, elixir-autogen, elixir-format
 msgid "No encryption key could be resolved. New and existing credentials below are stored as plain text in the database."
 msgstr "Krüpteerimisvõtit ei õnnestunud tuvastada. Allolevad uued ja olemasolevad mandaadid salvestatakse andmebaasi selgel kujul."
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:406
+#: lib/phoenix_kit_web/live/settings/integrations.ex:425
 #, elixir-autogen, elixir-format
 msgid "integration_encryption_enabled is set to false. Credentials below are stored as plain text in the database."
 msgstr "integration_encryption_enabled on seatud väärtusele false. Allolevad mandaadid salvestatakse andmebaasi selgel kujul."
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:269
+#: lib/phoenix_kit_web/live/settings/integrations.ex:288
 #, elixir-autogen, elixir-format
 msgid "Integration credential encryption needs attention"
 msgstr "Integratsiooni mandaatide krüpteerimine vajab tähelepanu"
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:414
+#: lib/phoenix_kit_web/live/settings/integrations.ex:433
 #, elixir-autogen, elixir-format
 msgid "The current encryption status could not be described by this admin page — it may be newer than what this page recognizes. Check PhoenixKit.Integrations.Encryption.status/0 directly."
 msgstr "Praegust krüpteerimise olekut ei õnnestunud sellel haldusleheküljel kirjeldada — see võib olla uuem kui see lehekülg ära tunneb. Kontrollige otse PhoenixKit.Integrations.Encryption.status/0."
@@ -12149,10 +12141,10 @@ msgstr "Teie peamist kontot ei saa eemaldada."
 msgid "Context switching is not enabled"
 msgstr "Konteksti vahetamine ei ole lubatud"
 
-#: lib/phoenix_kit/integrations/validators.ex:654
-#: lib/phoenix_kit/integrations/validators.ex:661
-#: lib/phoenix_kit/integrations/validators.ex:759
-#: lib/phoenix_kit/integrations/validators.ex:767
+#: lib/phoenix_kit/integrations/validators.ex:686
+#: lib/phoenix_kit/integrations/validators.ex:693
+#: lib/phoenix_kit/integrations/validators.ex:782
+#: lib/phoenix_kit/integrations/validators.ex:790
 #, elixir-autogen, elixir-format
 msgid "Could not reach the storage endpoint"
 msgstr "Salvestuse lõpp-punktiga ei saanud ühendust"
@@ -12167,7 +12159,7 @@ msgstr "Konto eemaldamine ebaõnnestus."
 msgid "Could not switch account."
 msgstr "Konto vahetamine ebaõnnestus."
 
-#: lib/phoenix_kit/integrations/validators.ex:748
+#: lib/phoenix_kit/integrations/validators.ex:771
 #, elixir-autogen, elixir-format
 msgid "Credentials are valid, but not authorized to list buckets"
 msgstr "Mandaadid on kehtivad, kuid puudub õigus bucketite loetlemiseks"
@@ -12354,12 +12346,12 @@ msgstr "Saidikaardi erand"
 msgid "Something went wrong"
 msgstr "Midagi läks valesti"
 
-#: lib/phoenix_kit/integrations/validators.ex:762
+#: lib/phoenix_kit/integrations/validators.ex:785
 #, elixir-autogen, elixir-format
 msgid "Storage error: %{code}"
 msgstr "Salvestuse viga: %{code}"
 
-#: lib/phoenix_kit/integrations/validators.ex:756
+#: lib/phoenix_kit/integrations/validators.ex:779
 #, elixir-autogen, elixir-format
 msgid "Storage service is busy — try again in a moment"
 msgstr "Salvestusteenus on hõivatud — proovige hetke pärast uuesti"
@@ -12532,32 +12524,32 @@ msgstr "Liiga palju registreerimiskatseid. Palun proovige hiljem uuesti."
 msgid "%{enabled} of %{total} notification types enabled"
 msgstr "%{enabled} teavitustüüpi %{total}-st lubatud"
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:373
+#: lib/phoenix_kit_web/live/settings/integrations.ex:392
 #, elixir-autogen, elixir-format
 msgid "A dedicated encryption key is configured but was rejected as too short, and no other key resolves — credentials below are being written in plain text. Replace it with a longer secret and restart; rotation cannot help while no key is active."
 msgstr "Eraldi krüptovõti on seadistatud, kuid lükati liiga lühikesena tagasi, ja ühtegi teist võtit ei leidu — allolevad mandaadid salvestatakse avatekstina. Asenda see pikema saladusega ja taaskäivita; rotatsioon ei aita, kuni ükski võti pole aktiivne."
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:381
+#: lib/phoenix_kit_web/live/settings/integrations.ex:400
 #, elixir-autogen, elixir-format
 msgid "A dedicated encryption key is configured but was rejected as too short, so a weaker key is in use. This is not the same as having none configured. Replace it with a longer secret — while a rejected key is set, the key store is not consulted at all, so repairing or filling the store changes nothing."
 msgstr "Eraldi krüptovõti on seadistatud, kuid lükati liiga lühikesena tagasi, mistõttu kasutusel on nõrgem võti. See ei ole sama, mis võtme puudumine. Asenda see pikema saladusega — kuni tagasilükatud võti on seadistatud, võtmehoidlat ei vaadata üldse, seega hoidla parandamine või täitmine ei muuda midagi."
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:318
+#: lib/phoenix_kit_web/live/settings/integrations.ex:337
 #, elixir-autogen, elixir-format
 msgid "A key store is configured and holds a secret at %{location}, but no encryption key resolves at all — credentials below are being written in plain text. Do NOT run mix phoenix_kit.integrations.rotate_key: it refuses while no key is active. Check what the store holds — if it is a real key from an earlier rotation, wire it in as integrations_encryption_key and restart."
 msgstr "Võtmehoidla on seadistatud ja hoiab saladust asukohas %{location}, kuid ühtegi krüptovõtit ei leidu — allolevad mandaadid salvestatakse avatekstina. ÄRA käivita mix phoenix_kit.integrations.rotate_key: see keeldub, kuni ükski võti pole aktiivne. Kontrolli, mida hoidla sisaldab — kui see on varasema rotatsiooni päris võti, seadista see integrations_encryption_key väärtuseks ja taaskäivita."
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:333
+#: lib/phoenix_kit_web/live/settings/integrations.ex:352
 #, elixir-autogen, elixir-format
 msgid "A key store is configured but holds a secret that is not the key in use, so encryption fell back to a weaker key. %{location} is most plausibly already holding a dedicated secret from a rotation this app has not restarted to pick up yet. Do NOT run mix phoenix_kit.integrations.rotate_key before checking: if that is the case, restart instead of rotating again, since rotating replaces it with no copy kept."
 msgstr "Võtmehoidla on seadistatud, kuid hoiab saladust, mis pole kasutusel olev võti, mistõttu krüpteerimine langes nõrgemale võtmele. Tõenäoliselt hoiab %{location} juba eraldi saladust rotatsioonist, mille jaoks rakendus pole veel taaskäivitunud. ÄRA käivita mix phoenix_kit.integrations.rotate_key enne kontrollimist: sel juhul taaskäivita, mitte ära roteeri uuesti — rotatsioon asendab selle koopiat säilitamata."
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:298
+#: lib/phoenix_kit_web/live/settings/integrations.ex:317
 #, elixir-autogen, elixir-format
 msgid "A key store is configured but its secret could not be read, and no other key resolves either — credentials below are being written in plain text. Do NOT run mix phoenix_kit.integrations.rotate_key: the stored key may be the one existing credentials are encrypted under. Repair the store first; repairing it later will not make anything written in the meantime readable."
 msgstr "Võtmehoidla on seadistatud, kuid selle saladust ei õnnestunud lugeda, ja ühtegi teist võtit ei leidu — allolevad mandaadid salvestatakse avatekstina. ÄRA käivita mix phoenix_kit.integrations.rotate_key: hoitav võti võib olla see, millega olemasolevad mandaadid on krüpteeritud. Paranda kõigepealt hoidla; hilisem parandamine ei tee vahepeal kirjutatut loetavaks."
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:308
+#: lib/phoenix_kit_web/live/settings/integrations.ex:327
 #, elixir-autogen, elixir-format
 msgid "A key store is configured but its secret could not be read, so encryption fell back to a weaker key. Values written under the stored key will not decrypt. Do NOT run mix phoenix_kit.integrations.rotate_key: the stored key may be the one they are encrypted under. Repair the store first; repairing it later will not make anything written in the meantime readable."
 msgstr "Võtmehoidla on seadistatud, kuid selle saladust ei õnnestunud lugeda, mistõttu krüpteerimine langes nõrgemale võtmele. Hoitava võtme all kirjutatud väärtused ei dekrüpteeru. ÄRA käivita mix phoenix_kit.integrations.rotate_key: hoitav võti võib olla see, millega need on krüpteeritud. Paranda kõigepealt hoidla; hilisem parandamine ei tee vahepeal kirjutatut loetavaks."
@@ -12577,12 +12569,12 @@ msgstr "Brauser tuvastas: %{zone}"
 msgid "Check your timezone"
 msgstr "Kontrolli oma ajavööndit"
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:288
+#: lib/phoenix_kit_web/live/settings/integrations.ex:307
 #, elixir-autogen, elixir-format
 msgid "Encryption is working — the key in use comes from configuration. The configured key store holds a different secret, so it is not a copy of that key: restoring from it would produce a key that decrypts nothing stored here. Do not rotate before you know what the stored secret is for — a rotation replaces it in every configured store and keeps no copy."
 msgstr "Krüpteerimine töötab — kasutusel olev võti tuleb seadistusest. Seadistatud võtmehoidla hoiab teistsugust saladust, seega see pole selle võtme koopia: sellest taastamine annaks võtme, mis ei dekrüpteeri siin midagi. Ära roteeri enne, kui tead, milleks hoitav saladus on — rotatsioon asendab selle igas seadistatud hoidlas ega säilita koopiat."
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:279
+#: lib/phoenix_kit_web/live/settings/integrations.ex:298
 #, elixir-autogen, elixir-format
 msgid "Encryption itself is working — the key in use comes from configuration. The configured key store cannot be read, so nothing confirms that key is saved anywhere. Do not rotate until the store reads back: the rotation pre-flight only checks that the store can be written, so it will not stop for this."
 msgstr "Krüpteerimine ise töötab — kasutusel olev võti tuleb seadistusest. Seadistatud võtmehoidlat ei saa lugeda, seega miski ei kinnita, et see võti on kuhugi salvestatud. Ära roteeri enne, kui hoidla on loetav: rotatsiooni eelkontroll kontrollib vaid, et hoidlasse saab kirjutada, seega see siin ei peata."
@@ -12592,22 +12584,22 @@ msgstr "Krüpteerimine ise töötab — kasutusel olev võti tuleb seadistusest.
 msgid "Encryption key fingerprint:"
 msgstr "Krüptovõtme sõrmejälg:"
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:455
+#: lib/phoenix_kit_web/live/settings/integrations.ex:474
 #, elixir-autogen, elixir-format
 msgid "FALLBACK key — the configured key store could not be read"
 msgstr "VARUVÕTI — seadistatud võtmehoidlat ei õnnestunud lugeda"
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:458
+#: lib/phoenix_kit_web/live/settings/integrations.ex:477
 #, elixir-autogen, elixir-format
 msgid "FALLBACK key — the configured key store holds a different secret"
 msgstr "VARUVÕTI — seadistatud võtmehoidla hoiab teistsugust saladust"
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:464
+#: lib/phoenix_kit_web/live/settings/integrations.ex:483
 #, elixir-autogen, elixir-format
 msgid "FALLBACK key — the configured key was rejected as too short"
 msgstr "VARUVÕTI — seadistatud võti lükati liiga lühikesena tagasi"
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:461
+#: lib/phoenix_kit_web/live/settings/integrations.ex:480
 #, elixir-autogen, elixir-format
 msgid "FALLBACK key — the secret in the key store was rejected as too short"
 msgstr "VARUVÕTI — võtmehoidla saladus lükati liiga lühikesena tagasi"
@@ -12665,14 +12657,14 @@ msgstr "Öökull"
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:141
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:316
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:349
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:382
-#: lib/phoenix_kit_web/live/settings/integration_form.ex:498
-#: lib/phoenix_kit_web/live/settings/integrations.ex:480
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:413
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:529
+#: lib/phoenix_kit_web/live/settings/integrations.ex:499
 #, elixir-autogen, elixir-format
 msgid "Not tested — this provider has no connection check"
 msgstr "Testimata — sellel teenusepakkujal pole ühenduse kontrolli"
 
-#: lib/phoenix_kit/integrations/integrations.ex:1369
+#: lib/phoenix_kit/integrations/integrations.ex:1381
 #, elixir-autogen, elixir-format
 msgid "Not verified — this provider has no connection check"
 msgstr "Kinnitamata — sellel teenusepakkujal pole ühenduse kontrolli"
@@ -12689,42 +12681,42 @@ msgstr "Profiili seaded"
 msgid "Rise and shine"
 msgstr "Ärka ja sära"
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:235
+#: lib/phoenix_kit_web/live/settings/integrations.ex:254
 #, elixir-autogen, elixir-format
 msgid "The configured encryption key store cannot be read"
 msgstr "Seadistatud krüptovõtmehoidlat ei saa lugeda"
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:253
+#: lib/phoenix_kit_web/live/settings/integrations.ex:272
 #, elixir-autogen, elixir-format
 msgid "The configured encryption key was rejected as too short"
 msgstr "Seadistatud krüptovõti lükati liiga lühikesena tagasi"
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:243
+#: lib/phoenix_kit_web/live/settings/integrations.ex:262
 #, elixir-autogen, elixir-format
 msgid "The configured key store holds a different secret"
 msgstr "Seadistatud võtmehoidla hoiab teistsugust saladust"
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:229
+#: lib/phoenix_kit_web/live/settings/integrations.ex:248
 #, elixir-autogen, elixir-format
 msgid "The encryption key is fine, but its key store cannot be read"
 msgstr "Krüptovõti on korras, kuid selle hoidlat ei saa lugeda"
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:232
+#: lib/phoenix_kit_web/live/settings/integrations.ex:251
 #, elixir-autogen, elixir-format
 msgid "The key store holds a different secret from the key in use"
 msgstr "Võtmehoidla hoiab kasutusel olevast võtmest erinevat saladust"
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:352
+#: lib/phoenix_kit_web/live/settings/integrations.ex:371
 #, elixir-autogen, elixir-format
 msgid "The secret in the key store (%{location}) was rejected as shorter than the minimum, and no other key resolves — credentials below are being written in plain text. No integrations_encryption_key is set, so the store is where the key is read from: put a longer secret there and restart."
 msgstr "Võtmehoidla (%{location}) saladus lükati miinimumist lühemana tagasi ja ühtegi teist võtit ei leidu — allolevad mandaadid salvestatakse avatekstina. integrations_encryption_key pole seadistatud, seega võti loetakse hoidlast: pane sinna pikem saladus ja taaskäivita."
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:364
+#: lib/phoenix_kit_web/live/settings/integrations.ex:383
 #, elixir-autogen, elixir-format
 msgid "The secret in the key store (%{location}) was rejected as shorter than the minimum, so a weaker key is in use. No integrations_encryption_key is set, so the store is where the key is read from: put a longer secret there and restart."
 msgstr "Võtmehoidla (%{location}) saladus lükati miinimumist lühemana tagasi, mistõttu kasutusel on nõrgem võti. integrations_encryption_key pole seadistatud, seega võti loetakse hoidlast: pane sinna pikem saladus ja taaskäivita."
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:250
+#: lib/phoenix_kit_web/live/settings/integrations.ex:269
 #, elixir-autogen, elixir-format
 msgid "The secret in the key store was rejected as too short"
 msgstr "Võtmehoidla saladus lükati liiga lühikesena tagasi"
@@ -12774,27 +12766,27 @@ msgstr "Sinu brauser teatab %{zone}. Sa pole ajavööndit seadnud, seega ajad ku
 msgid "another site showing this same fingerprint and the same key state is using the same key"
 msgstr "teine sait, mis näitab sama sõrmejälge ja sama võtmeseisu, kasutab sama võtit"
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:444
+#: lib/phoenix_kit_web/live/settings/integrations.ex:463
 #, elixir-autogen, elixir-format
 msgid "dedicated key"
 msgstr "eraldi võti"
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:449
+#: lib/phoenix_kit_web/live/settings/integrations.ex:468
 #, elixir-autogen, elixir-format
 msgid "dedicated key — its key store could not be read"
 msgstr "eraldi võti — selle hoidlat ei õnnestunud lugeda"
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:452
+#: lib/phoenix_kit_web/live/settings/integrations.ex:471
 #, elixir-autogen, elixir-format
 msgid "dedicated key — the key store holds a different secret"
 msgstr "eraldi võti — hoidla hoiab teistsugust saladust"
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:467
+#: lib/phoenix_kit_web/live/settings/integrations.ex:486
 #, elixir-autogen, elixir-format
 msgid "derived from secret_key_base"
 msgstr "tuletatud secret_key_base'ist"
 
-#: lib/phoenix_kit_web/live/settings/integrations.ex:469
+#: lib/phoenix_kit_web/live/settings/integrations.ex:488
 #, elixir-autogen, elixir-format
 msgid "unrecognised key state"
 msgstr "tundmatu võtmeseis"
@@ -14399,7 +14391,7 @@ msgstr "Muuda pilti"
 msgid "Edited"
 msgstr "Muudetud"
 
-#: lib/modules/storage/web/settings.html.heex:441
+#: lib/modules/storage/web/settings.html.heex:477
 #, elixir-autogen, elixir-format
 msgid "Every save overwrites the image for good. Nothing can be undone, and redacted areas are gone from storage."
 msgstr "Iga salvestamine kirjutab pildi jäädavalt üle. Midagi ei saa tagasi võtta ja kaetud alad kaovad salvestusruumist."
@@ -14425,12 +14417,12 @@ msgstr "Kõrgus %"
 msgid "Hide areas"
 msgstr "Peida alad"
 
-#: lib/modules/storage/web/settings.html.heex:406
+#: lib/modules/storage/web/settings.html.heex:442
 #, elixir-autogen, elixir-format
 msgid "Image Editing"
 msgstr "Piltide muutmine"
 
-#: lib/modules/storage/web/settings.html.heex:422
+#: lib/modules/storage/web/settings.html.heex:458
 #, elixir-autogen, elixir-format
 msgid "Keep the original (recommended)"
 msgstr "Säilita originaal (soovitatav)"
@@ -14481,7 +14473,7 @@ msgstr "Pikselda"
 msgid "Remove area"
 msgstr "Eemalda ala"
 
-#: lib/modules/storage/web/settings.html.heex:439
+#: lib/modules/storage/web/settings.html.heex:475
 #, elixir-autogen, elixir-format
 msgid "Replace the original"
 msgstr "Asenda originaal"
@@ -14556,7 +14548,7 @@ msgstr "Kuni see valmib, näidatakse pildi asemel kohatäidet."
 msgid "The preview is approximate; colours and blur are exact once saved."
 msgstr "Eelvaade on ligikaudne; värvid ja hägusus on täpsed pärast salvestamist."
 
-#: lib/modules/storage/web/settings.html.heex:424
+#: lib/modules/storage/web/settings.html.heex:460
 #, elixir-autogen, elixir-format
 msgid "The unedited image is kept privately, so an edit can be changed or undone. Owners can delete it themselves."
 msgstr "Muutmata pilti hoitakse privaatselt, et muudatust saaks muuta või tagasi võtta. Omanikud saavad selle ise kustutada."
@@ -14644,7 +14636,7 @@ msgstr "Seni näidatakse pildi asemel kõikjal kohatäidet."
 msgid "Wait until the image has finished rendering."
 msgstr "Oota, kuni pildi töötlemine lõpeb."
 
-#: lib/modules/storage/web/settings.html.heex:408
+#: lib/modules/storage/web/settings.html.heex:444
 #, elixir-autogen, elixir-format
 msgid "What saving an edited image (crop, turn, redaction…) does with the original."
 msgstr "Mida teeb muudetud pildi (kärpimine, pööramine, katmine…) salvestamine originaaliga."
@@ -14671,12 +14663,12 @@ msgstr "API-kasutajanimi"
 msgid "API password"
 msgstr "API-parool"
 
-#: lib/phoenix_kit/integrations/validators.ex:1032
+#: lib/phoenix_kit/integrations/validators.ex:1055
 #, elixir-autogen, elixir-format
 msgid "Balance: $%{amount}"
 msgstr "Saldo: $%{amount}"
 
-#: lib/phoenix_kit/integrations/validators.ex:1036
+#: lib/phoenix_kit/integrations/validators.ex:1059
 #, elixir-autogen, elixir-format
 msgid "Balance: $%{amount} — add funds before running searches"
 msgstr "Saldo: $%{amount} — täiendage saldot enne otsingute tegemist"
@@ -14686,12 +14678,12 @@ msgstr "Saldo: $%{amount} — täiendage saldot enne otsingute tegemist"
 msgid "Copy the key from [API Key](https://serpapi.com/manage-api-key) and paste it into the form above"
 msgstr "Kopeerige võti lehelt [API Key](https://serpapi.com/manage-api-key) ja kleepige see ülalolevasse vormi"
 
-#: lib/phoenix_kit/integrations/validators.ex:972
+#: lib/phoenix_kit/integrations/validators.ex:995
 #, elixir-autogen, elixir-format
 msgid "Could not reach DataForSEO"
 msgstr "DataForSEO-ga ei saanud ühendust"
 
-#: lib/phoenix_kit/integrations/validators.ex:1136
+#: lib/phoenix_kit/integrations/validators.ex:1159
 #, elixir-autogen, elixir-format
 msgid "Could not reach SerpApi"
 msgstr "SerpApi-ga ei saanud ühendust"
@@ -14706,22 +14698,22 @@ msgstr "Looge konto lehel [DataForSEO](https://app.dataforseo.com/register) — 
 msgid "DataForSEO"
 msgstr "DataForSEO"
 
-#: lib/phoenix_kit/integrations/validators.ex:1086
+#: lib/phoenix_kit/integrations/validators.ex:1109
 #, elixir-autogen, elixir-format
 msgid "DataForSEO error %{code}"
 msgstr "DataForSEO viga %{code}"
 
-#: lib/phoenix_kit/integrations/validators.ex:1079
+#: lib/phoenix_kit/integrations/validators.ex:1102
 #, elixir-autogen, elixir-format
 msgid "DataForSEO error %{code}: %{message}"
 msgstr "DataForSEO viga %{code}: %{message}"
 
-#: lib/phoenix_kit/integrations/validators.ex:1014
+#: lib/phoenix_kit/integrations/validators.ex:1037
 #, elixir-autogen, elixir-format
 msgid "DataForSEO error %{status}"
 msgstr "DataForSEO viga %{status}"
 
-#: lib/phoenix_kit/integrations/validators.ex:1062
+#: lib/phoenix_kit/integrations/validators.ex:1085
 #, elixir-autogen, elixir-format
 msgid "DataForSEO has paused this account — contact their support"
 msgstr "DataForSEO on selle konto peatanud — pöörduge nende kasutajatoe poole"
@@ -14741,12 +14733,12 @@ msgstr "Hankige API-võti"
 msgid "Get your API login and password"
 msgstr "Hankige API-kasutajanimi ja -parool"
 
-#: lib/phoenix_kit/integrations/validators.ex:1157
+#: lib/phoenix_kit/integrations/validators.ex:1180
 #, elixir-autogen, elixir-format
 msgid "Invalid API key"
 msgstr "Vigane API-võti"
 
-#: lib/phoenix_kit/integrations/validators.ex:1050
+#: lib/phoenix_kit/integrations/validators.ex:1073
 #, elixir-autogen, elixir-format
 msgid "Invalid API login or password — use the API password from the API Access page, not the one you sign in with"
 msgstr "Vigane API-kasutajanimi või -parool — kasutage lehel API Access olevat API-parooli, mitte sisselogimise parooli"
@@ -14776,17 +14768,17 @@ msgstr "Otsingumootori tulemused, märksõna- ja SEO-andmed — tasu päringu ka
 msgid "SerpApi"
 msgstr "SerpApi"
 
-#: lib/phoenix_kit/integrations/validators.ex:1168
+#: lib/phoenix_kit/integrations/validators.ex:1191
 #, elixir-autogen, elixir-format
 msgid "SerpApi error %{status}"
 msgstr "SerpApi viga %{status}"
 
-#: lib/phoenix_kit/integrations/validators.ex:1161
+#: lib/phoenix_kit/integrations/validators.ex:1184
 #, elixir-autogen, elixir-format
 msgid "SerpApi error %{status}: %{message}"
 msgstr "SerpApi viga %{status}: %{message}"
 
-#: lib/phoenix_kit/integrations/validators.ex:1148
+#: lib/phoenix_kit/integrations/validators.ex:1171
 #, elixir-autogen, elixir-format
 msgid "SerpApi error: %{message}"
 msgstr "SerpApi viga: %{message}"
@@ -14811,30 +14803,30 @@ msgstr "API-parool luuakse teie jaoks ja see erineb teie sisselogimise paroolist
 msgid "The e-mail address of your DataForSEO account"
 msgstr "Teie DataForSEO konto e-posti aadress"
 
-#: lib/phoenix_kit/integrations/validators.ex:1056
+#: lib/phoenix_kit/integrations/validators.ex:1079
 #, elixir-autogen, elixir-format
 msgid "This DataForSEO account is not verified yet"
 msgstr "See DataForSEO konto pole veel kinnitatud"
 
-#: lib/phoenix_kit/integrations/validators.ex:1059
+#: lib/phoenix_kit/integrations/validators.ex:1082
 #, elixir-autogen, elixir-format
 msgid "This DataForSEO account needs funds — top up the balance"
 msgstr "Sellel DataForSEO kontol pole piisavalt raha — täiendage saldot"
 
-#: lib/phoenix_kit/integrations/validators.ex:1065
+#: lib/phoenix_kit/integrations/validators.ex:1088
 #, elixir-autogen, elixir-format
 msgid "Too many requests to DataForSEO — try again in a minute"
 msgstr "Liiga palju päringuid DataForSEO-le — proovige minuti pärast uuesti"
 
-#: lib/phoenix_kit/integrations/validators.ex:973
-#: lib/phoenix_kit/integrations/validators.ex:1011
+#: lib/phoenix_kit/integrations/validators.ex:996
+#: lib/phoenix_kit/integrations/validators.ex:1034
 #, elixir-autogen, elixir-format
 msgid "Unexpected answer from DataForSEO"
 msgstr "Ootamatu vastus DataForSEO-lt"
 
-#: lib/phoenix_kit/integrations/validators.ex:1137
-#: lib/phoenix_kit/integrations/validators.ex:1151
-#: lib/phoenix_kit/integrations/validators.ex:1155
+#: lib/phoenix_kit/integrations/validators.ex:1160
+#: lib/phoenix_kit/integrations/validators.ex:1174
+#: lib/phoenix_kit/integrations/validators.ex:1178
 #, elixir-autogen, elixir-format
 msgid "Unexpected answer from SerpApi"
 msgstr "Ootamatu vastus SerpApi-lt"
@@ -14849,27 +14841,27 @@ msgstr "Lehelt serpapi.com/manage-api-key"
 msgid "Test Connection does not use up a search. It shows your plan and how many searches are left."
 msgstr "„Testi ühendust“ ei kuluta ühtegi otsingut. See näitab teie paketti ja seda, mitu otsingut on alles."
 
-#: lib/phoenix_kit/integrations/validators.ex:1180
+#: lib/phoenix_kit/integrations/validators.ex:1203
 #, elixir-autogen, elixir-format
 msgid "Account status: %{status}"
 msgstr "Konto olek: %{status}"
 
-#: lib/phoenix_kit/integrations/validators.ex:1201
+#: lib/phoenix_kit/integrations/validators.ex:1224
 #, elixir-autogen, elixir-format
 msgid "No searches left"
 msgstr "Otsinguid pole enam alles"
 
-#: lib/phoenix_kit/integrations/validators.ex:1200
+#: lib/phoenix_kit/integrations/validators.ex:1223
 #, elixir-autogen, elixir-format
 msgid "Searches left: %{left}"
 msgstr "Otsinguid alles: %{left}"
 
-#: lib/phoenix_kit/integrations/validators.ex:1069
+#: lib/phoenix_kit/integrations/validators.ex:1092
 #, elixir-autogen, elixir-format
 msgid "This DataForSEO account has reached its daily spending limit — raise it on app.dataforseo.com"
 msgstr "See DataForSEO konto on jõudnud päevase kululimiidini — tõstke seda lehel app.dataforseo.com"
 
-#: lib/phoenix_kit/integrations/validators.ex:1075
+#: lib/phoenix_kit/integrations/validators.ex:1098
 #, elixir-autogen, elixir-format
 msgid "Too many requests to DataForSEO at once — try again shortly"
 msgstr "Liiga palju samaaegseid päringuid DataForSEO-le — proovige varsti uuesti"
@@ -15255,7 +15247,7 @@ msgstr "Annotatsiooni seaded on lähtestatud."
 msgid "Annotation tools"
 msgstr "Annotatsioonitööriistad"
 
-#: lib/phoenix_kit/integrations/integrations.ex:1233
+#: lib/phoenix_kit/integrations/integrations.ex:1245
 #, elixir-autogen, elixir-format
 msgid "Could not read the current figures"
 msgstr "Praeguseid näitajaid ei õnnestunud lugeda"
@@ -15840,7 +15832,7 @@ msgid_plural "%{count} stored objects have no recorded location yet. They are be
 msgstr[0] "%{count} salvestatud objektil pole veel salvestatud asukohta. Seda otsitakse taustal ja seni jagatakse seda edasi."
 msgstr[1] "%{count} salvestatud objektil pole veel salvestatud asukohta. Neid otsitakse taustal ja seni jagatakse neid edasi."
 
-#: lib/modules/storage/web/settings.ex:392
+#: lib/modules/storage/web/settings.ex:440
 #, elixir-autogen, elixir-format
 msgid "This bucket still holds files, so it cannot be deleted. Disable it to stop storing new files there."
 msgstr "Selles bucketis on veel faile, seega seda ei saa kustutada. Keelake see, et sinna enam uusi faile ei salvestataks."
@@ -15875,7 +15867,7 @@ msgstr "Lehel võib olla üherealine kirjeldus; kui see on sees, kuvatakse see h
 msgid "Show page descriptions in the admin header"
 msgstr "Näita halduspäises lehe kirjeldusi"
 
-#: lib/modules/storage/web/bucket_form.html.heex:310
+#: lib/modules/storage/web/bucket_form.html.heex:389
 #, elixir-autogen, elixir-format
 msgid "Signed (short-lived link)"
 msgstr "Allkirjastatud (lühiajaline link)"
@@ -15905,7 +15897,7 @@ msgstr "Aktiivsed ja prügikastis"
 msgid "Add bucket"
 msgstr "Lisa bucket"
 
-#: lib/modules/storage/web/settings.html.heex:361
+#: lib/modules/storage/web/settings.html.heex:397
 #, elixir-autogen, elixir-format
 msgid "Automatically resize images and videos to the sizes of the Default variant set. A library on another variant set follows that set."
 msgstr "Muuda piltide ja videote suurust automaatselt vaike-variandikomplekti suurusteni. Teist variandikomplekti kasutav kogu järgib seda komplekti."
@@ -15965,12 +15957,12 @@ msgstr "Suuruse või plaadi koopiad"
 msgid "Copies of an original"
 msgstr "Originaali koopiad"
 
-#: lib/modules/storage/web/settings.html.heex:301
+#: lib/modules/storage/web/settings.html.heex:337
 #, elixir-autogen, elixir-format
 msgid "Copies of each file in the Default storage profile. A library on another profile uses that profile's copies (Storage profiles tab)."
 msgstr "Iga faili koopiate arv vaikimisi salvestusprofiilis. Teist profiili kasutav kogu kasutab selle profiili koopiaid (vahekaart Salvestusprofiilid)."
 
-#: lib/modules/storage/web/settings.html.heex:515
+#: lib/modules/storage/web/settings.html.heex:551
 #, elixir-autogen, elixir-format
 msgid "Create and edit variant sets: the image and video sizes each library's uploads get."
 msgstr "Looge ja muutke variandikomplekte: pildi- ja videosuurused, mis iga kogu üleslaadimistele tehakse."
@@ -16055,7 +16047,7 @@ msgstr "Uus variandikomplekt"
 msgid "No buckets yet: uploads to a library on this profile fail."
 msgstr "Buckete pole veel: üleslaadimised selle profiiliga kogusse ebaõnnestuvad."
 
-#: lib/modules/storage/web/settings.html.heex:545
+#: lib/modules/storage/web/settings.html.heex:581
 #, elixir-autogen, elixir-format
 msgid "Open the media health dashboard: the files not yet stored or sized as their library wants."
 msgstr "Ava meedia seisundi töölaud: failid, mis pole veel salvestatud või suurustatud nii, nagu nende kogu ette näeb."
@@ -16182,7 +16174,7 @@ msgstr "Ühtlustajat ei õnnestunud järjekorda panna."
 msgid "The reconciler is queued. Refresh to see its progress."
 msgstr "Ühtlustaja on järjekorras. Edenemise nägemiseks värskendage lehte."
 
-#: lib/modules/storage/web/settings.html.heex:380
+#: lib/modules/storage/web/settings.html.heex:416
 #, elixir-autogen, elixir-format
 msgid "This is the Default variant set's setting; a library on another variant set follows that set."
 msgstr "See on vaike-variandikomplekti seade; teist variandikomplekti kasutav kogu järgib seda komplekti."
@@ -16238,7 +16230,7 @@ msgstr "Variandikomplekt salvestatud"
 #: lib/modules/storage/web/dimension_form.html.heex:10
 #: lib/modules/storage/web/dimensions.ex:27
 #: lib/modules/storage/web/dimensions.html.heex:4
-#: lib/modules/storage/web/settings.html.heex:524
+#: lib/modules/storage/web/settings.html.heex:560
 #, elixir-autogen, elixir-format
 msgid "Variant sets"
 msgstr "Variandikomplektid"
@@ -16311,7 +16303,7 @@ msgstr "Avar vaade"
 msgid "Compact view"
 msgstr "Kompaktne vaade"
 
-#: lib/modules/storage/web/settings.html.heex:618
+#: lib/modules/storage/web/settings.html.heex:654
 #, elixir-autogen, elixir-format
 msgid "Check again"
 msgstr "Kontrolli uuesti"
@@ -16321,42 +16313,42 @@ msgstr "Kontrolli uuesti"
 msgid "External libraries"
 msgstr "Välised teegid"
 
-#: lib/modules/storage/web/settings.ex:543
+#: lib/modules/storage/web/settings.ex:596
 #, elixir-autogen, elixir-format
 msgid "Image variants, resizing and conversion"
 msgstr "Pildivariandid, suuruse muutmine ja teisendamine"
 
-#: lib/modules/storage/web/settings.ex:521
+#: lib/modules/storage/web/settings.ex:574
 #, elixir-autogen, elixir-format
 msgid "Not found on this server: %{tools}."
 msgstr "Selles serveris ei leitud: %{tools}."
 
-#: lib/modules/storage/web/settings.ex:548
+#: lib/modules/storage/web/settings.ex:601
 #, elixir-autogen, elixir-format
 msgid "PDF page count and metadata"
 msgstr "PDF-i lehekülgede arv ja metaandmed"
 
-#: lib/modules/storage/web/settings.ex:547
+#: lib/modules/storage/web/settings.ex:600
 #, elixir-autogen, elixir-format
 msgid "PDF preview images"
 msgstr "PDF-i eelvaatepildid"
 
-#: lib/modules/storage/web/settings.html.heex:611
+#: lib/modules/storage/web/settings.html.heex:647
 #, elixir-autogen, elixir-format
 msgid "Programs on this server that media processing runs."
 msgstr "Selle serveri programmid, mida meediatöötlus käivitab."
 
-#: lib/modules/storage/web/settings.html.heex:581
+#: lib/modules/storage/web/settings.html.heex:617
 #, elixir-autogen, elixir-format
 msgid "Put back what storage needs: a bucket, a writable bucket in the Default profile, a copy count its buckets can hold. Resets the default dimensions. Keeps your buckets, redundancy and files."
 msgstr "Taastab, mida salvestus vajab: bucketi, kirjutatava bucketi vaikeprofiilis ja koopiate arvu, mille selle bucketid mahutavad. Lähtestab vaikimisi dimensioonid. Sinu bucketid, redundantsus ja failid jäävad alles."
 
-#: lib/modules/storage/web/settings.html.heex:589
+#: lib/modules/storage/web/settings.html.heex:625
 #, elixir-autogen, elixir-format
 msgid "This resets the default dimensions and fixes missing bucket setup. Buckets, redundancy and uploaded files are kept. Continue?"
 msgstr "See lähtestab vaikimisi dimensioonid ja parandab puuduva bucketite seadistuse. Bucketid, redundantsus ja üleslaaditud failid jäävad alles. Kas jätkata?"
 
-#: lib/modules/storage/web/settings.html.heex:625
+#: lib/modules/storage/web/settings.html.heex:661
 #, elixir-autogen, elixir-format
 msgid "Tool"
 msgstr "Tööriist"
@@ -16366,51 +16358,51 @@ msgstr "Tööriist"
 msgid "Tools"
 msgstr "Tööriistad"
 
-#: lib/modules/storage/web/settings.html.heex:626
+#: lib/modules/storage/web/settings.html.heex:662
 #, elixir-autogen, elixir-format
 msgid "Used for"
 msgstr "Kasutatakse"
 
-#: lib/modules/storage/web/settings.ex:546
+#: lib/modules/storage/web/settings.ex:599
 #, elixir-autogen, elixir-format
 msgid "Video dimensions, duration and capture date"
 msgstr "Video mõõtmed, kestus ja jäädvustamise kuupäev"
 
-#: lib/modules/storage/web/settings.ex:545
+#: lib/modules/storage/web/settings.ex:598
 #, elixir-autogen, elixir-format
 msgid "Video variants and thumbnails"
 msgstr "Videovariandid ja pisipildid"
 
-#: lib/modules/storage/web/settings.ex:544
+#: lib/modules/storage/web/settings.ex:597
 #, elixir-autogen, elixir-format
 msgid "Zoomable tiles for large images"
 msgstr "Suumitavad paanid suurte piltide jaoks"
 
-#: lib/modules/storage/web/settings.ex:493
+#: lib/modules/storage/web/settings.ex:546
 #, elixir-autogen, elixir-format
 msgid "added %{count} bucket to the Default profile"
 msgid_plural "added %{count} buckets to the Default profile"
 msgstr[0] "lisati %{count} bucket vaikeprofiili"
 msgstr[1] "lisati %{count} bucketit vaikeprofiili"
 
-#: lib/modules/storage/web/settings.ex:507
+#: lib/modules/storage/web/settings.ex:560
 #, elixir-autogen, elixir-format
 msgid "cleared the missing default bucket"
 msgstr "eemaldati puuduv vaikimisi bucket"
 
-#: lib/modules/storage/web/settings.ex:490
+#: lib/modules/storage/web/settings.ex:543
 #, elixir-autogen, elixir-format
 msgid "created bucket '%{name}'"
 msgstr "loodi bucket „%{name}“"
 
-#: lib/modules/storage/web/settings.ex:500
+#: lib/modules/storage/web/settings.ex:553
 #, elixir-autogen, elixir-format
 msgid "lowered the Default profile to %{count} copy"
 msgid_plural "lowered the Default profile to %{count} copies"
 msgstr[0] "vaikeprofiil vähendati %{count} koopiale"
 msgstr[1] "vaikeprofiil vähendati %{count} koopiale"
 
-#: lib/modules/storage/web/settings.ex:510
+#: lib/modules/storage/web/settings.ex:563
 #, elixir-autogen, elixir-format
 msgid "reset %{count} dimensions"
 msgstr "lähtestati %{count} dimensiooni"
@@ -16434,3 +16426,191 @@ msgstr "Registreerimine on hetkel keelatud. Juurdepääsu saamiseks pöördu adm
 #, elixir-autogen, elixir-format
 msgid "Saved, but the password, email and username were not changed — you don't have permission to manage this user's credentials."
 msgstr "Salvestatud, kuid parooli, e-posti aadressi ja kasutajanime ei muudetud – sul puudub luba selle kasutaja mandaate hallata."
+
+#: lib/modules/storage/web/settings.html.heex:82
+#, elixir-autogen, elixir-format
+msgid "%{count} bucket uses keys saved on the bucket itself."
+msgid_plural "%{count} buckets use keys saved on the bucket itself."
+msgstr[0] "%{count} bucket kasutab võtmeid, mis on salvestatud bucketisse endasse."
+msgstr[1] "%{count} bucketit kasutavad võtmeid, mis on salvestatud bucketisse endasse."
+
+#: lib/phoenix_kit_web/live/settings/integration_form.ex:159
+#, elixir-autogen, elixir-format
+msgid "%{count} storage bucket uses this connection and will stop working. Permanently delete it? This cannot be undone."
+msgid_plural "%{count} storage buckets use this connection and will stop working. Permanently delete it? This cannot be undone."
+msgstr[0] "%{count} salvestusbucket kasutab seda ühendust ja lakkab töötamast. Kustutada jäädavalt? Seda ei saa tagasi võtta."
+msgstr[1] "%{count} salvestusbucketit kasutavad seda ühendust ja lakkavad töötamast. Kustutada jäädavalt? Seda ei saa tagasi võtta."
+
+#: lib/phoenix_kit_web/live/settings/integrations.ex:170
+#, elixir-autogen, elixir-format
+msgid "%{count} storage bucket uses this connection and will stop working. Remove it permanently?"
+msgid_plural "%{count} storage buckets use this connection and will stop working. Remove it permanently?"
+msgstr[0] "%{count} salvestusbucket kasutab seda ühendust ja lakkab töötamast. Eemaldada jäädavalt?"
+msgstr[1] "%{count} salvestusbucketit kasutavad seda ühendust ja lakkavad töötamast. Eemaldada jäädavalt?"
+
+#: lib/modules/storage/web/bucket_form.html.heex:289
+#, elixir-autogen, elixir-format
+msgid "Add a connection"
+msgstr "Lisa ühendus"
+
+#: lib/modules/storage/web/bucket_form.html.heex:265
+#, elixir-autogen, elixir-format
+msgid "Connection"
+msgstr "Ühendus"
+
+#: lib/modules/storage/web/bucket_form.html.heex:202
+#, elixir-autogen, elixir-format
+msgid "Custom Endpoint"
+msgstr "Kohandatud lõpp-punkt"
+
+#: lib/modules/storage/web/bucket_form.html.heex:247
+#, elixir-autogen, elixir-format
+msgid "Files are served from this address instead of the bucket's own URL. Optional."
+msgstr "Failid serveeritakse sellelt aadressilt bucketi enda URL-i asemel. Valikuline."
+
+#: lib/modules/storage/web/bucket_form.html.heex:308
+#, elixir-autogen, elixir-format
+msgid "It keeps working. Move the keys into an integration to manage them in one place."
+msgstr "See töötab edasi. Teisaldage võtmed integratsiooni, et neid ühes kohas hallata."
+
+#: lib/modules/storage/web/settings.html.heex:184
+#, elixir-autogen, elixir-format
+msgid "Keys on bucket"
+msgstr "Võtmed bucketis"
+
+#: lib/modules/storage/web/bucket_form.html.heex:225
+#, elixir-autogen, elixir-format
+msgid "Leave empty for AWS S3. Set it for an S3-compatible service such as MinIO, Wasabi or DigitalOcean Spaces."
+msgstr "AWS S3 puhul jätke tühjaks. S3-ühilduva teenuse (nt MinIO, Wasabi või DigitalOcean Spaces) puhul täitke."
+
+#: lib/modules/storage/web/settings.html.heex:103
+#, elixir-autogen, elixir-format
+msgid "Move all to integrations"
+msgstr "Teisalda kõik integratsioonidesse"
+
+#: lib/modules/storage/web/bucket_form.html.heex:325
+#, elixir-autogen, elixir-format
+msgid "Move keys to an integration"
+msgstr "Teisalda võtmed integratsiooni"
+
+#: lib/modules/storage/web/settings.html.heex:99
+#, elixir-autogen, elixir-format
+msgid "Move the keys of every such bucket into integrations?"
+msgstr "Kas teisaldada kõigi selliste bucketite võtmed integratsioonidesse?"
+
+#: lib/modules/storage/web/bucket_form.html.heex:319
+#, elixir-autogen, elixir-format
+msgid "Move this bucket's keys into an integration? The bucket keeps working."
+msgstr "Kas teisaldada selle bucketi võtmed integratsiooni? Bucket töötab edasi."
+
+#: lib/modules/storage/web/settings.ex:399
+#, elixir-autogen, elixir-format
+msgid "Moved %{moved} bucket(s); %{failed} could not be moved and were left as they were."
+msgstr "Teisaldati %{moved} bucket(it); %{failed} ei õnnestunud teisaldada ja need jäid samaks."
+
+#: lib/modules/storage/web/settings.ex:389
+#, elixir-autogen, elixir-format
+msgid "Moved the keys of %{count} bucket into an integration."
+msgid_plural "Moved the keys of %{count} buckets into an integration."
+msgstr[0] "%{count} bucketi võtmed teisaldati integratsiooni."
+msgstr[1] "%{count} bucketi võtmed teisaldati integratsiooni."
+
+#: lib/modules/storage/web/bucket_form.ex:142
+#, elixir-autogen, elixir-format
+msgid "Moving keys creates an integration, which needs access to Integrations."
+msgstr "Võtmete teisaldamine loob integratsiooni, mis nõuab juurdepääsu integratsioonidele."
+
+#: lib/modules/storage/web/settings.ex:412
+#, elixir-autogen, elixir-format
+msgid "Moving keys creates integrations, which needs access to Integrations."
+msgstr "Võtmete teisaldamine loob integratsioone, mis nõuab juurdepääsu integratsioonidele."
+
+#: lib/modules/storage/web/bucket_form.html.heex:295
+#, elixir-autogen, elixir-format
+msgid "No Object Storage connection exists yet."
+msgstr "Objektisalvestuse ühendust pole veel olemas."
+
+#: lib/modules/storage/web/bucket_form.html.heex:418
+#, elixir-autogen, elixir-format
+msgid "No limit"
+msgstr "Piirangut pole"
+
+#: lib/modules/storage/web/bucket_form.html.heex:233
+#, elixir-autogen, elixir-format
+msgid "Public URL (CDN)"
+msgstr "Avalik URL (CDN)"
+
+#: lib/modules/storage/web/bucket_form.html.heex:273
+#, elixir-autogen, elixir-format
+msgid "Select a connection..."
+msgstr "Valige ühendus…"
+
+#: lib/modules/storage/web/bucket_form.html.heex:412
+#, elixir-autogen, elixir-format
+msgid "Size limit (MB)"
+msgstr "Suuruse piirang (MB)"
+
+#: lib/modules/storage/web/bucket_form.html.heex:422
+#, elixir-autogen, elixir-format
+msgid "Stop storing new files here once it holds this much. Empty = no limit."
+msgstr "Uusi faile siia enam ei salvestata, kui see on nii täis. Tühi = piirang puudub."
+
+#: lib/modules/storage/web/bucket_form.html.heex:277
+#, elixir-autogen, elixir-format
+msgid "The access keys come from an Object Storage connection."
+msgstr "Juurdepääsuvõtmed pärinevad objektisalvestuse ühendusest."
+
+#: lib/modules/storage/web/bucket_form.html.heex:351
+#, elixir-autogen, elixir-format
+msgid "The bucket can be read, written to and deleted from"
+msgstr "Bucketit saab lugeda, sinna kirjutada ja sealt kustutada"
+
+#: lib/modules/storage/web/bucket_form.html.heex:243
+#, elixir-autogen, elixir-format
+msgid "The bucket's r2.dev or custom domain. Without one, files are served through this server."
+msgstr "Bucketi r2.dev- või oma domeen. Ilma selleta serveeritakse faile selle serveri kaudu."
+
+#: lib/phoenix_kit/integrations/validators.ex:637
+#, elixir-autogen, elixir-format
+msgid "The endpoint is not a usable host or URL"
+msgstr "Lõpp-punkt ei ole kasutatav host ega URL"
+
+#: lib/phoenix_kit/integrations/validators.ex:643
+#, elixir-autogen, elixir-format
+msgid "The endpoint must not be a local, private or metadata address"
+msgstr "Lõpp-punkt ei tohi olla kohalik, privaatne ega metaandmete aadress"
+
+#: lib/phoenix_kit/integrations/validators.ex:640
+#, elixir-autogen, elixir-format
+msgid "The endpoint must use https"
+msgstr "Lõpp-punkt peab kasutama https-i"
+
+#: lib/modules/storage/web/bucket_form.ex:267
+#, elixir-autogen, elixir-format
+msgid "The keys could not be moved. Nothing was changed."
+msgstr "Võtmeid ei õnnestunud teisaldada. Midagi ei muudetud."
+
+#: lib/modules/storage/web/bucket_form.ex:253
+#, elixir-autogen, elixir-format
+msgid "The keys now live in an integration."
+msgstr "Võtmed asuvad nüüd integratsioonis."
+
+#: lib/modules/storage/web/bucket_form.ex:260
+#, elixir-autogen, elixir-format
+msgid "The saved keys could not be read, so they were not moved. Pick a connection with working keys instead."
+msgstr "Salvestatud võtmeid ei õnnestunud lugeda, seega neid ei teisaldatud. Valige selle asemel ühendus töötavate võtmetega."
+
+#: lib/modules/storage/web/bucket_form.html.heex:364
+#, elixir-autogen, elixir-format
+msgid "The test saves and removes a small file. It is optional: a bucket can be saved without it."
+msgstr "Test salvestab ja eemaldab väikese faili. See on valikuline: bucketi saab salvestada ka ilma selleta."
+
+#: lib/modules/storage/web/settings.html.heex:89
+#, elixir-autogen, elixir-format
+msgid "They keep working. Move the keys into an integration to rotate or revoke them in one place."
+msgstr "Need töötavad edasi. Teisaldage võtmed integratsiooni, et neid ühes kohas vahetada või tühistada."
+
+#: lib/modules/storage/web/bucket_form.html.heex:305
+#, elixir-autogen, elixir-format
+msgid "This bucket uses keys saved on the bucket itself."
+msgstr "See bucket kasutab võtmeid, mis on salvestatud bucketisse endasse."

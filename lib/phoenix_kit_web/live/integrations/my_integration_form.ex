@@ -132,7 +132,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
       |> assign(:form_values, attrs)
 
     {flash_kind, flash_msg} =
-      case Integrations.validate_credentials(provider_key, attrs) do
+      case Integrations.validate_credentials(provider_key, attrs, owner: owner(socket)) do
         :ok -> {:info, gettext("Connection works")}
         {:ok, note} -> {:info, Integrations.note_text({:ok, note})}
         # Neither a pass nor a failure — this provider has no way to check a

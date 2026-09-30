@@ -1,3 +1,67 @@
+## Unreleased
+
+### Added
+
+- **A cloud bucket takes its keys from an Integrations connection.** The bucket
+  form (Settings → Media) has a connection picker (Object Storage connections,
+  with "Add a connection", which opens Integrations on the right provider and
+  shows up in the picker without a reload) instead of Access Key ID / Secret
+  Access Key fields. No migration: nothing changes for a bucket until someone
+  moves it. A bucket that still carries its own keys is flagged "Keys on
+  bucket", keeps working, and offers "Move keys to an integration" (and "Move
+  all to integrations" on the bucket list). The move reuses a connection that
+  already holds the same key pair, clears the bucket's copy only after reading
+  the keys back through the connection, and rolls back entirely on any failure;
+  a secret that can no longer be decrypted is refused rather than moved.
+  `Storage.create_bucket/1` with keys still works for scripts and seeds.
+  The form's region and endpoint are prefilled from the picked connection; the
+  bucket keeps its own copies.
+- The bucket form gains **Public URL (CDN)** (a public Cloudflare R2 bucket
+  could not be configured from the UI before), **Size limit (MB)**, and an
+  optional **Custom Endpoint** for the `s3` provider (MinIO, Wasabi,
+  DigitalOcean Spaces).
+- Removing an Integrations connection that buckets use says so first ("2
+  storage buckets use this connection and will stop working") on both the
+  list and the connection's own page.
+- `/admin/settings/integrations/new?provider=<key>` opens on that provider.
+
+### Changed
+
+- **Test Connection on a bucket lists, writes and deletes** a small object
+  (`.phoenix_kit/connection-test`) and says which step failed ("can be read
+  but not written to"). It no longer gates Save: a bucket can be saved
+  without a passing test, and editing its priority no longer needs a re-test.
+- The bucket edit page no longer renders the stored secret (the encrypted
+  value was written into the password input).
+
+### Fixed
+
+- **Tigris is a cloud provider everywhere**: a Tigris bucket now requires a
+  bucket name and credentials on the server (only the browser's `required`
+  attribute asked before), `Bucket.cloud?/1` covers it, and the bucket list
+  shows its bucket instead of "unknown configuration".
+- **A bucket reads only connections its own owner owns.**
+  `S3.resolve_credentials/1` no longer resolves any uuid it is handed; it
+  passes the owner (system, for every bucket today).
+- **One reading of an endpoint.** The Object Storage connection check parsed
+  endpoints its own way (forcing https and dropping the port), so a connection
+  could validate against a different host than a bucket used. Both now go
+  through `Storage.Endpoint.parse/1`.
+- **The server no longer connects to a metadata, link-local or reserved
+  address** named as a storage endpoint, by a bucket or a connection
+  (`Storage.Endpoint.check/3`). A *personal* Object Storage connection (an
+  ordinary user's) also may not use plain http or a loopback, private or
+  unique-local address; its host is resolved and every address checked. Until
+  now the connection check connected to whatever a user typed, and told them
+  whether it answered. System connections and buckets may still use a local
+  endpoint (a MinIO on the same network). The check is not a connect-time
+  pin: a name whose DNS changes between the check and the request is not
+  caught.
+
+### i18n
+
+- New strings extracted and translated in all locales.
+
 ## 2.41.6 - 2026-09-30
 
 ### Fixed

@@ -19,6 +19,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   alias PhoenixKit.Integrations.Encryption
   alias PhoenixKit.Integrations.Events
   alias PhoenixKit.Integrations.Providers
+  alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Actor
@@ -157,6 +158,24 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
     |> assign(:encryption_fingerprint, encryption_fingerprint(report))
   end
 
+  # What the Remove confirmation says. A connection is removed without checking
+  # who uses it, so a bucket that does is named before it stops working.
+  defp remove_confirm(bucket_counts, uuid) do
+    case Map.get(bucket_counts, uuid, 0) do
+      0 ->
+        gettext(
+          "This integration may be in use by other parts of the system. Remove it permanently?"
+        )
+
+      count ->
+        ngettext(
+          "%{count} storage bucket uses this connection and will stop working. Remove it permanently?",
+          "%{count} storage buckets use this connection and will stop working. Remove it permanently?",
+          count
+        )
+    end
+  end
+
   defp load_connections(socket) do
     # System page: only providers usable system-wide, and only SYSTEM-owned
     # connections (owner: :system) — a user's personal connection never leaks here.
@@ -182,6 +201,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
 
     socket
     |> assign(:connections, connections)
+    |> assign(:bucket_counts, Storage.bucket_counts_by_connection())
     |> assign(:provider_names, join_with_and(Enum.map(providers, & &1.name)))
   end
 

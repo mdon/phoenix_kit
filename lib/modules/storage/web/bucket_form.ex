@@ -3,86 +3,87 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
   Bucket form LiveView for storage bucket management.
 
   Provides form interface for creating and editing storage buckets.
+
+  A cloud bucket takes its keys from an `object_storage` connection under
+  **Settings → Integrations**; the form has no key fields. A bucket saved
+  before that, which still carries its own keys, keeps working and offers to
+  move them (`Storage.BucketCredentials`).
   """
   use PhoenixKitWeb, :live_view
   use Gettext, backend: PhoenixKitWeb.Gettext
 
+  alias PhoenixKit.Integrations
+  alias PhoenixKit.Integrations.Events, as: IntegrationEvents
   alias PhoenixKit.Modules.Storage
+  alias PhoenixKit.Modules.Storage.Bucket
+  alias PhoenixKit.Modules.Storage.BucketCredentials
   alias PhoenixKit.Settings
+  alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKitWeb.Actor
 
-  def mount(params, session, socket) do
-    bucket_uuid = params["id"]
-    mode = if bucket_uuid, do: :edit, else: :new
+  @cloud_providers ~w(s3 b2 r2 tigris)
 
-    # Get current path for navigation
-    current_path = get_current_path(socket, session)
-
-    # Get project title from settings
-    project_title = Settings.get_project_title()
-
-    bucket = load_bucket_data(mode, bucket_uuid)
-
-    changeset =
-      case mode do
-        :new ->
-          Storage.change_bucket(%Storage.Bucket{}, %{})
-
-        :edit ->
-          Storage.change_bucket(bucket, %{
-            name: bucket.name,
-            provider: bucket.provider,
-            region: bucket.region,
-            endpoint: bucket.endpoint,
-            bucket_name: bucket.bucket_name,
-            access_key_id: bucket.access_key_id,
-            secret_access_key: bucket.secret_access_key,
-            cdn_url: bucket.cdn_url,
-            enabled: bucket.enabled,
-            priority: bucket.priority,
-            max_size_mb: bucket.max_size_mb
-          })
-      end
+  def mount(_params, _session, socket) do
+    if connected?(socket), do: IntegrationEvents.subscribe()
 
     socket =
       socket
-      |> assign(:mode, mode)
-      |> assign(:bucket_uuid, bucket_uuid)
-      |> assign(:page_title, page_title(mode))
-      |> assign(:project_title, project_title)
-      |> assign(:form_action, page_title(mode))
-      |> assign(:current_path, current_path)
-      |> assign(:bucket, bucket)
-      |> assign(:changeset, changeset)
-      |> assign(:current_provider, get_current_provider(changeset, bucket))
+      |> assign(:project_title, Settings.get_project_title())
+      |> assign(:current_path, Routes.path("/admin/settings/media"))
       |> assign(:pending_bucket_params, nil)
       |> assign(:show_create_path_modal, false)
+      |> assign(:missing_path, nil)
       |> assign(:connection_status, nil)
       |> assign(:connection_error, nil)
       |> assign(:testing_connection, false)
+      |> assign(:connections, [])
+      |> assign(:selected_connection_uuid, nil)
 
     {:ok, socket}
   end
 
+  def handle_params(params, _uri, socket) do
+    bucket_uuid = params["id"]
+    mode = if bucket_uuid, do: :edit, else: :new
+    bucket = if mode == :edit, do: Storage.get_bucket(bucket_uuid)
+
+    if mode == :edit and is_nil(bucket) do
+      {:noreply,
+       socket
+       |> put_flash(:error, gettext("Bucket not found"))
+       |> push_navigate(to: Routes.path("/admin/settings/media"))}
+    else
+      # No attrs: an edit form starts from the stored bucket as it is. Passing
+      # the stored fields back in put the encrypted secret into the page.
+      changeset = Storage.change_bucket(bucket || %Bucket{}, %{})
+
+      {:noreply,
+       socket
+       |> assign(:mode, mode)
+       |> assign(:bucket_uuid, bucket_uuid)
+       |> assign(:page_title, page_title(mode))
+       |> assign(:bucket, bucket)
+       |> assign(:changeset, changeset)
+       |> assign(:current_provider, get_current_provider(changeset, bucket))
+       |> assign(:selected_connection_uuid, bucket && bucket.integration_uuid)
+       |> assign_connections()}
+    end
+  end
+
   def handle_event("validate", %{"bucket" => bucket_params}, socket) do
-    changeset =
-      case socket.assigns.mode do
-        :new ->
-          Storage.change_bucket(%Storage.Bucket{}, bucket_params)
+    bucket_params = normalize_params(bucket_params, socket)
+    changeset = Storage.change_bucket(socket.assigns.bucket || %Bucket{}, bucket_params)
 
-        :edit ->
-          bucket = Storage.get_bucket(socket.assigns.bucket_uuid)
-          Storage.change_bucket(bucket, bucket_params)
-      end
-
-    # Update current provider if it changed
-    current_provider = get_current_provider(changeset, socket.assigns.bucket)
-
-    # Reset connection test when form changes
+    # A changed form is no longer what the last test ran against.
     socket =
       socket
       |> assign(:changeset, changeset)
-      |> assign(:current_provider, current_provider)
+      |> assign(:current_provider, get_current_provider(changeset, socket.assigns.bucket))
+      |> assign(
+        :selected_connection_uuid,
+        Ecto.Changeset.get_field(changeset, :integration_uuid)
+      )
       |> assign(:connection_status, nil)
       |> assign(:connection_error, nil)
 
@@ -92,16 +93,11 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
   def handle_event("test_connection", _params, socket) do
     changeset = socket.assigns.changeset
 
-    bucket_params = %{
-      "name" => Ecto.Changeset.get_field(changeset, :name),
-      "provider" => Ecto.Changeset.get_field(changeset, :provider),
-      "region" => Ecto.Changeset.get_field(changeset, :region),
-      "endpoint" => Ecto.Changeset.get_field(changeset, :endpoint),
-      "bucket_name" => Ecto.Changeset.get_field(changeset, :bucket_name),
-      "access_key_id" => Ecto.Changeset.get_field(changeset, :access_key_id),
-      "secret_access_key" => Ecto.Changeset.get_field(changeset, :secret_access_key),
-      "integration_uuid" => Ecto.Changeset.get_field(changeset, :integration_uuid)
-    }
+    bucket_params =
+      Map.new(
+        ~w(name provider region endpoint bucket_name access_key_id secret_access_key integration_uuid),
+        &{&1, Ecto.Changeset.get_field(changeset, String.to_existing_atom(&1))}
+      )
 
     # start_async is unlinked: an HTTP-pool exit inside the probe (an exit,
     # not a raise — test_connection only rescues) must not take the form down.
@@ -114,6 +110,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
   end
 
   def handle_event("save", %{"bucket" => bucket_params}, socket) do
+    bucket_params = normalize_params(bucket_params, socket)
     provider = Map.get(bucket_params, "provider")
     endpoint = Map.get(bucket_params, "endpoint")
 
@@ -129,6 +126,21 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
       true ->
         # Local bucket with endpoint - validate path first
         handle_local_bucket_save(socket, bucket_params, endpoint)
+    end
+  end
+
+  def handle_event("move_credentials", _params, socket) do
+    scope = socket.assigns[:phoenix_kit_current_scope]
+
+    if Scope.has_module_access?(scope, "integrations_system") do
+      do_move_credentials(socket)
+    else
+      {:noreply,
+       put_flash(
+         socket,
+         :error,
+         gettext("Moving keys creates an integration, which needs access to Integrations.")
+       )}
     end
   end
 
@@ -206,6 +218,54 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
       |> assign(:testing_connection, false)
 
     {:noreply, socket}
+  end
+
+  # A connection added, changed or removed on another tab (the "Add a
+  # connection" link opens Integrations there) shows up in the picker at once.
+  def handle_info({event, "object_storage", _}, socket)
+      when event in [
+             :integration_setup_saved,
+             :integration_connection_added,
+             :integration_connection_removed,
+             :integration_validated
+           ],
+      do: {:noreply, assign_connections(socket)}
+
+  def handle_info({:integration_connection_renamed, "object_storage", _old, _new}, socket),
+    do: {:noreply, assign_connections(socket)}
+
+  def handle_info(_message, socket), do: {:noreply, socket}
+
+  defp do_move_credentials(socket) do
+    case BucketCredentials.move_to_integration(socket.assigns.bucket,
+           actor_uuid: Actor.uuid(socket)
+         ) do
+      {:ok, moved} ->
+        changeset = Storage.change_bucket(moved, %{})
+
+        {:noreply,
+         socket
+         |> assign(:bucket, moved)
+         |> assign(:changeset, changeset)
+         |> assign(:selected_connection_uuid, moved.integration_uuid)
+         |> assign(:connection_status, nil)
+         |> assign_connections()
+         |> put_flash(:info, gettext("The keys now live in an integration."))}
+
+      {:error, :unreadable_credentials} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           gettext(
+             "The saved keys could not be read, so they were not moved. Pick a connection with working keys instead."
+           )
+         )}
+
+      {:error, _reason} ->
+        {:noreply,
+         put_flash(socket, :error, gettext("The keys could not be moved. Nothing was changed."))}
+    end
   end
 
   defp handle_local_bucket_save(socket, bucket_params, endpoint) do
@@ -290,20 +350,70 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
     end
   end
 
-  defp load_bucket_data(:new, _bucket_uuid), do: nil
+  # What a cloud bucket needs from the params before they reach the changeset:
+  #
+  #   * picking a connection on a bucket that still carries its own keys clears
+  #     those keys in the same change (the changeset allows one source only);
+  #   * a newly picked connection fills a blank region and endpoint from its own
+  #     settings (the bucket keeps its own copies: they are not secrets, and
+  #     every public URL reads them).
+  defp normalize_params(params, socket) do
+    case blank_to_nil(params["integration_uuid"]) do
+      nil ->
+        params
 
-  defp load_bucket_data(:edit, bucket_uuid) do
-    Storage.get_bucket(bucket_uuid)
+      uuid ->
+        params
+        |> Map.put("integration_uuid", uuid)
+        |> Map.merge(%{"access_key_id" => nil, "secret_access_key" => nil})
+        |> prefill_from_connection(uuid, socket)
+    end
+  end
+
+  defp prefill_from_connection(params, uuid, socket) do
+    with true <- uuid != socket.assigns.selected_connection_uuid,
+         %{} = connection <- Enum.find(socket.assigns.connections, &(&1.uuid == uuid)) do
+      params
+      |> put_new_present("region", connection.region)
+      |> put_new_present("endpoint", connection.endpoint)
+    else
+      _ -> params
+    end
+  end
+
+  defp put_new_present(params, key, value) do
+    if blank_to_nil(params[key]) == nil and blank_to_nil(value) != nil,
+      do: Map.put(params, key, value),
+      else: params
+  end
+
+  defp blank_to_nil(value) when is_binary(value),
+    do: if(String.trim(value) == "", do: nil, else: value)
+
+  defp blank_to_nil(value), do: value
+
+  # The picker's connections, reduced to what the form shows. `list_connections/2`
+  # returns each connection's decrypted data, secrets included; none of it is
+  # kept in assigns.
+  defp assign_connections(socket) do
+    connections =
+      BucketCredentials.provider_key()
+      |> Integrations.list_connections()
+      |> Enum.map(fn %{uuid: uuid, name: name, data: data} ->
+        %{
+          uuid: uuid,
+          name: name,
+          region: data["region"],
+          endpoint: data["endpoint"],
+          configured: is_binary(data["access_key"]) and data["access_key"] != ""
+        }
+      end)
+
+    assign(socket, :connections, connections)
   end
 
   defp page_title(:new), do: gettext("Add Storage Bucket")
   defp page_title(:edit), do: gettext("Edit Storage Bucket")
-
-  # Helper function to get current path for navigation
-  defp get_current_path(_socket, _session) do
-    # For Bucket form page
-    Routes.path("/admin/settings/media")
-  end
 
   # Helper function for input validation styling
   defp input_class(changeset, field) do
@@ -321,4 +431,20 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
       %Ecto.Changeset{} -> if bucket, do: bucket.provider, else: nil
     end
   end
+
+  defp cloud_provider?(provider), do: provider in @cloud_providers
+
+  # A cloud bucket needs a connection, unless it is an existing one that still
+  # carries its own keys (legacy): that one keeps working as it is.
+  defp connection_missing?(changeset, bucket) do
+    cloud_provider?(Ecto.Changeset.get_field(changeset, :provider)) and
+      is_nil(Ecto.Changeset.get_field(changeset, :integration_uuid)) and
+      not legacy_bucket?(bucket)
+  end
+
+  defp legacy_bucket?(nil), do: false
+  defp legacy_bucket?(%Bucket{} = bucket), do: BucketCredentials.legacy?(bucket)
+
+  defp can_manage_integrations?(assigns),
+    do: Scope.has_module_access?(assigns[:phoenix_kit_current_scope], "integrations_system")
 end
