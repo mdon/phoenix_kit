@@ -129,4 +129,54 @@ defmodule PhoenixKitWeb.Components.Core.SearchPickerTest do
     assert html =~ ~s(data-t-more="Veel")
     assert html =~ ~s(data-t-loading-more="Laen…")
   end
+
+  describe "the list in the top layer, and the new options" do
+    test "the dropdown is a manual popover, kept inside the picker" do
+      assigns = %{}
+
+      html =
+        rendered_to_string(~H"""
+        <.search_picker id="p" dropdown_id="p-dd" direction="up" />
+        """)
+
+      assert html =~ ~r/<div[^>]*id="p-dd"[^>]*popover="manual"/
+      assert html =~ ~s(data-direction="up")
+    end
+
+    test "close_on_pick and row_layout reach the hook" do
+      assigns = %{}
+
+      html =
+        rendered_to_string(~H"""
+        <.search_picker id="p" dropdown_id="p-dd" close_on_pick row_layout="stacked" />
+        """)
+
+      assert html =~ "data-close-on-pick"
+      assert html =~ ~s(data-row-layout="stacked")
+      # The stacked rows' classes are written by the hook, so they must be
+      # kept alive in the template for Tailwind to compile them.
+      assert html =~ "line-clamp-2"
+    end
+
+    test "form and input attributes pass through to the input" do
+      assigns = %{}
+
+      html =
+        rendered_to_string(~H"""
+        <.search_picker
+          id="p"
+          dropdown_id="p-dd"
+          form="other-form"
+          maxlength="40"
+          required
+          inputmode="search"
+        />
+        """)
+
+      assert html =~ ~s(form="other-form")
+      assert html =~ ~s(maxlength="40")
+      assert html =~ "required"
+      assert html =~ ~s(inputmode="search")
+    end
+  end
 end
