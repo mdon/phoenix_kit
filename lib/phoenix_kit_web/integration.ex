@@ -559,6 +559,7 @@ defmodule PhoenixKitWeb.Integration do
       # A fixed `library` segment, so a slug can never be mistaken for a file
       # uuid or for `selector`.
       live "/admin/media/library/:library_slug", Live.Users.Media, :library
+      live "/admin/media/my/:library_id", Live.Users.Media, :my_library
       live "/admin/media/selector", Live.Users.MediaSelector, :index
       live "/admin/media/:file_uuid", Live.Users.MediaDetail, :show
       # The user's own storage libraries (V203), for holders of "storage".

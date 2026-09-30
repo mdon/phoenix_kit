@@ -294,6 +294,14 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       # A user uuid: every write may touch only files that user uploaded
       # (a user library's contributor). Folders stay shared. nil: no limit.
       |> assign_new(:own_files_only, fn -> nil end)
+      # A user uuid: the browser shows this viewer only what is theirs in the
+      # site library it is showing (`Storage` `:viewer_uuid`): the files they
+      # uploaded, the folders they created or that hold their files, those
+      # folders' ancestors. Every event that names a file or folder of someone
+      # else is refused, and so is changing a folder they did not create. nil: no
+      # limit (every other host). `Live.Users.Media` sets it for a holder of
+      # `media` without `media.view_all`.
+      |> assign_new(:viewer_uuid, fn -> nil end)
       # Restricts the browser to ONE file type for its whole lifetime: the
       # listing is filtered to it, the type-filter control is hidden, and an
       # off-type upload is refused, so there is no way to reach the other
@@ -887,10 +895,22 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     with true <- UUIDUtils.valid?(uuid),
          %Storage.File{system_managed: false} = file <- Storage.get_file(uuid),
          true <- Storage.within_scope?(file.folder_uuid, scope_folder_id(socket)),
+         true <- in_browser_library?(socket, file),
+         true <- Storage.viewer_can_see_file?(socket.assigns[:viewer_uuid], file),
          true <- socket.assigns[:only_file_type] in [nil, file.file_type] do
       file
     else
       _ -> nil
+    end
+  end
+
+  # A browser that shows one library opens only that library's files: a `file`
+  # param naming a file of another library (a user's private one included) is
+  # not opened by a hand-edited link any more than it is listed.
+  defp in_browser_library?(socket, file) do
+    case socket.assigns[:library_uuid] do
+      nil -> true
+      library_uuid -> to_string(file.library_uuid) == to_string(library_uuid)
     end
   end
 
@@ -1001,16 +1021,44 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # A folder (or file) of another library is not opened in, or shown by,
   # this one. With no library named, the listing has already dropped
   # private libraries (`Libraries.exclude_private/1`).
-  defp in_shown_library?(_folder_or_file, []), do: true
+  # A restricted viewer (`:viewer_uuid` among the options) also opens only a
+  # folder they may see (`Storage.viewer_folder_uuids/2`).
+  defp in_shown_library?(folder_or_file, opts) do
+    in_library? =
+      case opts[:library_uuid] do
+        nil -> true
+        library_uuid -> to_string(folder_or_file.library_uuid) == to_string(library_uuid)
+      end
 
-  defp in_shown_library?(folder_or_file, library_uuid: library_uuid),
-    do: to_string(folder_or_file.library_uuid) == to_string(library_uuid)
+    in_library? and viewer_sees_folder_or_file?(folder_or_file, opts)
+  end
+
+  defp viewer_sees_folder_or_file?(item, opts) do
+    case opts[:viewer_uuid] do
+      nil ->
+        true
+
+      viewer_uuid ->
+        case item do
+          %Storage.Folder{} ->
+            Storage.viewer_can_see_folder?(viewer_uuid, item.uuid, opts[:library_uuid])
+
+          _file ->
+            Storage.viewer_can_see_file?(viewer_uuid, item)
+        end
+    end
+  end
 
   defp load_nav_files(scope, page, per_page, q, actual_uuid, filter_orphaned, file_view, extra) do
     cond do
-      filter_orphaned -> load_orphaned_files(page, per_page, Keyword.take(extra, [:library_uuid]))
-      file_view == "all" -> load_all_view_files(scope, page, per_page, q, extra)
-      true -> load_scoped_files(scope, page, per_page, actual_uuid, q, extra)
+      filter_orphaned ->
+        load_orphaned_files(page, per_page, Keyword.take(extra, [:library_uuid, :viewer_uuid]))
+
+      file_view == "all" ->
+        load_all_view_files(scope, page, per_page, q, extra)
+
+      true ->
+        load_scoped_files(scope, page, per_page, actual_uuid, q, extra)
     end
   end
 
@@ -1045,9 +1093,16 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # private — the site's libraries, which is what the listing was before
   # user libraries. A user library is passed by uuid.
   defp lib_opts(socket) do
-    case socket.assigns[:library_uuid] do
-      nil -> []
-      library_uuid -> [library_uuid: library_uuid]
+    library =
+      case socket.assigns[:library_uuid] do
+        nil -> []
+        library_uuid -> [library_uuid: library_uuid]
+      end
+
+    # A restricted viewer's filter rides with the library on every read.
+    case socket.assigns[:viewer_uuid] do
+      nil -> library
+      viewer_uuid -> [{:viewer_uuid, viewer_uuid} | library]
     end
   end
 
@@ -1417,6 +1472,39 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # metadata and stays allowed.
   @folder_content_events ~w(trash_folder delete_folder move_folder_to_folder)
 
+  # Folder events that change what a folder is (its name, colour, header, cover,
+  # description) or remove it. A restricted viewer (`viewer_uuid`) sees folders
+  # that merely hold one of their files, but changes only the ones they created.
+  @folder_metadata_events ~w(
+    rename_folder rename_folder_input start_rename_folder change_folder_color
+    save_folder_description start_edit_folder_description folder_description_input
+    save_folder_header start_edit_folder_header folder_header_input set_header_size
+    toggle_header_option open_cover_picker open_logo_picker remove_folder_cover
+    remove_folder_logo trash_folder delete_folder restore_folder
+  )
+
+  # A restricted viewer (`viewer_uuid`) is shown only what is theirs, and this is
+  # the boundary for what an event NAMES: any uuid can be sent from a console.
+  # An event that names a file someone else uploaded, or a folder the viewer
+  # cannot see, is refused before any handler below sees it, and so is one that
+  # changes or removes a folder they did not create.
+  def handle_event(event, params, socket)
+      when is_binary(socket.assigns.viewer_uuid) and
+             not is_map_key(socket.private, :viewer_checked) do
+    if viewer_refused?(event, params, socket) do
+      Logger.warning(
+        "MediaBrowser id=#{socket.assigns.id}: #{event} refused — it names something " <>
+          "viewer #{socket.assigns.viewer_uuid} may not see or change"
+      )
+
+      {:noreply, put_flash(socket, :error, gettext("That is not yours"))}
+    else
+      socket = %{socket | private: Map.put(socket.private, :viewer_checked, true)}
+      {:noreply, socket} = handle_event(event, params, socket)
+      {:noreply, %{socket | private: Map.delete(socket.private, :viewer_checked)}}
+    end
+  end
+
   # A contributor changes only the files they uploaded (`own_files_only`):
   # a write that names someone else's file, or works on a selection holding
   # one, is refused before any handler below sees it.
@@ -1434,7 +1522,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
     # Emptying the trash and clearing orphans act on every file at once; a
     # folder write carries every file in its subtree.
-    if event in @every_file_events or others_file?(uuids, socket.assigns.own_files_only) or
+    # Emptying the trash and clearing orphans are refused a contributor, who
+    # would touch files they did not upload; for a restricted viewer they are
+    # scoped to the viewer's own files already (`lib_opts/1`).
+    if (event in @every_file_events and is_nil(socket.assigns.viewer_uuid)) or
+         others_file?(uuids, socket.assigns.own_files_only) or
          others_file_in_folders?(folders, socket.assigns.own_files_only) do
       Logger.warning(
         "MediaBrowser id=#{socket.assigns.id}: #{event} refused — it names a file " <>
@@ -3519,7 +3611,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     previews =
       Map.new(socket.assigns.folders, fn folder ->
         {files, count} =
-          case Storage.list_files_in_scope(scope, folder_uuid: folder.uuid, page: 1, per_page: 4) do
+          case Storage.list_files_in_scope(
+                 scope,
+                 [folder_uuid: folder.uuid, page: 1, per_page: 4] ++ lib_opts(socket)
+               ) do
             {:error, _} -> {[], 0}
             {fs, total} -> {fs, total}
           end
@@ -3602,10 +3697,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # Per-stack "Load more" grows the limit; assign_stacks re-reads at the current
   # limit so a reload (drag-move, etc.) keeps everything the user has loaded.
   defp stack_folder_files(socket, folder_uuid, limit) do
-    case Storage.list_files_in_scope(scope_folder_id(socket),
-           folder_uuid: folder_uuid,
-           page: 1,
-           per_page: limit
+    case Storage.list_files_in_scope(
+           scope_folder_id(socket),
+           [folder_uuid: folder_uuid, page: 1, per_page: limit] ++ lib_opts(socket)
          ) do
       {:error, _} -> []
       {fs, _total} -> enrich_files(fs)
@@ -4880,6 +4974,58 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
               (is_nil(f.user_uuid) or f.user_uuid != type(^user_uuid, UUIDv7))
         )
       )
+  end
+
+  # Whether an event must be refused for a restricted viewer: it names a file
+  # someone else uploaded or a folder they cannot see, or changes a folder they
+  # did not create.
+  defp viewer_refused?(event, params, socket) do
+    viewer = socket.assigns.viewer_uuid
+    repo = PhoenixKit.Config.get_repo()
+    uuids = params |> param_uuids([]) |> Enum.uniq()
+
+    folders_changed =
+      acted_on_folders(event, params, socket) ++
+        if(event in @folder_metadata_events,
+          do: params |> Map.take(["folder_uuid", "id"]) |> Map.values() |> param_uuids([]),
+          else: []
+        )
+
+    others_file_named?(repo, uuids, viewer) or
+      invisible_folder_named?(repo, uuids, viewer, socket.assigns[:library_uuid]) or
+      folder_not_theirs?(repo, Enum.uniq(folders_changed), viewer)
+  end
+
+  defp others_file_named?(_repo, [], _viewer), do: false
+
+  defp others_file_named?(repo, uuids, viewer) do
+    repo.exists?(
+      from(f in Storage.File,
+        where: f.uuid in ^uuids and (is_nil(f.user_uuid) or f.user_uuid != type(^viewer, UUIDv7))
+      )
+    )
+  end
+
+  defp invisible_folder_named?(_repo, [], _viewer, _library), do: false
+
+  defp invisible_folder_named?(repo, uuids, viewer, library_uuid) do
+    named = repo.all(from(f in Storage.Folder, where: f.uuid in ^uuids, select: f.uuid))
+
+    named != [] and
+      not MapSet.subset?(
+        MapSet.new(named, &to_string/1),
+        MapSet.new(Storage.viewer_folder_uuids(viewer, library_uuid), &to_string/1)
+      )
+  end
+
+  defp folder_not_theirs?(_repo, [], _viewer), do: false
+
+  defp folder_not_theirs?(repo, uuids, viewer) do
+    repo.exists?(
+      from(f in Storage.Folder,
+        where: f.uuid in ^uuids and (is_nil(f.user_uuid) or f.user_uuid != type(^viewer, UUIDv7))
+      )
+    )
   end
 
   # Whether any of `uuids` is a file someone other than `user_uuid` uploaded.

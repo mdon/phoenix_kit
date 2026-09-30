@@ -14,21 +14,33 @@ defmodule PhoenixKitWeb.Live.Users.Media do
 
   ## Libraries
 
-  The page shows one **system library** at a time
-  (`PhoenixKit.Modules.Storage.Libraries`): the default one (Media) at the
-  bare `/admin/media`, any other at `/admin/media/library/<slug>`. The
-  browser is always given that library. While Media is the only system
-  library, nothing about libraries is shown. A user library is not listed
-  here; it is browsed at `/admin/libraries`. Libraries are created, renamed
-  and deleted in Settings → Media → Libraries
-  (`PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent`).
+  The page shows one library at a time, and **what it shows depends on who is
+  looking** (`dev_docs/plans/2026-09-30-media-by-viewer.md`):
+
+    * a **site library** (`PhoenixKit.Modules.Storage.Libraries`): the default one
+      (Media) at the bare `/admin/media`, any other at `/admin/media/library/<slug>`.
+      An Owner/Admin, or a holder of `media.view_all`, sees every file. A holder
+      of `media` without it sees only their own stuff: the files they uploaded,
+      the folders they created or that hold their files, and those folders'
+      ancestors (`MediaBrowser`'s `viewer_uuid`).
+    * one of the viewer's **own or shared user libraries** (while user libraries
+      are on and the viewer holds `storage`), at `/admin/media/my/<slug or uuid>`,
+      with the rights their role gives them there.
+
+  They share one switcher, grouped "Site" and "Mine". While there is only one
+  library, nothing about libraries is shown. Another user's library is opened, by
+  an Owner/Admin, at `/admin/libraries` (audit-logged), not here. Libraries are
+  created, renamed and deleted in Settings → Media → Libraries (site) and on the
+  profile's Media tab (user).
   """
   use PhoenixKitWeb, :live_view
   use PhoenixKitWeb.Components.MediaBrowser.Embed, url_sync: [id: "media-browser"]
 
   alias PhoenixKit.Modules.Storage.Libraries
   alias PhoenixKit.Settings
+  alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKitWeb.Live.Users.Libraries, as: LibrariesPage
 
   def mount(params, _session, socket) do
     locale = params["locale"] || socket.assigns[:current_locale]
@@ -46,7 +58,10 @@ defmodule PhoenixKitWeb.Live.Users.Media do
       |> assign(:current_locale, locale)
       |> assign(:url_path, Routes.path("/admin/media"))
       |> assign(:libraries, nil)
+      |> assign(:my_libraries, [])
       |> assign(:library, nil)
+      |> assign(:role, nil)
+      |> assign(:viewer_uuid, nil)
 
     {:ok, socket}
   end
@@ -56,12 +71,12 @@ defmodule PhoenixKitWeb.Live.Users.Media do
   def handle_params(params, _uri, socket) do
     socket = if socket.assigns.libraries, do: socket, else: load_libraries(socket)
 
-    case select_library(socket, params["library_slug"]) do
+    case select_library(socket, params) do
       {:ok, socket} ->
         {:noreply, socket}
 
-      # A slug that names no live library is not quietly shown as Media — an
-      # upload there would land somewhere the visitor did not ask for.
+      # A library that is not one the viewer may open is not quietly shown as
+      # Media: an upload there would land somewhere the visitor did not ask for.
       :not_found ->
         {:noreply,
          socket
@@ -70,8 +85,15 @@ defmodule PhoenixKitWeb.Live.Users.Media do
     end
   end
 
-  # Only a library the page listed: the slug arrives from the client and ends
-  # up in a path.
+  # Only a library the page listed: the value arrives from the client and ends up
+  # in a path. A user library's is `"my:<id>"`, a site library's its slug.
+  def handle_event("switch_library", %{"library" => "my:" <> id}, socket) do
+    case Enum.find(socket.assigns.my_libraries, &(url_id(&1.library, socket) == id)) do
+      nil -> {:noreply, socket}
+      %{library: library} -> {:noreply, push_patch(socket, to: my_library_path(library, socket))}
+    end
+  end
+
   def handle_event("switch_library", %{"library" => slug}, socket) do
     case Enum.find(socket.assigns.libraries || [], &((&1.slug || "") == slug)) do
       nil -> {:noreply, socket}
@@ -79,22 +101,64 @@ defmodule PhoenixKitWeb.Live.Users.Media do
     end
   end
 
-  defp load_libraries(socket), do: assign(socket, :libraries, Libraries.list_system_libraries())
+  defp scope(socket), do: socket.assigns[:phoenix_kit_current_scope]
 
-  # The bare page is the default library; `/library/<slug>` another live
-  # system library. A slug that names none is `:not_found`.
-  defp select_library(socket, slug) when slug in [nil, ""] do
-    libraries = socket.assigns.libraries
+  defp load_libraries(socket) do
+    scope = scope(socket)
 
-    {:ok,
-     assign(socket, :library, Enum.find(libraries, & &1.is_default) || List.first(libraries))}
+    mine =
+      if Libraries.may_use_libraries?(scope),
+        do: Libraries.list_user_libraries(Scope.user_uuid(scope)),
+        else: []
+
+    socket
+    |> assign(:libraries, Libraries.list_system_libraries())
+    |> assign(:my_libraries, mine)
   end
 
-  defp select_library(socket, slug) do
+  # A user library of the viewer's own, or shared with them: `/my/<id>`.
+  defp select_library(socket, %{"library_id" => id}) do
+    case Enum.find(socket.assigns.my_libraries, &(url_id(&1.library, socket) == id)) do
+      nil ->
+        :not_found
+
+      %{library: library, role: role} ->
+        {:ok,
+         socket
+         |> assign(:library, library)
+         |> assign(:role, role)
+         |> assign(:viewer_uuid, nil)}
+    end
+  end
+
+  # The bare page is the default library; `/library/<slug>` another live system
+  # library. A slug that names none is `:not_found`.
+  defp select_library(socket, %{"library_slug" => slug}) when slug not in [nil, ""] do
     case Enum.find(socket.assigns.libraries, &(&1.slug == slug)) do
       nil -> :not_found
-      library -> {:ok, assign(socket, :library, library)}
+      library -> {:ok, site_library(socket, library)}
     end
+  end
+
+  defp select_library(socket, _params) do
+    libraries = socket.assigns.libraries
+    {:ok, site_library(socket, Enum.find(libraries, & &1.is_default) || List.first(libraries))}
+  end
+
+  defp site_library(socket, library) do
+    socket
+    |> assign(:library, library)
+    |> assign(:role, nil)
+    |> assign(:viewer_uuid, restricted_viewer(scope(socket)))
+  end
+
+  @doc false
+  # Who a site library is restricted to: nobody for an Owner/Admin or a holder of
+  # `media.view_all`; otherwise the viewer, who sees only their own stuff.
+  def restricted_viewer(scope) do
+    if Scope.system_role?(scope) or Scope.can?(scope, "media.view_all"),
+      do: nil,
+      else: Scope.user_uuid(scope)
   end
 
   # Switching library opens it at its root: no folder, search or page from
@@ -102,10 +166,31 @@ defmodule PhoenixKitWeb.Live.Users.Media do
   defp library_path(slug) when slug in [nil, ""], do: Routes.path("/admin/media")
   defp library_path(slug), do: Routes.path("/admin/media/library/#{slug}")
 
+  defp my_library_path(library, socket),
+    do: Routes.path("/admin/media/my/#{url_id(library, socket)}")
+
+  defp url_id(library, socket), do: Libraries.url_id(library, Scope.user_uuid(scope(socket)))
+
   @doc false
-  # The system library on screen. Nil used to mean "don't filter", which
-  # listed every file — the same set as Media while that was the only
-  # library, and other people's libraries once user libraries existed.
+  # The library on screen. Nil used to mean "don't filter", which listed every
+  # file — the same set as Media while that was the only library, and other
+  # people's libraries once user libraries existed.
   def browser_library_uuid(_libraries, %{uuid: uuid}) when is_binary(uuid), do: uuid
   def browser_library_uuid(_libraries, _), do: Libraries.media_uuid()
+
+  @doc false
+  # A user library is browsed with the rights of the viewer's role in it; a site
+  # library has no role (`nil`): it is governed by `viewer_uuid`.
+  def readonly?(role), do: LibrariesPage.readonly?(role)
+
+  @doc false
+  def own_files_only(role, user), do: LibrariesPage.own_files_only(role, user)
+
+  @doc false
+  def role_label(role), do: LibrariesPage.role_label(role)
+
+  @doc false
+  # How many libraries the switcher would list.
+  def library_count(libraries, my_libraries),
+    do: length(libraries || []) + length(my_libraries || [])
 end

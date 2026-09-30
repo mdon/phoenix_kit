@@ -9,10 +9,10 @@
   current_locale={@current_locale}
 >
   <div class="flex flex-col w-full h-[calc(100dvh-4rem)]">
-    <%!-- The library switcher: only once there is more than one system
-         library. With one, the page says nothing about libraries. --%>
+    <%!-- The library switcher: only once there is more than one library (site or
+         the viewer's own). With one, the page says nothing about libraries. --%>
     <form
-      :if={is_list(@libraries) and length(@libraries) > 1}
+      :if={library_count(@libraries, @my_libraries) > 1}
       id="media-library-switcher"
       phx-change="switch_library"
       class="flex items-center gap-2 px-4 pb-2"
@@ -21,13 +21,34 @@
         {gettext("Library")}
       </label>
       <select id="media-library-select" name="library" class="select select-sm">
-        <option
-          :for={library <- @libraries}
-          value={library.slug || ""}
-          selected={@library && library.uuid == @library.uuid}
-        >
-          {library.name}
-        </option>
+        <optgroup :if={@my_libraries != []} label={gettext("Site")}>
+          <option
+            :for={library <- @libraries}
+            value={library.slug || ""}
+            selected={(@library && is_nil(@role)) and library.uuid == @library.uuid}
+          >
+            {library.name}
+          </option>
+        </optgroup>
+        <%!-- With no library of the viewer's own, the site ones need no heading. --%>
+        <%= if @my_libraries == [] do %>
+          <option
+            :for={library <- @libraries}
+            value={library.slug || ""}
+            selected={@library && library.uuid == @library.uuid}
+          >
+            {library.name}
+          </option>
+        <% end %>
+        <optgroup :if={@my_libraries != []} label={gettext("Mine")}>
+          <option
+            :for={%{library: library} <- @my_libraries}
+            value={"my:" <> Libraries.url_id(library, @phoenix_kit_current_user.uuid)}
+            selected={(@library && @role != nil) and library.uuid == @library.uuid}
+          >
+            {library.name}
+          </option>
+        </optgroup>
       </select>
     </form>
 
@@ -35,6 +56,9 @@
       module={PhoenixKitWeb.Components.MediaBrowser}
       id="media-browser"
       library_uuid={PhoenixKitWeb.Live.Users.Media.browser_library_uuid(@libraries, @library)}
+      viewer_uuid={@viewer_uuid}
+      readonly={readonly?(@role)}
+      own_files_only={@viewer_uuid || own_files_only(@role, @phoenix_kit_current_user)}
       phoenix_kit_current_user={assigns[:phoenix_kit_current_user]}
       admin={true}
       fill_height={true}

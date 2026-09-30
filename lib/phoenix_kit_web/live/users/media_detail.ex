@@ -280,8 +280,16 @@ defmodule PhoenixKitWeb.Live.Users.MediaDetail do
         # The page is gated by the "media" permission. That must not open a
         # user library: the same read check as the file info API. Owner/Admin
         # and the library's members still pass (`Libraries.can?/3`).
-        if Libraries.private_file?(file) and
-             not Libraries.can?(socket.assigns[:phoenix_kit_current_scope], file, :read) do
+        scope = socket.assigns[:phoenix_kit_current_scope]
+
+        # A file of a site library is also not shown to a holder of `media`
+        # alone unless they uploaded it (`media.view_all` sees everyone's).
+        if (Libraries.private_file?(file) and not Libraries.can?(scope, file, :read)) or
+             (not Libraries.private_file?(file) and
+                not Storage.viewer_can_see_file?(
+                  PhoenixKitWeb.Live.Users.Media.restricted_viewer(scope),
+                  file
+                )) do
           socket
           |> assign(:file, nil)
           |> assign(:file_data, nil)

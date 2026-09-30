@@ -360,7 +360,8 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
       other user's file metadata (issue #687).
     * `:edit` — change the picture (image editing, annotation burn-in, the
       unedited original): the uploader, an Owner/Admin, a holder of the
-      `"media"` permission when the file is in a system library, or the
+      `"media"` permission with `"media.view_all"` when the file is in a system
+      library, or the
       owner or a manager of the user library it is in.
 
   Anything else, and a scope without a user, is refused.
@@ -380,8 +381,13 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
     grants?(scope, library, action)
   end
 
+  # Changing someone else's file in a site library is for a holder of `media` who
+  # sees everyone's files (`media.view_all`); a holder of `media` alone changes only
+  # their own (the uploader clause of `can?/3`).
   defp grants?(scope, :media, action),
-    do: action == :edit and Scope.has_module_access?(scope, "media")
+    do:
+      action == :edit and Scope.has_module_access?(scope, "media") and
+        Scope.can?(scope, "media.view_all")
 
   defp grants?(scope, %Library{kind: "system"}, action), do: grants?(scope, :media, action)
 
