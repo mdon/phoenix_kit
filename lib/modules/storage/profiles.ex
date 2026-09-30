@@ -20,6 +20,7 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
 
   import Ecto.Query
 
+  alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
   alias PhoenixKit.Modules.Storage.Libraries
   alias PhoenixKit.Modules.Storage.{Library, ProfileBucket, StorageProfile}
@@ -560,10 +561,10 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
       end)
 
     bucket_uuids
-    |> PhoenixKit.Modules.Storage.get_buckets()
+    |> Storage.get_buckets()
     |> Enum.filter(&(is_binary(&1.owner_uuid) and not in_any_profile?(&1.uuid)))
     |> each_ok(fn bucket ->
-      case PhoenixKit.Modules.Storage.delete_bucket(bucket) do
+      case Storage.delete_bucket(bucket) do
         {:ok, _} -> :ok
         {:error, reason} -> {:error, reason}
       end

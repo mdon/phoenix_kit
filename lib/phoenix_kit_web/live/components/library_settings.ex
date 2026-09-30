@@ -327,9 +327,9 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
       |> Map.put("name", params["name"] || old["name"] || "")
       |> Map.merge(Map.take(storage, @storage_fields))
 
-    if form["integration_uuid"] not in [nil, "", old["integration_uuid"]],
-      do: prefill_from_connection(form, socket.assigns.connections),
-      else: form
+    if form["integration_uuid"] in [nil, "", old["integration_uuid"]],
+      do: form,
+      else: prefill_from_connection(form, socket.assigns.connections)
   end
 
   defp prefill_from_connection(form, connections) do

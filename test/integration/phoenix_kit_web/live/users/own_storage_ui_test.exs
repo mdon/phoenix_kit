@@ -9,6 +9,7 @@ defmodule PhoenixKitWeb.Live.Users.OwnStorageUITest do
   use PhoenixKitWeb.ConnCase, async: false
 
   alias PhoenixKit.Integrations
+  alias PhoenixKit.Integrations.Providers
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.Profiles
   alias PhoenixKit.Settings
@@ -349,7 +350,7 @@ defmodule PhoenixKitWeb.Live.Users.OwnStorageUITest do
 
   describe "Object Storage as a personal connection" do
     test "is offered only while the site allows users their own buckets" do
-      keys = fn -> Enum.map(PhoenixKit.Integrations.Providers.personal_offered(), & &1.key) end
+      keys = fn -> Enum.map(Providers.personal_offered(), & &1.key) end
 
       assert "object_storage" in keys.()
 

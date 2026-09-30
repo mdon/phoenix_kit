@@ -9,7 +9,7 @@ defmodule PhoenixKit.Modules.Storage.UserProfilesTest do
 
   alias PhoenixKit.Integrations
   alias PhoenixKit.Modules.Storage
-  alias PhoenixKit.Modules.Storage.{Library, Profiles, StorageProfile}
+  alias PhoenixKit.Modules.Storage.{Libraries, Library, Profiles, StorageProfile}
   alias PhoenixKit.Test.Repo
   alias PhoenixKit.Users.Auth
 
@@ -26,7 +26,7 @@ defmodule PhoenixKit.Modules.Storage.UserProfilesTest do
     %{user: user!(), other: user!()}
   end
 
-  defp user!() do
+  defp user! do
     {:ok, user} =
       Auth.register_user(%{
         "email" => "user-profiles-#{System.unique_integer([:positive])}@example.com",
@@ -303,7 +303,7 @@ defmodule PhoenixKit.Modules.Storage.UserProfilesTest do
         |> Ecto.Changeset.change(trashed_at: DateTime.truncate(DateTime.utc_now(), :second))
         |> Repo.update()
 
-      assert :ok = PhoenixKit.Modules.Storage.Libraries.purge_library(library)
+      assert :ok = Libraries.purge_library(library)
 
       assert Repo.get(Library, library.uuid) == nil
       assert Profiles.get_profile(profile.uuid) == nil

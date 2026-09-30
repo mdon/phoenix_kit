@@ -22,9 +22,9 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
 
   alias PhoenixKit.Integrations
   alias PhoenixKit.Integrations.Providers
-  alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Integrations.Telegram
   alias PhoenixKit.Integrations.Telegram.ChatLink
+  alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
