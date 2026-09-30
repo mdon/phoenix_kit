@@ -9949,15 +9949,17 @@ if (typeof window.Chart === "undefined") {
 
 // ---------------------------------------------------------------------------
 // PkChartCrosshair — the client half of `line_chart hover={:crosshair}`
-// (PhoenixKitWeb.Components.Core.Chart). The server sends one entry per
-// datum, already positioned and formatted:
+// (PhoenixKitWeb.Components.Core.Chart). The server sends the rows once and
+// one entry per datum, already positioned and formatted:
 //
-//   [left%, right%, x%, y%, x_label, y_label, rank_label, [[row, colour]]]
+//   {rows: [[label, colour]], points: [[left%, right%, x%, y%, x_label,
+//    y_label, note, [row index]]]}
 //
-// so this only finds the entry under the pointer and places the crosshair,
-// the dot and the readout. The hook sits on a pointer-events-none layer and
-// listens on the chart wrapper (its parent), because a style it set on its
-// own element would be dropped by the next patch.
+// so this only finds the entry under the pointer (or the keyboard's) and
+// places the crosshair, the dot and the readout. The hook sits on a
+// pointer-events-none layer and listens on the chart wrapper (its parent),
+// because a style it set on its own element would be dropped by the next
+// patch.
 (function () {
   if (typeof window === "undefined") return;
   window.PhoenixKitHooks = window.PhoenixKitHooks || {};
@@ -9993,6 +9995,36 @@ if (typeof window.Chart === "undefined") {
     return xPct > 55 ? "left" : "right";
   }
 
+  // The entry a key moves to from `current` (-1 = nothing shown), or null
+  // for a key the chart does not handle.
+  function crosshairStep(key, current, count) {
+    if (!count) return null;
+    switch (key) {
+      case "ArrowRight":
+        return current < 0 ? 0 : Math.min(current + 1, count - 1);
+      case "ArrowLeft":
+        return current < 0 ? count - 1 : Math.max(current - 1, 0);
+      case "Home":
+        return 0;
+      case "End":
+        return count - 1;
+      default:
+        return null;
+    }
+  }
+
+  // The readout as plain text, for the live region.
+  function crosshairText(point, rows) {
+    var parts = [];
+    if (point[4]) parts.push(point[4]);
+    parts.push(point[5]);
+    if (point[6]) parts.push(point[6]);
+    (point[7] || []).forEach(function (i) {
+      if (rows[i]) parts.push(rows[i][0]);
+    });
+    return parts.join(", ");
+  }
+
   function line(tag, text, className) {
     var el = document.createElement(tag);
     el.textContent = text;
@@ -10007,14 +10039,45 @@ if (typeof window.Chart === "undefined") {
       this.lineEl = this.el.querySelector("[data-crosshair-line]");
       this.dotEl = this.el.querySelector("[data-crosshair-dot]");
       this.tipEl = this.el.querySelector("[data-crosshair-tip]");
+      this.liveEl = this.el.querySelector("[data-crosshair-live]");
       this.shown = -1;
 
-      this.onMove = (event) => this.show(event.clientX);
-      this.onLeave = () => this.hide();
+      this.onMove = (event) => this.showAt(event.clientX);
+      this.onDown = (event) => {
+        this.pinned = event.pointerType === "touch";
+        this.showAt(event.clientX);
+      };
+      // A finger lifting fires pointerleave at once; a tapped readout stays
+      // up until a tap elsewhere.
+      this.onLeave = (event) => {
+        if (!(event && event.pointerType === "touch" && this.pinned)) this.hide();
+      };
+      this.onCancel = () => this.hide();
+      this.onOutside = (event) => {
+        if (this.shown >= 0 && !this.host.contains(event.target)) this.hide();
+      };
+      this.onKey = (event) => {
+        if (event.key === "Escape") {
+          if (this.shown >= 0) {
+            this.hide();
+            event.stopPropagation();
+          }
+          return;
+        }
+        var next = crosshairStep(event.key, this.shown, this.data().points.length);
+        if (next === null) return;
+        event.preventDefault();
+        this.show(next, true);
+      };
+      this.onBlur = () => this.hide();
+
       this.host.addEventListener("pointermove", this.onMove);
-      this.host.addEventListener("pointerdown", this.onMove);
+      this.host.addEventListener("pointerdown", this.onDown);
       this.host.addEventListener("pointerleave", this.onLeave);
-      this.host.addEventListener("pointercancel", this.onLeave);
+      this.host.addEventListener("pointercancel", this.onCancel);
+      this.host.addEventListener("keydown", this.onKey);
+      this.host.addEventListener("blur", this.onBlur);
+      document.addEventListener("pointerdown", this.onOutside);
     },
 
     updated() {
@@ -10023,27 +10086,32 @@ if (typeof window.Chart === "undefined") {
       this.hide();
     },
 
-    points() {
+    data() {
       if (!this.cache) {
         try {
-          this.cache = JSON.parse(this.el.dataset.points || "[]");
+          var parsed = JSON.parse(this.el.dataset.points || "{}");
+          this.cache = { rows: parsed.rows || [], points: parsed.points || [] };
         } catch (_err) {
-          this.cache = [];
+          this.cache = { rows: [], points: [] };
         }
       }
       return this.cache;
     },
 
-    show(clientX) {
+    showAt(clientX) {
       var rect = this.host.getBoundingClientRect();
       if (!rect.width) return;
-      var points = this.points();
-      var i = crosshairPick(points, ((clientX - rect.left) / rect.width) * 100);
+      var i = crosshairPick(this.data().points, ((clientX - rect.left) / rect.width) * 100);
       if (i < 0) return this.hide();
+      this.show(i, false);
+    },
+
+    show(i, announce) {
       if (i === this.shown) return;
       this.shown = i;
+      var data = this.data();
+      var p = data.points[i];
 
-      var p = points[i];
       this.lineEl.style.left = p[2] + "%";
       this.dotEl.style.left = p[2] + "%";
       this.dotEl.style.top = p[3] + "%";
@@ -10053,7 +10121,9 @@ if (typeof window.Chart === "undefined") {
       if (p[4]) tip.appendChild(line("div", p[4], "opacity-70"));
       tip.appendChild(line("div", p[5], "font-semibold"));
       if (p[6]) tip.appendChild(line("div", p[6], "opacity-70"));
-      (p[7] || []).forEach(function (row) {
+      (p[7] || []).forEach(function (index) {
+        var row = data.rows[index];
+        if (!row) return;
         var el = line("div", "", "flex items-center gap-1.5");
         var swatch = document.createElement("span");
         swatch.className = "inline-block w-2 h-2 rounded-full bg-current";
@@ -10063,32 +10133,35 @@ if (typeof window.Chart === "undefined") {
         tip.appendChild(el);
       });
 
-      if (crosshairTipSide(p[2]) === "right") {
-        tip.style.left = p[2] + "%";
-        tip.style.transform = "translateX(8px)";
-      } else {
-        tip.style.left = p[2] + "%";
-        tip.style.transform = "translateX(calc(-100% - 8px))";
-      }
+      tip.style.left = p[2] + "%";
+      tip.style.transform =
+        crosshairTipSide(p[2]) === "right" ? "translateX(8px)" : "translateX(calc(-100% - 8px))";
 
       this.lineEl.hidden = false;
       this.dotEl.hidden = false;
       tip.hidden = false;
+      // Only a keyboard step is announced; a pointer sweeping across the
+      // chart would queue one announcement per band.
+      if (announce && this.liveEl) this.liveEl.textContent = crosshairText(p, data.rows);
     },
 
     hide() {
       this.shown = -1;
+      this.pinned = false;
       if (this.lineEl) this.lineEl.hidden = true;
       if (this.dotEl) this.dotEl.hidden = true;
       if (this.tipEl) this.tipEl.hidden = true;
     },
 
     destroyed() {
+      document.removeEventListener("pointerdown", this.onOutside);
       if (!this.host) return;
       this.host.removeEventListener("pointermove", this.onMove);
-      this.host.removeEventListener("pointerdown", this.onMove);
+      this.host.removeEventListener("pointerdown", this.onDown);
       this.host.removeEventListener("pointerleave", this.onLeave);
-      this.host.removeEventListener("pointercancel", this.onLeave);
+      this.host.removeEventListener("pointercancel", this.onCancel);
+      this.host.removeEventListener("keydown", this.onKey);
+      this.host.removeEventListener("blur", this.onBlur);
     }
   };
 
@@ -10096,5 +10169,7 @@ if (typeof window.Chart === "undefined") {
   if (typeof module === "object" && module.exports) {
     module.exports.crosshairPick = crosshairPick;
     module.exports.crosshairTipSide = crosshairTipSide;
+    module.exports.crosshairStep = crosshairStep;
+    module.exports.crosshairText = crosshairText;
   }
 })();

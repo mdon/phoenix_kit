@@ -82,8 +82,9 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
   `hover={:crosshair}` swaps the native tooltips for a crosshair that
   snaps to the datum under the pointer (the slot, with `step`) and a
   readout beside it: the x (`x_format`), the value (`value_format`), an
-  optional rank against the series (`rank_format`), and which `rows` are
-  active at that x — the pairing `chart_lanes/1` implies:
+  optional note of your own (`point_note`, which is handed the point's rank
+  in the series), and which `rows` are active at that x — the pairing
+  `chart_lanes/1` implies:
 
       <.line_chart
         id="price-today"
@@ -93,7 +94,7 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
         hover={:crosshair}
         value_format={&"€\#{&1}/kWh"}
         x_format={&clock_label/1}
-        rank_format={&"\#{ordinal(&1)} cheapest of \#{&2}"}
+        point_note={&"\#{ordinal(&1.rank)} cheapest of \#{&1.count}"}
         rows={[%{label: "Boiler", color: "var(--color-warning)", bands: [{360, 420}]}]}
       />
 
@@ -102,6 +103,12 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
   native per-point tooltips are still rendered underneath, so a page whose
   JavaScript has not loaded keeps the plain readout; the hook turns them
   off when it mounts.
+
+  The chart takes focus: ArrowLeft / ArrowRight step through the points,
+  Home / End jump to the ends, Escape hides the readout, and each reading is
+  announced through a polite live region. On a touch screen a tap shows the
+  readout and leaves it up until a tap elsewhere; a vertical swipe still
+  scrolls the page, a horizontal drag scrubs.
 
   `x_format` gets the plotted NUMBER, never the struct it came from — a
   time axis formats back from the number it plotted (`clock_label(810)` →
@@ -145,13 +152,13 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
         "reverse-engineering the stretched SVG. `:crosshair` adds a snapping " <>
         "crosshair and a richer readout on top (see \"Crosshair readout\")."
 
-  attr :rank_format, :any,
+  attr :point_note, :any,
     default: nil,
     doc:
-      "With `hover={:crosshair}`: 2-arity fun `(rank, count)` → a line for the " <>
-        "readout, where `rank` is the point's 1-based place when the series is " <>
-        "sorted ascending by y (ties share a place) and `count` the number of " <>
-        "points. `nil` shows no rank."
+      "With `hover={:crosshair}`: 1-arity fun given `%{x, y, index, rank, count}` " <>
+        "returning an extra line for the readout (or `nil`). `rank` is the point's " <>
+        "1-based place with the series sorted ascending by y (ties share a " <>
+        "place), `count` the number of points, `index` its position by x."
 
   attr :rows, :list,
     default: [],
@@ -195,8 +202,16 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
 
     ~H"""
     <div
-      class={["pk-chart w-full h-full", @hover == :crosshair && "relative", @class]}
+      class={[
+        "pk-chart w-full h-full",
+        @hover == :crosshair &&
+          "relative touch-pan-y focus-visible:outline-2 focus-visible:outline-offset-2",
+        @class
+      ]}
       data-pk-crosshair={@hover == :crosshair && @geometry && "true"}
+      tabindex={@hover == :crosshair && @geometry && "0"}
+      role={@hover == :crosshair && @geometry && "group"}
+      aria-label={@hover == :crosshair && @geometry && @aria_label}
       {@rest}
     >
       <svg
@@ -289,22 +304,25 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
         phx-update="ignore"
         data-points={Phoenix.json_library().encode!(@geometry.crosshair)}
         class="absolute inset-0 pointer-events-none"
-        aria-hidden="true"
       >
+        <div data-crosshair-live aria-live="polite" class="sr-only"></div>
         <div
           data-crosshair-line
+          aria-hidden="true"
           hidden
           class="absolute top-0 bottom-0 w-px -translate-x-1/2 bg-current opacity-50"
         >
         </div>
         <div
           data-crosshair-dot
+          aria-hidden="true"
           hidden
           class="absolute w-2.5 h-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-current ring-2 ring-base-100"
         >
         </div>
         <div
           data-crosshair-tip
+          aria-hidden="true"
           hidden
           class="absolute top-1 z-10 min-w-max max-w-64 rounded-box border border-base-300 bg-base-100 px-2.5 py-1.5 text-xs text-base-content shadow-md"
         >
@@ -574,7 +592,7 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
   defp hover_bands(%{hover: hover} = assigns, [_ | _] = data, x_min, x_max, px)
        when hover in [true, :native, :crosshair] and x_min == x_max do
     {x, y} = List.last(data)
-    [hover_band(assigns, x, y, px.(x), 0, assigns.width)]
+    [hover_band(assigns, {x, y, length(data) - 1}, px.(x), 0, assigns.width)]
   end
 
   defp hover_bands(%{hover: hover} = assigns, data, _x_min, x_max, px)
@@ -583,21 +601,25 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
     edges = band_edges(xs, assigns.step, px.(x_max), assigns.width)
 
     data
+    |> Enum.with_index()
     |> Enum.zip(edges)
-    |> Enum.flat_map(fn {{x, y}, {left, right}} ->
-      if round1(right - left) > 0, do: [hover_band(assigns, x, y, px.(x), left, right)], else: []
+    |> Enum.flat_map(fn {{{x, y}, i}, {left, right}} ->
+      if round1(right - left) > 0,
+        do: [hover_band(assigns, {x, y, i}, px.(x), left, right)],
+        else: []
     end)
   end
 
   defp hover_bands(_assigns, _data, _x_min, _x_max, _px), do: []
 
-  defp hover_band(assigns, x, y, x_pos, left, right) do
+  defp hover_band(assigns, {x, y, index}, x_pos, left, right) do
     %{
       x: round1(left),
       w: round1(right - left),
       raw_x: x,
       raw_y: y,
       x_pos: x_pos,
+      index: index,
       title: hover_title(x, y, Map.get(assigns, :x_format), Map.get(assigns, :value_format))
     }
   end
@@ -618,45 +640,54 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
     Enum.zip(lefts, rights)
   end
 
-  # The crosshair's payload, one entry per hover band:
-  # `[left%, right%, x%, y%, x_label, y_label, rank_label, [[row, colour]]]`.
-  # Positions are percentages of the chart box, so the hook needs no scale of
-  # its own; every label is already formatted.
+  # The crosshair's payload: the rows once, as `[[label, colour]]`, and one
+  # entry per hover band, `[left%, right%, x%, y%, x_label, y_label, note,
+  # [row index]]`. Rows go by index so a long series doesn't repeat every
+  # label per point. Positions are percentages of the chart box, so the hook
+  # needs no scale of its own; every label is already formatted.
   defp crosshair_points(%{hover: :crosshair} = assigns, bands, data, py) do
     %{width: width, height: height} = assigns
     ys = data |> Enum.map(&elem(&1, 1)) |> Enum.sort()
     count = length(ys)
-    rows = normalize_rows(Map.get(assigns, :rows, []))
+    rows = normalize_rows(Map.get(assigns, :rows, [])) |> Enum.with_index()
     x_format = Map.get(assigns, :x_format)
     value_format = Map.get(assigns, :value_format)
+    note = Map.get(assigns, :point_note)
 
-    Enum.map(bands, fn band ->
-      [
-        pct(band.x, width),
-        pct(band.x + band.w, width),
-        pct(band.x_pos, width),
-        pct(py.(band.raw_y), height),
-        x_format && display(band.raw_x, x_format),
-        display(band.raw_y, value_format),
-        rank_label(Map.get(assigns, :rank_format), band.raw_y, ys, count),
-        for(row <- rows, row_active?(row, band.raw_x), do: [row.label, row.color])
-      ]
-    end)
+    points =
+      Enum.map(bands, fn band ->
+        [
+          pct(band.x, width),
+          pct(band.x + band.w, width),
+          pct(band.x_pos, width),
+          pct(py.(band.raw_y), height),
+          x_format && display(band.raw_x, x_format),
+          display(band.raw_y, value_format),
+          point_note(note, band, ys, count),
+          for({row, i} <- rows, row_active?(row, band.raw_x), do: i)
+        ]
+      end)
+
+    %{rows: Enum.map(rows, fn {row, _} -> [row.label, row.color] end), points: points}
   end
 
-  defp crosshair_points(_assigns, _bands, _data, _py), do: []
+  defp crosshair_points(_assigns, _bands, _data, _py), do: %{rows: [], points: []}
 
   defp pct(value, extent) when extent > 0, do: Float.round(value / extent * 100, 3)
   defp pct(_value, _extent), do: 0.0
 
-  defp rank_label(format, y, ys, count) when is_function(format, 2) do
-    rank = Enum.count(ys, &(&1 < y)) + 1
-    to_string(format.(rank, count))
+  defp point_note(fun, band, ys, count) when is_function(fun, 1) do
+    rank = Enum.count(ys, &(&1 < band.raw_y)) + 1
+
+    case fun.(%{x: band.raw_x, y: band.raw_y, index: band.index, rank: rank, count: count}) do
+      nil -> nil
+      text -> to_string(text)
+    end
   rescue
     _ -> nil
   end
 
-  defp rank_label(_format, _y, _ys, _count), do: nil
+  defp point_note(_fun, _band, _ys, _count), do: nil
 
   defp normalize_rows(rows) when is_list(rows) do
     Enum.flat_map(rows, fn row ->

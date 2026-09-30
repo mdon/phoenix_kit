@@ -60,13 +60,13 @@ global.localStorage = storage;
 global.sessionStorage = storage;
 
 const pk = require("../../priv/static/assets/phoenix_kit.js");
-const { crosshairPick, crosshairTipSide } = pk;
+const { crosshairPick, crosshairTipSide, crosshairStep, crosshairText } = pk;
 const Hook = global.window.PhoenixKitHooks.PkChartCrosshair;
 
 // Three step slots over the left 75% of the chart; the last runs to the edge.
 const STEP = [
   [25, 50, 25, 80, "06:00", "€0.10", "1st cheapest of 3", []],
-  [50, 75, 50, 20, "12:00", "€0.30", "3rd cheapest of 3", [["Boiler", "#f00"]]],
+  [50, 75, 50, 20, "12:00", "€0.30", "3rd cheapest of 3", [0]],
   [75, 100, 75, 50, "18:00", "€0.20", "2nd cheapest of 3", []],
 ];
 
@@ -85,6 +85,25 @@ test("the right edge belongs to the last band, nothing beyond it", () => {
   assert.equal(crosshairPick(STEP, 100.5), -1);
   assert.equal(crosshairPick([], 50), -1);
   assert.equal(crosshairPick(null, 50), -1);
+});
+
+const ROWS = [["Boiler", "#f00"]];
+const PAYLOAD = { rows: ROWS, points: STEP };
+
+test("keys step through the points and stop at the ends", () => {
+  assert.equal(crosshairStep("ArrowRight", -1, 3), 0);
+  assert.equal(crosshairStep("ArrowLeft", -1, 3), 2);
+  assert.equal(crosshairStep("ArrowRight", 2, 3), 2);
+  assert.equal(crosshairStep("ArrowLeft", 0, 3), 0);
+  assert.equal(crosshairStep("Home", 2, 3), 0);
+  assert.equal(crosshairStep("End", 0, 3), 2);
+  assert.equal(crosshairStep("Enter", 0, 3), null);
+  assert.equal(crosshairStep("ArrowRight", -1, 0), null);
+});
+
+test("the announced text names the rows by index", () => {
+  assert.equal(crosshairText(STEP[1], ROWS), "12:00, €0.30, 3rd cheapest of 3, Boiler");
+  assert.equal(crosshairText([0, 1, 0, 0, null, "7", null, [5]], ROWS), "7");
 });
 
 test("the readout flips to the left past the middle", () => {
@@ -126,20 +145,30 @@ function mount(points) {
   host.getBoundingClientRect = () => ({ left: 100, width: 400 });
   const el = fakeEl();
   el.dataset.points = JSON.stringify(points);
+  const live = fakeEl();
   el.parentElement = host;
   el.querySelector = (sel) =>
-    ({ "[data-crosshair-line]": line, "[data-crosshair-dot]": dot, "[data-crosshair-tip]": tip })[sel];
+    ({
+      "[data-crosshair-line]": line,
+      "[data-crosshair-dot]": dot,
+      "[data-crosshair-tip]": tip,
+      "[data-crosshair-live]": live,
+    })[sel];
+  host.contains = (target) => target === host;
+  const docListeners = {};
+  global.document.addEventListener = (name, fn) => (docListeners[name] = fn);
+  global.document.removeEventListener = (name) => delete docListeners[name];
 
   global.document.createElement = () => fakeEl();
   global.document.createTextNode = (text) => ({ textContent: text });
 
   const hook = Object.assign(Object.create(Hook), { el });
   hook.mounted();
-  return { hook, host, line, dot, tip };
+  return { hook, host, line, dot, tip, live, docListeners };
 }
 
 test("a pointer over a slot places the crosshair and writes the readout", () => {
-  const { host, line, dot, tip } = mount(STEP);
+  const { host, line, dot, tip } = mount(PAYLOAD);
   // 100 + 0.6 * 400 = 340 -> 60% -> the second slot
   host.listeners.pointermove({ clientX: 340 });
 
@@ -155,7 +184,7 @@ test("a pointer over a slot places the crosshair and writes the readout", () => 
 });
 
 test("leaving the chart, or a pointer where no datum stands, hides it", () => {
-  const { host, line, tip } = mount(STEP);
+  const { host, line, tip } = mount(PAYLOAD);
   host.listeners.pointermove({ clientX: 340 });
   host.listeners.pointerleave();
   assert.equal(line.hidden, true);
@@ -167,15 +196,57 @@ test("leaving the chart, or a pointer where no datum stands, hides it", () => {
 });
 
 test("new data drops the cached payload", () => {
-  const { hook, host, tip } = mount(STEP);
-  hook.el.dataset.points = JSON.stringify([[0, 100, 50, 50, null, "7", null, []]]);
+  const { hook, host, tip } = mount(PAYLOAD);
+  hook.el.dataset.points = JSON.stringify({ rows: [], points: [[0, 100, 50, 50, null, "7", null, []]] });
   hook.updated();
   host.listeners.pointermove({ clientX: 120 });
   assert.deepEqual(tip.children.map((c) => c.textContent), ["7"]);
 });
 
 test("the listeners come off on destroy", () => {
-  const { hook, host } = mount(STEP);
+  const { hook, host, docListeners } = mount(PAYLOAD);
   hook.destroyed();
   assert.deepEqual(Object.keys(host.listeners), []);
+  assert.deepEqual(Object.keys(docListeners), []);
+});
+
+test("the keyboard moves the readout and announces it; Escape hides it", () => {
+  const { host, tip, line, live } = mount(PAYLOAD);
+  let prevented = false;
+  const key = (k) => host.listeners.keydown({ key: k, preventDefault: () => (prevented = true), stopPropagation() {} });
+
+  key("ArrowRight");
+  assert.equal(prevented, true);
+  assert.equal(line.style.left, "25%");
+  key("ArrowRight");
+  assert.equal(line.style.left, "50%");
+  assert.equal(live.textContent, "12:00, €0.30, 3rd cheapest of 3, Boiler");
+  key("Escape");
+  assert.equal(tip.hidden, true);
+  host.listeners.blur();
+  assert.equal(tip.hidden, true);
+});
+
+test("a pointer sweep does not announce", () => {
+  const { host, live } = mount(PAYLOAD);
+  host.listeners.pointermove({ clientX: 340 });
+  assert.equal(live.textContent, "");
+});
+
+test("a tap keeps the readout up until a tap elsewhere", () => {
+  const { host, tip, docListeners } = mount(PAYLOAD);
+  host.listeners.pointerdown({ clientX: 340, pointerType: "touch" });
+  host.listeners.pointerleave({ pointerType: "touch" });
+  assert.equal(tip.hidden, false, "lifting the finger leaves it up");
+  docListeners.pointerdown({ target: host });
+  assert.equal(tip.hidden, false, "a tap on the chart itself does not close it");
+  docListeners.pointerdown({ target: {} });
+  assert.equal(tip.hidden, true);
+});
+
+test("a mouse leaving still hides it", () => {
+  const { host, tip } = mount(PAYLOAD);
+  host.listeners.pointerdown({ clientX: 340, pointerType: "mouse" });
+  host.listeners.pointerleave({ pointerType: "mouse" });
+  assert.equal(tip.hidden, true);
 });

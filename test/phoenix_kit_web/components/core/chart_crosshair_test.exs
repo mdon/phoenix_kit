@@ -13,7 +13,12 @@ defmodule PhoenixKitWeb.Components.Core.ChartCrosshairTest do
 
   defp payload(html) do
     [_, json] = Regex.run(~r/data-points="([^"]*)"/, html)
-    json |> unescape() |> Jason.decode!()
+    json |> unescape() |> Jason.decode!() |> Map.fetch!("points")
+  end
+
+  defp rows(html) do
+    [_, json] = Regex.run(~r/data-points="([^"]*)"/, html)
+    json |> unescape() |> Jason.decode!() |> Map.fetch!("rows")
   end
 
   defp unescape(text) do
@@ -67,6 +72,8 @@ defmodule PhoenixKitWeb.Components.Core.ChartCrosshairTest do
     assert html =~ ~s(phx-hook="PkChartCrosshair")
     assert html =~ ~s(phx-update="ignore")
     assert html =~ ~s(data-pk-crosshair="true")
+    assert html =~ ~s(tabindex="0")
+    assert html =~ ~s(aria-live="polite")
     assert html =~ "<title>1</title>"
   end
 
@@ -108,7 +115,7 @@ defmodule PhoenixKitWeb.Components.Core.ChartCrosshairTest do
              payload(html)
   end
 
-  test "rank_format gets the ascending place and the count; ties share a place" do
+  test "point_note gets x, y, index, the ascending rank and the count; ties share a place" do
     assigns = %{}
 
     html =
@@ -117,14 +124,15 @@ defmodule PhoenixKitWeb.Components.Core.ChartCrosshairTest do
         id="c"
         data={[{0, 5}, {1, 2}, {2, 5}, {3, 9}]}
         hover={:crosshair}
-        rank_format={&"#{&1} of #{&2}"}
+        point_note={&"#{&1.rank} of #{&1.count} (#{&1.index}@#{&1.x})"}
       />
       """)
 
-    assert payload(html) |> Enum.map(&Enum.at(&1, 6)) == ["2 of 4", "1 of 4", "2 of 4", "4 of 4"]
+    assert payload(html) |> Enum.map(&Enum.at(&1, 6)) ==
+             ["2 of 4 (0@0)", "1 of 4 (1@1)", "2 of 4 (2@2)", "4 of 4 (3@3)"]
   end
 
-  test "a rank_format that raises shows no rank rather than breaking the chart" do
+  test "a point_note that raises, or returns nil, shows no note rather than breaking the chart" do
     assigns = %{}
 
     html =
@@ -133,8 +141,15 @@ defmodule PhoenixKitWeb.Components.Core.ChartCrosshairTest do
         id="c"
         data={[{0, 5}, {1, 2}]}
         hover={:crosshair}
-        rank_format={fn _, _ -> raise "x" end}
+        point_note={fn _ -> raise "x" end}
       />
+      """)
+
+    assert payload(html) |> Enum.map(&Enum.at(&1, 6)) == [nil, nil]
+
+    html =
+      rendered_to_string(~H"""
+      <.line_chart id="c" data={[{0, 5}, {1, 2}]} hover={:crosshair} point_note={fn _ -> nil end} />
       """)
 
     assert payload(html) |> Enum.map(&Enum.at(&1, 6)) == [nil, nil]
@@ -160,11 +175,8 @@ defmodule PhoenixKitWeb.Components.Core.ChartCrosshairTest do
       <.line_chart id="c" data={[{0, 1}, {1, 1}, {2, 1}, {5, 1}]} step hover={:crosshair} rows={@rows} />
       """)
 
-    assert payload(html) |> Enum.map(&Enum.at(&1, 7)) == [
-             [["Boiler", "#f59e0b"]],
-             [["Boiler", "#f59e0b"], ["Car", "var(--color-info)"]],
-             [["Car", "var(--color-info)"]]
-           ]
+    assert rows(html) == [["Boiler", "#f59e0b"], ["Car", "var(--color-info)"], ["Idle", nil]]
+    assert payload(html) |> Enum.map(&Enum.at(&1, 7)) == [[0], [0, 1], [1]]
   end
 
   test "a colour that is not a colour is dropped; malformed rows and bands are skipped" do
@@ -181,7 +193,8 @@ defmodule PhoenixKitWeb.Components.Core.ChartCrosshairTest do
       <.line_chart id="c" data={[{0, 1}, {1, 1}]} hover={:crosshair} rows={@rows} />
       """)
 
-    assert payload(html) |> Enum.map(&Enum.at(&1, 7)) == [[["Bad", nil]], [["Bad", nil]]]
+    assert rows(html) == [["Bad", nil]]
+    assert payload(html) |> Enum.map(&Enum.at(&1, 7)) == [[0], [0]]
   end
 
   test "labels are escaped in the attribute" do
