@@ -6,8 +6,9 @@ new-login alert, and anything a module sends through
 A host changes that copy, or the HTML every email is wrapped in, by adding
 **override files** to its own application. No database rows, no template
 editor: the files deploy with the code. Only the branding — the project logo
-and the `email_accent_color` setting — lives in the database, so it can change
-without a deploy.
+and the `email_accent_color` setting — lives in the database, set in the admin
+(see [Branding](#branding-logo-and-accent-colour)), so it can change without a
+deploy. The admin also [previews every email](#previewing-emails).
 
 ## Where the files go
 
@@ -304,6 +305,12 @@ header, the footer and the body:
   its top bar in it — only while the setting holds a colour, so a site that
   never set one keeps the look it had.
 
+Both are set in the admin, on **Settings → Emails Transactional → Branding**
+(`/admin/settings/email-sending`): the accent colour is a field there
+(`#RRGGBB`, checked when saved; blank means the neutral default), and the
+logo, the site name and the site URL are edited under **Settings → General**,
+which that tab links to.
+
 Both are read on every send: a new logo or colour shows in the next email
 without a restart. The code sending an email may pass either variable
 itself; its value is used only when valid — a `#rrggbb` colour, an empty or
@@ -318,6 +325,39 @@ usually for the original when that is a PNG. A logo with no such file at all
 (an SVG whose sizes are WebP, or sizes still being made) gives no URL. Sizes
 made before transparent images were written as PNG are JPEG: such a logo
 arrives on a white background until its sizes are regenerated.
+
+## Previewing emails
+
+**Settings → Emails Transactional → Branding → Preview emails**
+(`/admin/settings/email-sending/preview`) lists every email the site knows
+and renders the chosen one in any enabled language, with sample values: the
+subject, the HTML (in a sandboxed frame) and the text, exactly as a send
+would build them. For every part — subject, HTML, Markdown, text, the layout
+group, the layout, the header and the footer — it says where it came from:
+
+- **Database template** — an active row of the emails module answers the
+  name; it wins over files until it is deactivated.
+- **Host file**, with the file's path.
+- **Empty file, ignored** — a file was found but is blank, so it counts as
+  missing.
+- **Built-in default** — PhoenixKit's (or the module's) own copy.
+- **Set by the sending code** — for the layout group: the code passes
+  `layout: "<group>"`, which wins over any `layout.txt`, so no file changes it.
+- **Not used** — the part plays no role in this email: no such file or
+  default, or, for the layout group, layout, header and footer, the email is
+  sent without the layout (`layout: false`, or a whole HTML document).
+
+Next to each part it names the file to create to override it, as a path in
+the host application's source tree (`priv/phoenix_kit_templates/…`): the file
+ships with the code — one added on the server is lost on the next deploy.
+Placeholders that no sample value binds are listed, so a typo such as
+`{{confirm_url}}` shows before a reader sees it.
+
+A module adds its own emails to the list with the optional
+`email_templates/0` callback of `PhoenixKit.Module` — the template name it
+sends, a label, the same `defaults` function its send uses, sample
+`variables` and the `layout` option it passes (see
+`PhoenixKit.Email.Catalog`).
 
 ## A complete example
 

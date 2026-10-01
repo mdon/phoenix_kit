@@ -28,6 +28,7 @@ defmodule PhoenixKit.ModuleRegistry do
       ModuleRegistry.all_admin_tabs()        # Collect admin tabs from all modules
       ModuleRegistry.all_settings_tabs()     # Collect settings tabs
       ModuleRegistry.all_email_settings_sections() # Collect Emails Transactional page sections
+      ModuleRegistry.all_email_templates()   # Collect emails for the admin email preview
       ModuleRegistry.all_user_dashboard_tabs() # Collect user dashboard tabs
       ModuleRegistry.all_children()          # Collect supervisor child specs
       ModuleRegistry.all_permission_metadata() # Collect permission metadata
@@ -149,6 +150,46 @@ defmodule PhoenixKit.ModuleRegistry do
   def all_email_settings_sections do
     enabled_modules()
     |> Enum.flat_map(&safe_call(&1, :email_settings_sections, []))
+  end
+
+  @doc """
+  Collect the emails enabled modules send (`c:PhoenixKit.Module.email_templates/0`),
+  each tagged with `:module`, the module that declared it.
+
+  Enabled modules only, like `all_email_settings_sections/0`: a disabled
+  module sends nothing, so the preview has none of its emails to show.
+  """
+  @spec all_email_templates() :: [map()]
+  def all_email_templates do
+    enabled_modules()
+    |> Enum.flat_map(fn mod ->
+      mod
+      |> safe_call(:email_templates, [])
+      |> List.wrap()
+      |> Enum.flat_map(fn
+        entry when is_map(entry) ->
+          [Map.put(entry, :module, mod)]
+
+        entry ->
+          warn_once_bad_email_template(mod, entry)
+          []
+      end)
+    end)
+  end
+
+  # The preview page collects these on every mount; one warning per module is
+  # enough to say its callback returned something that is not an entry.
+  defp warn_once_bad_email_template(mod, entry) do
+    key = {__MODULE__, :warned_bad_email_template, mod}
+
+    unless :persistent_term.get(key, false) do
+      :persistent_term.put(key, true)
+
+      Logger.warning(
+        "[ModuleRegistry] #{inspect(mod)}.email_templates/0 returned a non-map entry, " <>
+          "ignored: #{inspect(entry, limit: 5, printable_limit: 80)}"
+      )
+    end
   end
 
   @doc "Collect all user dashboard tabs from all registered modules."
@@ -921,6 +962,15 @@ defmodule PhoenixKit.ModuleRegistry do
       Logger.warning(
         "[ModuleRegistry] #{inspect(mod)}.#{fun}/0 failed: #{Exception.message(error)}. " <>
           "Check that all required fields are valid (e.g. Tab paths must start with \"/\")."
+      )
+
+      default
+  catch
+    # A throw or exit in one module's callback must not take down the page
+    # (or the boot) that collects every module's answer.
+    kind, reason ->
+      Logger.warning(
+        "[ModuleRegistry] #{inspect(mod)}.#{fun}/0 failed: #{inspect({kind, reason})}"
       )
 
       default

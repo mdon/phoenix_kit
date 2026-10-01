@@ -9,6 +9,7 @@ defmodule PhoenixKitWeb.Live.Settings.EmailSendingTest do
 
   use PhoenixKitWeb.ConnCase, async: true
 
+  alias PhoenixKit.Email.Branding
   alias PhoenixKit.Integrations
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
@@ -213,6 +214,145 @@ defmodule PhoenixKitWeb.Live.Settings.EmailSendingTest do
 
       assert html =~ "missing required field(s): host"
       refute html =~ secret
+    end
+  end
+
+  describe "branding" do
+    setup :setup_admin
+
+    test "shows the accent colour form, the swatch and the links", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path)
+
+      assert has_element?(view, "#email-branding-panel #email-accent-color-form")
+      assert has_element?(view, ~s(#email-accent-color-swatch[style*="#18181b"]))
+      assert has_element?(view, ~s(#email-logo-settings-link[href$="/admin/settings"]))
+
+      assert has_element?(
+               view,
+               ~s(#email-preview-link[href$="/admin/settings/email-sending/preview"])
+             )
+
+      assert has_element?(view, "#email-logo-none")
+    end
+
+    test "saving a colour stores it lower-cased and paints the swatch", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path)
+
+      html =
+        view
+        |> element("#email-accent-color-form")
+        |> render_submit(%{"accent_color" => " #1D4ED8 "})
+
+      assert html =~ "Email accent colour updated"
+      assert Settings.get_setting("email_accent_color") == "#1d4ed8"
+      assert Branding.accent_color() == "#1d4ed8"
+      assert has_element?(view, ~s(#email-accent-color-swatch[style*="#1d4ed8"]))
+      assert has_element?(view, ~s(#email-accent-color-input[value="#1d4ed8"]))
+    end
+
+    test "an invalid colour is refused and nothing is saved", %{conn: conn} do
+      {:ok, _} = Settings.update_setting("email_accent_color", "#123456")
+      {:ok, view, _html} = live(conn, @path)
+
+      for bad <- ["red", "#abc", "#1234567", "#12345g", "#123456;background:url(x)"] do
+        html =
+          view
+          |> element("#email-accent-color-form")
+          |> render_submit(%{"accent_color" => bad})
+
+        assert html =~ "Enter the colour as #RRGGBB"
+        assert has_element?(view, "#email-accent-color-error")
+        assert Settings.get_setting("email_accent_color") == "#123456"
+        # the swatch keeps the saved colour, never the bad value
+        assert has_element?(view, ~s(#email-accent-color-swatch[style*="#123456"]))
+      end
+    end
+
+    test "a blank colour resets to the default", %{conn: conn} do
+      {:ok, _} = Settings.update_setting("email_accent_color", "#123456")
+      {:ok, view, _html} = live(conn, @path)
+
+      html =
+        view
+        |> element("#email-accent-color-form")
+        |> render_submit(%{"accent_color" => "  "})
+
+      assert html =~ "reset to the default"
+      assert Settings.get_setting("email_accent_color") in [nil, ""]
+      assert Branding.accent_color() == "#18181b"
+    end
+
+    test "on a site that never saved a colour, saving the blank field works", %{conn: conn} do
+      assert Settings.get_setting("email_accent_color") in [nil, ""]
+      {:ok, view, _html} = live(conn, @path)
+
+      assert has_element?(view, "#email-accent-color-save")
+
+      html =
+        view
+        |> element("#email-accent-color-form")
+        |> render_submit(%{"accent_color" => ""})
+
+      assert html =~ "reset to the default"
+      refute html =~ "Could not save the accent colour"
+    end
+
+    test "an invalid colour marks the field invalid; a valid one clears it", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path)
+
+      view |> element("#email-accent-color-form") |> render_submit(%{"accent_color" => "red"})
+      assert has_element?(view, ~s(#email-accent-color-input[aria-invalid="true"]))
+
+      view
+      |> element("#email-accent-color-form")
+      |> render_submit(%{"accent_color" => "#1d4ed8"})
+
+      refute has_element?(view, "#email-accent-color-input[aria-invalid]")
+    end
+
+    test "a half-typed colour is not an error yet; one that cannot become one is",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path)
+
+      for partial <- ["#", "#1d4", "1d4ed"] do
+        view |> element("#email-accent-color-form") |> render_change(%{"accent_color" => partial})
+        refute has_element?(view, "#email-accent-color-error"), partial
+      end
+
+      for bad <- ["#zz", "#1d4ed8x", "blue"] do
+        view |> element("#email-accent-color-form") |> render_change(%{"accent_color" => bad})
+        assert has_element?(view, "#email-accent-color-error"), bad
+      end
+    end
+
+    test "typing updates the swatch live; the colour picker wins when it changed",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path)
+
+      view
+      |> element("#email-accent-color-form")
+      |> render_change(%{"accent_color" => "#ff0000", "accent_color_picker" => "#18181b"})
+
+      assert has_element?(view, ~s(#email-accent-color-swatch[style*="#ff0000"]))
+      refute has_element?(view, "#email-accent-color-error")
+
+      view
+      |> element("#email-accent-color-form")
+      |> render_change(%{
+        "_target" => ["accent_color_picker"],
+        "accent_color" => "#ff0000",
+        "accent_color_picker" => "#00ff00"
+      })
+
+      assert has_element?(view, ~s(#email-accent-color-input[value="#00ff00"]))
+      assert has_element?(view, ~s(#email-accent-color-swatch[style*="#00ff00"]))
+
+      view
+      |> element("#email-accent-color-form")
+      |> render_change(%{"accent_color" => "nope"})
+
+      assert has_element?(view, "#email-accent-color-error")
+      assert Settings.get_setting("email_accent_color") in [nil, ""]
     end
   end
 end

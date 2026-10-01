@@ -113,6 +113,9 @@ defmodule PhoenixKit.Settings.Setting do
     # Blank means "no default send integration" — deliver_email/2 falls back
     # to the static app-config/built-in mailer (see PhoenixKit.Mailer)
     "default_email_integration_uuid",
+    # Blank means the neutral default accent (PhoenixKit.Email.Branding); the
+    # field starts blank, so its first save is often an empty one.
+    "email_accent_color",
     # Crawlers — verification tags and the llms.txt extra are legitimately
     # empty. Without these entries the FIRST write of an empty value (no row
     # yet) fails validation, so a form saving both slots partially applies:

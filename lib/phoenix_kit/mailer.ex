@@ -26,6 +26,7 @@ defmodule PhoenixKit.Mailer do
   import Swoosh.Email
 
   alias PhoenixKit.Email.Content
+  alias PhoenixKit.Email.CoreTemplates
   alias PhoenixKit.Email.Provider
   alias PhoenixKit.Integrations
   alias PhoenixKit.Mailer.SmtpTransport
@@ -681,16 +682,7 @@ defmodule PhoenixKit.Mailer do
         "magic_link",
         user,
         %{"user_email" => user.email, "magic_link_url" => magic_link_url},
-        fn ->
-          %{
-            subject: gettext("Your secure login link"),
-            text:
-              gettext("""
-              Your login link: {{magic_link_url}}
-              This link expires in 15 minutes.
-              """)
-          }
-        end
+        &CoreTemplates.magic_link_defaults/0
       )
 
     email =

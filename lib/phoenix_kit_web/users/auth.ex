@@ -2362,6 +2362,7 @@ defmodule PhoenixKitWeb.Users.Auth do
     # LiveView checks the `integrations` permission itself in mount/3 now,
     # so no entry belongs in this admin-gate map.
     PhoenixKitWeb.Live.Settings.EmailSending => "settings",
+    PhoenixKitWeb.Live.Settings.EmailPreview => "settings",
     PhoenixKitWeb.Live.Settings.SendProfiles => "settings",
     PhoenixKitWeb.Live.Settings.SendProfileForm => "settings",
     PhoenixKitWeb.Live.Settings.Crawlers => "crawlers",

@@ -18,6 +18,7 @@
       tabs={
         [
           %{id: "identity", label: gettext("Sender Identity"), icon: "hero-identification"},
+          %{id: "branding", label: gettext("Branding"), icon: "hero-swatch"},
           %{id: "transport", label: gettext("Transport"), icon: "hero-server-stack"}
         ] ++
           if(@mailbox_local?,
@@ -91,6 +92,116 @@
             {gettext("Save sender identity")}
           </button>
         </form>
+      </.form_section>
+    </div>
+
+    <div id="email-branding-panel" class={@active_tab != "branding" && "hidden"}>
+      <.form_section title={gettext("Branding")} icon="hero-swatch" body_class="space-y-6">
+        <:subtitle>
+          {gettext(
+            "How emails look: the accent colour of buttons and links, and the logo in the header."
+          )}
+        </:subtitle>
+        <:actions>
+          <.pk_link_button
+            id="email-preview-link"
+            navigate="/admin/settings/email-sending/preview"
+            variant="outline"
+            class="btn-sm"
+          >
+            <.icon name="hero-eye" class="w-4 h-4" /> {gettext("Preview emails")}
+          </.pk_link_button>
+        </:actions>
+
+        <form
+          id="email-accent-color-form"
+          phx-change="validate_accent_color"
+          phx-submit="save_accent_color"
+          class="space-y-3"
+        >
+          <div class="flex flex-col sm:flex-row gap-3 sm:items-end">
+            <.input
+              id="email-accent-color-input"
+              name="accent_color"
+              type="text"
+              value={@accent_input}
+              label={gettext("Accent colour")}
+              placeholder={Branding.default_accent_color()}
+              autocomplete="off"
+              aria-invalid={@accent_error && "true"}
+              aria-describedby={@accent_error && "email-accent-color-error"}
+              wrapper_class="w-full max-w-xs"
+            />
+            <label class="flex items-center gap-2 pb-1">
+              <span class="sr-only">{gettext("Pick a colour")}</span>
+              <input
+                id="email-accent-color-picker"
+                type="color"
+                name="accent_color_picker"
+                value={@accent_preview}
+                phx-debounce="150"
+                class="w-10 h-10 cursor-pointer rounded border border-base-300 bg-transparent"
+              />
+            </label>
+            <div class="flex items-center gap-2 pb-1">
+              <span
+                id="email-accent-color-swatch"
+                class="inline-block w-24 h-10 rounded border border-base-300"
+                style={"background-color: #{@accent_preview}"}
+                aria-hidden="true"
+              ></span>
+              <span
+                id="email-accent-color-sample"
+                class="btn btn-sm border-0 pointer-events-none"
+                style={"background-color: #{@accent_preview}; color: #{Branding.text_color_on(@accent_preview)}"}
+                aria-hidden="true"
+              >
+                {gettext("Button")}
+              </span>
+            </div>
+          </div>
+          <p :if={@accent_error} id="email-accent-color-error" class="text-sm text-error">
+            {accent_format_error()}
+          </p>
+          <p class="text-xs text-base-content/50">
+            {accent_help_text()}
+          </p>
+          <button id="email-accent-color-save" type="submit" class="btn btn-primary btn-sm">
+            {gettext("Save accent colour")}
+          </button>
+        </form>
+
+        <div id="email-logo-info" class="space-y-2">
+          <h4 class="font-medium text-sm">{gettext("Logo")}</h4>
+          <%= if @email_logo_url != "" do %>
+            <div class="flex items-center gap-3 p-2 bg-base-200 rounded-lg w-fit">
+              <img
+                id="email-logo-image"
+                src={@email_logo_url}
+                alt={@project_title}
+                class="h-10 w-auto bg-white rounded"
+              />
+              <span class="text-sm text-base-content/70">
+                {gettext("Shown in the header of every email.")}
+              </span>
+            </div>
+          <% else %>
+            <p id="email-logo-none" class="text-sm text-base-content/70">
+              {gettext(
+                "No logo is available to emails, so the header shows the site name. A logo stored in a private library is never used: an email outlives its link."
+              )}
+            </p>
+          <% end %>
+          <p class="text-sm">
+            <.pk_link
+              id="email-logo-settings-link"
+              navigate="/admin/settings"
+              class="link link-primary"
+            >
+              {gettext("Change the logo, site name or site URL in Settings → General")}
+            </.pk_link>
+          </p>
+        </div>
       </.form_section>
     </div>
 
