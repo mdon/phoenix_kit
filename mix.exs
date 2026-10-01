@@ -263,6 +263,19 @@ defmodule PhoenixKit.MixProject do
       # `mix deps.update phoenix_kit` if the floor still admits it. Raise the
       # floor whenever core starts consuming a newer Etcher API.
       #
+      # 0.18 is live drawing — `onDrawing` / `applyDrawing` /
+      # `applyDrawingEnd`, so a peer watches a stroke appear rather than
+      # waiting for it — and the phone round: two fingers pan and pinch
+      # whatever tool is in hand, a slow stroke no longer raises the iOS
+      # selection bar, a tap places its dot, a new text box takes the caret
+      # (and no longer zooms the page out of reach), and the style panel
+      # stops vanishing behind the grabber a board opens with. Core does not
+      # call the new API — `phoenix_kit_boards` does — but the bundle this
+      # file pins is the one every host's browser loads, so the pin moves
+      # with the package. The two-finger work needs fresco ≥ 0.13.1, which
+      # counts a claimed finger so the second one has something to pinch
+      # against; older fresco simply keeps the old single-pointer reading.
+      #
       # Etcher 0.14's out-of-bounds pan/zoom features engage on fresco
       # ≥ 0.12 (isInfiniteCanvas / getZoomFloor on the outer handles) and
       # quietly stand down on older — hence the new fresco alternative.
@@ -406,6 +419,7 @@ defmodule PhoenixKit.MixProject do
         "guides/custom-admin-pages.md",
         "guides/locale-routing.md",
         "guides/per-module-i18n.md",
+        "guides/email-templates.md",
         "lib/phoenix_kit/dashboard/ADMIN_README.md"
       ],
       groups_for_extras: [

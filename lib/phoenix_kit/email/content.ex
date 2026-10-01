@@ -39,6 +39,29 @@ defmodule PhoenixKit.Email.Content do
   Roots come from `override_paths/0`. Full rules, including precedence and the
   path-safety constraints on `name`, live in `PhoenixKit.Templates`.
 
+  ## The layout
+
+  Content resolved from a file or a default is wrapped in the shared HTML
+  layout, `PhoenixKit.Email.Layout`, which a host overrides with its own
+  `_layout/html.html`. Only the `html` part changes; `subject` and `text` are
+  returned as resolved (a blank part aside, below).
+
+    * `html` is a fragment — it is wrapped.
+    * `html` is `nil` — the text is turned into HTML (escaped, paragraphs,
+      links; `Layout.text_to_html/1`) and wrapped, so a text-only message still
+      arrives as HTML.
+    * `html` is a whole document (`<!doctype …` or `<html …`, after any BOM,
+      whitespace, comments or XML prolog; `Layout.document?/1`) — it is left
+      alone; it already carries its own chrome.
+    * both `html` and `text` are `nil` — nothing to wrap, `html` stays `nil`.
+    * `layout: false` — nothing is wrapped.
+
+  A blank `html` or `text` (an empty override file, whitespace only) is
+  returned as `nil`, with or without the layout, so an empty `html.html`
+  never sends an empty body: the text is wrapped instead.
+
+  A database template (layer 1) is never wrapped.
+
   ## Why the default is a function
 
   `defaults` is a zero-arity function, not a map, because it is evaluated
@@ -48,6 +71,7 @@ defmodule PhoenixKit.Email.Content do
   """
 
   alias PhoenixKit.Config
+  alias PhoenixKit.Email.Layout
   alias PhoenixKit.Email.Provider
   alias PhoenixKit.Templates
   alias PhoenixKit.Utils.RecipientLocale
@@ -76,7 +100,8 @@ defmodule PhoenixKit.Email.Content do
   recipient is a bare address that carries no preference, such as
   `PhoenixKit.Mailer.send_from_template/4`. `:paths` overrides the override
   roots, which is how a test points at a fixture directory; it defaults to
-  `override_paths/0`.
+  `override_paths/0`. `layout: false` skips the shared layout (see
+  "The layout" above); it defaults to `true`.
   """
   @spec resolve(String.t(), term(), map(), (-> Templates.defaults()), keyword()) :: resolved()
   def resolve(name, recipient, variables, defaults, opts \\ [])
@@ -92,7 +117,10 @@ defmodule PhoenixKit.Email.Content do
             paths: paths
           )
 
-        Map.put(rendered, :db_template, nil)
+        rendered
+        |> drop_blank_parts()
+        |> maybe_wrap(Keyword.get(opts, :layout, true), locale: locale, paths: paths)
+        |> Map.put(:db_template, nil)
 
       template ->
         rendered = Provider.current().render_template(template, variables, locale)
@@ -111,6 +139,35 @@ defmodule PhoenixKit.Email.Content do
         }
     end
   end
+
+  # A blank part (an empty override file) is no part, with or without the
+  # layout, so whether a message exists never depends on the layout.
+  defp drop_blank_parts(rendered) do
+    %{
+      rendered
+      | html: if(present?(rendered.html), do: rendered.html),
+        text: if(present?(rendered.text), do: rendered.text)
+    }
+  end
+
+  # The html part is the only one the layout touches: subject and text reach
+  # the reader exactly as resolved. With neither html nor text there is no
+  # message to wrap, and leaving html nil is what keeps an unknown name
+  # answering `{:error, :template_not_found}` in `Mailer.send_from_template/4`.
+  defp maybe_wrap(rendered, false, _opts), do: rendered
+  defp maybe_wrap(%{html: nil, text: nil} = rendered, _layout, _opts), do: rendered
+
+  defp maybe_wrap(%{html: nil, text: text} = rendered, _layout, opts) do
+    %{rendered | html: text |> Layout.text_to_html() |> Layout.wrap(rendered.subject, opts)}
+  end
+
+  defp maybe_wrap(%{html: html} = rendered, _layout, opts) do
+    if Layout.document?(html),
+      do: rendered,
+      else: %{rendered | html: Layout.wrap(html, rendered.subject, opts)}
+  end
+
+  defp present?(part), do: is_binary(part) and String.trim(part) != ""
 
   @doc """
   Roots searched for host override files, most specific first.

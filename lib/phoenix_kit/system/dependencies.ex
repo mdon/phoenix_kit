@@ -148,11 +148,10 @@ defmodule PhoenixKit.System.Dependencies do
 
   # The external programs PhoenixKit shells out to. `args` print the
   # version; `pattern` pulls the bare version number out of that output.
-  #
-  # A function, not a module attribute: a regex nested in an attribute's
-  # data has to be escaped into the function that reads it, and Elixir 1.18
-  # on OTP 28 cannot escape one (compiled patterns are references there),
-  # so the whole library failed to compile on that pairing.
+  # A compiled `~r` carries a runtime reference on OTP 28, so a list of them
+  # cannot live in a module attribute that a function body reads — Elixir
+  # refuses to escape it at compile time. Building the list in a function
+  # keeps the sigils and compiles everywhere.
   defp tools do
     [
       %{

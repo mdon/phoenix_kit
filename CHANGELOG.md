@@ -28,9 +28,24 @@
   `personal_default: true` (offered until the admin chooses), and Object Storage is also
   offered while users may keep a library on their own bucket (`personal_also_while`). The
   page refuses a provider it did not offer, even to a hand-made event.
+- **A shared HTML layout for emails built from files and defaults** (`PhoenixKit.Email.Layout`).
+  Core's auth emails and the defaults a module passes to `Mailer.send_from_template/4` ship no
+  `html` part, so they went out as plain text; they now arrive as HTML — the site's name above
+  the body, the name and a link to the site below it, inline styles, no brand colours, no external
+  resources, and no words of its own to translate. A text-only message is escaped, split into
+  paragraphs and its `http(s)://` addresses linked (a link ends at invisible and bidirectional
+  format characters, so it cannot display one address and open another). A host overrides the
+  layout with `_layout/html.html` under its `phoenix_kit_templates` root (needs
+  `phoenix_kit_templates` 0.2.1; older releases skip the name and core's layout is used). A layout
+  without `{{{content}}}` is refused with one warning. `layout: false` opts out; an `html` part
+  that is already a whole document, and any database template, are never wrapped. A blank `html`
+  or `text` part (an empty override file) is now treated as missing. See `guides/email-templates.md`.
 
 ### Fixed
 
+- **`PhoenixKit.System.Dependencies` compiles on OTP 28.** The external-tools list held compiled
+  `~r` sigils in a module attribute, which OTP 28 cannot escape into a function body; it is built
+  in a function now.
 - **The profile's tabs stay on the personal integration "add" and edit pages.** They
   disappeared after "Add integration", so the page no longer said where you were.
 - **The Multiple Sessions setting reads "Enable multiple sessions"** (it said "multi-account
