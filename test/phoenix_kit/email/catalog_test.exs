@@ -478,6 +478,42 @@ defmodule PhoenixKit.Email.CatalogTest do
       end
     end
 
+    test "the new login alert" do
+      u = user("en")
+
+      attrs = %{
+        ip_address: "203.0.113.9",
+        browser: "Firefox",
+        os: "Linux",
+        first_seen_at: ~U[2026-09-30 12:00:00Z]
+      }
+
+      assert {:ok, email} = UserNotifier.deliver_new_login_alert(u, attrs)
+
+      # The time is formatted in the reader's zone by the send itself; read it
+      # back rather than re-deriving it, and compare everything else.
+      [_, login_time] = Regex.run(~r/^Time: (.+)$/m, email.text_body)
+
+      want =
+        expected(
+          "new_login_alert",
+          u,
+          %{
+            "user_email" => u.email,
+            "login_time" => login_time,
+            "ip_address" => "203.0.113.9",
+            "location" => "Unknown",
+            "browser_os" => "Firefox on Linux",
+            "failed_attempts" => "",
+            "security_url" => Routes.base_url() <> Routes.user_settings_path()
+          },
+          &CoreTemplates.new_login_alert_defaults/0
+        )
+
+      assert {email.subject, email.text_body, email.html_body} ==
+               {want.subject, want.text, want.html}
+    end
+
     test "the organization invitation" do
       url = "https://x.test/o"
       assert {:ok, email} = UserNotifier.deliver_organization_invitation("a@x.test", "Acme", url)

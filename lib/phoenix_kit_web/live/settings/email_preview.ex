@@ -128,11 +128,16 @@ defmodule PhoenixKitWeb.Live.Settings.EmailPreview do
   defp owner_label(nil), do: gettext("Core")
 
   defp owner_label(module) do
-    if function_exported?(module, :module_name, 0),
-      do: module.module_name(),
-      else: inspect(module)
+    with true <- function_exported?(module, :module_name, 0),
+         name when is_binary(name) <- module.module_name() do
+      name
+    else
+      _ -> inspect(module)
+    end
   rescue
     _ -> inspect(module)
+  catch
+    _kind, _reason -> inspect(module)
   end
 
   defp grouped_entries(entries) do
@@ -182,8 +187,7 @@ defmodule PhoenixKitWeb.Live.Settings.EmailPreview do
         source: sources.group_from,
         value: group,
         used_for: [],
-        # A group the sending code names wins over any layout.txt.
-        file: if(sources.group_from != :option, do: "#{name}/layout.txt")
+        file: group_file(name, sources)
       },
       %{
         id: "layout",
@@ -230,7 +234,15 @@ defmodule PhoenixKitWeb.Live.Settings.EmailPreview do
   defp chrome_file(chrome, group, _layout), do: "#{chrome}-#{group}/html.html"
 
   # Why a row has no file to create.
-  defp no_file_note(%{id: "layout-group"}), do: gettext("Set by the sending code")
+  # A layout.txt changes nothing when the sending code names the group (the
+  # option wins) or when no layout is used at all (`layout: false` ignores it).
+  defp group_file(_name, %{layout: nil}), do: nil
+  defp group_file(_name, %{group_from: :option}), do: nil
+  defp group_file(name, _sources), do: "#{name}/layout.txt"
+
+  defp no_file_note(%{id: "layout-group", source: :option}),
+    do: gettext("Set by the sending code")
+
   defp no_file_note(_row), do: gettext("Not used")
 
   defp base_language(locale), do: locale |> String.split("-") |> hd() |> String.downcase()

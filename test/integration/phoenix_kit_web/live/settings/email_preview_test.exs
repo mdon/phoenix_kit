@@ -384,7 +384,7 @@ defmodule PhoenixKitWeb.Live.Settings.EmailPreviewTest do
 
     {:ok, view, _html} = live(conn, at("fixture_text_only"))
 
-    for row <- ~w(layout header footer) do
+    for row <- ~w(layout-group layout header footer) do
       assert has_element?(view, "#email-source-#{row} [data-no-file]", "Not used")
       refute has_element?(view, "#email-source-#{row} [data-override-file]")
     end
