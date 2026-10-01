@@ -133,14 +133,17 @@ defmodule PhoenixKit.Mailer do
     - `:paths` - Host override roots to search, overriding the configured ones
     - `:defaults` - Content to fall back to when neither a database template nor
       a host override file answers the name: a map of
-      `%{subject:, text:, html:}`, or a zero-arity function returning one.
+      `%{subject:, text:, html:, markdown:, layout:}` (every key optional), or
+      a zero-arity function returning one.
       Prefer the function for anything built with `gettext/1` — it is evaluated
       inside the recipient's locale, where a map has already been evaluated in
       whatever locale the caller happened to be in
     - `:layout` - `false` sends the content without the shared HTML layout
       (`PhoenixKit.Email.Layout`). Default `true`: content from a file or
       `:defaults` is wrapped, and text-only content gets an HTML body built
-      from its text. A database template is never wrapped
+      from its text. A group name (`"billing"`) wraps it in that group's
+      layout, header and footer instead, over the email's own `layout.txt`.
+      A database template is never wrapped
 
   ## Returns
 

@@ -2,62 +2,90 @@ defmodule PhoenixKit.Email.Layout do
   @moduledoc """
   The shared HTML layout every email built from a file or a default is wrapped in.
 
-  `PhoenixKit.Email.Content.resolve/5` calls `wrap/3` on the file/default path,
-  so an email reaches the reader as HTML even when all it has is text: core's
-  auth emails and the defaults a module passes to
+  `PhoenixKit.Email.Content.resolve/5` calls `render/3` on the file/default
+  path, so an email reaches the reader as HTML even when all it has is text:
+  core's auth emails and the defaults a module passes to
   `PhoenixKit.Mailer.send_from_template/4` ship no `html` part of their own.
   Content from a database template is never wrapped — it carries its own
   chrome.
 
-  ## The default is a function, like every other default
+  ## Three parts: layout, header, footer
 
-  `default_html/0` is core's layout, kept in code for the same reason the
-  message defaults are Gettext calls rather than files: core ships no files of
-  its own. It is deliberately neutral — the site's name above the body, the
-  name and a link to the site below it, table markup with inline styles, no
-  brand colours and no external resources. It carries **no words of its own**,
-  so it needs no translation: everything it prints is the site's name, its URL
-  and the message itself.
-
-  ## Overriding it
-
-  The layout is resolved like any other template, under the reserved name
-  `_layout`, so a host replaces it with an ordinary override file:
+  The layout is the document around the body; the header and footer are
+  rendered on their own and handed to it, so a host can replace just the
+  header without copying the rest:
 
       <host>/priv/phoenix_kit_templates/
-      └── _layout/
-          ├── html.html          <- every locale
-          └── html.de.html       <- German readers
+      ├── _layout/html.html      <- the document; must place {{{content}}}
+      ├── _header/html.html      <- placed as {{{header}}}
+      └── _footer/html.html      <- placed as {{{footer}}}
 
-  Locale selection, roots and caching are exactly those of the message itself
-  (`PhoenixKit.Templates`). The layout's `subject` and `text` parts are never
-  read. Finding a file under a name that starts with `_` needs
-  `phoenix_kit_templates` 0.2.1 or later; older releases skip such names and
-  core's default is used.
+  Each is resolved like any other template (`PhoenixKit.Templates`): the
+  message's own locale and override roots, `html.de.html` before `html.html`.
+  Only the `html` part is read, and only the variables below are bound — not
+  the message's own, since every email shares these parts.
 
-  A layout with no `content` placeholder (an empty file, a typo such as
-  `{{{contnet}}}`) would drop the body of every email, so it is refused:
-  core's default is used instead, and a warning is logged once per override
-  roots and locale for the life of the VM.
+  An empty or whitespace-only `_header`/`_footer` file counts as missing.
+  Neither needs a placeholder. A `_layout` with no `content` placeholder (an
+  empty file, a typo such as `{{{contnet}}}`) would drop the body of every
+  email, so it is refused and the next layout in line is used; a warning is
+  logged once per layout name, override roots and locale for the life of the
+  VM.
+
+  ## Groups
+
+  A group of emails can have chrome of its own: `_layout-<group>`,
+  `_header-<group>`, `_footer-<group>`. Each falls back on its own — to the
+  shared `_layout`/`_header`/`_footer`, then to core's — so a `billing` group
+  may replace only its footer. The group is the `:group` option here;
+  `Content.resolve/5` takes it from `layout: "<group>"` or from the email's
+  own `layout.txt`. A group name is `[a-z0-9-]+`; any other is ignored, with a
+  warning.
+
+  ## Core's defaults
+
+  `default_html/1`, `default_header_html/1` and `default_footer_html/1` are
+  core's own parts, kept in code for the same reason the message defaults are
+  Gettext calls rather than files: core ships no files of its own. They are
+  deliberately neutral — table markup with inline styles, no external
+  resources but the site's own logo — and carry **no words of their own**,
+  so they need no translation.
+
+    * The header shows the logo (`{{logo_url}}`, from Settings) when there is
+      one, else the site's name.
+    * The footer shows the site's name and a link to the site.
+    * The layout is a card with the header, the body and the footer, and a
+      thin bar in the accent colour on top once the `email_accent_color`
+      setting holds a colour.
 
   ## Variables
+
+  Every part sees:
+
+  | placeholder | value |
+  |---|---|
+  | `{{subject}}` | the message subject, for `<title>` |
+  | `{{site_name}}` | `PhoenixKit.Settings.get_project_title/0` |
+  | `{{site_url}}` | `PhoenixKit.Utils.Routes.base_url/0` |
+  | `{{logo_url}}` | `PhoenixKit.Email.Branding` — `""` without a logo |
+  | `{{accent_color}}` | `PhoenixKit.Email.Branding` — `#rrggbb` |
+
+  and the layout also:
 
   | placeholder | value |
   |---|---|
   | `{{{content}}}` | the message body, **already HTML** |
-  | `{{subject}}` | the message subject, for `<title>` |
-  | `{{site_name}}` | `PhoenixKit.Settings.get_project_title/0` |
-  | `{{site_url}}` | `PhoenixKit.Utils.Routes.base_url/0` |
+  | `{{{header}}}` | the rendered header, **already HTML** |
+  | `{{{footer}}}` | the rendered footer, **already HTML** |
 
-  `site_url` is whatever the site is configured with. Core's default links it
+  `site_url` is whatever the site is configured with. Core's footer links it
   only when it is an `http(s)://` address and prints it as text otherwise.
 
-  `content` must be written with **three** braces. The `html` part escapes
-  every `{{variable}}`, which is right for `subject` and the site's name but
-  would print the body's markup as visible text. Triple braces are the
-  escaping opt-out, and the body is safe to insert raw because it was escaped
-  when it was built — by the `html` part's own substitution, or by
-  `text_to_html/1`.
+  `content`, `header` and `footer` must be written with **three** braces.
+  The `html` part escapes every `{{variable}}`, which is right for `subject`
+  and the site's name but would print the body's markup as visible text.
+  Triple braces are the escaping opt-out, and these values are safe to insert
+  raw because they were escaped when they were built.
 
   ## Opting out
 
@@ -69,13 +97,19 @@ defmodule PhoenixKit.Email.Layout do
   `<!doctype` or an `<html` tag (`<html>`, `<html lang="…">`), in any case.
   """
 
+  alias PhoenixKit.Email.Branding
   alias PhoenixKit.Settings
-  alias PhoenixKit.Templates
+  alias PhoenixKit.Templates.Overrides
+  alias PhoenixKit.Templates.Substitution
   alias PhoenixKit.Utils.Routes
 
   require Logger
 
   @name "_layout"
+  @header "_header"
+  @footer "_footer"
+
+  @group_pattern ~r/\A[a-z0-9-]+\z/
 
   @font "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"
 
@@ -86,30 +120,61 @@ defmodule PhoenixKit.Email.Layout do
   # Sentence punctuation that ends a sentence rather than an address.
   @trailing ~c".,;:!?'\""
 
+  @typedoc "Where one part of the chrome came from: a host file, or core's own."
+  @type source :: {:file, Path.t()} | :default
+
+  @typedoc """
+  Where the layout, header and footer of one render came from. `header` and
+  `footer` are `nil` when the layout used does not place them. `ignored`
+  lists the files that were found but passed over: `{:blank_file, path}` for
+  an empty header or footer, `{:no_content, path}` for a layout that does not
+  place `{{{content}}}`.
+  """
+  @type sources :: %{
+          layout: source(),
+          header: source() | nil,
+          footer: source() | nil,
+          ignored: [{:blank_file | :no_content, Path.t()}]
+        }
+
   @doc "The reserved template name the layout resolves under."
   @spec name() :: String.t()
   def name, do: @name
 
+  @doc "The reserved template name the header resolves under."
+  @spec header_name() :: String.t()
+  def header_name, do: @header
+
+  @doc "The reserved template name the footer resolves under."
+  @spec footer_name() :: String.t()
+  def footer_name, do: @footer
+
   @doc """
-  Core's layout: a header with the site's name, the body, and a footer with the
-  name and a link to the site.
+  Whether `group` is a usable group name: `[a-z0-9-]+`.
+  """
+  @spec valid_group?(term()) :: boolean()
+  def valid_group?(group), do: is_binary(group) and Regex.match?(@group_pattern, group)
+
+  @doc """
+  Core's layout: a card with the header, the body and the footer — and a bar
+  in the accent colour on top when the site has chosen one.
 
   ## Options
 
     * `:locale` — becomes the document's `lang` attribute when it is a
       well-formed language tag (`pt_BR` is written `pt-BR`); omitted
       otherwise.
-    * `:link` — `false` prints `{{site_url}}` in the footer as text instead of
-      a link. Default `true`.
+    * `:accent_bar` — `true` draws a 3px bar in `{{accent_color}}` on top
+      of the card. Default `false`.
   """
   @spec default_html(keyword()) :: String.t()
   def default_html(opts \\ []) do
     lang = lang_attribute(Keyword.get(opts, :locale))
 
-    site =
-      if Keyword.get(opts, :link, true),
-        do: ~s(<a href="{{site_url}}" style="color:#71717a;">{{site_url}}</a>),
-        else: "{{site_url}}"
+    bar =
+      if Keyword.get(opts, :accent_bar, false),
+        do: "border-top:3px solid {{accent_color}};",
+        else: ""
 
     """
     <!DOCTYPE html>
@@ -124,9 +189,9 @@ defmodule PhoenixKit.Email.Layout do
     <tr>
     <td align="center" bgcolor="#f4f4f5" style="padding:24px 12px;background-color:#f4f4f5;">
     <!--[if mso]><table role="presentation" width="600" align="center" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
-    <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="width:100%;max-width:600px;background-color:#ffffff;border:1px solid #e4e4e7;">
+    <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="width:100%;max-width:600px;background-color:#ffffff;border:1px solid #e4e4e7;#{bar}">
     <tr>
-    <td style="padding:20px 32px;border-bottom:1px solid #e4e4e7;font-family:#{@font};font-size:18px;font-weight:bold;color:#18181b;">{{site_name}}</td>
+    <td style="padding:20px 32px;border-bottom:1px solid #e4e4e7;font-family:#{@font};font-size:18px;font-weight:bold;color:#18181b;">{{{header}}}</td>
     </tr>
     <tr>
     <td style="padding:24px 32px;font-family:#{@font};font-size:15px;line-height:1.6;color:#27272a;">
@@ -134,7 +199,7 @@ defmodule PhoenixKit.Email.Layout do
     </td>
     </tr>
     <tr>
-    <td style="padding:16px 32px;border-top:1px solid #e4e4e7;font-family:#{@font};font-size:12px;line-height:1.5;color:#71717a;">{{site_name}}<br>#{site}</td>
+    <td style="padding:16px 32px;border-top:1px solid #e4e4e7;font-family:#{@font};font-size:12px;line-height:1.5;color:#71717a;">{{{footer}}}</td>
     </tr>
     </table>
     <!--[if mso]></td></tr></table><![endif]-->
@@ -144,6 +209,40 @@ defmodule PhoenixKit.Email.Layout do
     </body>
     </html>
     """
+  end
+
+  @doc """
+  Core's header: the logo when there is one, else the site's name.
+
+  ## Options
+
+    * `:logo` — `true` when `{{logo_url}}` is set. Default `false`.
+  """
+  @spec default_header_html(keyword()) :: String.t()
+  def default_header_html(opts \\ []) do
+    if Keyword.get(opts, :logo, false),
+      do:
+        ~s(<img src="{{logo_url}}" alt="{{site_name}}" height="40" ) <>
+          ~s(style="display:block;height:40px;width:auto;max-width:100%;border:0;">),
+      else: "{{site_name}}"
+  end
+
+  @doc """
+  Core's footer: the site's name and a link to the site.
+
+  ## Options
+
+    * `:link` — `false` prints `{{site_url}}` as text instead of a link.
+      Default `true`.
+  """
+  @spec default_footer_html(keyword()) :: String.t()
+  def default_footer_html(opts \\ []) do
+    site =
+      if Keyword.get(opts, :link, true),
+        do: ~s(<a href="{{site_url}}" style="color:#71717a;">{{site_url}}</a>),
+        else: "{{site_url}}"
+
+    "{{site_name}}<br>" <> site
   end
 
   @doc """
@@ -179,34 +278,83 @@ defmodule PhoenixKit.Email.Layout do
   @doc """
   Wraps an HTML fragment in the layout for this message's locale.
 
-  `subject` may be `nil`. Options are the message's own `:locale` and `:paths`,
-  so the layout resolves from the same override roots and for the same reader
-  as the message it wraps.
+  `subject` may be `nil`. See `render/3` for the options.
   """
   @spec wrap(String.t(), String.t() | nil, keyword()) :: String.t()
   def wrap(content, subject, opts \\ []) when is_binary(content) do
+    content |> render(subject, opts) |> elem(0)
+  end
+
+  @doc """
+  Wraps an HTML fragment in the layout, and says where the layout, header
+  and footer came from.
+
+  ## Options
+
+    * `:locale`, `:paths` — the message's own, so the chrome resolves from
+      the same override roots and for the same reader as the message.
+    * `:group` — the email's group (see "Groups" above); `nil` for none.
+    * `:branding` — the `logo_url`/`accent_color` variables, when the caller
+      has already read them (an invalid value reads as no logo / the neutral
+      colour); read from `PhoenixKit.Email.Branding` otherwise.
+    * `:accent_bar` — whether core's layout draws its accent bar. Defaults
+      to whether the `email_accent_color` setting holds a colour, so a site
+      that never chose one looks as it did before the bar existed.
+  """
+  @spec render(String.t(), String.t() | nil, keyword()) :: {String.t(), sources()}
+  def render(content, subject, opts \\ []) when is_binary(content) do
     locale = Keyword.get(opts, :locale)
     paths = Keyword.get(opts, :paths) || []
+    group = group(Keyword.get(opts, :group))
     site_url = Routes.base_url()
 
-    defaults = %{html: default_html(locale: locale, link: http_url?(site_url))}
+    # A caller's branding is checked like any other: only a `#rrggbb` colour
+    # reaches a `style` attribute, only an http(s) address a `src`.
+    branding =
+      case Keyword.fetch(opts, :branding) do
+        {:ok, branding} ->
+          Branding.merge(branding, %{
+            "logo_url" => "",
+            "accent_color" => Branding.default_accent_color()
+          })
 
-    variables = %{
-      "content" => content,
-      "subject" => subject || "",
-      "site_name" => Settings.get_project_title(),
-      "site_url" => site_url
+        :error ->
+          Branding.variables()
+      end
+
+    accent_bar? =
+      Keyword.get_lazy(opts, :accent_bar, fn -> Branding.configured_accent_color() != nil end)
+
+    variables =
+      branding
+      |> Map.merge(%{
+        "subject" => subject || "",
+        "site_name" => Settings.get_project_title(),
+        "site_url" => site_url
+      })
+
+    logo? = present?(Map.get(variables, "logo_url"))
+    found = &chrome(&1, group, &2, variables, locale, paths)
+    {header, header_source, header_ignored} = found.(@header, default_header_html(logo: logo?))
+
+    {footer, footer_source, footer_ignored} =
+      found.(@footer, default_footer_html(link: http_url?(site_url)))
+
+    {layout, layout_source, layout_ignored} = layout(group, locale, paths, accent_bar?)
+
+    placed = Substitution.variables(layout)
+
+    variables =
+      Map.merge(variables, %{"content" => content, "header" => header, "footer" => footer})
+
+    sources = %{
+      layout: layout_source,
+      header: if("header" in placed, do: header_source),
+      footer: if("footer" in placed, do: footer_source),
+      ignored: layout_ignored ++ header_ignored ++ footer_ignored
     }
 
-    render_opts = [locale: locale, paths: paths]
-
-    if places_content?(defaults, variables, render_opts) do
-      Templates.render(@name, defaults, variables, render_opts).html
-    else
-      warn_once_without_content(paths, locale)
-
-      Templates.render(@name, defaults, variables, locale: locale, paths: []).html
-    end
+    {Substitution.substitute(layout, variables, escape: true), sources}
   end
 
   @doc """
@@ -220,15 +368,76 @@ defmodule PhoenixKit.Email.Layout do
     Regex.match?(~r/\A<(!doctype|html[\s>])/i, skip_preamble(html))
   end
 
-  # The resolved layout places the body when leaving `content` unbound would
-  # leave its placeholder unbound — the same resolution the render uses, so the
-  # check can never inspect a different file from the one sent.
-  defp places_content?(defaults, variables, opts) do
-    missing =
-      Templates.missing_variables(@name, defaults, Map.delete(variables, "content"), opts)
+  # A header or footer: the group's file, the shared file, core's default —
+  # the first that has something in it.
+  defp chrome(base, group, default, variables, locale, paths) do
+    {found, ignored} =
+      first_file(names(base, group), locale, paths, fn _name, content ->
+        if present?(content), do: :ok, else: :blank_file
+      end)
 
-    "content" in Map.get(missing, :html, [])
+    {template, source} = found || {default, :default}
+    {Substitution.substitute(template, variables, escape: true), source, ignored}
   end
+
+  # The layout: the group's file, the shared file, core's default — the first
+  # that places the body. The check reads the same file the render uses.
+  defp layout(group, locale, paths, accent_bar?) do
+    {found, ignored} =
+      first_file(names(@name, group), locale, paths, fn name, content ->
+        if "content" in Substitution.variables(content) do
+          :ok
+        else
+          warn_once_without_content(name, paths, locale)
+          :no_content
+        end
+      end)
+
+    {template, source} =
+      found || {default_html(locale: locale, accent_bar: accent_bar?), :default}
+
+    {template, source, ignored}
+  end
+
+  # The first of `names` whose file `usable` accepts, and the files passed
+  # over on the way, each with the reason `usable` gave.
+  defp first_file(names, locale, paths, usable) do
+    {found, ignored} =
+      Enum.reduce_while(names, {nil, []}, fn name, {nil, ignored} ->
+        case Overrides.locate(paths, name, :html, locale) do
+          nil ->
+            {:cont, {nil, ignored}}
+
+          {path, content} ->
+            case usable.(name, content) do
+              :ok -> {:halt, {{content, {:file, path}}, ignored}}
+              reason -> {:cont, {nil, [{reason, path} | ignored]}}
+            end
+        end
+      end)
+
+    {found, Enum.reverse(ignored)}
+  end
+
+  defp names(base, nil), do: [base]
+  defp names(base, group), do: [base <> "-" <> group, base]
+
+  defp group(group) when is_binary(group) do
+    if valid_group?(group) do
+      group
+    else
+      Logger.warning(
+        "Email layout group #{inspect(group)} is not a valid group name ([a-z0-9-]+); " <>
+          "using the shared layout"
+      )
+
+      nil
+    end
+  end
+
+  defp group(_none), do: nil
+
+  defp present?(part), do: is_binary(part) and String.trim(part) != ""
 
   defp skip_preamble(<<0xEF, 0xBB, 0xBF, rest::binary>>), do: skip_preamble(rest)
   defp skip_preamble("<!--" <> rest), do: rest |> after_marker("-->") |> skip_preamble()
@@ -249,17 +458,18 @@ defmodule PhoenixKit.Email.Layout do
   end
 
   # The layout is resolved on every send, so a broken one would log on every
-  # send. One warning per (roots, locale) is enough to be seen; the keys are
-  # bounded by the configured roots times the well-formed language tags.
-  defp warn_once_without_content(paths, locale) do
-    key = {__MODULE__, :warned_without_content, paths, language_tag(locale)}
+  # send. One warning per (name, roots, locale) is enough to be seen; the keys
+  # are bounded by the layout names on disk times the configured roots times
+  # the well-formed language tags.
+  defp warn_once_without_content(name, paths, locale) do
+    key = {__MODULE__, :warned_without_content, name, paths, language_tag(locale)}
 
     unless :persistent_term.get(key, false) do
       :persistent_term.put(key, true)
 
       Logger.warning(
-        "Email layout #{@name}/html for locale #{inspect(locale)} in #{inspect(paths)} " <>
-          "has no {{{content}}} placeholder; using PhoenixKit's default layout instead"
+        "Email layout #{name}/html for locale #{inspect(locale)} in #{inspect(paths)} " <>
+          "has no {{{content}}} placeholder; using the next layout in line instead"
       )
     end
   end

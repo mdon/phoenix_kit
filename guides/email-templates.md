@@ -4,8 +4,10 @@ PhoenixKit's emails — account confirmation, password reset, magic link, the
 new-login alert, and anything a module sends through
 `PhoenixKit.Mailer.send_from_template/4` — ship with translated default copy.
 A host changes that copy, or the HTML every email is wrapped in, by adding
-**override files** to its own application. No database rows, no admin screen:
-the files deploy with the code.
+**override files** to its own application. No database rows, no template
+editor: the files deploy with the code. Only the branding — the project logo
+and the `email_accent_color` setting — lives in the database, so it can change
+without a deploy.
 
 ## Where the files go
 
@@ -31,33 +33,106 @@ priv/phoenix_kit_templates/
     ├── subject.txt        <- every language
     ├── subject.de.txt     <- German readers
     ├── text.txt
-    └── html.html          <- optional
+    ├── markdown.md        <- optional: the body in Markdown
+    ├── html.html          <- optional: the body in HTML
+    └── layout.txt         <- optional: the name of a layout group
 ```
 
 | part | file | |
 |---|---|---|
 | `subject` | `subject[.locale].txt` | subject line |
 | `text` | `text[.locale].txt` | plain-text body |
-| `html` | `html[.locale].html` | HTML body, optional |
+| `markdown` | `markdown[.locale].md` | body in Markdown, optional |
+| `html` | `html[.locale].html` | body in HTML, optional |
+| `layout` | `layout.txt` | the email's [layout group](#layout-groups), optional — never per language |
+
+The subject is one line: whitespace around it — the newline an editor leaves
+at the end of `subject.txt` included — is not part of it, and a line break
+inside it becomes a space.
 
 Each part resolves on its own: for a reader in `de-AT`, `text.de-AT.txt`, then
 `text.de.txt`, then `text.txt`, then PhoenixKit's translated default. A host
 that overrides only `text.txt` keeps the translated subject in every language.
 
-Placeholders are `{{variable}}`. In `html` a `{{variable}}` is HTML-escaped;
-`{{{variable}}}` (three braces) inserts the value raw and is only for a value
-that is already HTML.
+Placeholders are `{{variable}}`. In `html` and `markdown` a `{{variable}}`
+is HTML-escaped; `{{{variable}}}` (three braces) inserts the value raw and is
+only for a value that is already HTML.
+
+### Which file makes which body
+
+Each part comes from your file if there is one, else from PhoenixKit's (or
+the module's) default. Each body then takes the first match:
+
+| | HTML body | text body |
+|---|---|---|
+| 1 | your `html` | your `text` |
+| 2 | your `markdown` | your `markdown`, as plain text |
+| 3 | default `html` | default `text` |
+| 4 | default `markdown` | default `markdown`, as plain text |
+| 5 | your `text`, escaped into paragraphs (addresses linked — see below) | |
+| 6 | default `text`, escaped into paragraphs | |
+
+So one `markdown.md` is enough for both bodies, and it replaces the default
+copy in both — add `text.txt` only when the plain-text version should say
+something different. Between `html` and `text` alone each part resolves on
+its own, as before: overriding `text.txt` under a module's `html` default
+changes the text body and leaves the module's HTML.
+
+An empty or whitespace-only file counts as missing for the bodies. It still
+hides the default of the same part: an empty `text.txt` does **not** bring
+back the default text.
 
 Files are read once and cached; changing one takes a restart (a deploy).
+
+## Writing the body in Markdown
+
+`priv/phoenix_kit_templates/register/markdown.de.md`:
+
+```markdown
+Hallo {{user_email}},
+
+bitte bestätigen Sie Ihr Konto:
+
+[Konto bestätigen]({{confirmation_url}})
+
+Wenn Sie sich nicht registriert haben, ignorieren Sie diese E-Mail einfach.
+```
+
+Headings, emphasis, lists, tables, strikethrough and links work as usual;
+quotes and dashes are typeset (`"…"` → `“…”`, `--` → `–`).
+
+**Buttons.** A top-level paragraph that is exactly one `[label](url)` link
+becomes a button in the [accent colour](#branding-logo-and-accent-colour) — a coloured
+table cell, which every email client draws, Outlook included. The text on it
+is white on a dark accent and near-black on a light one. Any other link is a
+plain link in the accent colour — including a link alone in a list item or a
+quote. A bare address alone on a line stays a link.
+
+**Links.** Placeholders in a link target are filled in after the Markdown is
+rendered, so `[Confirm]({{confirmation_url}})` opens the real address. Only
+`http://`, `https://` and `mailto:` targets become links (images:
+`http(s)` only); any other — `javascript:`, a relative path, a placeholder
+nothing filled — leaves the label as plain text. This is checked on the
+address *after* the placeholder is filled.
+
+**Plain text.** Headings and paragraphs become lines, list items start with
+`- ` (`1. ` when numbered), `[label](url)` becomes `label: url`, an image
+becomes its alt text, and emphasis marks are dropped.
+
+**HTML inside Markdown is not rendered** — it is dropped. A body that needs
+markup of its own goes in `html.html`.
 
 ## The layout every email is wrapped in
 
 Every email built from a file or a default is sent with an HTML body inside a
-shared layout. PhoenixKit's own layout is deliberately plain: the site's name
-above the message, the name and a link to the site below it — table markup
-with inline styles, no colours of any brand, no images, and no words of its
-own, so it needs no translation. Its `<html lang>` is the reader's locale
-(`pt_BR` written as `pt-BR`).
+shared layout, made of three parts: the **layout** (the document), the
+**header** and the **footer**. PhoenixKit's own are deliberately plain — the
+logo (or, without one, the site's name) above the message, the name and a
+link to the site below it, and — once the `email_accent_color` setting holds
+a colour — a thin bar in that colour on top; table
+markup with inline styles and no words of their own, so they need no
+translation. The layout's `<html lang>` is the reader's locale (`pt_BR`
+written as `pt-BR`).
 
 - An email with only a `text` part gets its HTML body built from the text:
   every character escaped, a blank line starts a paragraph, a line break
@@ -65,49 +140,83 @@ own, so it needs no translation. Its `<html lang>` is the reader's locale
   scheme does, and neither does an address longer than 2 KB). The `text`
   body is sent unchanged next to it. An empty or whitespace-only part counts
   as missing, with or without the layout.
-- An `html` part that is a fragment (`<p>…</p>`) is placed inside the layout.
+- An `html` part that is a fragment (`<p>…</p>`), or the HTML a `markdown`
+  part renders to, is placed inside the layout.
 - An `html` part that is a whole document — starting with `<!doctype` or
   `<html`, after any byte-order mark, whitespace, comments or `<?xml ?>`
   prolog — is sent as it is; it already has its own chrome.
 - Emails still coming from database templates (the `phoenix_kit_emails`
   package) are never wrapped.
 
-### Replacing the layout
+### Replacing the header, the footer, or the whole layout
 
-The layout is an override like any other, under the reserved name `_layout`
-(names starting with `_` hold shared parts, never an email of their own):
+Each is an override like any other, under a reserved name (names starting
+with `_` hold shared parts, never an email of their own):
 
 ```
 priv/phoenix_kit_templates/
+├── _header/
+│   └── html.html          <- the header of every email
+├── _footer/
+│   ├── html.html          <- the footer, every language
+│   └── html.de.html       <- … and for German readers
 └── _layout/
-    ├── html.html          <- every language
-    └── html.de.html       <- German readers
+    └── html.html          <- the whole document
 ```
 
-It is resolved for the same reader and from the same directories as the email
-it wraps. Only `html` is read. Finding `_layout` needs
-`phoenix_kit_templates` 0.2.1 or later.
+Each is resolved for the same reader and from the same directories as the
+email it wraps, and only `html` is read. A host that wants its own header
+writes `_header/html.html` and keeps PhoenixKit's layout and footer; an empty
+or whitespace-only header or footer file counts as missing.
+
+A header:
+
+```html
+<!-- priv/phoenix_kit_templates/_header/html.html -->
+<a href="{{site_url}}"><img src="{{logo_url}}" alt="{{site_name}}" height="32"></a>
+<span style="color:{{accent_color}};">Customer service</span>
+```
+
+Placeholders have no conditions, so a header written like this shows a
+broken image while no logo is set — set the logo first, or keep PhoenixKit's
+header, which falls back to the site's name.
 
 A layout with no `content` placeholder — an empty file, or a typo such as
 `{{{contnet}}}` — would drop the body of every email, the password reset
-included. PhoenixKit refuses it: it uses its own layout until the file is
-fixed, and logs a warning the first time (once per directory list and
-language until the next restart).
+included. PhoenixKit refuses it: it uses the next layout in line (a group's
+falls back to `_layout`, `_layout` to PhoenixKit's own) until the file is
+fixed, and logs a warning the first time (once per layout, directory list and
+language until the next restart). A header or footer needs no placeholder.
 
-Variables available to the layout:
+Variables available to the layout, the header and the footer:
+
+| placeholder | value |
+|---|---|
+| `{{subject}}` | the email's subject, e.g. for `<title>` |
+| `{{site_name}}` | the project title (the `project_title` setting, else `config :phoenix_kit, project_title:`) |
+| `{{site_url}}` | the site URL used in email links (the `site_url` setting, else the endpoint's URL) — as configured; PhoenixKit's own footer links it only when it is `http(s)://` |
+| `{{logo_url}}` | the project logo — see [Branding](#branding-logo-and-accent-colour); empty without one |
+| `{{accent_color}}` | the accent colour, `#rrggbb` |
+
+and to the layout only:
 
 | placeholder | value |
 |---|---|
 | `{{{content}}}` | the email's HTML body |
-| `{{subject}}` | the email's subject, e.g. for `<title>` |
-| `{{site_name}}` | the project title (the `project_title` setting, else `config :phoenix_kit, project_title:`) |
-| `{{site_url}}` | the site URL used in email links (the `site_url` setting, else the endpoint's URL) — as configured; PhoenixKit's own layout links it only when it is `http(s)://` |
+| `{{{header}}}` | the rendered header |
+| `{{{footer}}}` | the rendered footer |
 
-Write the body as `{{{content}}}` — **three braces**. It is already HTML,
-escaped when it was built; with two braces it would be escaped a second time
-and the reader would see the tags as text. Use two braces for everything
-else, so a subject or a site name containing `<` or `&` cannot break the
-markup.
+Write `{{{content}}}`, `{{{header}}}` and `{{{footer}}}` with **three
+braces**. They are already HTML, escaped when they were built; with two
+braces they would be escaped a second time and the reader would see the tags
+as text. Use two braces for everything else, so a subject or a site name
+containing `<` or `&` cannot break the markup. A layout that places no
+header or footer simply has none.
+
+The layout, header and footer see only the variables above — not the
+email's own (`{{user_email}}`, `{{confirmation_url}}`): they are shared by
+every email, so a placeholder only some emails bind would stay visible in
+the others.
 
 A minimal layout:
 
@@ -116,15 +225,53 @@ A minimal layout:
 <html>
 <head><meta charset="utf-8"><title>{{subject}}</title></head>
 <body style="margin:0;padding:24px;font-family:Arial,sans-serif;">
-  <p style="font-weight:bold;">{{site_name}}</p>
+  {{{header}}}
   {{{content}}}
-  <p style="font-size:12px;color:#666;"><a href="{{site_url}}">{{site_url}}</a></p>
+  <div style="font-size:12px;color:#666;">{{{footer}}}</div>
 </body>
 </html>
 ```
 
 Email clients ignore most of what a browser supports: keep styles inline, lay
 out with tables, and do not rely on external stylesheets or web fonts.
+
+### Layout groups
+
+Some emails — invoices, say — want chrome of their own. A **group** is a name
+(`[a-z0-9-]+`, e.g. `billing`) with its own layout, header and footer:
+
+```
+priv/phoenix_kit_templates/
+├── _layout-billing/html.html     <- the billing group's document
+├── _header-billing/html.html     <- the billing group's header
+├── _footer-billing/html.html     <- the billing group's footer
+└── invoice_paid/
+    └── layout.txt                <- contains the single word: billing
+```
+
+Two different things are called "layout" here — keep them apart:
+
+| | what it is | what it contains |
+|---|---|---|
+| `invoice_paid/layout.txt` | a file **inside an email's directory** | the **name** of the group the email belongs to — `billing` — and nothing else |
+| `_layout-billing/`, `_header-billing/`, `_footer-billing/` | **directories** next to the emails | the group's **markup**, in `html[.locale].html`, like `_layout/` |
+
+Each of the group's parts falls back on its own: no `_header-billing` → the
+shared `_header` → PhoenixKit's header. A group may therefore replace only its
+footer. `layout.txt` is read whole and trimmed, never per language: a group
+belongs to the email, not to a translation.
+
+Code can pick the group too, which wins over `layout.txt`:
+
+```elixir
+PhoenixKit.Mailer.send_from_template("invoice_paid", email, vars,
+  defaults: fn -> %{subject: gettext("Invoice paid"), markdown: gettext("…")} end,
+  layout: "billing"
+)
+```
+
+A group name that is not `[a-z0-9-]+` is ignored (the shared layout is used)
+and logged as a warning.
 
 ### Sending one email without the layout
 
@@ -135,5 +282,67 @@ PhoenixKit.Mailer.send_from_template("export_ready", email, vars,
 )
 ```
 
-With `layout: false` a text-only email is sent as plain text, and an `html`
-part is sent exactly as written.
+With `layout: false` a text-only email is sent as plain text, an `html`
+part is sent exactly as written, and a `markdown` part is sent as the bare
+HTML it renders to.
+
+## Branding: logo and accent colour
+
+Two variables carry the site's branding into every part — the layout, the
+header, the footer and the body:
+
+- `{{logo_url}}` — the project logo already set under **Settings** (the
+  project logo, else the site icon), as an absolute URL with a permanent
+  signed token, so it still loads in an email opened weeks later. Empty when
+  there is no logo, when the file is in the trash or no longer exists, and
+  when the logo is stored in a **private** library — such a file only gets
+  URLs that expire, which would break in an old email. PhoenixKit's header
+  shows the site's name instead.
+- `{{accent_color}}` — the `email_accent_color` setting, a six-digit hex
+  colour (`#1d4ed8`). Anything else, or nothing, reads as the neutral
+  `#18181b`. Markdown buttons and links use it, and PhoenixKit's layout draws
+  its top bar in it — only while the setting holds a colour, so a site that
+  never set one keeps the look it had.
+
+Both are read on every send: a new logo or colour shows in the next email
+without a restart. The code sending an email may pass either variable
+itself; its value is used only when valid — a `#rrggbb` colour, an empty or
+`http(s)://` logo URL — and the site's otherwise, in every part.
+
+**Which file of the logo.** The first finished one that every email client
+shows (PNG, JPEG or GIF), trying the sizes smallest first: `small`, `medium`,
+`large`, then the original. A transparent logo's sizes are written as PNG —
+or as WebP when the host sets `config :phoenix_kit, :variant_alpha_format,
+"webp"`, which Outlook for Windows does not show; such a size is passed over,
+usually for the original when that is a PNG. A logo with no such file at all
+(an SVG whose sizes are WebP, or sizes still being made) gives no URL. Sizes
+made before transparent images were written as PNG are JPEG: such a logo
+arrives on a white background until its sizes are regenerated.
+
+## A complete example
+
+```
+priv/phoenix_kit_templates/
+├── _header/
+│   └── html.html                 <- the logo and a tagline, every email
+├── _footer/
+│   ├── html.html                 <- address and unsubscribe note
+│   └── html.de.html              <- … in German
+├── _layout-billing/
+│   └── html.html                 <- invoices: a wider document
+├── _footer-billing/
+│   └── html.html                 <- invoices: legal details
+├── register/
+│   ├── subject.de.txt            <- "Bitte bestätigen Sie Ihr Konto"
+│   ├── markdown.md               <- English body, with a button
+│   └── markdown.de.md            <- German body, with a button
+└── invoice_paid/
+    ├── layout.txt                <- billing
+    └── markdown.md
+```
+
+A German reader of `register` gets the German subject and body (HTML with a
+button, plain text with `Konto bestätigen: https://…`), the shared header, the
+German footer and PhoenixKit's layout. `invoice_paid` gets the billing
+layout and footer, and still the shared header — there is no
+`_header-billing`.
