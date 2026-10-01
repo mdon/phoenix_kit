@@ -71,7 +71,8 @@ defmodule PhoenixKit.Email.Content do
 
   Every part on this path also sees `{{logo_url}}` and `{{accent_color}}`
   (`PhoenixKit.Email.Branding`); a variable the caller passes under the same
-  name wins.
+  name wins when it is valid (a `#rrggbb` colour, an empty or `http(s)://`
+  logo URL) and is replaced by the site's otherwise.
 
   ## The layout
 
@@ -262,8 +263,14 @@ defmodule PhoenixKit.Email.Content do
   # Layers 2 and 3. `defaults` is already evaluated in the recipient's locale.
   defp resolve_files(name, variables, defaults, opts) do
     template_opts = Keyword.take(opts, [:locale, :paths])
-    branding = Branding.variables()
-    variables = Map.merge(branding, stringify_keys(variables))
+    accent = Branding.configured_accent_color()
+
+    branding = %{
+      "logo_url" => Branding.logo_url(),
+      "accent_color" => accent || Branding.default_accent_color()
+    }
+
+    variables = variables |> stringify_keys() |> Branding.merge(branding)
 
     rendered = Templates.render(name, defaults, variables, template_opts)
     found = Templates.sources(name, defaults, template_opts)
@@ -286,7 +293,8 @@ defmodule PhoenixKit.Email.Content do
         group: group,
         # What the body saw, so a caller's own `accent_color` reaches the
         # layout's bar and the header too.
-        branding: Map.take(variables, Map.keys(branding))
+        branding: Map.take(variables, Map.keys(branding)),
+        accent_bar: accent != nil
       )
 
     sources =
@@ -429,9 +437,9 @@ defmodule PhoenixKit.Email.Content do
     if is_binary(part) and String.trim(part) != "", do: part
   end
 
-  # Branding is merged under the caller's variables, so a caller binding
-  # `accent_color` itself wins; string keys on both sides make that merge
-  # well-defined whichever key type the caller used.
+  # Branding is merged under the caller's variables (`Branding.merge/2`: a
+  # caller's own valid `accent_color`/`logo_url` wins); string keys on both
+  # sides make that merge well-defined whichever key type the caller used.
   defp stringify_keys(variables) when is_map(variables),
     do: Map.new(variables, fn {key, value} -> {to_string(key), value} end)
 

@@ -54,8 +54,9 @@ defmodule PhoenixKit.Email.Layout do
     * The header shows the logo (`{{logo_url}}`, from Settings) when there is
       one, else the site's name.
     * The footer shows the site's name and a link to the site.
-    * The layout is a card with a thin bar in the accent colour on top, the
-      header, the body and the footer.
+    * The layout is a card with the header, the body and the footer, and a
+      thin bar in the accent colour on top once the `email_accent_color`
+      setting holds a colour.
 
   ## Variables
 
@@ -155,18 +156,25 @@ defmodule PhoenixKit.Email.Layout do
   def valid_group?(group), do: is_binary(group) and Regex.match?(@group_pattern, group)
 
   @doc """
-  Core's layout: a card with a bar in the accent colour on top, then the
-  header, the body and the footer.
+  Core's layout: a card with the header, the body and the footer — and a bar
+  in the accent colour on top when the site has chosen one.
 
   ## Options
 
     * `:locale` — becomes the document's `lang` attribute when it is a
       well-formed language tag (`pt_BR` is written `pt-BR`); omitted
       otherwise.
+    * `:accent_bar` — `true` draws a 3px bar in `{{accent_color}}` on top
+      of the card. Default `false`.
   """
   @spec default_html(keyword()) :: String.t()
   def default_html(opts \\ []) do
     lang = lang_attribute(Keyword.get(opts, :locale))
+
+    bar =
+      if Keyword.get(opts, :accent_bar, false),
+        do: "border-top:3px solid {{accent_color}};",
+        else: ""
 
     """
     <!DOCTYPE html>
@@ -181,7 +189,7 @@ defmodule PhoenixKit.Email.Layout do
     <tr>
     <td align="center" bgcolor="#f4f4f5" style="padding:24px 12px;background-color:#f4f4f5;">
     <!--[if mso]><table role="presentation" width="600" align="center" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
-    <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="width:100%;max-width:600px;background-color:#ffffff;border:1px solid #e4e4e7;border-top:3px solid {{accent_color}};">
+    <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="width:100%;max-width:600px;background-color:#ffffff;border:1px solid #e4e4e7;#{bar}">
     <tr>
     <td style="padding:20px 32px;border-bottom:1px solid #e4e4e7;font-family:#{@font};font-size:18px;font-weight:bold;color:#18181b;">{{{header}}}</td>
     </tr>
@@ -287,7 +295,11 @@ defmodule PhoenixKit.Email.Layout do
       the same override roots and for the same reader as the message.
     * `:group` — the email's group (see "Groups" above); `nil` for none.
     * `:branding` — the `logo_url`/`accent_color` variables, when the caller
-      has already read them; read from `PhoenixKit.Email.Branding` otherwise.
+      has already read them (an invalid value reads as no logo / the neutral
+      colour); read from `PhoenixKit.Email.Branding` otherwise.
+    * `:accent_bar` — whether core's layout draws its accent bar. Defaults
+      to whether the `email_accent_color` setting holds a colour, so a site
+      that never chose one looks as it did before the bar existed.
   """
   @spec render(String.t(), String.t() | nil, keyword()) :: {String.t(), sources()}
   def render(content, subject, opts \\ []) when is_binary(content) do
@@ -296,13 +308,25 @@ defmodule PhoenixKit.Email.Layout do
     group = group(Keyword.get(opts, :group))
     site_url = Routes.base_url()
 
-    branding = Keyword.get_lazy(opts, :branding, &Branding.variables/0)
+    # A caller's branding is checked like any other: only a `#rrggbb` colour
+    # reaches a `style` attribute, only an http(s) address a `src`.
+    branding =
+      case Keyword.fetch(opts, :branding) do
+        {:ok, branding} ->
+          Branding.merge(branding, %{
+            "logo_url" => "",
+            "accent_color" => Branding.default_accent_color()
+          })
+
+        :error ->
+          Branding.variables()
+      end
+
+    accent_bar? =
+      Keyword.get_lazy(opts, :accent_bar, fn -> Branding.configured_accent_color() != nil end)
 
     variables =
       branding
-      # It reaches `style` attributes: whatever the caller bound, only a
-      # `#rrggbb` colour gets there.
-      |> Map.put("accent_color", Branding.normalize_color(Map.get(branding, "accent_color")))
       |> Map.merge(%{
         "subject" => subject || "",
         "site_name" => Settings.get_project_title(),
@@ -316,7 +340,7 @@ defmodule PhoenixKit.Email.Layout do
     {footer, footer_source, footer_ignored} =
       found.(@footer, default_footer_html(link: http_url?(site_url)))
 
-    {layout, layout_source, layout_ignored} = layout(group, locale, paths)
+    {layout, layout_source, layout_ignored} = layout(group, locale, paths, accent_bar?)
 
     placed = Substitution.variables(layout)
 
@@ -358,7 +382,7 @@ defmodule PhoenixKit.Email.Layout do
 
   # The layout: the group's file, the shared file, core's default — the first
   # that places the body. The check reads the same file the render uses.
-  defp layout(group, locale, paths) do
+  defp layout(group, locale, paths, accent_bar?) do
     {found, ignored} =
       first_file(names(@name, group), locale, paths, fn name, content ->
         if "content" in Substitution.variables(content) do
@@ -369,7 +393,9 @@ defmodule PhoenixKit.Email.Layout do
         end
       end)
 
-    {template, source} = found || {default_html(locale: locale), :default}
+    {template, source} =
+      found || {default_html(locale: locale, accent_bar: accent_bar?), :default}
+
     {template, source, ignored}
   end
 

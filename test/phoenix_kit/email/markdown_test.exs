@@ -98,6 +98,17 @@ defmodule PhoenixKit.Email.MarkdownTest do
       assert out =~ ~s(<p style="margin:0 0 16px;">Pay</p>)
     end
 
+    test "the scheme is checked at the start of the address, not anywhere in it" do
+      out =
+        html("[a]({{u}}) [b]({{u}}) ![c]({{u}})", %{"u" => "javascript:alert('https://a.test/')"})
+
+      refute out =~ "href"
+      refute out =~ "<img"
+      refute out =~ "javascript"
+
+      assert Markdown.to_text("[a]({{u}})", %{"u" => "javascript:x//mailto:a@b.test"}) == "a"
+    end
+
     test "only http(s) and mailto targets are kept" do
       out = html("[a](mailto:x@y.test) [b](/relative) [c](data:text/html,x) [d](ftp://a.test)")
 
@@ -136,6 +147,18 @@ defmodule PhoenixKit.Email.MarkdownTest do
       # The button replaces the paragraph rather than sitting inside one.
       refute out =~ "<p><table"
       refute out =~ ~s(<p style="margin:0 0 16px;"><table)
+    end
+
+    test "only a top-level paragraph is a button: a link alone in a list item or a quote is not" do
+      out =
+        html(
+          "- [In a list](https://a.test/l)\n\n> [In a quote](https://a.test/q)\n\n[Top](https://a.test/t)"
+        )
+
+      assert out =~ ~s(<a href="https://a.test/l" style="color:#{@accent};">In a list</a>)
+      assert out =~ ~s(<a href="https://a.test/q" style="color:#{@accent};">In a quote</a>)
+      assert out =~ ~s(<a href="https://a.test/t" style="display:inline-block;)
+      assert length(String.split(out, "<table")) == 2
     end
 
     test "a link with text around it is not a button" do
@@ -286,6 +309,50 @@ defmodule PhoenixKit.Email.MarkdownTest do
                "a" => "{{b}}",
                "b" => "B"
              }) == "go: https://a.test/{{a}} {{b}}"
+    end
+  end
+
+  describe "many links and images" do
+    # Building them used to rescan the whole HTML and recompile the token set
+    # per element: 5000 links took over half a minute. Counted in reductions
+    # of this process rather than wall time, so a busy machine cannot fail the
+    # test: four times the elements must cost about four times the work (the
+    # old build cost eight times as much, its text body almost six).
+    defp document(n) do
+      Enum.map_join(1..n, "\n\n", &"[link #{&1}]({{url}}/#{&1}) and {{name}}") <>
+        "\n\n" <>
+        Enum.map_join(1..div(n, 2), "\n\n", &"![{{name}} #{&1}]({{url}}/#{&1}.png)") <>
+        "\n\n" <> Enum.map_join(1..div(n, 2), "\n\n", &"[b #{&1}]({{url}}/b#{&1})")
+    end
+
+    defp reductions(fun) do
+      {:reductions, before} = Process.info(self(), :reductions)
+      result = fun.()
+      {:reductions, later} = Process.info(self(), :reductions)
+      {later - before, result}
+    end
+
+    # Wall time is not asserted, but a loaded test run is slow at this size.
+    @tag timeout: 300_000
+    test "the work grows linearly with the number of links and images" do
+      variables = %{"url" => "https://a.test", "name" => "Ada", "accent_color" => @accent}
+      small = document(500)
+      large = document(2000)
+
+      {html_small, _} = reductions(fn -> Markdown.to_html(small, variables) end)
+      {html_large, html} = reductions(fn -> Markdown.to_html(large, variables) end)
+      {text_small, _} = reductions(fn -> Markdown.to_text(small, variables) end)
+      {text_large, text} = reductions(fn -> Markdown.to_text(large, variables) end)
+
+      assert html =~
+               ~s(<a href="https://a.test/2000" style="color:#{@accent};">link 2000</a> and Ada)
+
+      assert html =~ ~s(<img src="https://a.test/1000.png" alt="Ada 1000")
+      assert html =~ ~s(<a href="https://a.test/b1000" style="display:inline-block;)
+      assert text =~ "link 2000: https://a.test/2000 and Ada"
+
+      assert html_large / html_small < 5.5, "html: #{html_large / html_small}x"
+      assert text_large / text_small < 5.0, "text: #{text_large / text_small}x"
     end
   end
 end

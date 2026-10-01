@@ -613,22 +613,49 @@ defmodule PhoenixKit.Email.ContentTest do
           fn -> %{subject: "s", markdown: "[Go](https://a.test)"} end
         )
 
-      # In the body and in the layout around it.
       assert resolved.html =~ ~s(bgcolor="#00aa00")
-      assert resolved.html =~ "border-top:3px solid #00aa00;"
+      # No `email_accent_color` setting here: no bar, as in 2.43.
+      refute resolved.html =~ "border-top:3px"
     end
 
-    test "a caller's accent colour reaches style attributes only as #rrggbb" do
-      html =
-        Content.resolve(
-          "branding_probe",
-          user("en"),
-          %{"accent_color" => "red;x:url(y)"},
-          text_only("b")
-        ).html
+    test "a caller's invalid logo_url or accent_color is replaced by the site's, in every part",
+         %{tmp_dir: root} do
+      write(
+        root,
+        "bad_branding_probe",
+        "html.html",
+        ~s(<p style="color:{{accent_color}};"><img src="{{logo_url}}">{{{accent_color}}}</p>)
+      )
 
-      assert html =~ "border-top:3px solid #18181b;"
-      refute html =~ "url(y)"
+      write(root, "_footer", "html.html", ~s(<i style="color:{{accent_color}};">{{logo_url}}</i>))
+
+      resolved =
+        Content.resolve(
+          "bad_branding_probe",
+          user("en"),
+          %{"accent_color" => "red;background:url(x)", logo_url: "javascript:alert(1)"},
+          fn -> %{subject: "s", text: "[{{logo_url}}] {{accent_color}}"} end,
+          paths: [root]
+        )
+
+      assert resolved.html =~ ~s(<p style="color:#18181b;"><img src="">#18181b</p>)
+      assert resolved.html =~ ~s(<i style="color:#18181b;"></i>)
+      refute resolved.html =~ "javascript"
+      refute resolved.html =~ "url(x)"
+      assert resolved.text == "[] #18181b"
+    end
+
+    test "a caller's valid logo_url and accent_color are kept" do
+      resolved =
+        Content.resolve(
+          "good_branding_probe",
+          user("en"),
+          %{"accent_color" => " #00AA00 ", "logo_url" => "https://cdn.test/l.png"},
+          fn -> %{subject: "s", text: "[{{logo_url}}] {{accent_color}}"} end
+        )
+
+      assert resolved.text == "[https://cdn.test/l.png] #00aa00"
+      assert resolved.html =~ ~s(<img src="https://cdn.test/l.png")
     end
   end
 

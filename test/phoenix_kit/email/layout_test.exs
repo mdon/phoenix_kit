@@ -221,8 +221,9 @@ defmodule PhoenixKit.Email.LayoutTest do
       assert html =~ "{{{footer}}}"
     end
 
-    test "carries the accent colour as a bar on top of the card" do
-      assert Layout.default_html() =~ "border-top:3px solid {{accent_color}};"
+    test "draws the accent bar only when asked to" do
+      assert Layout.default_html(accent_bar: true) =~ "border-top:3px solid {{accent_color}};"
+      refute Layout.default_html() =~ "border-top:3px"
     end
 
     test "carries bgcolor for clients that drop CSS backgrounds, and an Outlook width" do
@@ -358,11 +359,31 @@ defmodule PhoenixKit.Email.LayoutTest do
                ~s(<img src="https://a.test/logo.jpg" alt="#{escape(Settings.get_project_title())}" height="40")
     end
 
-    test "core's footer names and links the site; the accent colour tops the card" do
+    test "core's footer names and links the site" do
       html = Layout.wrap("<p>x</p>", "s", branding: @no_logo)
 
       assert html =~ ~s(<a href="#{Routes.base_url()}" style="color:#71717a;">)
-      assert html =~ "border-top:3px solid #1d4ed8;"
+    end
+
+    test "the accent bar shows only for a site that chose a colour" do
+      # No database here, so no setting: the card looks as it did in 2.43.
+      refute Layout.wrap("<p>x</p>", "s", branding: @no_logo) =~ "border-top:3px"
+
+      assert Layout.wrap("<p>x</p>", "s", branding: @no_logo, accent_bar: true) =~
+               "border-top:3px solid #1d4ed8;"
+    end
+
+    test "invalid branding values read as no logo and the neutral colour" do
+      html =
+        Layout.wrap("<p>x</p>", "s",
+          branding: %{"logo_url" => "javascript:alert(1)", "accent_color" => "red;x:url(y)"},
+          accent_bar: true
+        )
+
+      refute html =~ "<img"
+      refute html =~ "javascript"
+      refute html =~ "url(y)"
+      assert html =~ "border-top:3px solid #18181b;"
     end
 
     test "a host _header replaces only the header", %{tmp_dir: root} do

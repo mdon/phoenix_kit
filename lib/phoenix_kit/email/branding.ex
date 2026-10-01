@@ -8,11 +8,15 @@ defmodule PhoenixKit.Email.Branding do
 
   | placeholder | value |
   |---|---|
-  | `{{logo_url}}` | an absolute URL of the project logo's `small` variant, or `""` |
+  | `{{logo_url}}` | an absolute URL of the project logo, or `""` |
   | `{{accent_color}}` | the `email_accent_color` setting as `#rrggbb`, or `#18181b` |
 
-  Both are read on every send, so a change in the admin shows in the next
-  email without a restart.
+  Both are read on every send, so a changed setting shows in the next email
+  without a restart.
+
+  A caller may bind either variable itself; `merge/2` keeps its value only
+  when it is valid — a `#rrggbb` colour, an empty or `http(s)://` logo URL —
+  and uses the site's otherwise, on every path a template can read it.
 
   ## The logo
 
@@ -23,9 +27,25 @@ defmodule PhoenixKit.Email.Branding do
   expires long before the email is read, so none is minted: `logo_url` is
   empty and core's header prints the site's name instead.
 
-  The `small` variant is a JPEG (`Storage.reset_dimensions_to_defaults/0`),
-  so a transparent PNG logo arrives on a white background. Core's header
-  sits on white, so that only shows in a host layout with a coloured header.
+  A logo in the trash, or one that no longer exists, gives no URL either.
+
+  ### Which file of the logo
+
+  The first finished one, in this order, that every email client shows —
+  PNG, JPEG or GIF:
+
+      small  →  medium  →  large  →  original
+
+  A transparent logo's JPEG-configured sizes are written as PNG
+  (`VariantGenerator.output_format/3`), or as WebP when the host sets
+  `config :phoenix_kit, :variant_alpha_format, "webp"`. Outlook for Windows
+  shows no WebP, so a WebP size is passed over — usually for the original,
+  when that is a PNG. A logo with no such file (an SVG with WebP sizes, or
+  sizes still being made) gives no URL, and core's header prints the site's
+  name. Sizes made before transparent images were written as PNG are JPEG,
+  so such a logo arrives on a white background until its sizes are
+  regenerated. The URL carries the file's version, so a mail client may
+  cache it for good.
 
   ## The accent colour
 
@@ -44,7 +64,11 @@ defmodule PhoenixKit.Email.Branding do
 
   @accent_key "email_accent_color"
   @default_accent "#18181b"
-  @logo_variant "small"
+
+  # Sizes tried for the logo, smallest first, and the types every mail client
+  # shows. WebP is not one of them (Outlook for Windows), nor is SVG.
+  @logo_variants ~w(small medium large original)
+  @email_image_types ~w(image/png image/jpeg image/gif)
 
   @doc "The settings key that holds the accent colour."
   @spec accent_color_key() :: String.t()
@@ -62,9 +86,62 @@ defmodule PhoenixKit.Email.Branding do
     %{"logo_url" => logo_url(), "accent_color" => accent_color()}
   end
 
+  @doc """
+  `variables` (string keys) with the branding variables added: a caller's own
+  `logo_url` or `accent_color` is kept only when valid (see `valid_color?/1`
+  and `valid_logo_url?/1`), otherwise `branding`'s value is used. A kept
+  colour is normalised.
+  """
+  @spec merge(%{String.t() => term()}, %{String.t() => String.t()}) :: %{String.t() => term()}
+  def merge(variables, branding) do
+    Map.merge(variables, branding, fn
+      "accent_color", own, site -> if valid_color?(own), do: normalize_color(own), else: site
+      "logo_url", own, site -> if valid_logo_url?(own), do: String.trim(own), else: site
+      _key, own, _site -> own
+    end)
+  end
+
   @doc "The accent colour setting, normalised by `normalize_color/1`."
   @spec accent_color() :: String.t()
-  def accent_color, do: @accent_key |> Settings.get_setting_cached(nil) |> normalize_color()
+  def accent_color, do: configured_accent_color() || @default_accent
+
+  @doc """
+  The accent colour setting as `#rrggbb`, or `nil` when it is unset or not a
+  valid colour — the "has the site chosen a colour?" question core's layout
+  asks before drawing its accent bar.
+  """
+  @spec configured_accent_color() :: String.t() | nil
+  def configured_accent_color do
+    color = Settings.get_setting_cached(@accent_key, nil)
+    if valid_color?(color), do: normalize_color(color)
+  end
+
+  @doc """
+  Whether `value` is a six-digit hex colour (surrounding whitespace allowed).
+
+      iex> PhoenixKit.Email.Branding.valid_color?("#1d4ed8")
+      true
+
+      iex> PhoenixKit.Email.Branding.valid_color?("#1d4ed8;x:y")
+      false
+  """
+  @spec valid_color?(term()) :: boolean()
+  def valid_color?(value) when is_binary(value),
+    do: Regex.match?(~r/\A#[0-9a-fA-F]{6}\z/, String.trim(value))
+
+  def valid_color?(_value), do: false
+
+  @doc """
+  Whether `value` can stand as a logo URL: empty (no logo), or an absolute
+  `http(s)://` address.
+  """
+  @spec valid_logo_url?(term()) :: boolean()
+  def valid_logo_url?(value) when is_binary(value) do
+    url = String.trim(value)
+    url == "" or Regex.match?(~r/\Ahttps?:\/\/[^\s]+\z/i, url)
+  end
+
+  def valid_logo_url?(_value), do: false
 
   @doc """
   `value` as a lower-case `#rrggbb` colour, or the default accent colour when
@@ -78,10 +155,8 @@ defmodule PhoenixKit.Email.Branding do
   """
   @spec normalize_color(term()) :: String.t()
   def normalize_color(value) when is_binary(value) do
-    color = String.trim(value)
-
-    if Regex.match?(~r/\A#[0-9a-fA-F]{6}\z/, color),
-      do: String.downcase(color),
+    if valid_color?(value),
+      do: value |> String.trim() |> String.downcase(),
       else: @default_accent
   end
 
@@ -119,8 +194,9 @@ defmodule PhoenixKit.Email.Branding do
 
   @doc """
   An absolute URL of the project logo for an email, or `""` when there is no
-  logo, it no longer exists, it sits in a private library, or the lookup
-  fails.
+  logo, it is in the trash or no longer exists, it sits in a private library,
+  it has no file every mail client shows (see "Which file of the logo"), or
+  the lookup fails.
   """
   @spec logo_url() :: String.t()
   def logo_url do
@@ -131,17 +207,15 @@ defmodule PhoenixKit.Email.Branding do
   end
 
   # An email outlives every time-window token, so a private library's logo
-  # gets no URL at all rather than one that stops working. A deleted file gets
-  # none either: a broken image is worse than the site's name.
+  # gets no URL at all rather than one that stops working. A deleted or
+  # trashed file gets none either: a broken image is worse than the name.
   defp public_logo_url(uuid) do
-    case Storage.get_file(uuid) do
-      nil ->
-        ""
-
-      file ->
-        if Libraries.private_file?(file),
-          do: "",
-          else: Routes.base_url() <> URLSigner.signed_url(uuid, @logo_variant)
+    with %{trashed_at: nil} = file <- Storage.get_file(uuid),
+         false <- Libraries.private_file?(file),
+         %{variant_name: variant} = instance <- email_instance(uuid) do
+      Routes.base_url() <> URLSigner.signed_url(uuid, variant, version: instance)
+    else
+      _no_logo -> ""
     end
   rescue
     error ->
@@ -151,5 +225,17 @@ defmodule PhoenixKit.Email.Branding do
     :exit, reason ->
       Logger.warning("Email logo lookup for #{inspect(uuid)} exited: #{inspect(reason)}")
       ""
+  end
+
+  defp email_instance(uuid) do
+    instances =
+      uuid
+      |> Storage.list_file_instances()
+      |> Enum.filter(
+        &(&1.processing_status == "completed" and &1.mime_type in @email_image_types)
+      )
+      |> Map.new(&{&1.variant_name, &1})
+
+    Enum.find_value(@logo_variants, &Map.get(instances, &1))
   end
 end

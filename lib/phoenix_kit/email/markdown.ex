@@ -74,27 +74,25 @@ defmodule PhoenixKit.Email.Markdown do
 
   defp render_html(markdown, variables) do
     accent = variables |> fetch("accent_color") |> Branding.normalize_color()
-    {protected, placeholders, nonce} = protect(markdown)
+    {protected, tokens} = protect(markdown)
 
     case MDEx.parse_document(protected, @mdex_options) do
       {:ok, document} ->
-        {document, elements} = extract(document, %{nonce: nonce, elements: [], count: 0})
+        {document, extracted} = extract(document, %{nonce: tokens.nonce, elements: [], count: 0})
 
         html =
           document
           |> MDEx.to_html!(@mdex_options)
           |> HtmlSanitizer.sanitize()
 
-        {html, attributes} =
-          elements.elements
-          |> Enum.reverse()
-          |> Enum.reduce({html, %{}}, &place(&1, &2, placeholders, variables, accent))
+        {elements, attributes} = place(extracted.elements, tokens, variables)
 
         html
+        |> assemble(tokens.nonce, elements, accent)
         |> String.replace("<p>", @paragraph)
-        |> restore(placeholders)
+        |> restore(tokens)
         |> Substitution.substitute(variables, escape: true)
-        |> restore(attributes)
+        |> restore_attributes(tokens.nonce, attributes)
 
       {:error, _reason} ->
         fallback_html(markdown, variables)
@@ -122,19 +120,18 @@ defmodule PhoenixKit.Email.Markdown do
   end
 
   defp render_text(markdown, variables) do
-    {protected, placeholders, nonce} = protect(markdown)
+    {protected, tokens} = protect(markdown)
 
     case MDEx.parse_document(protected, @mdex_options) do
       {:ok, document} ->
-        {document, {urls, _count}} =
-          text_urls(document, {%{}, 0}, nonce, placeholders, variables)
+        {document, {urls, _count}} = text_urls(document, {%{}, 0}, tokens, variables)
 
         document.nodes
         |> blocks_text()
         |> String.trim()
-        |> restore(placeholders)
+        |> restore(tokens)
         |> Substitution.substitute(variables)
-        |> restore(urls)
+        |> restore_attributes(tokens.nonce, urls)
 
       {:error, _reason} ->
         markdown |> String.trim() |> Substitution.substitute(variables)
@@ -168,7 +165,14 @@ defmodule PhoenixKit.Email.Markdown do
           {token, Map.put(acc, token, placeholder)}
       end)
 
-    {IO.iodata_to_binary(pieces), placeholders, nonce}
+    tokens = %{
+      nonce: nonce,
+      placeholders: placeholders,
+      # Compiled once per render: every restore is then one linear pass.
+      pattern: Regex.compile!("0pk#{nonce}x[0-9]+x")
+    }
+
+    {IO.iodata_to_binary(pieces), tokens}
   end
 
   defp nonce(source) do
@@ -176,11 +180,22 @@ defmodule PhoenixKit.Email.Markdown do
     if String.contains?(source, "pk" <> nonce), do: nonce(source), else: nonce
   end
 
-  # Replaces every key of `tokens` in `string` with its value, in one pass.
-  defp restore(string, tokens) when map_size(tokens) == 0, do: string
+  # Puts the placeholders back, in one pass.
+  defp restore(string, %{placeholders: placeholders}) when map_size(placeholders) == 0,
+    do: string
 
-  defp restore(string, tokens) do
-    String.replace(string, Map.keys(tokens), &Map.fetch!(tokens, &1))
+  defp restore(string, %{placeholders: placeholders, pattern: pattern}),
+    do: Regex.replace(pattern, string, &Map.get(placeholders, &1, &1))
+
+  # Puts the attribute values (`pk<nonce>y<i>z`/`…a`, or the text body's
+  # `pk<nonce>z<i>z`) in, in one pass.
+  defp restore_attributes(string, _nonce, attributes) when map_size(attributes) == 0,
+    do: string
+
+  defp restore_attributes(string, nonce, attributes) do
+    "pk#{nonce}(?:y[0-9]+[za]|z[0-9]+z)"
+    |> Regex.compile!()
+    |> Regex.replace(string, &Map.get(attributes, &1, &1))
   end
 
   ## Links, buttons and images
@@ -190,14 +205,12 @@ defmodule PhoenixKit.Email.Markdown do
   # for an image — and are built after sanitizing, once their address is
   # known. The label stays in the document, so it is rendered and sanitized
   # with everything else.
-  defp extract(%MDEx.Paragraph{nodes: [%MDEx.Link{} = link]} = paragraph, acc) do
-    if autolink?(link) do
-      extract_children(paragraph, acc)
-    else
-      {label, acc} = extract_list(link.nodes, acc)
-      {open, close, acc} = add_element(acc, {:button, link.url})
-      {%{paragraph | nodes: [text(open)] ++ label ++ [text(close)]}, acc}
-    end
+  #
+  # Only a top-level paragraph that is exactly one link is a button: a link
+  # alone in a list item or a quote stays a link.
+  defp extract(%MDEx.Document{} = document, acc) do
+    {nodes, acc} = Enum.map_reduce(document.nodes, acc, &extract_block/2)
+    {%{document | nodes: List.flatten(nodes)}, acc}
   end
 
   defp extract(%MDEx.Link{} = link, acc) do
@@ -214,6 +227,18 @@ defmodule PhoenixKit.Email.Markdown do
   defp extract(%{nodes: nodes} = node, acc) when is_list(nodes), do: extract_children(node, acc)
   defp extract(node, acc), do: {node, acc}
 
+  defp extract_block(%MDEx.Paragraph{nodes: [%MDEx.Link{} = link]} = paragraph, acc) do
+    if autolink?(link) do
+      extract_children(paragraph, acc)
+    else
+      {label, acc} = extract_list(link.nodes, acc)
+      {open, close, acc} = add_element(acc, {:button, link.url})
+      {%{paragraph | nodes: [text(open)] ++ label ++ [text(close)]}, acc}
+    end
+  end
+
+  defp extract_block(node, acc), do: extract(node, acc)
+
   defp extract_children(node, acc) do
     {nodes, acc} = extract_list(node.nodes, acc)
     {%{node | nodes: nodes}, acc}
@@ -229,97 +254,126 @@ defmodule PhoenixKit.Email.Markdown do
     marker = if elem(element, 0) == :image, do: prefix <> "i", else: prefix <> "o"
 
     {marker, prefix <> "c",
-     %{acc | elements: [{prefix, element} | acc.elements], count: acc.count + 1}}
+     %{acc | elements: [{acc.count, element} | acc.elements], count: acc.count + 1}}
   end
 
   defp text(literal), do: %MDEx.Text{literal: literal}
 
   # `<https://a.test>` or a bare address the autolink extension found
   # (`www.a.test` gains `http://`, `a@b.test` gains `mailto:`): the label is
-  # the address itself. A line holding only an address reads as a
-  # link, not as a button labelled with a URL.
+  # the address itself. A line holding only an address reads as a link, not
+  # as a button labelled with a URL.
   defp autolink?(%MDEx.Link{url: url, nodes: [%MDEx.Text{literal: literal}]}),
     do: url in [literal, "mailto:" <> literal, "http://" <> literal]
 
   defp autolink?(_link), do: false
 
   # Attribute values — the address, an image's alt text — are filled in and
-  # escaped here, on their own, and travel as tokens (`…z` for the address,
-  # `…a` for the alt) until the body's placeholders are filled: in an
-  # attribute `{{{x}}}` is escaped like `{{x}}`, and a value is substituted
-  # once.
-  defp place({prefix, element}, {html, attributes}, placeholders, variables, accent) do
-    url = element |> elem(1) |> fill(placeholders, variables)
-    safe? = safe_url?(url, elem(element, 0))
+  # escaped here, each on its own, and travel as tokens (`…z` for the
+  # address, `…a` for the alt) until the body's placeholders are filled: in
+  # an attribute `{{{x}}}` is escaped like `{{x}}`, and a value is
+  # substituted once. Returns each element with whether its address may be
+  # linked, and the token values.
+  defp place(elements, tokens, variables) do
+    Enum.reduce(elements, {%{}, %{}}, fn {index, element}, {placed, attributes} ->
+      prefix = "pk#{tokens.nonce}y#{index}"
+      url = element |> elem(1) |> fill(tokens, variables)
+      safe? = safe_url?(url, elem(element, 0))
 
-    attributes =
-      if safe?,
-        do: Map.put(attributes, prefix <> "z", escape(String.trim(url))),
-        else: attributes
+      attributes =
+        if safe?,
+          do: Map.put(attributes, prefix <> "z", escape(String.trim(url))),
+          else: attributes
 
-    attributes =
-      case element do
-        {:image, _url, alt} ->
-          Map.put(attributes, prefix <> "a", alt |> fill(placeholders, variables) |> escape())
+      attributes =
+        case element do
+          {:image, _url, alt} ->
+            Map.put(attributes, prefix <> "a", alt |> fill(tokens, variables) |> escape())
 
-        _link ->
-          attributes
+          _link ->
+            attributes
+        end
+
+      {Map.put(placed, index, {element, safe?}), attributes}
+    end)
+  end
+
+  defp fill(text, tokens, variables),
+    do: text |> restore(tokens) |> Substitution.substitute(variables)
+
+  # One pass over the rendered HTML: each marker is replaced by its element,
+  # a link's label being everything between its two markers. A button
+  # replaces the paragraph that held it, so the `<p>` before its opening
+  # marker and the `</p>` after its closing one go.
+  defp assemble(html, _nonce, elements, _accent) when map_size(elements) == 0, do: html
+
+  defp assemble(html, nonce, elements, accent) do
+    prefix_size = byte_size("pk#{nonce}y")
+
+    {out, stack, _strip?} =
+      "pk#{nonce}y[0-9]+[oci]"
+      |> Regex.compile!()
+      |> Regex.split(html, include_captures: true)
+      |> Enum.with_index()
+      |> Enum.reduce({[], [], false}, fn
+        {text, index}, {out, stack, strip?} when rem(index, 2) == 0 ->
+          text = if strip?, do: String.replace_prefix(text, "</p>", ""), else: text
+          {[text | out], stack, false}
+
+        {marker, _index}, state ->
+          {element_index, kind} =
+            marker |> binary_part(prefix_size, byte_size(marker) - prefix_size) |> Integer.parse()
+
+          marker(kind, element_index, Map.fetch!(elements, element_index), state, nonce, accent)
+      end)
+
+    # Markers always pair up; should one ever be missing, keep what it held.
+    stack
+    |> Enum.reduce(out, fn {_index, outer}, inner -> inner ++ outer end)
+    |> Enum.reverse()
+    |> IO.iodata_to_binary()
+  end
+
+  defp marker("i", index, {_image, safe?}, {out, stack, _strip?}, nonce, _accent),
+    do: {[image(attribute(nonce, index), safe?) | out], stack, false}
+
+  defp marker("o", index, {element, _safe?}, {out, stack, _strip?}, _nonce, _accent) do
+    out =
+      case {element, out} do
+        {{:button, _url}, [last | rest]} -> [String.replace_suffix(last, "<p>", "") | rest]
+        _other -> out
       end
 
-    {build(element, html, prefix, safe?, accent), attributes}
+    {[], [{index, out} | stack], false}
   end
 
-  defp fill(text, placeholders, variables),
-    do: text |> restore(placeholders) |> Substitution.substitute(variables)
-
-  defp build({:button, _url}, html, prefix, safe?, accent) do
-    splice(html, prefix, fn before, label, rest ->
-      # The button replaces the paragraph that held the link.
-      before = String.replace_suffix(before, "<p>", "")
-      rest = String.replace_prefix(rest, "</p>", "")
-
-      markup =
-        if safe?,
-          do: button(prefix <> "z", label, accent),
-          else: "<p>" <> label <> "</p>"
-
-      before <> markup <> rest
-    end)
+  defp marker("c", index, {element, safe?}, {out, [{index, outer} | stack], _}, nonce, accent) do
+    label = out |> Enum.reverse() |> IO.iodata_to_binary()
+    markup = build(element, label, attribute(nonce, index), safe?, accent)
+    {[markup | outer], stack, match?({:button, _url}, element)}
   end
 
-  defp build({:link, _url}, html, prefix, safe?, accent) do
-    splice(html, prefix, fn before, label, rest ->
-      markup =
-        if safe?,
-          do: ~s(<a href="#{prefix}z" style="color:#{accent};">#{label}</a>),
-          else: label
+  defp marker(_kind, _index, _element, {out, stack, _strip?}, _nonce, _accent),
+    do: {out, stack, false}
 
-      before <> markup <> rest
-    end)
-  end
+  defp attribute(nonce, index), do: "pk#{nonce}y#{index}"
 
-  defp build({:image, _url, _alt}, html, prefix, safe?, _accent) do
-    markup =
-      if safe?,
-        do:
-          ~s(<img src="#{prefix}z" alt="#{prefix}a" ) <>
-            ~s(style="max-width:100%;height:auto;border:0;">),
-        else: prefix <> "a"
+  defp build({:button, _url}, label, prefix, true, accent),
+    do: button(prefix <> "z", label, accent)
 
-    String.replace(html, prefix <> "i", markup)
-  end
+  defp build({:button, _url}, label, _prefix, false, _accent), do: "<p>" <> label <> "</p>"
 
-  # Hands `fun` the HTML before the element's opening marker, the label
-  # between its markers, and the rest. The sanitizer keeps text as text, so
-  # both markers are always there; the HTML is left alone if one is not.
-  defp splice(html, prefix, fun) do
-    with [before, after_open] <- :binary.split(html, prefix <> "o"),
-         [label, rest] <- :binary.split(after_open, prefix <> "c") do
-      fun.(before, label, rest)
-    else
-      _missing -> html
-    end
-  end
+  defp build({:link, _url}, label, prefix, true, accent),
+    do: ~s(<a href="#{prefix}z" style="color:#{accent};">#{label}</a>)
+
+  defp build({:link, _url}, label, _prefix, false, _accent), do: label
+
+  defp image(prefix, true),
+    do:
+      ~s(<img src="#{prefix}z" alt="#{prefix}a" ) <>
+        ~s(style="max-width:100%;height:auto;border:0;">)
+
+  defp image(prefix, false), do: prefix <> "a"
 
   # A bulletproof button: the colour is on the table cell, so clients that
   # ignore padding on `<a>` (Outlook) still show a coloured block.
@@ -345,18 +399,18 @@ defmodule PhoenixKit.Email.Markdown do
   # is substituted and checked on its own, and travels as a token until the
   # body's own placeholders are filled, so a value is never substituted twice.
   # An unsafe target leaves only the label (`url: ""`).
-  defp text_urls(%MDEx.Link{} = link, acc, nonce, placeholders, variables) do
-    {nodes, acc} = text_urls_list(link.nodes, acc, nonce, placeholders, variables)
+  defp text_urls(%MDEx.Link{} = link, acc, tokens, variables) do
+    {nodes, acc} = text_urls_list(link.nodes, acc, tokens, variables)
     link = %{link | nodes: nodes}
 
     if autolink?(link) do
       {link, acc}
     else
       {urls, count} = acc
-      url = link.url |> restore(placeholders) |> Substitution.substitute(variables)
+      url = fill(link.url, tokens, variables)
 
       if safe_url?(url, :link) do
-        token = "pk#{nonce}z#{count}z"
+        token = "pk#{tokens.nonce}z#{count}z"
         {%{link | url: token}, {Map.put(urls, token, String.trim(url)), count + 1}}
       else
         {%{link | url: ""}, acc}
@@ -364,16 +418,15 @@ defmodule PhoenixKit.Email.Markdown do
     end
   end
 
-  defp text_urls(%{nodes: nodes} = node, acc, nonce, placeholders, variables)
-       when is_list(nodes) do
-    {nodes, acc} = text_urls_list(nodes, acc, nonce, placeholders, variables)
+  defp text_urls(%{nodes: nodes} = node, acc, tokens, variables) when is_list(nodes) do
+    {nodes, acc} = text_urls_list(nodes, acc, tokens, variables)
     {%{node | nodes: nodes}, acc}
   end
 
-  defp text_urls(node, acc, _nonce, _placeholders, _variables), do: {node, acc}
+  defp text_urls(node, acc, _tokens, _variables), do: {node, acc}
 
-  defp text_urls_list(nodes, acc, nonce, placeholders, variables) do
-    Enum.map_reduce(nodes, acc, &text_urls(&1, &2, nonce, placeholders, variables))
+  defp text_urls_list(nodes, acc, tokens, variables) do
+    Enum.map_reduce(nodes, acc, &text_urls(&1, &2, tokens, variables))
   end
 
   defp blocks_text(nodes, separator \\ "\n\n") do

@@ -5,8 +5,9 @@ new-login alert, and anything a module sends through
 `PhoenixKit.Mailer.send_from_template/4` — ship with translated default copy.
 A host changes that copy, or the HTML every email is wrapped in, by adding
 **override files** to its own application. No database rows, no template
-editor: the files deploy with the code. Only the branding — the logo and the
-accent colour — is set in the admin, so it can change without a deploy.
+editor: the files deploy with the code. Only the branding — the project logo
+and the `email_accent_color` setting — lives in the database, so it can change
+without a deploy.
 
 ## Where the files go
 
@@ -85,26 +86,27 @@ Files are read once and cached; changing one takes a restart (a deploy).
 
 ## Writing the body in Markdown
 
-`priv/phoenix_kit_templates/register/markdown.ru.md`:
+`priv/phoenix_kit_templates/register/markdown.de.md`:
 
 ```markdown
-Здравствуйте, {{user_email}}!
+Hallo {{user_email}},
 
-Чтобы подтвердить аккаунт, нажмите кнопку:
+bitte bestätigen Sie Ihr Konto:
 
-[Подтвердить]({{confirmation_url}})
+[Konto bestätigen]({{confirmation_url}})
 
-Если вы не регистрировались, просто проигнорируйте письмо.
+Wenn Sie sich nicht registriert haben, ignorieren Sie diese E-Mail einfach.
 ```
 
 Headings, emphasis, lists, tables, strikethrough and links work as usual;
 quotes and dashes are typeset (`"…"` → `“…”`, `--` → `–`).
 
-**Buttons.** A paragraph that is exactly one `[label](url)` link becomes a
-button in the [accent colour](#branding-logo-and-accent-colour) — a coloured
+**Buttons.** A top-level paragraph that is exactly one `[label](url)` link
+becomes a button in the [accent colour](#branding-logo-and-accent-colour) — a coloured
 table cell, which every email client draws, Outlook included. The text on it
 is white on a dark accent and near-black on a light one. Any other link is a
-plain link in the accent colour. A bare address alone on a line stays a link.
+plain link in the accent colour — including a link alone in a list item or a
+quote. A bare address alone on a line stays a link.
 
 **Links.** Placeholders in a link target are filled in after the Markdown is
 rendered, so `[Confirm]({{confirmation_url}})` opens the real address. Only
@@ -126,7 +128,8 @@ Every email built from a file or a default is sent with an HTML body inside a
 shared layout, made of three parts: the **layout** (the document), the
 **header** and the **footer**. PhoenixKit's own are deliberately plain — the
 logo (or, without one, the site's name) above the message, the name and a
-link to the site below it, a thin bar in the accent colour on top; table
+link to the site below it, and — once the `email_accent_color` setting holds
+a colour — a thin bar in that colour on top; table
 markup with inline styles and no words of their own, so they need no
 translation. The layout's `<html lang>` is the reader's locale (`pt_BR`
 written as `pt-BR`).
@@ -289,24 +292,32 @@ Two variables carry the site's branding into every part — the layout, the
 header, the footer and the body:
 
 - `{{logo_url}}` — the project logo already set under **Settings** (the
-  project logo, else the site icon), as an absolute URL of its `small`
-  variant with a permanent signed token, so it still loads in an email opened
-  weeks later. Empty when there is no logo, when the file no longer exists,
-  and when the logo is stored in a **private** library — such a file only
-  gets URLs that expire, which would break in an old email. PhoenixKit's
-  header shows the site's name instead.
+  project logo, else the site icon), as an absolute URL with a permanent
+  signed token, so it still loads in an email opened weeks later. Empty when
+  there is no logo, when the file is in the trash or no longer exists, and
+  when the logo is stored in a **private** library — such a file only gets
+  URLs that expire, which would break in an old email. PhoenixKit's header
+  shows the site's name instead.
 - `{{accent_color}}` — the `email_accent_color` setting, a six-digit hex
   colour (`#1d4ed8`). Anything else, or nothing, reads as the neutral
-  `#18181b`. Markdown buttons and links, and PhoenixKit's top bar, use it.
+  `#18181b`. Markdown buttons and links use it, and PhoenixKit's layout draws
+  its top bar in it — only while the setting holds a colour, so a site that
+  never set one keeps the look it had.
 
 Both are read on every send: a new logo or colour shows in the next email
-without a restart. A variable passed by the code sending the email under the
-same name wins.
+without a restart. The code sending an email may pass either variable
+itself; its value is used only when valid — a `#rrggbb` colour, an empty or
+`http(s)://` logo URL — and the site's otherwise, in every part.
 
-The `small` variant is a JPEG, so a transparent PNG logo arrives on a white
-background — invisible on PhoenixKit's white header, visible in a host
-header with a coloured background. Use a logo with an opaque background for
-such a header.
+**Which file of the logo.** The first finished one that every email client
+shows (PNG, JPEG or GIF), trying the sizes smallest first: `small`, `medium`,
+`large`, then the original. A transparent logo's sizes are written as PNG —
+or as WebP when the host sets `config :phoenix_kit, :variant_alpha_format,
+"webp"`, which Outlook for Windows does not show; such a size is passed over,
+usually for the original when that is a PNG. A logo with no such file at all
+(an SVG whose sizes are WebP, or sizes still being made) gives no URL. Sizes
+made before transparent images were written as PNG are JPEG: such a logo
+arrives on a white background until its sizes are regenerated.
 
 ## A complete example
 
@@ -316,22 +327,22 @@ priv/phoenix_kit_templates/
 │   └── html.html                 <- the logo and a tagline, every email
 ├── _footer/
 │   ├── html.html                 <- address and unsubscribe note
-│   └── html.ru.html              <- … in Russian
+│   └── html.de.html              <- … in German
 ├── _layout-billing/
 │   └── html.html                 <- invoices: a wider document
 ├── _footer-billing/
 │   └── html.html                 <- invoices: legal details
 ├── register/
-│   ├── subject.ru.txt            <- "Подтвердите аккаунт"
+│   ├── subject.de.txt            <- "Bitte bestätigen Sie Ihr Konto"
 │   ├── markdown.md               <- English body, with a button
-│   └── markdown.ru.md            <- Russian body, with a button
+│   └── markdown.de.md            <- German body, with a button
 └── invoice_paid/
     ├── layout.txt                <- billing
     └── markdown.md
 ```
 
-A Russian reader of `register` gets the Russian subject and body (HTML with a
-button, plain text with `Подтвердить: https://…`), the shared header, the
-Russian footer and PhoenixKit's layout. `invoice_paid` gets the billing
+A German reader of `register` gets the German subject and body (HTML with a
+button, plain text with `Konto bestätigen: https://…`), the shared header, the
+German footer and PhoenixKit's layout. `invoice_paid` gets the billing
 layout and footer, and still the shared header — there is no
 `_header-billing`.
