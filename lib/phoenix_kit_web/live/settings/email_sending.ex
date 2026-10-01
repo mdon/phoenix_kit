@@ -426,7 +426,7 @@ defmodule PhoenixKitWeb.Live.Settings.EmailSending do
   # HEEx expression there.
   defp accent_help_text do
     gettext(
-      "Used for buttons, links and the accent bar of every email. Leave blank for the neutral default (%{color}). Email files read it as %{placeholder}.",
+      "Used for buttons and links in every email, and for the accent bar of the standard layout. Leave blank for neutral buttons and links (%{color}) and no accent bar. Email files read it as %{placeholder}.",
       color: Branding.default_accent_color(),
       placeholder: "{{accent_color}}"
     )

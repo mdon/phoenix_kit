@@ -6,8 +6,9 @@ new-login alert, and anything a module sends through
 A host changes that copy, or the HTML every email is wrapped in, by adding
 **override files** to its own application. No database rows, no template
 editor: the files deploy with the code. Only the branding — the project logo
-and the `email_accent_color` setting — lives in the database, so it can change
-without a deploy.
+and the `email_accent_color` setting — lives in the database, set in the admin
+(see [Branding](#branding-logo-and-accent-colour)), so it can change without a
+deploy. The admin also [previews every email](#previewing-emails).
 
 ## Where the files go
 
