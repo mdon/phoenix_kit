@@ -154,6 +154,14 @@ defmodule PhoenixKit.Notifications.RenderTest do
       assert Render.render(notification, "ru").text == "У вас новое уведомление."
     end
 
+    test "a dialect locale (the inbox path) renders its base language" do
+      notification = %Notification{activity: nil, metadata: %{}}
+      spanish = Render.render(notification, "es").text
+
+      refute spanish == "You have a new notification."
+      assert Render.render(notification, "es-ES").text == spanish
+    end
+
     test "does not leak the recipient's locale onto the calling process" do
       # These render on a background worker that goes on to handle other
       # recipients; a leaked locale would mistranslate every later message.

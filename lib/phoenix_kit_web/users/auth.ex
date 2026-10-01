@@ -75,6 +75,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   alias PhoenixKit.Users.TimeZoneAlert
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.IpAddress
+  alias PhoenixKit.Utils.RecipientLocale
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Utils.SessionFingerprint
   alias PhoenixKit.Utils.UserAgent
@@ -1244,12 +1245,9 @@ defmodule PhoenixKitWeb.Users.Auth do
   # backend reads, is left to the host. The default, `:set`, sets both for
   # every view, as always.
   def put_gettext_locale(dialect, view) when is_binary(dialect) do
-    locale =
-      if dialect in Gettext.known_locales(PhoenixKitWeb.Gettext) do
-        dialect
-      else
-        DialectMapper.extract_base(dialect)
-      end
+    # The same choice as everything rendered for a recipient (emails,
+    # notifications), so the web and the mail cannot disagree on a language.
+    locale = RecipientLocale.gettext_locale(dialect)
 
     Gettext.put_locale(PhoenixKitWeb.Gettext, locale)
 
