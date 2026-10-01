@@ -83,11 +83,25 @@ defmodule PhoenixKit.Utils.RecipientLocaleTest do
     end
 
     test "a dialect the catalogue has stays a dialect; one it lacks narrows to its base" do
-      known = ["en", "pt", "pt-BR"]
+      # Gettext names a dialect catalogue with an underscore, `pt_BR`, while
+      # preferences and Languages codes use a hyphen.
+      known = ["en", "pt", "pt_BR"]
 
-      assert RecipientLocale.gettext_locale("pt-BR", known) == "pt-BR"
+      assert RecipientLocale.gettext_locale("pt-BR", known) == "pt_BR"
+      assert RecipientLocale.gettext_locale("pt_BR", known) == "pt_BR"
+      assert RecipientLocale.gettext_locale("pt-br", known) == "pt_BR"
       assert RecipientLocale.gettext_locale("pt-PT", known) == "pt"
       assert RecipientLocale.gettext_locale("en", known) == "en"
+      assert RecipientLocale.gettext_locale("", known) == "en"
+    end
+
+    test "an underscore-spelled locale the catalogue lacks narrows to its base too" do
+      assert RecipientLocale.gettext_locale("pt_BR", ["en", "pt"]) == "pt"
+
+      spanish = RecipientLocale.in_locale("es", fn -> gettext("Confirm your account") end)
+
+      assert RecipientLocale.in_locale("es_ES", fn -> gettext("Confirm your account") end) ==
+               spanish
     end
 
     test "restores the previous locale" do

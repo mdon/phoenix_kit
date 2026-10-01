@@ -40,7 +40,6 @@ defmodule PhoenixKit.Utils.RecipientLocale do
   `PhoenixKit.Users.LoginAlerts` calls during sign-in.
   """
 
-  alias PhoenixKit.Modules.Languages.DialectMapper
   alias PhoenixKit.Settings
 
   @fallback "en"
@@ -104,10 +103,8 @@ defmodule PhoenixKit.Utils.RecipientLocale do
   A `nil` locale runs `fun` untouched, so a caller with no recipient preference
   keeps whatever locale is already in force.
 
-  A dialect is installed as its base language ("es-ES" → "es") unless the
-  catalogue has the dialect itself: `PhoenixKitWeb.Gettext` looks a locale up
-  exactly and keys its catalogues on base codes, so an installed "es-ES"
-  matched nothing and every default came out in English.
+  The locale is installed through `gettext_locale/1`, so a dialect the
+  catalogue does not have reads its base language's translation.
 
       iex> alias PhoenixKit.Utils.RecipientLocale
       iex> RecipientLocale.in_locale(nil, fn -> :ran end)
@@ -119,19 +116,52 @@ defmodule PhoenixKit.Utils.RecipientLocale do
   def in_locale(nil, fun), do: fun.()
 
   def in_locale(locale, fun) when is_binary(locale) do
-    known = Gettext.known_locales(PhoenixKitWeb.Gettext)
-    Gettext.with_locale(PhoenixKitWeb.Gettext, gettext_locale(locale, known), fun)
+    Gettext.with_locale(PhoenixKitWeb.Gettext, gettext_locale(locale), fun)
   end
 
-  # The locale to install for `locale` given the catalogue's `known` locales:
-  # itself when the catalogue has it (a dialect catalogue, should one ship),
-  # else its base language. Public only so the dialect branch can be tested
-  # without shipping a dialect catalogue.
+  @doc """
+  The `PhoenixKitWeb.Gettext` locale that translates `locale`.
+
+  Preferences and Languages codes are dialects (`"es-ES"`, `"pt-BR"`), but the
+  backend looks a locale up exactly and its catalogues are named for base
+  languages (`es`), or, following Gettext's convention, `pt_BR` for a dialect.
+  So: `locale` itself when the catalogue has it, else its Gettext spelling
+  (`pt-BR` → `pt_BR`), else its base language — split on `-` or `_`. Installing
+  `"es-ES"` as it was matched no catalogue, and every default came out in
+  English.
+
+  Shared by the web (`PhoenixKitWeb.Users.Auth.put_gettext_locale/2`) and by
+  everything rendered for a recipient (`in_locale/2`), so the two cannot pick
+  different translations for one language.
+
+      iex> PhoenixKit.Utils.RecipientLocale.gettext_locale("es-ES")
+      "es"
+      iex> PhoenixKit.Utils.RecipientLocale.gettext_locale("ru")
+      "ru"
+  """
+  @spec gettext_locale(String.t()) :: String.t()
+  def gettext_locale(locale) when is_binary(locale),
+    do: gettext_locale(locale, Gettext.known_locales(PhoenixKitWeb.Gettext))
+
+  # The choice against an explicit list of `known` locales — public only so the
+  # dialect-catalogue branches can be tested without shipping such a catalogue.
   @doc false
   @spec gettext_locale(String.t(), [String.t()]) :: String.t()
   def gettext_locale(locale, known) do
-    if locale in known, do: locale, else: DialectMapper.extract_base(locale)
+    case String.split(locale, ["-", "_"]) do
+      ["" | _] ->
+        @fallback
+
+      [base | rest] ->
+        base = String.downcase(base)
+        candidates = [locale, Enum.join([base | upcase_region(rest)], "_")]
+        Enum.find(candidates, base, &(&1 in known))
+    end
   end
+
+  # Gettext names a dialect catalogue `pt_BR`: the region upper-case.
+  defp upcase_region([region | rest]), do: [String.upcase(region) | rest]
+  defp upcase_region([]), do: []
 
   defp site_default do
     case Settings.get_content_language() do
