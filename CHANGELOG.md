@@ -1,3 +1,20 @@
+## 2.43.1 - 2026-10-01
+
+### Fixed
+
+- **Uploaded and generated media no longer ship in the Hex package.** `priv/media` is
+  excluded even when its files are ignored by Git. The release gate inspects the built
+  package and refuses media or generated sitemaps before publication.
+- **Restricted Media viewers cannot change another person's visible folder.** Folder
+  colour, header and cover events use `folder-uuid`; the ownership guard now checks that
+  parameter as well as the other folder identifiers.
+- **Wall-clock cache deadlines survive slow loads and a busy cache process.**
+  `Cache.remember/4` subtracts loading time from a boundary-based lifetime and skips
+  caching a value loaded after its deadline. An explicit `Cache.put/4` expiry is measured
+  when called, so waiting in the cache's mailbox cannot extend it.
+- **Admin-page generator tests no longer overwrite a concurrently running test's repo
+  configuration.** The generator tests run synchronously.
+
 ## 2.43.0 - 2026-10-01
 
 ### Added
