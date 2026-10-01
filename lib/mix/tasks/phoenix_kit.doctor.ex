@@ -2652,7 +2652,9 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
              "first and was removed."}
 
         {nil, owner} ->
-          {:pass, "GET /sitemap.xml is served by #{inspect(owner)}." <> robots_hint()}
+          {:pass,
+           "GET /sitemap.xml is served by #{inspect(owner)}." <>
+             robots_hint(router_routes(), "priv/static/robots.txt")}
       end
 
     findings =
@@ -2764,11 +2766,18 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
   end
 
   # robots.txt is host policy — PhoenixKit deliberately does not generate one.
-  # Without a Sitemap: line, crawlers only find the sitemap by guessing.
-  defp robots_hint do
-    path = "priv/static/robots.txt"
+  # Without a Sitemap: line, crawlers only find the sitemap by guessing. A
+  # host may serve it from a route (a controller writing it per domain); then
+  # there is no file to read, and saying "no robots.txt" would be wrong.
+  @doc false
+  @spec robots_hint([map()], Path.t()) :: String.t()
+  def robots_hint(routes, path) do
+    routed = Enum.find(routes, &(&1.verb == :get and &1.path == "/robots.txt"))
 
     cond do
+      routed && not File.exists?(path) ->
+        " robots.txt is served by #{inspect(routed.plug)} — make sure it carries a `Sitemap:` line."
+
       not File.exists?(path) ->
         " No priv/static/robots.txt — consider adding one with a `Sitemap:` line."
 
