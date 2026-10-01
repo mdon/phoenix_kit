@@ -501,5 +501,33 @@ defmodule PhoenixKitWeb.Components.Core.TableDefaultTest do
       assert html =~ ~s(id="primary")
       refute html =~ ~s(data-view-action)
     end
+
+    # The plain table (an empty list, no card toggle) used to drop every
+    # toolbar slot: a list lost its filters and its create button exactly
+    # when it was empty.
+    test "an empty list without a card toggle keeps its toolbar" do
+      assigns = %{}
+
+      for items <- [[], nil] do
+        assigns = Map.put(assigns, :items, items || [])
+
+        html =
+          rendered_to_string(~H"""
+          <.table_default id="t" items={@items}>
+            <:toolbar_title>
+              <form id="filters"></form>
+            </:toolbar_title>
+            <:toolbar_actions><span id="secondary">S</span></:toolbar_actions>
+            <:toolbar_primary><a id="primary" href="/new">New</a></:toolbar_primary>
+            <.table_default_body></.table_default_body>
+          </.table_default>
+          """)
+
+        assert html =~ ~s(id="filters")
+        assert html =~ ~s(id="secondary")
+        assert html =~ ~s(id="primary")
+        refute html =~ ~s(data-view-action)
+      end
+    end
   end
 end

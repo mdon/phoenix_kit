@@ -234,8 +234,25 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
     end
   end
 
+  # The plain table (no items, no card toggle) still carries the toolbar: a
+  # list's filters and its create button must not vanish when the list is
+  # empty, which is exactly when they are needed.
   defp table_default_classic(assigns) do
     ~H"""
+    <div
+      :if={@toolbar_title != [] || @toolbar_actions != [] || @toolbar_primary != []}
+      class="flex flex-wrap items-center justify-between gap-2 mb-2"
+    >
+      <div :if={@toolbar_title != []} class="min-w-0 flex-1 md:flex-none">
+        {render_slot(@toolbar_title)}
+      </div>
+      <div class="flex flex-wrap items-center gap-2 ml-auto">
+        <div :if={@toolbar_actions != []} class="flex flex-wrap items-center gap-2">
+          {render_slot(@toolbar_actions)}
+        </div>
+        {render_slot(@toolbar_primary)}
+      </div>
+    </div>
     <div class={@wrapper_class}>
       <table
         class={[
