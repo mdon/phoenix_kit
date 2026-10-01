@@ -760,7 +760,7 @@
             <div class="grid gap-3 sm:grid-cols-2">
               <.checkbox
                 :for={section <- @profile_hideable_sections}
-                id={"profile-section-#{section}"}
+                id={"profile-section-#{section}-#{@profile_toggle_rev}"}
                 name={"profile_section_#{section}"}
                 variant="toggle"
                 checked={section not in @profile_hidden_sections}

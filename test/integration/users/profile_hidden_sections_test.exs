@@ -1,6 +1,9 @@
 defmodule PhoenixKit.Integration.Users.ProfileHiddenSectionsTest do
   use PhoenixKit.DataCase, async: false
 
+  alias PhoenixKit.Activity.Entry
+  alias PhoenixKit.RepoHelper
+  alias PhoenixKit.Users.Auth
   alias PhoenixKitWeb.Components.ProfileSettingsTabs
 
   setup do
@@ -36,5 +39,40 @@ defmodule PhoenixKit.Integration.Users.ProfileHiddenSectionsTest do
     assert :identity in ProfileSettingsTabs.sections("account")
 
     assert {:error, :not_hideable} = ProfileSettingsTabs.set_section_hidden(:identity, true)
+  end
+
+  test "a toggle is attributed to the admin, and readers see it at once" do
+    import Ecto.Query
+
+    {:ok, user} =
+      Auth.register_user(%{
+        "email" => "sections-#{System.unique_integer([:positive])}@example.com",
+        "password" => "ValidPassword123!"
+      })
+
+    # Prime the cache with the old value, as a user page would.
+    assert ProfileSettingsTabs.hidden_sections() == []
+
+    :ok =
+      ProfileSettingsTabs.set_section_hidden(:sessions, true,
+        actor_uuid: user.uuid,
+        source: "settings"
+      )
+
+    assert ProfileSettingsTabs.hidden_sections() == [:sessions]
+
+    entry =
+      RepoHelper.repo().one(
+        from(e in Entry,
+          where:
+            e.action == "setting.changed" and
+              fragment("? ->> 'key' = ?", e.metadata, "user_settings_hidden_sections") and
+              e.actor_uuid == ^user.uuid,
+          limit: 1
+        )
+      )
+
+    assert entry
+    assert entry.metadata["source"] == "settings"
   end
 end

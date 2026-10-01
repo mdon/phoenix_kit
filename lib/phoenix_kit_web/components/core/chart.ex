@@ -45,6 +45,8 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
 
   use Phoenix.Component
 
+  require Logger
+
   alias PhoenixKitWeb.Components.Core.ChartScale
 
   @doc """
@@ -684,7 +686,11 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
       text -> to_string(text)
     end
   rescue
-    _ -> nil
+    error ->
+      # A host's broken point_note drops the line rather than the chart, but
+      # it should not vanish without a trace.
+      Logger.warning("[Chart] point_note raised: #{Exception.message(error)}")
+      nil
   end
 
   defp point_note(_fun, _band, _ys, _count), do: nil

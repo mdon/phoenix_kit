@@ -110,7 +110,11 @@ defmodule PhoenixKit.Utils.Reorder do
   end
 
   defp dedupe_ids(ids, schema, key) do
-    type = schema.__schema__(:type, key) || :string
+    # A `key:` that is not a field would pass the cast and then raise inside
+    # the reorder transaction; say so up front.
+    type =
+      schema.__schema__(:type, key) ||
+        raise ArgumentError, "#{inspect(key)} is not a field of #{inspect(schema)}"
 
     ids
     |> Enum.flat_map(fn id ->

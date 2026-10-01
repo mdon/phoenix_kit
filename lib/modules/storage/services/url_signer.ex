@@ -57,6 +57,11 @@ defmodule PhoenixKit.Modules.Storage.URLSigner do
   before acting on it. Needs the database: whether a file is private is a
   property of its library.
 
+  Only the path is checked — `/file/<uuid>/<variant>/<token>` — never the
+  scheme or host, so `https://anywhere.example/file/…` verifies too. Act on
+  the returned uuid (rebuild the URL from it); never fetch or render the
+  string you were handed.
+
   ## Options
 
     * `:allow_trashed` — also accept a trashed file (default `false`).

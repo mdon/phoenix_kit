@@ -43,4 +43,10 @@ defmodule PhoenixKit.Integration.Utils.ReorderKeyTest do
   test "without key: a non-UUID payload still does nothing" do
     assert {:ok, 0} = Reorder.reorder(IntRow, ["1", "2"], :position, repo: Repo)
   end
+
+  test "a key that is not a field is refused up front, not mid-transaction" do
+    assert_raise ArgumentError, ~r/:nope is not a field/, fn ->
+      Reorder.reorder(IntRow, ["1", "2"], :position, key: :nope, repo: Repo)
+    end
+  end
 end

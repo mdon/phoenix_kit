@@ -74,6 +74,7 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
       |> assign(:active_tab, "registration")
       |> assign(:profile_hideable_sections, ProfileSettingsTabs.hideable_sections())
       |> assign(:profile_hidden_sections, ProfileSettingsTabs.hidden_sections())
+      |> assign(:profile_toggle_rev, 0)
 
     {:ok, socket}
   end
@@ -94,13 +95,21 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
       section ->
         hidden? = section not in socket.assigns.profile_hidden_sections
 
-        case ProfileSettingsTabs.set_section_hidden(section, hidden?) do
+        case ProfileSettingsTabs.set_section_hidden(section, hidden?,
+               actor_uuid: Actor.uuid(socket),
+               source: "settings"
+             ) do
           :ok ->
             {:noreply,
              assign(socket, :profile_hidden_sections, ProfileSettingsTabs.hidden_sections())}
 
+          # The browser already flipped the switch; bumping the revision in
+          # the switches' ids re-renders them from the server's state.
           {:error, _} ->
-            {:noreply, put_flash(socket, :error, gettext("Could not save that change."))}
+            {:noreply,
+             socket
+             |> update(:profile_toggle_rev, &(&1 + 1))
+             |> put_flash(:error, gettext("Could not save that change."))}
         end
     end
   end

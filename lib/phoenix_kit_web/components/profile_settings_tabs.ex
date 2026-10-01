@@ -35,6 +35,8 @@ defmodule PhoenixKitWeb.Components.ProfileSettingsTabs do
   """
   use PhoenixKitWeb, :html
 
+  require Logger
+
   alias PhoenixKit.Modules.Storage.Libraries
   alias PhoenixKit.Notifications.Types, as: NotificationTypes
   alias PhoenixKit.Users.Auth.Scope
@@ -76,7 +78,13 @@ defmodule PhoenixKitWeb.Components.ProfileSettingsTabs do
     |> PhoenixKit.Settings.get_json_setting_cached(%{"hidden" => []})
     |> stored_hidden()
   rescue
-    _ -> []
+    # Fails open (every section shows) — but on the record.
+    error ->
+      Logger.warning(
+        "[ProfileSettingsTabs] hidden sections unreadable: #{Exception.message(error)}"
+      )
+
+      []
   end
 
   defp stored_hidden(%{"hidden" => names}) when is_list(names),
@@ -84,13 +92,19 @@ defmodule PhoenixKitWeb.Components.ProfileSettingsTabs do
 
   defp stored_hidden(_value), do: []
 
-  @doc "Hides or shows `section` for every user. `section` must be hideable."
-  @spec set_section_hidden(atom(), boolean()) :: :ok | {:error, term()}
+  @doc """
+  Hides or shows `section` for every user. `section` must be hideable.
+  `opts` reach the setting write (`actor_uuid:`, `source:`), so the change
+  is attributed like any other settings save.
+  """
+  @spec set_section_hidden(atom(), boolean(), keyword()) :: :ok | {:error, term()}
   #
   # A read-modify-write of one list, so it runs under a transaction lock on
   # the key and reads the stored value, not the cache: two admins toggling
   # different sections at once must both land.
-  def set_section_hidden(section, hidden?) when section in @hideable do
+  def set_section_hidden(section, hidden?, opts \\ [])
+
+  def set_section_hidden(section, hidden?, opts) when section in @hideable do
     repo = PhoenixKit.RepoHelper.repo()
 
     repo.transaction(fn ->
@@ -103,18 +117,25 @@ defmodule PhoenixKitWeb.Components.ProfileSettingsTabs do
         |> then(&if(hidden?, do: Enum.uniq(&1 ++ [section]), else: List.delete(&1, section)))
         |> Enum.map(&Atom.to_string/1)
 
-      case PhoenixKit.Settings.update_json_setting(@hidden_key, %{"hidden" => names}) do
+      case PhoenixKit.Settings.update_json_setting(@hidden_key, %{"hidden" => names}, opts) do
         {:ok, _} -> :ok
         {:error, reason} -> repo.rollback(reason)
       end
     end)
     |> case do
-      {:ok, :ok} -> :ok
-      {:error, reason} -> {:error, reason}
+      {:ok, :ok} ->
+        # The write invalidated the cache before the transaction committed,
+        # so a reader in between could have cached the OLD list under the
+        # new generation. Invalidate again now that the new row is visible.
+        PhoenixKit.Cache.invalidate(:settings, @hidden_key)
+        :ok
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
-  def set_section_hidden(_section, _hidden?), do: {:error, :not_hideable}
+  def set_section_hidden(_section, _hidden?, _opts), do: {:error, :not_hideable}
 
   @doc "Whether the Google address field shows in the identity form."
   @spec google_email_shown?() :: boolean()

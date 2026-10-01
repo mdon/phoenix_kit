@@ -562,7 +562,7 @@ defmodule PhoenixKit.Modules.Storage.VariantSets do
     aspect = if d.maintain_aspect_ratio, do: "t", else: "f"
 
     "v1|w=#{d.width}|h=#{d.height}|q=#{d.quality}|f=#{format}|a=#{aspect}|p=#{@pipeline}"
-    |> Kernel.<>(alpha_part())
+    |> Kernel.<>(alpha_part(format))
     |> then(&:crypto.hash(:md5, &1))
     |> Base.encode16(case: :lower)
   end
@@ -570,12 +570,17 @@ defmodule PhoenixKit.Modules.Storage.VariantSets do
   # `variant_alpha_format` changes the pixels of a see-through image's
   # JPEG-configured sizes, so a non-default value is part of the hash. The
   # default adds nothing, so existing hashes are unchanged.
-  defp alpha_part do
+  # Only a size that can come out JPEG (configured JPEG, or keeping the
+  # original's format) is affected; a PNG or WebP size never is, so changing
+  # the setting does not mark every size of every file outdated.
+  defp alpha_part(format) when format in [nil, "", "jpg", "jpeg"] do
     case VariantGenerator.alpha_format() do
       "png" -> ""
       other -> "|af=#{other}"
     end
   end
+
+  defp alpha_part(_format), do: ""
 
   @doc false
   # The pipeline-1 text V205 stamped in SQL, kept so its migration test can

@@ -5594,18 +5594,6 @@ defmodule PhoenixKit.Modules.Storage do
   @raster_mimes ~w(image/png image/jpeg image/pjpeg image/jpg image/gif image/webp image/tiff
                    image/bmp image/heic image/heif image/avif)
 
-  # The bytes, not the name or the browser, decide what a raster image is:
-  #
-  #   * a file whose first bytes are a raster image is stored as THAT type,
-  #     whatever it was called (a PNG named .jpg, a HEIC the browser said was
-  #     JPEG) — the variant pipeline then decodes it with the right coder;
-  #   * a file that CLAIMS to be a raster image but whose bytes are something
-  #     else (an SVG, a PDF, a script renamed .png) is stored as what it is,
-  #     or as octet-stream when unrecognised, so it never reaches ImageMagick
-  #     as an "image".
-  #
-  # Every other claim (documents, audio, video, archives) is left as it was —
-  # sniffing only corrects the image path, which is the one that decodes.
   @doc """
   Downloads `url` and stores it like an upload, returning what
   `store_file_in_buckets/7` returns.
@@ -5669,6 +5657,18 @@ defmodule PhoenixKit.Modules.Storage do
     end
   end
 
+  # The bytes, not the name or the browser, decide what a raster image is:
+  #
+  #   * a file whose first bytes are a raster image is stored as THAT type,
+  #     whatever it was called (a PNG named .jpg, a HEIC the browser said was
+  #     JPEG) — the variant pipeline then decodes it with the right coder;
+  #   * a file that CLAIMS to be a raster image but whose bytes are something
+  #     else (an SVG, a PDF, a script renamed .png) is stored as what it is,
+  #     or as octet-stream when unrecognised, so it never reaches ImageMagick
+  #     as an "image".
+  #
+  # Every other claim (documents, audio, video, archives) is left as it was —
+  # sniffing only corrects the image path, which is the one that decodes.
   @doc false
   def content_mime_type(claimed, source_path, filename) do
     case Sniff.sniff(source_path) do

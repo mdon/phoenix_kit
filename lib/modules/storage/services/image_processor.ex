@@ -213,8 +213,6 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
     # the caller went on naming and recording the output as JPEG. The
     # variant generator now picks a transparent format itself; a direct
     # caller asking for JPEG gets a white background, never black.)
-    _ = alpha?
-
     with {:w, true} <- {:w, not (is_nil(width) or is_nil(height))},
          {:ok, input} <- pinned_input(input_path),
          {:ok, {cur_w, cur_h}} <- extract_dimensions(input_path),

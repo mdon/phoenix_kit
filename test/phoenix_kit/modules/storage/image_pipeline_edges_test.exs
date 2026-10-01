@@ -68,6 +68,12 @@ defmodule PhoenixKit.Modules.Storage.ImagePipelineEdgesTest do
 
       Application.put_env(:phoenix_kit, :variant_alpha_format, "webp")
       refute VariantSets.spec_hash(d, "jpg") == default
+
+      # A size that can never come out JPEG is not affected, so changing the
+      # setting does not mark it outdated.
+      png = VariantSets.spec_hash(d, "png")
+      Application.delete_env(:phoenix_kit, :variant_alpha_format)
+      assert VariantSets.spec_hash(d, "png") == png
     after
       Application.delete_env(:phoenix_kit, :variant_alpha_format)
     end

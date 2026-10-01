@@ -258,11 +258,22 @@ defmodule PhoenixKit.Modules.Storage.RemoteFetch do
 
   defp remaining(deadline), do: max(deadline - System.monotonic_time(:millisecond), 0)
 
+  # A display name only (the storage key is a content hash), but it is
+  # stored in a text column: never invalid UTF-8, never a path separator.
   defp filename(uri) do
-    case uri.path |> to_string() |> Path.basename() do
+    name =
+      case uri.path |> to_string() |> Path.basename() do
+        "" -> ""
+        "/" -> ""
+        raw -> URI.decode(raw)
+      end
+
+    name =
+      if String.valid?(name), do: name, else: String.replace_invalid(name, "")
+
+    case name |> String.replace(["/", "\\"], "_") |> String.trim() do
       "" -> "download"
-      "/" -> "download"
-      name -> URI.decode(name)
+      clean -> clean
     end
   end
 

@@ -33,6 +33,7 @@ defmodule PhoenixKit.Integration.Storage.StoreFromUrlTest do
     get("/big", do: send_resp(conn, 200, :binary.copy("x", 5_000)))
     get("/hop", do: conn |> put_resp_header("location", "/pic.png") |> send_resp(302, ""))
     get("/loop", do: conn |> put_resp_header("location", "/loop") |> send_resp(302, ""))
+    get("/named/*_rest", do: send_resp(conn, 200, @png))
     match(_, do: send_resp(conn, 404, ""))
   end
 
@@ -113,6 +114,16 @@ defmodule PhoenixKit.Integration.Storage.StoreFromUrlTest do
       assert {:ok, %{path: path}} = RemoteFetch.download(base <> "/hop", local)
       File.rm!(path)
       assert {:error, :too_many_redirects} = RemoteFetch.download(base <> "/loop", local)
+    end
+
+    test "the file name is valid UTF-8 and never carries a path separator", ctx do
+      assert {:ok, %{path: path, filename: name}} =
+               RemoteFetch.download(ctx.base <> "/named/%FF..%2F..%2Fpic.png", ctx.local)
+
+      File.rm(path)
+      assert String.valid?(name)
+      refute name =~ "/"
+      assert name =~ "pic.png"
     end
 
     test "a non-200 is an error", %{base: base, local: local} do
