@@ -418,6 +418,21 @@ defmodule PhoenixKit.Email.ContentTest do
       assert %{html: nil, text: nil} = resolved
     end
 
+    test "a host's markdown that renders to nothing gives way to the default text",
+         %{tmp_dir: root} do
+      write(root, "md_empty_host_probe", "markdown.md", "<div>pasted html</div>")
+
+      {resolved, sources} =
+        Content.resolve_with_sources("md_empty_host_probe", user("en"), %{}, text_only("default"),
+          paths: [root]
+        )
+
+      assert resolved.text == "default"
+      assert resolved.html =~ "default</p>"
+      assert sources.text_from == :text
+      assert sources.html_from == :text
+    end
+
     test "a markdown file that is not UTF-8 still sends, as escaped text", %{tmp_dir: root} do
       write(root, "md_latin1_probe", "markdown.md", <<"Gr", 0xFC, "ß <b>{{name}}</b>"::binary>>)
 

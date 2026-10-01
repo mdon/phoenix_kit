@@ -273,11 +273,11 @@ defmodule PhoenixKit.Email.Content do
     parts = Map.new([:html, :text, :markdown, :layout], &{&1, present(Map.get(rendered, &1))})
 
     wrap? = opts[:layout] != false
-    {text, text_from} = text_body(pick(@text_order, parts, found), parts, variables)
+    {text, text_from} = first_body(@text_order, parts, found, &text_body(&1, parts, variables))
     {group, group_from} = group(opts[:layout], parts.layout, found)
 
     {html, html_from} =
-      html_body(pick(@html_order, parts, found), parts, wrap?, variables)
+      first_body(@html_order, parts, found, &html_body(&1, parts, wrap?, variables))
 
     {html, chrome} =
       wrap(html, rendered.subject, wrap?,
@@ -305,11 +305,18 @@ defmodule PhoenixKit.Email.Content do
     {%{subject: rendered.subject, text: text, html: html, db_template: nil}, sources}
   end
 
-  # Which part a body is built from: the first entry of the order whose part
-  # was found in that layer. See "Which part makes which body" above.
-  defp pick(order, parts, found) do
-    Enum.find_value(order, fn {layer, part} ->
-      if is_binary(parts[part]) and layer(found[part]) == layer, do: part
+  # A body from the first entry of the order whose part was found in that
+  # layer and builds into something — Markdown that renders to nothing (only
+  # raw HTML, which is dropped) gives way to the next entry, as a blank file
+  # does. See "Which part makes which body" above.
+  defp first_body(order, parts, found, build) do
+    Enum.find_value(order, {nil, nil}, fn {layer, part} ->
+      if is_binary(parts[part]) and layer(found[part]) == layer do
+        case build.(part) do
+          {nil, _from} -> nil
+          body -> body
+        end
+      end
     end)
   end
 
@@ -323,8 +330,6 @@ defmodule PhoenixKit.Email.Content do
   defp text_body(:markdown, parts, variables),
     do: built(Markdown.to_text(parts.markdown, variables), :markdown)
 
-  defp text_body(nil, _parts, _variables), do: {nil, nil}
-
   # The HTML body before the layout: the `html` part, the `markdown` part
   # rendered, or — only when it is about to be wrapped — the text escaped into
   # paragraphs. Without the layout a text-only message stays text-only.
@@ -336,8 +341,6 @@ defmodule PhoenixKit.Email.Content do
   defp html_body(:text, parts, true, _variables), do: {Layout.text_to_html(parts.text), :text}
   defp html_body(_part, _parts, _wrap?, _variables), do: {nil, nil}
 
-  # Markdown that renders to nothing (only raw HTML, which is dropped) is no
-  # body, like a blank file.
   defp built(body, from) do
     case present(body) do
       nil -> {nil, nil}
