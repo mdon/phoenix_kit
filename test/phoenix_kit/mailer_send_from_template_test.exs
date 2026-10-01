@@ -48,6 +48,57 @@ defmodule PhoenixKit.MailerSendFromTemplateTest do
       end)
     end
 
+    test "text-only content is sent with an HTML body in the layout, text unchanged" do
+      {:ok, _} = PhoenixKit.Settings.update_setting("project_title", "Acme <Shop>")
+
+      assert {:ok, _} =
+               Mailer.send_from_template(
+                 "layout_send_probe",
+                 "a@b.c",
+                 %{"invoice_number" => "INV-1"},
+                 defaults: %{
+                   subject: "Your invoice",
+                   text: "Invoice {{invoice_number}}: https://a.test/i/1"
+                 }
+               )
+
+      assert_email_sent(fn email ->
+        assert email.text_body == "Invoice INV-1: https://a.test/i/1"
+        assert email.html_body =~ "<title>Your invoice</title>"
+        assert email.html_body =~ ~s(<a href="https://a.test/i/1">https://a.test/i/1</a>)
+        # The site's name comes from the setting, escaped like any variable.
+        assert email.html_body =~ ">Acme &lt;Shop&gt;<"
+      end)
+    end
+
+    @tag :tmp_dir
+    test "an empty html file alone is no message, with or without the layout",
+         %{tmp_dir: root} do
+      write(root, "empty_only_probe", "html.html", "")
+
+      for layout <- [true, false] do
+        assert Mailer.send_from_template("empty_only_probe", "a@b.c", %{},
+                 paths: [root],
+                 layout: layout
+               ) == {:error, :template_not_found}
+      end
+
+      refute_email_sent()
+    end
+
+    test "layout: false sends text-only content as text only" do
+      assert {:ok, _} =
+               Mailer.send_from_template("layout_off_probe", "a@b.c", %{},
+                 defaults: defaults(),
+                 layout: false
+               )
+
+      assert_email_sent(fn email ->
+        assert email.html_body == nil
+        assert email.text_body == "Invoice {{invoice_number}} is ready."
+      end)
+    end
+
     test "defaults may be a function, evaluated in the recipient's locale" do
       # The shape billing wants: gettext content must be evaluated inside the
       # recipient's locale, not whatever locale the caller happened to be in.

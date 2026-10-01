@@ -147,6 +147,16 @@ runtime cost to depend on.
 
 ### Core's own emails are text-only
 
+> **Superseded 2026-09-30.** Core's emails now reach the reader with an HTML
+> body: `PhoenixKit.Email.Content` wraps every message built from a file or a
+> default in a shared layout (`PhoenixKit.Email.Layout`, overridable as
+> `_layout/html.html`), building the HTML from the text when there is no
+> `html` part. The prose below still holds for the *copy* — core ships no
+> HTML templates of its own, only text — but not for what is delivered. The
+> layout is a function in core's code, not a file under core's `priv/`, and
+> it wraps by default (`layout: false` opts out), rather than being opt-in
+> per template as item 7 below proposed. Host guide: `guides/email-templates.md`.
+
 No `html` part for the auth emails — no header, no footer, no chrome.
 
 Confirmation, reset, magic link and login alert are short transactional
@@ -174,7 +184,9 @@ Per-package template files would make that *worse*, spreading the duplication
 across repos. So chrome becomes an explicit layer: a shared layout in core
 (`priv/phoenix_kit_templates/_layout/`), opt-in per template, fed by the
 branding settings that already exist. Billing invoices opt in. Core's auth
-emails opt out entirely.
+emails opt out entirely. *(Superseded 2026-09-30: the layout lives in core's
+code and wraps every file/default message, auth emails included — see the
+note under "Core's own emails are text-only".)*
 
 ### The renderer is a separate leaf package
 
@@ -255,6 +267,10 @@ Everything else lives in the package design doc.
 7. **The shared chrome layout** under `priv/phoenix_kit_templates/_layout/`,
    opt-in per template. Not needed by anything core sends; blocks billing's
    templates moving off the duplicated per-template HTML.
+   *(Done 2026-09-30, differently: `PhoenixKit.Email.Layout`, a code default
+   wrapping every file/default message unless `layout: false`; a host
+   overrides it with `_layout/html.html`. See the note under "Core's own
+   emails are text-only".)*
 
 Items 1 and 2 are worth shipping on their own merits whatever happens to the
 rest; item 4 is the only irreversible one, and it needs the emails package's

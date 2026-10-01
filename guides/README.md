@@ -41,6 +41,13 @@ This folder contains comprehensive guides to help developers work with PhoenixKi
 kept it in the session.** Read this when the language switcher's links don't
 behave, or before building a multilingual site on PhoenixKit.
 
+#### [Customizing Emails with Template Files](email-templates.md)
+
+**Override the copy of PhoenixKit's emails, and the HTML layout every email is
+wrapped in, with files in your application's `priv/`.** Covers where the files
+go, per-locale variants, the `_layout` override and its variables, and sending
+one email without the layout.
+
 ### Feature Guides
 
 #### [Making Pages Live: Real-time Updates & Collaborative Editing](making-pages-live.md)

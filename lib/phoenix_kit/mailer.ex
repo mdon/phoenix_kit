@@ -137,6 +137,10 @@ defmodule PhoenixKit.Mailer do
       Prefer the function for anything built with `gettext/1` — it is evaluated
       inside the recipient's locale, where a map has already been evaluated in
       whatever locale the caller happened to be in
+    - `:layout` - `false` sends the content without the shared HTML layout
+      (`PhoenixKit.Email.Layout`). Default `true`: content from a file or
+      `:defaults` is wrapped, and text-only content gets an HTML body built
+      from its text. A database template is never wrapped
 
   ## Returns
 
@@ -196,7 +200,8 @@ defmodule PhoenixKit.Mailer do
         variables,
         defaults_fun(Keyword.get(opts, :defaults, %{})),
         locale: Keyword.get(opts, :locale),
-        paths: Keyword.get(opts, :paths)
+        paths: Keyword.get(opts, :paths),
+        layout: Keyword.get(opts, :layout, true)
       )
 
     case content do
@@ -235,7 +240,7 @@ defmodule PhoenixKit.Mailer do
   # invented.
   defp delivery_opts(template_name, content, opts) do
     opts
-    |> Keyword.drop([:defaults, :paths])
+    |> Keyword.drop([:defaults, :paths, :layout])
     |> Keyword.put(:template_name, template_name)
     |> Keyword.put(:provider, detect_provider())
     |> put_db_template_opts(content.db_template)

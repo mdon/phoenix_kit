@@ -21,7 +21,12 @@ defmodule PhoenixKit.Email.ContentDbTemplateTest do
     # answers `%{subject: "", html_body: "", text_body: ""}`, and
     # `phoenix_kit_emails` validates exactly those three keys on its render.
     def get_active_template_by_name("register"), do: %{name: "register", id: 7}
+    def get_active_template_by_name("text_only"), do: %{name: "text_only", id: 8}
     def get_active_template_by_name(_name), do: nil
+
+    def render_template(%{name: "text_only"}, _variables, _locale) do
+      %{subject: "Plain", html_body: nil, text_body: "Plain body"}
+    end
 
     def render_template(_template, _variables, _locale) do
       %{
@@ -62,6 +67,16 @@ defmodule PhoenixKit.Email.ContentDbTemplateTest do
     test "carries the template's html body through as :html" do
       assert Content.resolve("register", user(), %{}, defaults()).html ==
                "<p>Confirm at http://example.test/c/abc</p>"
+    end
+
+    test "is never wrapped in the shared layout" do
+      # A database row carries its own chrome; the layout is for file and
+      # default content only. Both the row with HTML and the text-only row
+      # come back exactly as the provider rendered them.
+      assert Content.resolve("register", user(), %{}, defaults()).html ==
+               "<p>Confirm at http://example.test/c/abc</p>"
+
+      assert Content.resolve("text_only", user(), %{}, defaults()).html == nil
     end
 
     test "carries the template's subject, not the fallback copy" do
