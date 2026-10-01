@@ -40,6 +40,7 @@ defmodule PhoenixKit.Utils.RecipientLocale do
   `PhoenixKit.Users.LoginAlerts` calls during sign-in.
   """
 
+  alias PhoenixKit.Modules.Languages.DialectMapper
   alias PhoenixKit.Settings
 
   @fallback "en"
@@ -103,15 +104,33 @@ defmodule PhoenixKit.Utils.RecipientLocale do
   A `nil` locale runs `fun` untouched, so a caller with no recipient preference
   keeps whatever locale is already in force.
 
+  A dialect is installed as its base language ("es-ES" → "es") unless the
+  catalogue has the dialect itself: `PhoenixKitWeb.Gettext` looks a locale up
+  exactly and keys its catalogues on base codes, so an installed "es-ES"
+  matched nothing and every default came out in English.
+
       iex> alias PhoenixKit.Utils.RecipientLocale
       iex> RecipientLocale.in_locale(nil, fn -> :ran end)
       :ran
+      iex> RecipientLocale.in_locale("es-ES", fn -> Gettext.get_locale(PhoenixKitWeb.Gettext) end)
+      "es"
   """
   @spec in_locale(String.t() | nil, (-> result)) :: result when result: term()
   def in_locale(nil, fun), do: fun.()
 
   def in_locale(locale, fun) when is_binary(locale) do
-    Gettext.with_locale(PhoenixKitWeb.Gettext, locale, fun)
+    known = Gettext.known_locales(PhoenixKitWeb.Gettext)
+    Gettext.with_locale(PhoenixKitWeb.Gettext, gettext_locale(locale, known), fun)
+  end
+
+  # The locale to install for `locale` given the catalogue's `known` locales:
+  # itself when the catalogue has it (a dialect catalogue, should one ship),
+  # else its base language. Public only so the dialect branch can be tested
+  # without shipping a dialect catalogue.
+  @doc false
+  @spec gettext_locale(String.t(), [String.t()]) :: String.t()
+  def gettext_locale(locale, known) do
+    if locale in known, do: locale, else: DialectMapper.extract_base(locale)
   end
 
   defp site_default do
