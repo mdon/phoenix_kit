@@ -1,5 +1,7 @@
 defmodule Mix.Tasks.PhoenixKit.Gen.Admin.PageTest do
-  use ExUnit.Case, async: true
+  # Igniter temporarily evaluates the fixture's config into Application env
+  # while formatting, including its MyApp.Repo. LiveView tests read that env.
+  use ExUnit.Case, async: false
 
   import Igniter.Test
 

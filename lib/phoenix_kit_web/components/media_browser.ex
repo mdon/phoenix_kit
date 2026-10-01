@@ -4987,7 +4987,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     folders_changed =
       acted_on_folders(event, params, socket) ++
         if(event in @folder_metadata_events,
-          do: params |> Map.take(["folder_uuid", "id"]) |> Map.values() |> param_uuids([]),
+          do:
+            params
+            |> Map.take(["folder_uuid", "folder-uuid", "id"])
+            |> Map.values()
+            |> param_uuids([]),
           else: []
         )
 

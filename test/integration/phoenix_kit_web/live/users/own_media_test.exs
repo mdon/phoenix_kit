@@ -229,6 +229,25 @@ defmodule PhoenixKitWeb.Live.Users.OwnMediaTest do
       assert %{name: ^name, trashed_at: nil} = Storage.get_folder(events.uuid)
     end
 
+    test "hyphenated folder params cannot change someone else's folder", %{
+      view: view,
+      events: events
+    } do
+      render_click(browser(view), "change_folder_color", %{
+        "folder-uuid" => events.uuid,
+        "color" => "red"
+      })
+
+      render_click(browser(view), "set_header_size", %{
+        "folder-uuid" => events.uuid,
+        "size" => "large"
+      })
+
+      folder = Storage.get_folder(events.uuid)
+      assert folder.color == events.color
+      assert folder.header_size == events.header_size
+    end
+
     test "navigating into a folder she cannot see", %{view: view, customers: customers, n: n} do
       html = render_click(browser(view), "navigate_folder", %{"folder_uuid" => customers.uuid})
 

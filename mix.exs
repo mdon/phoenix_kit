@@ -396,8 +396,14 @@ defmodule PhoenixKit.MixProject do
       # test suite had run shipped the domain-mode test's
       # priv/static/sitemaps/domains/site.example.com/sitemap.xml in 2.34.0,
       # and a fresh install served it at /sitemap.xml until regenerated.
-      # Generated sitemaps are runtime state, never package content.
-      exclude_patterns: [~r"^priv/static/sitemap\.xml$", ~r"^priv/static/sitemaps/"]
+      # Generated sitemaps and uploaded media are runtime state, never package
+      # content. Storage tests write into priv/media too; gitignore does not
+      # keep those files out of a Hex package.
+      exclude_patterns: [
+        ~r"^priv/static/sitemap\.xml$",
+        ~r"^priv/static/sitemaps/",
+        ~r"^priv/media(?:/|$)"
+      ]
     ]
   end
 

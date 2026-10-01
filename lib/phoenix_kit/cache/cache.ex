@@ -257,9 +257,11 @@ defmodule PhoenixKit.Cache do
         :ok
 
       is_integer(opts[:expires_in]) ->
+        at = System.monotonic_time(:millisecond) + max(opts[:expires_in], 1)
+
         GenServer.cast(
           via_tuple(cache_name),
-          {:put, [{key, value}], opts[:if_generation], {:expires_in, max(opts[:expires_in], 1)}}
+          {:put, [{key, value}], opts[:if_generation], {:expires_at, at}}
         )
 
       true ->
@@ -313,15 +315,27 @@ defmodule PhoenixKit.Cache do
         # 23:59:59.9 and ends at 00:00:00.1 holds yesterday's data, which must
         # expire at that midnight, not a day after it.
         started_at = DateTime.utc_now()
+        started_tick = System.monotonic_time(:millisecond)
+        until = Keyword.get(opts, :until)
+        ttl = ttl_until(until, started_at)
         value = fun.()
 
+        # Wall-clock expiry names an absolute boundary. Loading consumes part
+        # of the remaining time; a value loaded past it must not enter the cache.
+        remaining =
+          if is_tuple(until),
+            do: ttl - (System.monotonic_time(:millisecond) - started_tick),
+            else: ttl
+
         put_opts =
-          case ttl_until(Keyword.get(opts, :until), started_at) do
+          case remaining do
             nil -> [if_generation: generation]
             ms -> [if_generation: generation, expires_in: ms]
           end
 
-        unless error_value?(value), do: put(cache_name, key, value, put_opts)
+        unless error_value?(value) or (is_integer(remaining) and remaining <= 0),
+          do: put(cache_name, key, value, put_opts)
+
         value
 
       {value, _generation} ->
@@ -805,8 +819,7 @@ defmodule PhoenixKit.Cache do
   end
 
   # An explicit expiry (from `put/4`'s `expires_in:`): exact, no jitter.
-  def handle_cast({:put, key_values, _generation, {:expires_in, ms}}, %{table: table} = state) do
-    at = System.monotonic_time(:millisecond) + ms
+  def handle_cast({:put, key_values, _generation, {:expires_at, at}}, %{table: table} = state) do
     :ets.insert(table, Enum.map(key_values, fn {key, value} -> {key, value, at} end))
     stats = state.stats
     {:noreply, maybe_evict(%{state | stats: %{stats | puts: stats.puts + length(key_values)}})}

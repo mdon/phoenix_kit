@@ -42,6 +42,39 @@ defmodule PhoenixKit.CacheRememberTest do
     assert Cache.remember(cache, "k", fn -> :second end) == :second
   end
 
+  test "an explicit expiry is not extended while the cache process is busy" do
+    cache = start_cache()
+    [{pid, _}] = Registry.lookup(PhoenixKit.Cache.Registry, cache)
+    :ok = :sys.suspend(pid)
+
+    try do
+      Cache.put(cache, "k", :stale, expires_in: 20)
+      Process.sleep(40)
+    after
+      :sys.resume(pid)
+    end
+
+    assert Cache.get(cache, "k", :miss) == :miss
+  end
+
+  @tag timeout: 120_000
+  test "a load that crosses its wall-clock boundary is not cached" do
+    cache = start_cache()
+
+    assert Cache.remember(
+             cache,
+             "k",
+             fn ->
+               remaining = Cache.ttl_until({:end_of_minute, "Etc/UTC"}, DateTime.utc_now())
+               Process.sleep(remaining + 20)
+               :previous_minute
+             end,
+             until: {:end_of_minute, "Etc/UTC"}
+           ) == :previous_minute
+
+    assert Cache.get(cache, "k", :miss) == :miss
+  end
+
   test "an invalidation during the computation is not overwritten by its result" do
     cache = start_cache()
 

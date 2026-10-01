@@ -45,6 +45,8 @@ defmodule Mix.Tasks.PhoenixKit.ReleaseCheck do
     5. **Git Branch** — on `main` (`--allow-branch` to warn).
     6. **Tag Collision** — tag `v<version>` does not already exist (publish-
        before-tag means a pre-existing tag signals a double release).
+    7. **Package Contents** — a built tarball must not contain uploaded media
+       or generated sitemaps. `mix prerelease` builds it before this check.
   """
 
   use Mix.Task
@@ -69,7 +71,10 @@ defmodule Mix.Tasks.PhoenixKit.ReleaseCheck do
       run_check("Migration Version Sync", fn -> check_migration_sync() end),
       run_check("Git Tree Clean", fn -> check_git_clean(opts) end),
       run_check("Git Branch", fn -> check_git_branch(opts) end),
-      run_check("Tag Collision", fn -> check_tag_collision(version) end)
+      run_check("Tag Collision", fn -> check_tag_collision(version) end),
+      run_check("Package Contents", fn ->
+        check_package_contents("phoenix_kit-#{version}.tar")
+      end)
     ]
 
     IO.puts("")
@@ -77,6 +82,38 @@ defmodule Mix.Tasks.PhoenixKit.ReleaseCheck do
   end
 
   # ── Check implementations (return {:pass | :warn | :fail, detail}) ──
+
+  @doc false
+  def check_package_contents(path) do
+    if File.exists?(path) do
+      with {:ok, outer} <- :erl_tar.extract(String.to_charlist(path), [:memory]),
+           {_, contents} <- List.keyfind(outer, ~c"contents.tar.gz", 0),
+           {:ok, files} <- :erl_tar.extract({:binary, contents}, [:memory, :compressed]) do
+        generated =
+          files
+          |> Enum.map(fn {name, _bytes} -> to_string(name) end)
+          |> Enum.filter(fn name ->
+            name == "priv/media" or String.starts_with?(name, "priv/media/") or
+              name == "priv/static/sitemap.xml" or
+              String.starts_with?(name, "priv/static/sitemaps/")
+          end)
+
+        case generated do
+          [] ->
+            {:pass, "Built package contains no uploaded media or generated sitemaps"}
+
+          paths ->
+            {:fail,
+             "Built package includes #{length(paths)} runtime file(s), including: " <>
+               Enum.join(Enum.take(paths, 5), ", ")}
+        end
+      else
+        _ -> {:fail, "Could not read the contents of #{path}"}
+      end
+    else
+      {:warn, "No built package — run mix hex.build to check its contents"}
+    end
+  end
 
   defp check_changelog_heading(version) do
     case top_changelog_version() do
