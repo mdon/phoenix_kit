@@ -27,6 +27,12 @@ accident:
   through would carry `pool: Ecto.Adapters.SQL.Sandbox` and rebuild the very
   pool whose timeout is being diagnosed.
 
+- **SQLSTATE `08P01` is read from its message.** PgBouncer answers a login it
+  will not route (unknown role, failed password, a database it has no entry
+  for) with `protocol_violation`, so the classifier maps those messages to
+  `:database_not_found` / an auth failure; anything else under that code is a
+  real protocol violation (the port is not PostgreSQL), not "unreachable".
+
 `check/1` never raises (most suites degrade to unit-only); `check!/1` is for a
 suite with no unit-only mode. It is a **connection** preflight, not a
 "database ready" check — it says nothing about migrations, privileges or

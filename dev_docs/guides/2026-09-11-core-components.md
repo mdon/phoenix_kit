@@ -13,10 +13,14 @@ landmine warnings are kept in the root `AGENTS.md` ("Admin UI Components").
 - Prefer FormField binding: `<.input field={@form[:email]} type="email" label="Email" />`. Raw `name=`/`value=` still works for dynamic field names.
 - **Free decimals (quantity, price, weight): `<.decimal_input>`, never `<.input type="number">`.** A browser number control follows the page locale (a typed `2.5` or `2,5` can submit `""`), and `step` blocks `phx-submit` on any other precision. `decimal_input` renders `type="text" inputmode="decimal"` (optional `unit="kg"` suffix; `bare` renders the `<input>` alone for a group of the host's own, e.g. a daisyUI `join` — its `label` becomes the control's `aria-label`) and echoes a typed binary back unchanged; parse the submitted text server-side with `PhoenixKit.Utils.Number.parse_decimal/2` (comma or dot, 3-digit grouping, `:min`/`:max`, `{:error, :empty | :invalid | :below_min | :above_max}`).
 
+- **Form layout** — `<.form_section title icon>` is one card per group of fields (`:subtitle` and `:actions` slots); `title` is optional, for a page whose only card needs no heading. Inside one card, sub-groups take `<.section_header icon title>`, not a hand-drawn divider. The footer is `<.form_actions submit_label …>`: Cancel comes from exactly one of the `:cancel` slot, `cancel_click` (+ `cancel_target` inside a LiveComponent) or `cancel_to`, in that precedence; `submitting_label` is the `phx-disable-with` text (default "Saving…"). All three live in `Core.FormSection` / `Core.FormActions`.
+- **Page header action** — the layout's `page_action` map (`%{icon:, label:, navigate:}`) is a navigation chip after the breadcrumb title; add `show_label: true` to write the label beside the icon on `sm` and up (the circle stays on phones). Navigation only — anything interactive goes in `page_toolbar`.
+
 ## Core List-UI Components
 
 The canonical toolkit for admin list views — DnD reorder, bulk-select, sort, strategy reorder, load-more pagination. All live in `lib/phoenix_kit_web/components/core/`. Reference call sites: `phoenix_kit_projects`' `projects_live.ex` / `tasks_live.ex` / `templates_live.ex`.
 
+- **Toolbar row** — `<.table_default>` draws one row above the list: `:toolbar_title` (filters, a search) at the start, `:toolbar_actions` before the view toggle, and `:toolbar_primary` — the page's create button — after it, in the far-right corner. The row renders on the plain table too, with no rows, so a filter and its create button never vanish on an empty list. Passing `items=` (or `toggleable`) switches to the card-capable path, whose phone layout is cards; omit `items` for a table that should stay a table. `<.bulk_actions_toolbar>` has a matching `:primary` slot. A module that uses `:toolbar_primary` needs a core floor that carries it — on an older core the button is simply not drawn (only a compile-time warning says why).
 - **Sortable** — `<.sortable_tbody enabled={…} event="reorder_x" id="…">` + `<.sortable_row item_id={uuid}>`; `enabled={false}` omits the hook so DnD turns off when sort_by ≠ position. Pair with `<.drag_handle_cell>` / `<.drag_handle_header_cell>` (render the `.pk-drag-handle` the SortableGrid hook reads).
 - **TreeTable** — `<.tree_name_cell depth expandable expanded toggle_event value icon>` is the file-explorer name cell (indent, disclosure chevron, type icon) that composes into `table_default` rows. The consumer owns the walk and the expanded set.
 - **BulkSelect** — `<.bulk_select_scope>` wraps the table; selection lives client-side, the hook pushes `%{"uuids" => […]}` on action-click. Children: `<.bulk_select_header_cell>`, `<.bulk_select_cell value={uuid}>`, `<.bulk_actions_toolbar>`. Consumer LVs collapse 0–1 captured uuids to `:all` (a single-row "reorder" is a no-op).
@@ -25,6 +29,7 @@ The canonical toolkit for admin list views — DnD reorder, bulk-select, sort, s
 - **SortSelector** — `<.sort_selector sort_by sort_dir options manual_field>`; select sends only `sort_by`, arrow only `sort_dir` (race-free). `manual_field={:position}` hides the direction toggle. Accepts `id` (default `"pk-sort-selector-#{event}"`). `label` (off by default) shows a visible "Sort by" before the control.
 - **TableRowMenu right-click** — flag the row `data-row-menu-context` (`<.table_default_row data-row-menu-context>`, or `card_context_menu` on `<.table_default>` for cards) and a right-click opens the `<.table_row_menu>` rendered inside it at the pointer. A flag, not the menu id; omit it to turn the gesture off. Fields, a text selection and rows with no menu keep the browser's own menu. Use `Core.ContextMenu` only when rows have no `⋮` menu of their own.
 - **Columns** — `<.column_settings_modal show columns selected>` (or `sections` for several tables in one modal; a column's optional `group` heads the Available list) is the live column picker: no Apply step, every change applies at once. Implement its events with `PhoenixKitWeb.TableColumns.handle_event/5` and read with `load/2` — each user's choice is the `"columns"` field of their `PhoenixKit.Users.ViewPrefs` for the table's key, Reset takes it back out so they follow the default again, and a site-wide setting can be that default (`site_default:`). Always-on columns (Name, Actions) stay out of the spec; the table draws them around the list. Never keep a column choice in a setting or in `custom_fields`.
+- **Reorder writes** — `PhoenixKit.Utils.Reorder.reorder(schema, ids, field, opts)` rewrites `field` to each id's 1-based position. `key:` matches on another column than `:uuid` (a code, an integer id); `max_ids:` caps the deduplicated payload (default 500, `{:error, :too_many_uuids}` above it).
 - **Pagination** — `<.load_more>` for embeddable / DnD-aware lists (rows append, selection persists); `<.pagination>` for standalone pages with deep-linkable state.
 
 ## Pickers, uploads and per-record files
@@ -128,6 +133,14 @@ def handle_info({PhoenixKitWeb.Components.FeaturedImage, "order-featured", {:set
 - **Rows:** `row_height` (default `2rem`); with more rows than `scroll_after` (default 12) the list scrolls under a chart that stays put. A row's DOM id follows its `:id`.
 
 Reference: the lanes demos in `phoenix_kit_parent`'s core components showcase.
+
+### Crosshair readout
+
+`<.line_chart hover={:crosshair}>` adds a snapping crosshair with a readout on top of the per-point hover bands (`hover={true}` keeps the native tooltip only; every band carries `data-x` / `data-y` for a host's own hook). `point_note` is a 1-arity function given `%{x, y, index, rank, count}` that returns one more readout line or `nil` — `rank` is the point's place with the series sorted ascending by y, ties sharing a place. `rows` (`%{label:, color:, bands: [{from, to}]}`, bands right-open in x units) lists what runs over the hovered x, in the order given.
+
+## Date navigation
+
+`<.date_nav date path today min max>` (`Core.DateNav`) is the previous / today / next header of a page that shows one day at a time. It is stateless: the date lives in the URL, the buttons are `<.link patch>`es built by your 1-arity `path` function, and `handle_params/3` reads it back with `DateNav.parse_param/2` (clamped to `min`/`max`). The optional date picker sits in a form and sends `pick_event` (default `"date_nav_pick"`, `%{"date" => "YYYY-MM-DD"}`) — answer it with a `push_patch`. Short dates in the viewer's language: `PhoenixKit.Utils.Date.short/1` ("3 Oct", "3. okt") and `short_with_year/1`; the order comes from the translation of `"%{day} %{month}"`, never hand-concatenate.
 
 ## Image editor
 
