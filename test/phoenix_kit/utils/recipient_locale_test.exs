@@ -1,5 +1,6 @@
 defmodule PhoenixKit.Utils.RecipientLocaleTest do
   use ExUnit.Case, async: true
+  use Gettext, backend: PhoenixKitWeb.Gettext
 
   alias PhoenixKit.Utils.RecipientLocale
 
@@ -59,6 +60,54 @@ defmodule PhoenixKit.Utils.RecipientLocaleTest do
         assert locale = RecipientLocale.for_rendering(recipient)
         assert is_binary(locale) and locale != ""
       end
+    end
+  end
+
+  describe "in_locale/2" do
+    test "a dialect renders the base language's translation" do
+      # The catalogue is keyed on base codes and looked up exactly: installing
+      # "es-ES" as-is matched nothing and every default came out in English.
+      spanish = RecipientLocale.in_locale("es", fn -> gettext("Confirm your account") end)
+
+      refute spanish == "Confirm your account"
+
+      for dialect <- ["es-ES", "es-MX", "ES-es"] do
+        assert RecipientLocale.in_locale(dialect, fn -> gettext("Confirm your account") end) ==
+                 spanish
+      end
+    end
+
+    test "a locale the catalogue has is installed as it is" do
+      assert RecipientLocale.in_locale("ru", fn -> Gettext.get_locale(PhoenixKitWeb.Gettext) end) ==
+               "ru"
+    end
+
+    test "a dialect the catalogue has stays a dialect; one it lacks narrows to its base" do
+      # Gettext names a dialect catalogue with an underscore, `pt_BR`, while
+      # preferences and Languages codes use a hyphen.
+      known = ["en", "pt", "pt_BR"]
+
+      assert RecipientLocale.gettext_locale("pt-BR", known) == "pt_BR"
+      assert RecipientLocale.gettext_locale("pt_BR", known) == "pt_BR"
+      assert RecipientLocale.gettext_locale("pt-br", known) == "pt_BR"
+      assert RecipientLocale.gettext_locale("pt-PT", known) == "pt"
+      assert RecipientLocale.gettext_locale("en", known) == "en"
+      assert RecipientLocale.gettext_locale("", known) == "en"
+    end
+
+    test "an underscore-spelled locale the catalogue lacks narrows to its base too" do
+      assert RecipientLocale.gettext_locale("pt_BR", ["en", "pt"]) == "pt"
+
+      spanish = RecipientLocale.in_locale("es", fn -> gettext("Confirm your account") end)
+
+      assert RecipientLocale.in_locale("es_ES", fn -> gettext("Confirm your account") end) ==
+               spanish
+    end
+
+    test "restores the previous locale" do
+      before = Gettext.get_locale(PhoenixKitWeb.Gettext)
+      RecipientLocale.in_locale("de-DE", fn -> :ok end)
+      assert Gettext.get_locale(PhoenixKitWeb.Gettext) == before
     end
   end
 
