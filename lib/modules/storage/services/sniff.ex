@@ -123,7 +123,16 @@ defmodule PhoenixKit.Modules.Storage.Sniff do
   defp detect(<<"RIFF", _size::binary-size(4), "WAVE", _::binary>>), do: :wav
   defp detect(<<"II", 42, 0, _::binary>>), do: :tiff
   defp detect(<<"MM", 0, 42, _::binary>>), do: :tiff
-  defp detect(<<"BM", _::binary>>), do: :bmp
+  # "BM" alone is two letters a CSV or a note can start with ("BMI,weight"),
+  # so a BMP is also asked for the file header's other fields: the pixel
+  # data offset, and a DIB header of one of the sizes the format defines.
+  defp detect(
+         <<"BM", _size::binary-size(4), _reserved::binary-size(4), _offset::little-32,
+           dib_size::little-32, _::binary>>
+       )
+       when dib_size in [12, 40, 52, 56, 64, 108, 124],
+       do: :bmp
+
   defp detect(<<0, 0, 1, 0, _::binary>>), do: :ico
   defp detect(<<"%PDF-", _::binary>>), do: :pdf
   defp detect(<<"%!PS", _::binary>>), do: :postscript

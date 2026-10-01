@@ -166,12 +166,22 @@ defmodule PhoenixKit.Modules.Storage.RemoteFetch do
     end
   end
 
-  defp handle([], _ref, state, _max), do: {:cont, state}
+  @doc false
+  # One batch of Mint responses folded into the download state; public for
+  # its tests, which feed it the event sequences a server can produce.
+  def handle([], _ref, state, _max), do: {:cont, state}
 
-  defp handle([{:status, ref, status} | rest], ref, state, max),
+  def handle([{:status, ref, status} | rest], ref, state, max),
     do: handle(rest, ref, %{state | status: status}, max)
 
-  defp handle([{:headers, ref, headers} | rest], ref, %{status: status} = state, max) do
+  # A chunked or HTTP/2 response may end with trailers: a second `:headers`
+  # event once the body has begun. They carry nothing wanted, and treating
+  # them as the response's head would open the temporary file again,
+  # orphaning the download and its open handle.
+  def handle([{:headers, ref, _trailers} | rest], ref, %{io: io} = state, max) when io != nil,
+    do: handle(rest, ref, state, max)
+
+  def handle([{:headers, ref, headers} | rest], ref, %{status: status} = state, max) do
     state = %{state | headers: headers}
 
     cond do
@@ -197,7 +207,7 @@ defmodule PhoenixKit.Modules.Storage.RemoteFetch do
     end
   end
 
-  defp handle([{:data, ref, data} | rest], ref, %{io: io} = state, max) when io != nil do
+  def handle([{:data, ref, data} | rest], ref, %{io: io} = state, max) when io != nil do
     bytes = state.bytes + byte_size(data)
 
     # A full disk is an error to report, not a crash: a raise here would skip
@@ -212,10 +222,10 @@ defmodule PhoenixKit.Modules.Storage.RemoteFetch do
     end
   end
 
-  defp handle([{:done, ref} | _rest], ref, %{path: path} = state, _max) when path != nil,
+  def handle([{:done, ref} | _rest], ref, %{path: path} = state, _max) when path != nil,
     do: {:done, {:ok, path}, state}
 
-  defp handle([_other | rest], ref, state, max), do: handle(rest, ref, state, max)
+  def handle([_other | rest], ref, state, max), do: handle(rest, ref, state, max)
 
   # `IO.binwrite/2` raises on a write error (a full disk) rather than
   # returning one.

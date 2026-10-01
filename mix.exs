@@ -104,7 +104,10 @@ defmodule PhoenixKit.MixProject do
       # override files and the locale chain, then substitutes {{variables}}.
       # A leaf by construction — no runtime deps of its own — which is what lets
       # core depend on it rather than feature-detecting it through a behaviour.
-      local_dep(:phoenix_kit_templates, "~> 0.2.0"),
+      #
+      # 0.2.1 is the floor because `PhoenixKit.Email.Layout` resolves the host's
+      # `_layout` override, and 0.2.0 skips template names that start with `_`.
+      local_dep(:phoenix_kit_templates, "~> 0.2.1"),
 
       # Slugs. Locale-aware because ö must expand to "oe" in German and fold to "o"
       # in Estonian, and core's hand-rolled table could not express the difference —

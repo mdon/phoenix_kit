@@ -19,6 +19,19 @@ defmodule PhoenixKit.Modules.Storage.SniffTest do
     assert {:ok, %{format: :avif}} = format(<<0, 0, 0, 24>> <> "ftypavif" <> "0000")
   end
 
+  test "a BMP needs its header, not just the letters BM" do
+    header = fn dib -> <<"BM", 70::little-32, 0::32, 54::little-32, dib::little-32, 0, 0>> end
+
+    for dib <- [12, 40, 52, 56, 64, 108, 124],
+        do: assert({:ok, %{format: :bmp, mime: "image/bmp"}} = format(header.(dib)))
+
+    # Text that merely starts with the two letters is not an image.
+    assert :unknown = format("BMI,weight,height\n70,180\n")
+    assert :unknown = format("BMW 3-series, 2019\n")
+    assert :unknown = format("BM")
+    assert :unknown = format(header.(41))
+  end
+
   test "recognises what must never reach ImageMagick" do
     assert {:ok, %{format: :svg}} = format(~s(<?xml version="1.0"?>\n<svg xmlns="x">))
     assert {:ok, %{format: :svg}} = format(~s(  <svg width="10">))

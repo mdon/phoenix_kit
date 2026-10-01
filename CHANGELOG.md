@@ -46,6 +46,20 @@
 - **`PhoenixKit.System.Dependencies` compiles on OTP 28.** The external-tools list held compiled
   `~r` sigils in a module attribute, which OTP 28 cannot escape into a function body; it is built
   in a function now.
+- **A file that merely starts with the letters `BM` is no longer an image.** A CSV or note beginning
+  "BMI,weight…" was sniffed as a BMP and stored as `image/bmp`; a BMP must also carry a valid file header.
+- **A grayscale image is no longer treated as see-through.** `gray` contains the letter the alpha check
+  looked for, so black-and-white photos were written as PNG instead of JPEG.
+- **An animated GIF or WebP resized to a still format makes its file.** ImageMagick wrote one file per
+  frame and never the one asked for, so the size failed on every retry; frame 0 is used unless the target is
+  itself a GIF or WebP.
+- **A download whose response ends with trailers is kept.** The trailers re-opened the temporary file and
+  orphaned the downloaded one (`Storage.store_from_url/2`).
+- **`Cache.remember/4` measures its boundary from before the load.** A load straddling midnight kept
+  yesterday's value for a day more; `end_of_minute`/`end_of_hour` are also right across the hour the clocks go back.
+- **`host_anonymous_scope` no longer takes the login pages down.** The host's function runs only when the
+  layout has no scope yet, and one that raises leaves the scope absent and logs.
+- **The hidden-profile-sections read fails open on a dead pool too** (it caught raises, not exits).
 - **The profile's tabs stay on the personal integration "add" and edit pages.** They
   disappeared after "Add integration", so the page no longer said where you were.
 - **The Multiple Sessions setting reads "Enable multiple sessions"** (it said "multi-account
@@ -53,6 +67,8 @@
 
 ### Changed
 
+- **`phoenix_kit_templates` floor is `~> 0.2.1`.** Core's email layout looks up the host's `_layout`
+  override, which 0.2.0 skips.
 - **The storage administration screens (Settings → Media: buckets, sizes, profiles, health) need
   `media.manage`, no longer just `media`.** So giving an end user Media does not hand them the
   bucket form.

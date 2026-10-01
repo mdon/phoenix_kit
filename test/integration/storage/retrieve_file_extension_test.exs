@@ -69,7 +69,13 @@ defmodule PhoenixKit.Modules.Storage.RetrieveFileExtensionTest do
   end
 
   test "the temp copy keeps the stored original's extension", %{user: user, source: source} do
-    File.write!(source, "icon bytes #{System.unique_integer()}")
+    # A real icon header (reserved 0, type 1, one image): the bytes decide the
+    # stored type now, so arbitrary text under an `.ico` name would be refused.
+    File.write!(
+      source,
+      <<0, 0, 1, 0, 1, 0, 16, 16, 0, 0, 1, 0, 32, 0>> <> "#{System.unique_integer()}"
+    )
+
     file = store!(user, source)
 
     assert {:ok, path, _file} = Storage.retrieve_file(file.uuid)

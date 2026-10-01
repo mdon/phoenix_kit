@@ -8,8 +8,8 @@ Merged 2026-10-01 (`8d1f308bc`, `8f1d175c2`, `61bb4fd1b`) · **Reviewer:** Claud
 | #884 | timujinne | Build the external tools list in a function so 2.41.2+ compiles on OTP 28 |
 | #885 | timujinne | Add a shared HTML layout for emails built from files and defaults |
 
-**Verdict:** no defect found in any of the three. The only open items are follow-ups
-that depend on a `phoenix_kit_templates` release (below).
+**Verdict:** no defect found in any of the three. The one follow-up (the `phoenix_kit_templates`
+0.2.1 floor) was resolved afterwards — see below.
 
 ## #881 — comment-only
 
@@ -47,20 +47,14 @@ Read against the real source of truth rather than the description:
   underscore-name support patched into a scratch copy of `phoenix_kit_templates`
   (`PHOENIX_KIT_TEMPLATES_PATH`): **94 pass, 0 skipped**.
 
-### IMPROVEMENT - MEDIUM — the host `_layout` override cannot work on any published release
+### IMPROVEMENT - MEDIUM — the host `_layout` override needed `phoenix_kit_templates` 0.2.1 — resolved
 
-Finding a `_layout` override needs `phoenix_kit_templates` 0.2.1, which is **not on Hex**
-(latest is 0.2.0) and is not in the local `/workspace/phoenix_kit_templates` checkout
-either (its `@name_pattern` still rejects a leading `_`). Until then:
-
-- the override documented in the moduledoc, `guides/email-templates.md` and the
-  CHANGELOG is silently ignored and core's default layout is used (documented fallback,
-  not a crash);
-- the six host-`_layout` tests are skipped via `Test.UnderscoreTemplateNames`.
-
-Not changed: nothing in core can fix it. **To do when 0.2.1 ships:** raise the pin
-`local_dep(:phoenix_kit_templates, "~> 0.2.0")` → `"~> 0.2.1"`, delete
-`test/support/underscore_template_names.ex` and the `skip:` tags that use it.
+Finding a `_layout` override needs `phoenix_kit_templates` 0.2.1. When this was reviewed
+it was not on Hex (latest 0.2.0), the pin admitted 0.2.0, and the six host-`_layout`
+tests were skipped through a probe. **Resolved in the #886 follow-up:** 0.2.1 was
+published and locked (`c476c9b3c`), the pin is now `~> 0.2.1`, the probe
+(`test/support/underscore_template_names.ex`) and its `skip:` tags are gone, and the six
+tests run and pass.
 
 ### NITPICK — `<html/>` is not recognised as a document
 

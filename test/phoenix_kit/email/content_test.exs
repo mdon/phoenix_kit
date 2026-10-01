@@ -7,9 +7,6 @@ defmodule PhoenixKit.Email.ContentTest do
 
   @moduletag :tmp_dir
 
-  # Host `_layout` files need phoenix_kit_templates 0.2.1; see the module.
-  @needs_underscore_names PhoenixKit.Test.UnderscoreTemplateNames.skip_reason()
-
   # The real msgids core sends, so the assertions below break if a translation
   # is reworded rather than passing against copy invented for the test.
   defp defaults do
@@ -219,7 +216,6 @@ defmodule PhoenixKit.Email.ContentTest do
       assert %{html: nil, text: nil} = resolved
     end
 
-    @tag skip: @needs_underscore_names
     test "the layout resolves from the message's own roots and reader locale",
          %{tmp_dir: root} do
       write(root, "_layout", "html.html", "ANY[{{{content}}}]")

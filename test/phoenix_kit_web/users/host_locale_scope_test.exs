@@ -70,5 +70,39 @@ defmodule PhoenixKitWeb.Users.HostLocaleScopeTest do
       assert LayoutWrapper.prepare_parent_layout_assigns(%{current_scope: :mine}).current_scope ==
                :mine
     end
+
+    test "the host's function is not called when a scope is already present" do
+      test_pid = self()
+
+      Application.put_env(:phoenix_kit, :host_anonymous_scope, fn ->
+        send(test_pid, :host_function_called)
+        :anonymous
+      end)
+
+      LayoutWrapper.prepare_parent_layout_assigns(%{current_scope: :mine})
+      refute_received :host_function_called
+    end
+
+    test "a host function that raises leaves the scope absent instead of crashing the layout" do
+      Application.put_env(:phoenix_kit, :host_anonymous_scope, fn -> raise "host bug" end)
+
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          refute Map.has_key?(LayoutWrapper.prepare_parent_layout_assigns(%{}), :current_scope)
+        end)
+
+      assert log =~ "host_anonymous_scope failed"
+      assert log =~ "host bug"
+    end
+
+    test "a misspelt module/function leaves the scope absent" do
+      Application.put_env(:phoenix_kit, :host_anonymous_scope, {No.Such.Module, :anonymous, []})
+
+      capture = fn ->
+        refute Map.has_key?(LayoutWrapper.prepare_parent_layout_assigns(%{}), :current_scope)
+      end
+
+      assert ExUnit.CaptureLog.capture_log(capture) =~ "host_anonymous_scope failed"
+    end
   end
 end

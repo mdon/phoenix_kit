@@ -309,10 +309,14 @@ defmodule PhoenixKit.Cache do
   def remember(cache_name, key, fun, opts \\ []) when is_function(fun, 0) do
     case get_with_generation(cache_name, key, :__phoenix_kit_cache_miss__) do
       {:__phoenix_kit_cache_miss__, generation} ->
+        # The boundary is measured from before the load: a load that starts at
+        # 23:59:59.9 and ends at 00:00:00.1 holds yesterday's data, which must
+        # expire at that midnight, not a day after it.
+        started_at = DateTime.utc_now()
         value = fun.()
 
         put_opts =
-          case ttl_until(Keyword.get(opts, :until), DateTime.utc_now()) do
+          case ttl_until(Keyword.get(opts, :until), started_at) do
             nil -> [if_generation: generation]
             ms -> [if_generation: generation, expires_in: ms]
           end
@@ -336,31 +340,53 @@ defmodule PhoenixKit.Cache do
   def ttl_until(nil, _now), do: nil
   def ttl_until(ms, _now) when is_integer(ms), do: max(ms, 1)
 
+  # A minute or an hour ends after a fixed time on the wall clock, so it is
+  # counted from the zone's own clock: re-resolving a wall time would pick the
+  # first of the two it names when the clocks go back, a boundary already past.
   def ttl_until({boundary, zone}, %DateTime{} = now)
-      when boundary in [:end_of_minute, :end_of_hour, :end_of_day] do
-    database = TimeZone.database()
+      when boundary in [:end_of_minute, :end_of_hour] do
+    local = wall_clock(now, zone)
+    {microseconds, _precision} = local.microsecond
 
-    # An unknown or missing zone falls back to UTC rather than failing.
+    elapsed_ms =
+      case boundary do
+        :end_of_minute -> local.second * 1000
+        :end_of_hour -> local.minute * 60_000 + local.second * 1000
+      end
+
+    period_ms = if boundary == :end_of_minute, do: 60_000, else: 3_600_000
+    max(period_ms - elapsed_ms - div(microseconds, 1000), 1)
+  end
+
+  def ttl_until({:end_of_day, zone}, %DateTime{} = now) do
+    local = wall_clock(now, zone)
+
+    # Local midnight is a wall time, resolved through the zone's rules; the
+    # zone-less fallback is UTC midnight.
     at =
-      with true <- is_binary(zone) and zone != "",
-           {:ok, local} <- DateTime.shift_zone(now, zone, database),
-           naive = next_boundary(boundary, DateTime.to_naive(local)),
+      with true <- local.time_zone != "Etc/UTC",
+           naive = next_midnight(DateTime.to_naive(local)),
            {:ok, at} <- TimeZone.from_wall(naive, zone) do
         at
       else
-        _ -> boundary |> next_boundary(DateTime.to_naive(now)) |> DateTime.from_naive!("Etc/UTC")
+        _ -> now |> DateTime.to_naive() |> next_midnight() |> DateTime.from_naive!("Etc/UTC")
       end
 
     max(DateTime.diff(at, now, :millisecond), 1)
   end
 
-  defp next_boundary(:end_of_minute, naive),
-    do: %{naive | second: 0, microsecond: {0, 0}} |> NaiveDateTime.add(60, :second)
+  # `now` on the zone's wall clock; an unknown or missing zone falls back to
+  # `now` as given (UTC) rather than failing.
+  defp wall_clock(now, zone) do
+    with true <- is_binary(zone) and zone != "",
+         {:ok, local} <- DateTime.shift_zone(now, zone, TimeZone.database()) do
+      local
+    else
+      _ -> now
+    end
+  end
 
-  defp next_boundary(:end_of_hour, naive),
-    do: %{naive | minute: 0, second: 0, microsecond: {0, 0}} |> NaiveDateTime.add(3600, :second)
-
-  defp next_boundary(:end_of_day, naive),
+  defp next_midnight(naive),
     do: NaiveDateTime.new!(Date.add(NaiveDateTime.to_date(naive), 1), ~T[00:00:00])
 
   @doc """

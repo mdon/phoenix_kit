@@ -1658,20 +1658,43 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   # It is given to the layout when nobody is signed in, and is the host's own
   # struct: display only — the kit never uses it for an access decision.
   # Unset (the default) leaves `current_scope` absent, as before.
+  #
+  # The host's function runs only when the layout has no scope yet, and a
+  # function that raises leaves the key absent (on the record) rather than
+  # taking the login and registration pages down with it.
   defp maybe_put_anonymous_scope(%{current_user: nil} = assigns) do
-    case Application.get_env(:phoenix_kit, :host_anonymous_scope) do
-      {mod, fun, args} when is_atom(mod) and is_atom(fun) and is_list(args) ->
-        Map.put_new(assigns, :current_scope, apply(mod, fun, args))
-
-      fun when is_function(fun, 0) ->
-        Map.put_new(assigns, :current_scope, fun.())
-
-      _ ->
-        assigns
+    if Map.has_key?(assigns, :current_scope) do
+      assigns
+    else
+      case host_anonymous_scope() do
+        {:ok, scope} -> Map.put(assigns, :current_scope, scope)
+        :none -> assigns
+      end
     end
   end
 
   defp maybe_put_anonymous_scope(assigns), do: assigns
+
+  defp host_anonymous_scope do
+    case Application.get_env(:phoenix_kit, :host_anonymous_scope) do
+      {mod, fun, args} when is_atom(mod) and is_atom(fun) and is_list(args) ->
+        {:ok, apply(mod, fun, args)}
+
+      fun when is_function(fun, 0) ->
+        {:ok, fun.()}
+
+      _ ->
+        :none
+    end
+  rescue
+    error ->
+      Logger.warning(
+        "[LayoutWrapper] host_anonymous_scope failed, rendering without a scope: " <>
+          Exception.message(error)
+      )
+
+      :none
+  end
 
   # Extract current user from scope for parent layout compatibility
   defp get_current_user_for_parent(assigns) do

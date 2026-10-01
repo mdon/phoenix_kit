@@ -9,9 +9,6 @@ defmodule PhoenixKit.Email.LayoutTest do
 
   @moduletag :tmp_dir
 
-  # Host `_layout` files need phoenix_kit_templates 0.2.1; see the module.
-  @needs_underscore_names PhoenixKit.Test.UnderscoreTemplateNames.skip_reason()
-
   defp write(root, name, file, content) do
     dir = Path.join(root, name)
     File.mkdir_p!(dir)
@@ -281,14 +278,12 @@ defmodule PhoenixKit.Email.LayoutTest do
   end
 
   describe "wrap/3 with a host _layout" do
-    @tag skip: @needs_underscore_names
     test "the host's file replaces core's layout", %{tmp_dir: root} do
       write(root, "_layout", "html.html", "<main>{{{content}}}</main>")
 
       assert Layout.wrap("<p>x</p>", "s", paths: [root]) == "<main><p>x</p></main>"
     end
 
-    @tag skip: @needs_underscore_names
     test "a locale file wins for its readers, the rest fall back", %{tmp_dir: root} do
       write(root, "_layout", "html.html", "any:{{{content}}}")
       write(root, "_layout", "html.de.html", "de:{{{content}}}")
@@ -299,7 +294,6 @@ defmodule PhoenixKit.Email.LayoutTest do
       assert Layout.wrap("b", "s", paths: [root]) == "any:b"
     end
 
-    @tag skip: @needs_underscore_names
     test "a layout that drops the body is refused, with a warning", %{tmp_dir: root} do
       write(root, "_layout", "html.html", "<main>{{{contnet}}}</main>")
 
@@ -320,7 +314,6 @@ defmodule PhoenixKit.Email.LayoutTest do
                "has no {{{content}}} placeholder"
     end
 
-    @tag skip: @needs_underscore_names
     test "an empty layout file is refused the same way", %{tmp_dir: root} do
       write(root, "_layout", "html.html", "")
 
@@ -329,7 +322,6 @@ defmodule PhoenixKit.Email.LayoutTest do
       end)
     end
 
-    @tag skip: @needs_underscore_names
     test "triple braces keep the body's markup; double braces escape", %{tmp_dir: root} do
       write(
         root,

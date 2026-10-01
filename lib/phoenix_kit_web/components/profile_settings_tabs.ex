@@ -78,11 +78,17 @@ defmodule PhoenixKitWeb.Components.ProfileSettingsTabs do
     |> PhoenixKit.Settings.get_json_setting_cached(%{"hidden" => []})
     |> stored_hidden()
   rescue
-    # Fails open (every section shows) — but on the record.
+    # Fails open (every section shows) — but on the record. An unreachable DB
+    # raises on an unowned checkout but exits on a dead pool, so both are caught.
     error ->
       Logger.warning(
         "[ProfileSettingsTabs] hidden sections unreadable: #{Exception.message(error)}"
       )
+
+      []
+  catch
+    :exit, reason ->
+      Logger.warning("[ProfileSettingsTabs] hidden sections unreadable: #{inspect(reason)}")
 
       []
   end

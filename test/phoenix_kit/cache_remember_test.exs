@@ -75,6 +75,38 @@ defmodule PhoenixKit.CacheRememberTest do
       assert Cache.ttl_until({:end_of_day, "Europe/Tallinn"}, midnight_local) == 25 * 3_600_000
     end
 
+    # Tallinn's clocks go back at 04:00 EEST -> 03:00 EET on 2026-10-25 (01:00Z),
+    # so 03:00-03:59 happens twice. A minute or an hour is counted on the wall
+    # clock, never re-resolved from a wall time that names two instants.
+    test "end_of_minute in the second pass of the repeated hour" do
+      # 01:30:10Z is 03:30:10 EET, after the clocks went back.
+      assert Cache.ttl_until({:end_of_minute, "Europe/Tallinn"}, ~U[2026-10-25 01:30:10Z]) ==
+               50_000
+    end
+
+    test "end_of_hour in the first pass of the repeated hour" do
+      # 00:30Z is 03:30 EEST; the wall-clock hour is 30 minutes from over.
+      assert Cache.ttl_until({:end_of_hour, "Europe/Tallinn"}, ~U[2026-10-25 00:30:00Z]) ==
+               30 * 60_000
+    end
+
+    test "end_of_hour in the second pass of the repeated hour" do
+      # 01:15Z is 03:15 EET: 45 minutes left, not the 15 that already passed.
+      assert Cache.ttl_until({:end_of_hour, "Europe/Tallinn"}, ~U[2026-10-25 01:15:00Z]) ==
+               45 * 60_000
+    end
+
+    test "an hour boundary in a zone with a half-hour offset" do
+      # 10:10Z is 15:40 in Kolkata (UTC+5:30); the wall-clock hour ends at 16:00.
+      assert Cache.ttl_until({:end_of_hour, "Asia/Kolkata"}, ~U[2026-09-30 10:10:00Z]) ==
+               20 * 60_000
+    end
+
+    test "a bad zone makes minutes and hours UTC too" do
+      assert Cache.ttl_until({:end_of_minute, "Not/AZone"}, ~U[2026-09-30 10:10:45Z]) == 15_000
+      assert Cache.ttl_until({:end_of_hour, "Not/AZone"}, ~U[2026-09-30 10:10:00Z]) == 50 * 60_000
+    end
+
     test "integers pass through, nil means the cache's TTL, a bad zone falls back to UTC" do
       now = ~U[2026-09-30 23:59:00Z]
       assert Cache.ttl_until(5_000, now) == 5_000

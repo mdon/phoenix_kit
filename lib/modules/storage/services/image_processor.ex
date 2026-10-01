@@ -138,7 +138,7 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
 
     # Extract current dimensions (pinned and limited like every call here),
     # and refuse an oversized header before the decoder ever runs.
-    with {:ok, input} <- pinned_input(input_path),
+    with {:ok, input} <- pinned_input(input_path, frame_for(output_path, format)),
          {:ok, {current_width, current_height}} <- extract_dimensions(input_path),
          :ok <- check_pixel_budget(current_width, current_height, @resize_max_pixels) do
       # Calculate resize parameters
@@ -214,7 +214,7 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
     # variant generator now picks a transparent format itself; a direct
     # caller asking for JPEG gets a white background, never black.)
     with {:w, true} <- {:w, not (is_nil(width) or is_nil(height))},
-         {:ok, input} <- pinned_input(input_path),
+         {:ok, input} <- pinned_input(input_path, frame_for(output_path, format)),
          {:ok, {cur_w, cur_h}} <- extract_dimensions(input_path),
          :ok <- check_pixel_budget(cur_w, cur_h, @resize_max_pixels) do
       # Never enlarge: a crop box bigger than the original shrinks, keeping
@@ -412,6 +412,17 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
     else
       _ -> {:error, "unsupported image format"}
     end
+  end
+
+  # An animated source (GIF, WebP) resized to a format that holds one picture
+  # makes ImageMagick write one file per frame — `out-0.png`, `out-1.png` —
+  # and never the `out.png` asked for. Those targets take frame 0; a GIF or
+  # WebP target is left whole, so an animation stays one.
+  @doc false
+  @spec frame_for(String.t(), String.t() | nil) :: String.t()
+  def frame_for(output_path, format) do
+    target = format || output_path |> Path.extname() |> String.trim_leading(".")
+    if String.downcase(target) in ["gif", "webp"], do: "", else: "[0]"
   end
 
   # What ImageMagick actually thinks this is, checked against a short
@@ -634,7 +645,10 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
            System.cmd("identify", @limit_args ++ ["-format", "%[channels]", input],
              stderr_to_stdout: true
            ) do
-      String.contains?(String.trim(output), "a")
+      # `%[channels]` is a colour model with an `a` when it has transparency:
+      # srgba, graya, cmyka. `gray` — a black-and-white photo — merely
+      # contains the letter, which is why it is read from the end.
+      String.ends_with?(String.trim(output), "a")
     else
       _ -> false
     end

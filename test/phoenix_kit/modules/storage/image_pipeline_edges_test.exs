@@ -19,6 +19,53 @@ defmodule PhoenixKit.Modules.Storage.ImagePipelineEdgesTest do
     _ -> false
   end
 
+  test "only a file with an alpha channel counts as see-through — grayscale does not",
+       %{tmp_dir: dir} do
+    if imagemagick?() do
+      make = fn name, args ->
+        path = Path.join(dir, name)
+        {_, 0} = System.cmd("convert", ["-size", "8x8"] ++ args ++ ["png:" <> path])
+        path
+      end
+
+      assert ImageProcessor.has_alpha_channel?(make.("clear.png", ["xc:none"]))
+      refute ImageProcessor.has_alpha_channel?(make.("red.png", ["xc:red"]))
+      # "gray" contains the letter "a"; a black-and-white photo is not see-through.
+      refute ImageProcessor.has_alpha_channel?(
+               make.("gray.png", ["xc:gray50", "-colorspace", "Gray"])
+             )
+    end
+  end
+
+  test "an animated GIF resized to a still format writes the one file asked for",
+       %{tmp_dir: dir} do
+    if imagemagick?() do
+      gif = Path.join(dir, "anim.gif")
+
+      {_, 0} =
+        System.cmd("convert", ["-size", "40x40", "xc:red", "xc:blue", "-loop", "0", "gif:" <> gif])
+
+      for {name, format} <- [{"still.png", "png"}, {"still.jpg", "jpg"}] do
+        out = Path.join(dir, name)
+
+        # Unpinned, ImageMagick wrote still-0.png and still-1.png and no still.png.
+        assert {:ok, ^out} = ImageProcessor.resize(gif, out, 20, 20, format: format)
+        assert File.exists?(out)
+        assert {:ok, {20, 20}} = ImageProcessor.extract_dimensions(out)
+        assert Path.wildcard(Path.join(dir, Path.rootname(name) <> "-*")) == []
+      end
+
+      cropped = Path.join(dir, "crop.png")
+      assert {:ok, ^cropped} = ImageProcessor.resize_and_crop_center(gif, cropped, 16, 16)
+      assert File.exists?(cropped)
+
+      # A GIF target keeps the animation: nothing here picks a frame for it.
+      assert ImageProcessor.frame_for("out.gif", nil) == ""
+      assert ImageProcessor.frame_for("out.bin", "webp") == ""
+      assert ImageProcessor.frame_for("out.png", nil) == "[0]"
+    end
+  end
+
   test "a file whose path reads as a coder (xc:red) is still decoded as the PNG it is",
        %{tmp_dir: dir} do
     if imagemagick?() do

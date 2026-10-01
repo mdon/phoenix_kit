@@ -27,8 +27,11 @@ defmodule PhoenixKitWeb.Components.Core.PhoenixKitGlobals do
   daisyUI control is smaller (`input-sm` more so). A style here lifts
   controls to at least 16px on touch screens under 768px — only inside the
   kit's own markup (the admin drawer and pages marked `data-phoenix-kit`),
-  never a host's page, and only upward: `max(16px, 1em)` leaves a larger
-  font alone. A kit page rendered inside the host's own layout gets neither
+  never a host's page. The rule is `max(16px, 1em)`, and `1em` in a
+  `font-size` is the *parent's* size, not the control's own: a control whose
+  own size is above both (`input-lg`, `text-xl`) is brought down to that
+  floor too, and the rule beats a utility class, so it cannot be opted out
+  of from the markup. A kit page rendered inside the host's own layout gets neither
   this component nor a kit `<body>`, so `LayoutWrapper` wraps its content in
   a `display: contents` marker carrying `mobile_inputs_style/1` itself.
 
