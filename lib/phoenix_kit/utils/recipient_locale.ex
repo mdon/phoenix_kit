@@ -131,8 +131,10 @@ defmodule PhoenixKit.Utils.RecipientLocale do
   English.
 
   Shared by the web (`PhoenixKitWeb.Users.Auth.put_gettext_locale/2`) and by
-  everything rendered for a recipient (`in_locale/2`), so the two cannot pick
-  different translations for one language.
+  `in_locale/2`, so the two cannot pick different translations for one
+  language. (`base/1` still hands `in_locale/2` a pre-truncated base code, so
+  the notification workers read the base catalogue even where a dialect one
+  exists; core ships none.)
 
       iex> PhoenixKit.Utils.RecipientLocale.gettext_locale("es-ES")
       "es"

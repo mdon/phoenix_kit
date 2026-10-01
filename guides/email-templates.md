@@ -107,7 +107,8 @@ becomes a button in the [accent colour](#branding-logo-and-accent-colour) — a 
 table cell, which every email client draws, Outlook included. The text on it
 is white on a dark accent and near-black on a light one. Any other link is a
 plain link in the accent colour — including a link alone in a list item or a
-quote. A bare address alone on a line stays a link.
+quote. A bare address alone on a line stays a link — a bare `{{url}}` placeholder
+does not (it is a word until it is filled), so write `[label]({{url}})`.
 
 **Links.** Placeholders in a link target are filled in after the Markdown is
 rendered, so `[Confirm]({{confirmation_url}})` opens the real address. Only

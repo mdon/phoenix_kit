@@ -1,3 +1,51 @@
+## 2.44.0 - 2026-10-01
+
+### Added
+
+- **Email files can be written in Markdown, with a shared header, footer and layout groups
+  (#887).** A `markdown.md` part feeds both bodies: the HTML (links and a lone-link paragraph
+  as accent-coloured buttons, tables, lists) and the text (`label: url`). `{{variable}}` /
+  `{{{variable}}}` work as in an `html` part and a link target is checked after substitution —
+  only `http(s)` and `mailto:` become links. The layout gains `_header` / `_footer` parts, and a
+  group (`layout: "billing"` or the email's `layout.txt`) brings `_layout-billing`,
+  `_header-billing`, `_footer-billing`, each falling back to the shared one.
+  `Content.resolve_with_sources/5` says where every part came from. Raises the
+  `phoenix_kit_templates` floor to 0.2.2.
+- **Email branding (#887, #890).** Every part of a file email sees `{{logo_url}}` (the site logo
+  as an absolute, permanently signed URL; empty for a private library's logo) and
+  `{{accent_color}}`. Settings → Emails Transactional has a Branding tab with the accent colour
+  (`email_accent_color`, `#rrggbb`, blank = neutral) and the logo emails carry; core's layout
+  draws an accent bar only once a colour is set.
+- **Admin email preview (#890).** `/admin/settings/email-sending/preview` lists every email the
+  site sends — core's eight and those enabled modules declare through the new
+  `c:PhoenixKit.Module.email_templates/0` callback (default `[]`; collected by
+  `ModuleRegistry.all_email_templates/0`, `PhoenixKit.Email.Catalog`) — renders the chosen one
+  in a chosen language with sample values through the same resolution a send uses (HTML in a
+  sandboxed iframe, text, subject), and says for each part whether it came from a database
+  template, a host file or the built-in default, and which file overrides it. Gated by
+  `settings`.
+
+### Changed
+
+- Core's default email copy lives in `PhoenixKit.Email.CoreTemplates` (one function per email),
+  shared by the send and the preview; the text is unchanged.
+
+### Fixed
+
+- **A dialect language preference rendered core's default copy in English (#889).** A recipient
+  or web visitor on `es-ES` matched no Gettext catalogue and read English; the locale is now
+  chosen by `RecipientLocale.gettext_locale/1` (the locale, its `pt_BR` spelling, then its base
+  language), shared by the web and by emails and notifications rendered for a recipient.
+- **A bare `{{url}}` on a line of a Markdown email** is documented as text, not a link (write
+  `[label]({{url}})`).
+
+### i18n
+
+- The strings the three PRs added (the Email preview page, the Branding tab, the core email
+  labels — 69 per locale) were never extracted, so every locale showed them in English. They
+  are extracted and translated in de, es, et, fr, it, pl and ru, and the fuzzy carry-overs the
+  merge produced were rewritten by hand.
+
 ## 2.43.1 - 2026-10-01
 
 ### Fixed
