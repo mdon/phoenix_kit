@@ -88,9 +88,9 @@ msgstr "Rollide haldamine"
 
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:120
 #: lib/phoenix_kit_web/components/core/dashboard_overview.ex:140
-#: lib/phoenix_kit_web/components/profile_settings_tabs.ex:198
+#: lib/phoenix_kit_web/components/profile_settings_tabs.ex:219
 #: lib/phoenix_kit_web/live/settings/authorization.html.heex:87
-#: lib/phoenix_kit_web/live/settings/users.ex:431
+#: lib/phoenix_kit_web/live/settings/users.ex:440
 #: lib/phoenix_kit_web/live/settings/users.html.heex:68
 #, elixir-autogen
 msgid "Sessions"
@@ -1522,7 +1522,7 @@ msgstr "Leht avaldatud edukalt"
 
 #: lib/phoenix_kit/integrations/providers.ex:1081
 #: lib/phoenix_kit_web/components/user_dashboard_nav.ex:342
-#: lib/phoenix_kit_web/live/settings/users.ex:429
+#: lib/phoenix_kit_web/live/settings/users.ex:438
 #: lib/phoenix_kit_web/live/settings/website_access.html.heex:74
 #: lib/phoenix_kit_web/users/login.html.heex:39
 #: lib/phoenix_kit_web/users/magic_link_registration.html.heex:42
@@ -3756,7 +3756,7 @@ msgstr "Absoluutne tee, kuhu failid kettale salvestatakse"
 msgid "Accept"
 msgstr "Nõustu"
 
-#: lib/phoenix_kit_web/components/profile_settings_tabs.ex:196
+#: lib/phoenix_kit_web/components/profile_settings_tabs.ex:217
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:203
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:231
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:73
@@ -4344,7 +4344,7 @@ msgid "Integration deleted"
 msgstr "Integratsioon kustutatud"
 
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:325
-#: lib/phoenix_kit_web/components/profile_settings_tabs.ex:200
+#: lib/phoenix_kit_web/components/profile_settings_tabs.ex:221
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1937
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:10
 #: lib/phoenix_kit_web/live/settings/integrations.ex:34
@@ -4561,11 +4561,11 @@ msgstr "Testimata"
 msgid "Notification preferences saved."
 msgstr "Teatiste eelistused salvestatud."
 
-#: lib/phoenix_kit_web/components/profile_settings_tabs.ex:199
+#: lib/phoenix_kit_web/components/profile_settings_tabs.ex:220
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1727
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:664
 #: lib/phoenix_kit_web/live/settings.html.heex:397
-#: lib/phoenix_kit_web/live/settings/users.ex:432
+#: lib/phoenix_kit_web/live/settings/users.ex:441
 #, elixir-autogen, elixir-format
 msgid "Notifications"
 msgstr "Teavitused"
@@ -5110,9 +5110,9 @@ msgstr "Kustuta see ühendus"
 msgid "Disconnect account"
 msgstr "Ühenda konto lahti"
 
-#: lib/phoenix_kit_web/components/core/table_default.ex:459
-#: lib/phoenix_kit_web/components/core/table_default.ex:496
-#: lib/phoenix_kit_web/components/core/table_default.ex:709
+#: lib/phoenix_kit_web/components/core/table_default.ex:476
+#: lib/phoenix_kit_web/components/core/table_default.ex:513
+#: lib/phoenix_kit_web/components/core/table_default.ex:726
 #, elixir-autogen, elixir-format
 msgid "Drag to reorder"
 msgstr "Lohistage järjestuse muutmiseks"
@@ -5268,7 +5268,7 @@ msgid "Removes the integration permanently. Any module pinned to this connection
 msgstr "Eemaldab integratsiooni jäädavalt. Ükski moodul, mis on selle ühendusega seotud, ei tööta, kuni see on ümber suunatud."
 
 #: lib/phoenix_kit_web/components/core/crumb_switcher.ex:48
-#: lib/phoenix_kit_web/components/core/table_default.ex:905
+#: lib/phoenix_kit_web/components/core/table_default.ex:922
 #: lib/phoenix_kit_web/components/tree_picker.ex:79
 #, elixir-autogen, elixir-format
 msgid "Search..."
@@ -5519,7 +5519,7 @@ msgstr "nõuab, et"
 #: lib/modules/storage/web/settings.html.heex:4
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:161
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:334
-#: lib/phoenix_kit_web/components/profile_settings_tabs.ex:201
+#: lib/phoenix_kit_web/components/profile_settings_tabs.ex:222
 #: lib/phoenix_kit_web/live/users/media.ex:56
 #: lib/phoenix_kit_web/live/users/media.html.heex:5
 #, elixir-autogen, elixir-format
@@ -7921,27 +7921,27 @@ msgstr "Kinnitatud e-post"
 msgid "Current Page"
 msgstr "Praegune leht"
 
-#: lib/phoenix_kit_web/live/settings/users.ex:310
+#: lib/phoenix_kit_web/live/settings/users.ex:319
 #, elixir-autogen, elixir-format
 msgid "Custom field deleted successfully"
 msgstr "Kohandatud väli edukalt kustutatud"
 
-#: lib/phoenix_kit_web/live/settings/users.ex:230
+#: lib/phoenix_kit_web/live/settings/users.ex:239
 #, elixir-autogen, elixir-format
 msgid "Custom field saved successfully"
 msgstr "Kohandatud väli edukalt salvestatud"
 
-#: lib/phoenix_kit_web/live/settings/users.ex:315
+#: lib/phoenix_kit_web/live/settings/users.ex:324
 #, elixir-autogen, elixir-format
 msgid "Failed to delete custom field"
 msgstr "Kohandatud välja kustutamine ebaõnnestus"
 
-#: lib/phoenix_kit_web/live/settings/users.ex:243
+#: lib/phoenix_kit_web/live/settings/users.ex:252
 #, elixir-autogen, elixir-format
 msgid "Failed to save custom field"
 msgstr "Kohandatud välja salvestamine ebaõnnestus"
 
-#: lib/phoenix_kit_web/live/settings/users.ex:344
+#: lib/phoenix_kit_web/live/settings/users.ex:353
 #, elixir-autogen, elixir-format
 msgid "Failed to update field"
 msgstr "Välja uuendamine ebaõnnestus"
@@ -7969,17 +7969,17 @@ msgstr "Kasutaja rollide uuendamine ebaõnnestus"
 msgid "Failed to update user status"
 msgstr "Kasutaja oleku uuendamine ebaõnnestus"
 
-#: lib/phoenix_kit_web/live/settings/users.ex:337
+#: lib/phoenix_kit_web/live/settings/users.ex:346
 #, elixir-autogen, elixir-format
 msgid "Field '%{label}' disabled"
 msgstr "Väli '%{label}' keelatud"
 
-#: lib/phoenix_kit_web/live/settings/users.ex:336
+#: lib/phoenix_kit_web/live/settings/users.ex:345
 #, elixir-autogen, elixir-format
 msgid "Field '%{label}' enabled"
 msgstr "Väli '%{label}' lubatud"
 
-#: lib/phoenix_kit_web/live/settings/users.ex:348
+#: lib/phoenix_kit_web/live/settings/users.ex:357
 #, elixir-autogen, elixir-format
 msgid "Field not found"
 msgstr "Välja ei leitud"
@@ -8207,7 +8207,7 @@ msgstr "Kasutaja e-posti kinnitus edukalt tühistatud"
 msgid "User roles updated successfully"
 msgstr "Kasutaja rollid edukalt uuendatud"
 
-#: lib/phoenix_kit_web/live/settings/users.ex:143
+#: lib/phoenix_kit_web/live/settings/users.ex:152
 #, elixir-autogen, elixir-format
 msgid "User settings updated successfully"
 msgstr "Kasutaja seaded edukalt uuendatud"
@@ -8396,7 +8396,7 @@ msgid "AI models via OpenAI (GPT, embeddings, images, audio)"
 msgstr "AI mudelid OpenAI kaudu (GPT, vektorid, pildid, heli)"
 
 #: lib/phoenix_kit_web/components/user_dashboard_nav.ex:469
-#: lib/phoenix_kit_web/live/settings/users.ex:416
+#: lib/phoenix_kit_web/live/settings/users.ex:425
 #, elixir-autogen, elixir-format
 msgid "Account menu"
 msgstr "Konto menüü"
@@ -9310,12 +9310,12 @@ msgstr "Staatilised marsruudid"
 msgid "The icon appears in browser tabs, bookmarks, and on phone home screens."
 msgstr "Ikoon kuvatakse brauseri vahelehtedel, järjehoidjates ja telefoni avakuval."
 
-#: lib/phoenix_kit_web/components/core/form_section.ex:128
+#: lib/phoenix_kit_web/components/core/form_section.ex:134
 #, elixir-autogen, elixir-format
 msgid "Unsaved change"
 msgstr "Salvestamata muudatus"
 
-#: lib/phoenix_kit_web/components/core/form_section.ex:130
+#: lib/phoenix_kit_web/components/core/form_section.ex:136
 #, elixir-autogen, elixir-format
 msgid "saved:"
 msgstr "salvestatud:"
@@ -12838,20 +12838,20 @@ msgstr "viimase tunni jooksul"
 msgid "in the last week"
 msgstr "viimase nädala jooksul"
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1273
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1282
 #: lib/phoenix_kit_web/components/tree_picker.ex:382
 #, elixir-autogen, elixir-format
 msgid "Collapse"
 msgstr "Ahenda"
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1264
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1265
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1267
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1273
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1274
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1276
 #, elixir-autogen, elixir-format
 msgid "Collapse the menu to icons"
 msgstr "Ahenda menüü ikoonideks"
 
-#: lib/phoenix_kit_web/components/layout_wrapper.ex:1266
+#: lib/phoenix_kit_web/components/layout_wrapper.ex:1275
 #, elixir-autogen, elixir-format
 msgid "Expand the menu"
 msgstr "Laienda menüü"
@@ -13321,7 +13321,7 @@ msgstr "Tagasi %{when}"
 msgid "Account types on the signup page"
 msgstr "Kontotüübid registreerimislehel"
 
-#: lib/phoenix_kit_web/live/settings/users.ex:384
+#: lib/phoenix_kit_web/live/settings/users.ex:393
 #, elixir-autogen, elixir-format
 msgid "Organization accounts only"
 msgstr "Ainult organisatsioonikontod"
@@ -13331,7 +13331,7 @@ msgstr "Ainult organisatsioonikontod"
 msgid "People who work for one join it by invitation instead, so no personal account is ever opened from the public form."
 msgstr "Organisatsiooni heaks töötavad inimesed liituvad sellega kutse alusel, nii et avalikust vormist ei teki kunagi isiklikku kontot."
 
-#: lib/phoenix_kit_web/live/settings/users.ex:383
+#: lib/phoenix_kit_web/live/settings/users.ex:392
 #, elixir-autogen, elixir-format
 msgid "Personal accounts only"
 msgstr "Ainult isiklikud kontod"
@@ -13341,7 +13341,7 @@ msgstr "Ainult isiklikud kontod"
 msgid "The account type picker disappears from the signup page and every visitor who registers opens an organization."
 msgstr "Kontotüübi valik kaob registreerimislehelt ja iga registreeruv külastaja avab organisatsiooni."
 
-#: lib/phoenix_kit_web/live/settings/users.ex:382
+#: lib/phoenix_kit_web/live/settings/users.ex:391
 #, elixir-autogen, elixir-format
 msgid "Visitor chooses"
 msgstr "Külastaja valib"
@@ -13638,7 +13638,7 @@ msgstr "Teie e-post muudeti."
 msgid "Your email was confirmed."
 msgstr "Teie e-post kinnitati."
 
-#: lib/phoenix_kit/mailer.ex:680
+#: lib/phoenix_kit/mailer.ex:685
 #, elixir-autogen, elixir-format
 msgid "Your login link: {{magic_link_url}}\nThis link expires in 15 minutes.\n"
 msgstr "Teie sisselogimislink: {{magic_link_url}}\nSee link aegub 15 minuti pärast.\n"
@@ -13668,7 +13668,7 @@ msgstr "Teie rolle uuendati (lisatud: %{roles})."
 msgid "Your roles were updated."
 msgstr "Teie rolle uuendati."
 
-#: lib/phoenix_kit/mailer.ex:678
+#: lib/phoenix_kit/mailer.ex:683
 #, elixir-autogen, elixir-format
 msgid "Your secure login link"
 msgstr "Teie turvaline sisselogimislink"
@@ -14180,7 +14180,7 @@ msgstr "Salvestamine ebaõnnestus."
 msgid "Could not switch to that role."
 msgstr "Sellele rollile vahetamine ebaõnnestus."
 
-#: lib/phoenix_kit_web/live/settings/users.ex:417
+#: lib/phoenix_kit_web/live/settings/users.ex:426
 #, elixir-autogen, elixir-format
 msgid "Header (account menu on phones)"
 msgstr "Päis (telefonis kontomenüü)"
@@ -14196,7 +14196,7 @@ msgid "Saved."
 msgstr "Salvestatud."
 
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1684
-#: lib/phoenix_kit_web/live/settings/users.ex:427
+#: lib/phoenix_kit_web/live/settings/users.ex:436
 #, elixir-autogen, elixir-format
 msgid "Start page"
 msgstr "Avaleht"
@@ -15427,7 +15427,7 @@ msgid "Upload failed for %{name}."
 msgstr "%{name} üleslaadimine ebaõnnestus."
 
 #: lib/phoenix_kit/users/table_columns.ex:64
-#: lib/phoenix_kit_web/live/settings/users.ex:425
+#: lib/phoenix_kit_web/live/settings/users.ex:434
 #, elixir-autogen, elixir-format
 msgid "Custom fields"
 msgstr "Kohandatud väljad"
@@ -15708,7 +15708,7 @@ msgstr "Privaatlingid kehtivad (tundi)"
 msgid "Role changed"
 msgstr "Roll muudetud"
 
-#: lib/phoenix_kit_web/components/profile_settings_tabs.ex:197
+#: lib/phoenix_kit_web/components/profile_settings_tabs.ex:218
 #, elixir-autogen, elixir-format
 msgid "Security"
 msgstr "Turvalisus"
@@ -16313,17 +16313,17 @@ msgstr "Fail taastatud"
 msgid "Folder restored"
 msgstr "Kaust taastatud"
 
-#: lib/phoenix_kit_web/components/core/table_default.ex:316
+#: lib/phoenix_kit_web/components/core/table_default.ex:333
 #, elixir-autogen, elixir-format
 msgid "Card view"
 msgstr "Kaardivaade"
 
-#: lib/phoenix_kit_web/components/core/table_default.ex:329
+#: lib/phoenix_kit_web/components/core/table_default.ex:346
 #, elixir-autogen, elixir-format
 msgid "Comfortable view"
 msgstr "Avar vaade"
 
-#: lib/phoenix_kit_web/components/core/table_default.ex:342
+#: lib/phoenix_kit_web/components/core/table_default.ex:359
 #, elixir-autogen, elixir-format
 msgid "Compact view"
 msgstr "Kompaktne vaade"
@@ -16861,12 +16861,12 @@ msgstr "%{day}. %{month}"
 msgid "%{day} %{month} %{year}"
 msgstr "%{day}. %{month} %{year}"
 
-#: lib/phoenix_kit_web/live/settings/users.ex:428
+#: lib/phoenix_kit_web/live/settings/users.ex:437
 #, elixir-autogen, elixir-format
 msgid "Annotation tools reset"
 msgstr "Annotatsioonitööriistade lähtestamine"
 
-#: lib/phoenix_kit_web/live/settings/users.ex:426
+#: lib/phoenix_kit_web/live/settings/users.ex:435
 #, elixir-autogen, elixir-format
 msgid "Change email"
 msgstr "E-posti muutmine"
@@ -16876,17 +16876,17 @@ msgstr "E-posti muutmine"
 msgid "Choose what people see on their own settings page. A tab whose sections are all hidden disappears. Hiding only removes the section from the page; it does not change anyone's data."
 msgstr "Vali, mida inimesed oma seadete lehel näevad. Vahekaart, mille kõik jaotised on peidetud, kaob. Peitmine eemaldab jaotise ainult lehelt; see ei muuda kellegi andmeid."
 
-#: lib/phoenix_kit_web/live/settings/users.ex:430
+#: lib/phoenix_kit_web/live/settings/users.ex:439
 #, elixir-autogen, elixir-format
 msgid "Connected sign-in accounts"
 msgstr "Ühendatud sisselogimiskontod"
 
-#: lib/phoenix_kit_web/live/settings/users.ex:103
+#: lib/phoenix_kit_web/live/settings/users.ex:112
 #, elixir-autogen, elixir-format
 msgid "Could not save that change."
 msgstr "Seda muudatust ei õnnestunud salvestada."
 
-#: lib/phoenix_kit_web/live/settings/users.ex:424
+#: lib/phoenix_kit_web/live/settings/users.ex:433
 #, elixir-autogen, elixir-format
 msgid "Google email address"
 msgstr "Google'i e-posti aadress"
