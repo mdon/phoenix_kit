@@ -27,6 +27,7 @@ defmodule PhoenixKitWeb.Live.Settings.Crawlers do
   alias PhoenixKit.Modules.Crawlers.RobotsTxt
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKitWeb.Live.Settings.UrlTabs
 
   def mount(_params, _session, socket) do
     if Crawlers.module_enabled?() do
@@ -52,7 +53,6 @@ defmodule PhoenixKitWeb.Live.Settings.Crawlers do
         |> assign(:robots_txt_present?, File.exists?(robots_txt_path()))
         |> assign(:robots_txt_references_sitemap?, robots_txt_references_sitemap?())
         |> assign(:groups, Bots.groups())
-        |> assign(:active_tab, "robots")
         |> assign_policy_state()
 
       {:ok, socket}
@@ -71,8 +71,20 @@ defmodule PhoenixKitWeb.Live.Settings.Crawlers do
     end
   end
 
-  def handle_event("switch_settings_tab", %{"tab" => tab}, socket) do
-    {:noreply, assign(socket, :active_tab, tab)}
+  # The tab lives in the URL (`?tab=sessions`); see `UrlTabs`.
+  def handle_params(params, _url, socket) do
+    {:noreply, assign(socket, :active_tab, UrlTabs.active(params, tabs()))}
+  end
+
+  defp tabs do
+    [
+      %{id: "robots", label: gettext("Robots Directive"), icon: "hero-no-symbol"},
+      %{id: "bots", label: gettext("Bot Access"), icon: "hero-users"},
+      %{id: "robots_txt", label: gettext("robots.txt"), icon: "hero-document-text"},
+      %{id: "llms_txt", label: gettext("llms.txt"), icon: "hero-sparkles"},
+      %{id: "verification", label: gettext("Verification"), icon: "hero-check-badge"},
+      %{id: "enforcement", label: gettext("Enforcement"), icon: "hero-shield-exclamation"}
+    ]
   end
 
   def handle_event("toggle_no_index", _params, socket) do

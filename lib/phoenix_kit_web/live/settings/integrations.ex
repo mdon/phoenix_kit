@@ -23,6 +23,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Actor
+  alias PhoenixKitWeb.Live.Settings.UrlTabs
 
   def mount(_params, _session, socket) do
     if connected?(socket), do: Events.subscribe()
@@ -48,8 +49,22 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
     {:ok, socket}
   end
 
-  def handle_params(_params, _url, socket) do
-    {:noreply, socket}
+  # The tab lives in the URL (`?tab=personal`); see `UrlTabs`.
+  def handle_params(params, _url, socket) do
+    {:noreply,
+     assign(socket, :active_tab, UrlTabs.active(params, tabs(socket.assigns.connections)))}
+  end
+
+  defp tabs(connections) do
+    [
+      %{
+        id: "connections",
+        label: gettext("Connections"),
+        icon: "hero-link",
+        badge: if(connections != [], do: length(connections))
+      },
+      %{id: "personal", label: gettext("Personal integrations"), icon: "hero-user-circle"}
+    ]
   end
 
   # ---------------------------------------------------------------------------

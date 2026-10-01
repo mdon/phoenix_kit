@@ -13,16 +13,8 @@
   <div class="px-4 py-6 space-y-6">
     <.nav_tabs
       active_tab={@active_tab}
-      on_change="switch_settings_tab"
       variant={:border}
-      tabs={[
-        %{id: "robots", label: gettext("Robots Directive"), icon: "hero-no-symbol"},
-        %{id: "bots", label: gettext("Bot Access"), icon: "hero-users"},
-        %{id: "robots_txt", label: gettext("robots.txt"), icon: "hero-document-text"},
-        %{id: "llms_txt", label: gettext("llms.txt"), icon: "hero-sparkles"},
-        %{id: "verification", label: gettext("Verification"), icon: "hero-check-badge"},
-        %{id: "enforcement", label: gettext("Enforcement"), icon: "hero-shield-exclamation"}
-      ]}
+      tabs={UrlTabs.patch_links(tabs(), "/admin/settings/crawlers")}
     />
 
     <div class={["space-y-6", if(@active_tab != "robots", do: "hidden")]}>

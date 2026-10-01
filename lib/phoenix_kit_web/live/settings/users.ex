@@ -18,6 +18,7 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Actor
   alias PhoenixKitWeb.Components.ProfileSettingsTabs
+  alias PhoenixKitWeb.Live.Settings.UrlTabs
 
   def mount(_params, _session, socket) do
     # Set locale for LiveView process
@@ -71,7 +72,6 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
       |> assign(:field_form_type, "text")
       |> assign(:field_form_options, [])
       |> assign(:new_option_value, "")
-      |> assign(:active_tab, "registration")
       |> assign(:profile_hideable_sections, ProfileSettingsTabs.hideable_sections())
       |> assign(:profile_hidden_sections, ProfileSettingsTabs.hidden_sections())
       |> assign(:profile_toggle_rev, 0)
@@ -79,12 +79,25 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
     {:ok, socket}
   end
 
-  def handle_params(_params, _url, socket) do
-    {:noreply, socket}
+  # The tab lives in the URL (`?tab=sessions`); see `UrlTabs`.
+  def handle_params(params, _url, socket) do
+    {:noreply, assign(socket, :active_tab, UrlTabs.active(params, tabs()))}
   end
 
-  def handle_event("switch_settings_tab", %{"tab" => tab}, socket) do
-    {:noreply, assign(socket, :active_tab, tab)}
+  defp tabs do
+    [
+      %{id: "registration", label: gettext("Registration"), icon: "hero-user-plus"},
+      %{id: "sessions", label: gettext("Sessions"), icon: "hero-shield-check"},
+      %{
+        id: "redirects",
+        label: gettext("Post-Login Redirects"),
+        icon: "hero-arrow-right-circle"
+      },
+      %{id: "defaults", label: gettext("New User Defaults"), icon: "hero-user-circle"},
+      %{id: "roles", label: gettext("Roles"), icon: "hero-identification"},
+      %{id: "fields", label: gettext("Custom User Fields"), icon: "hero-list-bullet"},
+      %{id: "profile_page", label: gettext("Profile Page"), icon: "hero-identification"}
+    ]
   end
 
   def handle_event("toggle_profile_section", %{"section" => name}, socket) do

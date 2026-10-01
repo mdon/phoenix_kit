@@ -52,6 +52,7 @@ defmodule PhoenixKitWeb.Live.Settings.EmailSending do
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKitWeb.Live.Settings.UrlTabs
 
   @default_integration_setting "default_email_integration_uuid"
 
@@ -76,17 +77,39 @@ defmodule PhoenixKitWeb.Live.Settings.EmailSending do
       |> assign_dev_mailbox()
       |> assign_branding()
       |> assign_email_settings_sections()
-      |> assign(:active_tab, "identity")
 
     {:ok, socket}
   end
 
-  def handle_params(_params, _url, socket) do
-    {:noreply, socket}
+  # The tab lives in the URL (`?tab=transport`); see `UrlTabs`.
+  def handle_params(params, _url, socket) do
+    %{mailbox_local?: mailbox_local?, email_settings_sections: sections} = socket.assigns
+
+    {:noreply,
+     assign(socket, :active_tab, UrlTabs.active(params, tabs(mailbox_local?, sections)))}
   end
 
-  def handle_event("switch_settings_tab", %{"tab" => tab}, socket) do
-    {:noreply, assign(socket, :active_tab, tab)}
+  defp tabs(mailbox_local?, email_settings_sections) do
+    [
+      %{id: "identity", label: gettext("Sender Identity"), icon: "hero-identification"},
+      %{id: "branding", label: gettext("Branding"), icon: "hero-swatch"},
+      %{id: "transport", label: gettext("Transport"), icon: "hero-server-stack"}
+    ] ++
+      if(mailbox_local?,
+        do: [%{id: "mailbox", label: gettext("Local Dev Mailbox"), icon: "hero-inbox"}],
+        else: []
+      ) ++
+      [
+        %{
+          id: "default_integration",
+          label: gettext("Default Integration"),
+          icon: "hero-paper-airplane"
+        },
+        %{id: "test_send", label: gettext("Test Send"), icon: "hero-paper-airplane"}
+      ] ++
+      Enum.map(email_settings_sections, fn section ->
+        %{id: "module_#{section.id}", label: section.title, icon: "hero-puzzle-piece"}
+      end)
   end
 
   # ---------------------------------------------------------------------------

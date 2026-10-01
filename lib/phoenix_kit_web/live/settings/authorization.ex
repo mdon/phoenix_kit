@@ -14,6 +14,7 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
   alias PhoenixKit.Utils.CssValue
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Actor
+  alias PhoenixKitWeb.Live.Settings.UrlTabs
 
   require Logger
 
@@ -58,19 +59,23 @@ defmodule PhoenixKitWeb.Live.Settings.Authorization do
       )
       |> assign(:show_media_selector, false)
       |> assign(:media_selection_target, nil)
-      |> assign(:active_tab, "branding")
       # Resolved when the selector opens — the host hook may create a folder.
       |> assign(:branding_scope_folder, nil)
 
     {:ok, socket}
   end
 
-  def handle_params(_params, _url, socket) do
-    {:noreply, socket}
+  # The tab lives in the URL (`?tab=sessions`); see `UrlTabs`.
+  def handle_params(params, _url, socket) do
+    {:noreply, assign(socket, :active_tab, UrlTabs.active(params, tabs()))}
   end
 
-  def handle_event("switch_settings_tab", %{"tab" => tab}, socket) do
-    {:noreply, assign(socket, :active_tab, tab)}
+  defp tabs do
+    [
+      %{id: "branding", label: gettext("Login Page Branding"), icon: "hero-paint-brush"},
+      %{id: "methods", label: gettext("Authentication Methods"), icon: "hero-key"},
+      %{id: "sessions", label: gettext("Sessions"), icon: "hero-user-group"}
+    ]
   end
 
   def handle_event("validate_settings", %{"settings" => settings_params}, socket) do

@@ -28,6 +28,7 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Settings do
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Json
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKitWeb.Live.Settings.UrlTabs
 
   @impl true
   def mount(params, _session, socket) do
@@ -73,19 +74,23 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Settings do
       |> assign(:static_routes_text, static_routes_text())
       |> assign(:static_routes_error, nil)
       |> assign(:extension_sources, build_extension_sources(Generator.get_sources()))
-      |> assign(:active_tab, "sources")
 
     {:ok, socket}
   end
 
+  # The tab lives in the URL (`?tab=configuration`); see `UrlTabs`.
   @impl true
-  def handle_params(_params, _url, socket) do
-    {:noreply, socket}
+  def handle_params(params, _url, socket) do
+    {:noreply, assign(socket, :active_tab, UrlTabs.active(params, tabs()))}
   end
 
-  @impl true
-  def handle_event("switch_settings_tab", %{"tab" => tab}, socket) do
-    {:noreply, assign(socket, :active_tab, tab)}
+  defp tabs do
+    [
+      %{id: "sources", label: gettext("Sources"), icon: "hero-circle-stack"},
+      %{id: "configuration", label: gettext("Configuration"), icon: "hero-cog-6-tooth"},
+      %{id: "actions", label: gettext("Quick Actions"), icon: "hero-bolt"},
+      %{id: "advanced", label: gettext("Advanced"), icon: "hero-wrench-screwdriver"}
+    ]
   end
 
   @impl true

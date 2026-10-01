@@ -47,15 +47,8 @@
 
           <.nav_tabs
             active_tab={@active_tab}
-            on_change="switch_settings_tab"
             variant={:border}
-            tabs={[
-              %{id: "identity", label: gettext("Site Identity"), icon: "hero-identification"},
-              %{id: "address", label: gettext("Site Address"), icon: "hero-globe-alt"},
-              %{id: "features", label: gettext("Features"), icon: "hero-adjustments-horizontal"},
-              %{id: "editor", label: gettext("Content Editor"), icon: "hero-pencil-square"},
-              %{id: "datetime", label: gettext("Date & Time"), icon: "hero-clock"}
-            ]}
+            tabs={UrlTabs.patch_links(tabs(), "/admin/settings")}
           />
 
           <div class={if @active_tab != "identity", do: "hidden"}>

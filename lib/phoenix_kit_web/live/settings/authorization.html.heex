@@ -79,13 +79,8 @@
 
           <.nav_tabs
             active_tab={@active_tab}
-            on_change="switch_settings_tab"
             variant={:border}
-            tabs={[
-              %{id: "branding", label: gettext("Login Page Branding"), icon: "hero-paint-brush"},
-              %{id: "methods", label: gettext("Authentication Methods"), icon: "hero-key"},
-              %{id: "sessions", label: gettext("Sessions"), icon: "hero-user-group"}
-            ]}
+            tabs={UrlTabs.patch_links(tabs(), "/admin/settings/authorization")}
           />
 
           <div class={if @active_tab != "branding", do: "hidden"}>

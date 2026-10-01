@@ -29,7 +29,7 @@ defmodule PhoenixKitWeb.Live.StorageProfilesUITest do
 
   defp settings(conn) do
     {:ok, view, _html} = live(conn, Routes.path("/admin/settings/media"))
-    render_click(view, "switch_settings_tab", %{"tab" => "profiles"})
+    render_patch(view, Routes.path("/admin/settings/media?tab=profiles"))
     view
   end
 
@@ -134,7 +134,7 @@ defmodule PhoenixKitWeb.Live.StorageProfilesUITest do
       {:ok, set} = VariantSets.create_variant_set(%{name: "Picked set"})
 
       {:ok, view, _html} = live(conn, Routes.path("/admin/settings/media"))
-      render_click(view, "switch_settings_tab", %{"tab" => "libraries"})
+      render_patch(view, Routes.path("/admin/settings/media?tab=libraries"))
 
       view
       |> form("#media-libraries-storage-#{library.uuid}", %{

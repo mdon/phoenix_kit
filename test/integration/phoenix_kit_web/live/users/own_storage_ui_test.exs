@@ -318,7 +318,7 @@ defmodule PhoenixKitWeb.Live.Users.OwnStorageUITest do
     {:ok, view, _html} =
       live(log_in_user(build_conn(), admin), Routes.path("/admin/settings/media"))
 
-    render_click(view, "switch_settings_tab", %{"tab" => "libraries"})
+    render_patch(view, Routes.path("/admin/settings/media?tab=libraries"))
   end
 
   describe "removing the connection a library's bucket uses" do

@@ -42,12 +42,25 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.SettingsTabsTest do
     refute tab_visible?(html, "media-tab-tools")
   end
 
+  test "a tab is in the URL, so opening it directly (or refreshing) keeps it", %{conn: conn} do
+    {:ok, _view, html} = live(admin_conn(conn), @media_settings_path <> "?tab=tools")
+
+    refute tab_visible?(html, "media-tab-buckets")
+    assert tab_visible?(html, "media-tab-tools")
+  end
+
+  test "an unknown tab opens Buckets", %{conn: conn} do
+    {:ok, _view, html} = live(admin_conn(conn), @media_settings_path <> "?tab=nope")
+
+    assert tab_visible?(html, "media-tab-buckets")
+  end
+
   test "switching to Configuration reveals it and hides the others", %{conn: conn} do
     {:ok, view, _html} = live(admin_conn(conn), @media_settings_path)
 
     html =
       view
-      |> element("button[phx-value-tab=configuration]")
+      |> element("a[role=tab][href$=\"tab=configuration\"]")
       |> render_click()
 
     refute tab_visible?(html, "media-tab-buckets")
@@ -61,7 +74,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.SettingsTabsTest do
 
     html =
       view
-      |> element("button[phx-value-tab=tools]")
+      |> element("a[role=tab][href$=\"tab=tools\"]")
       |> render_click()
 
     refute tab_visible?(html, "media-tab-buckets")
@@ -76,7 +89,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.SettingsTabsTest do
 
     html =
       view
-      |> element("button[role=tab][phx-value-tab=external_libraries]")
+      |> element("a[role=tab][href$=\"tab=external_libraries\"]")
       |> render_click()
 
     assert tab_visible?(html, "media-tab-external-libraries")
@@ -98,7 +111,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.SettingsTabsTest do
 
     html_after =
       view
-      |> element("button[phx-value-tab=tools]")
+      |> element("a[role=tab][href$=\"tab=tools\"]")
       |> render_click()
 
     assert html_after =~ "Not found on this server" == before_tools

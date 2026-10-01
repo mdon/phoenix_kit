@@ -24,6 +24,7 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
   alias PhoenixKit.WebsiteAccess
   alias PhoenixKit.WebsiteAccess.{AllowedAddresses, Gate, Redirect}
   alias PhoenixKitWeb.Actor
+  alias PhoenixKitWeb.Live.Settings.UrlTabs
   alias PhoenixKitWeb.Plugs.WebsiteAccess, as: AccessPlug
   alias PhoenixKitWeb.TableColumns, as: ColumnPrefs
 
@@ -64,16 +65,20 @@ defmodule PhoenixKitWeb.Live.Settings.WebsiteAccess do
       |> assign(:show_column_modal, false)
       |> assign(:attempt_columns, ColumnPrefs.load(Actor.uuid(socket), attempt_columns_spec()))
       |> assign(:site_zone, Settings.get_setting_cached("time_zone", "0"))
-      |> assign(:active_tab, "gate")
       |> assign_state()
 
     {:ok, socket}
   end
 
-  def handle_params(_params, _url, socket), do: {:noreply, socket}
+  # The tab lives in the URL (`?tab=redirect`); see `UrlTabs`.
+  def handle_params(params, _url, socket) do
+    {:noreply, assign(socket, :active_tab, UrlTabs.active(params, tabs(socket.assigns.features)))}
+  end
 
-  def handle_event("switch_settings_tab", %{"tab" => tab}, socket) do
-    {:noreply, assign(socket, :active_tab, tab)}
+  defp tabs(features) do
+    Enum.map(features, fn feature ->
+      %{id: to_string(feature.key), label: feature.label, icon: feature_icon(feature.key)}
+    end)
   end
 
   # ── Feature checkboxes ─────────────────────────────────────────────

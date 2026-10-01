@@ -19,6 +19,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Actor
+  alias PhoenixKitWeb.Live.Settings.UrlTabs
 
   def mount(_params, _session, socket) do
     # Get current path for navigation
@@ -80,13 +81,28 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
       |> assign(:image_edit_mode, image_edit_mode)
       |> assign(:form_image_edit_mode, image_edit_mode)
       |> assign(:external_tools, Dependencies.external_tools())
-      |> assign(:active_tab, "buckets")
 
     {:ok, socket}
   end
 
-  def handle_event("switch_settings_tab", %{"tab" => tab}, socket) do
-    {:noreply, assign(socket, :active_tab, tab)}
+  # The tab lives in the URL (`?tab=libraries`); see `UrlTabs`.
+  def handle_params(params, _url, socket) do
+    {:noreply, assign(socket, :active_tab, UrlTabs.active(params, tabs()))}
+  end
+
+  defp tabs do
+    [
+      %{id: "buckets", label: gettext("Buckets"), icon: "hero-inbox-stack"},
+      %{id: "profiles", label: gettext("Storage profiles"), icon: "hero-server-stack"},
+      %{id: "libraries", label: gettext("Libraries"), icon: "hero-rectangle-stack"},
+      %{id: "configuration", label: gettext("Configuration"), icon: "hero-cog-6-tooth"},
+      %{id: "tools", label: gettext("Tools"), icon: "hero-wrench-screwdriver"},
+      %{
+        id: "external_libraries",
+        label: gettext("External libraries"),
+        icon: "hero-command-line"
+      }
+    ]
   end
 
   def handle_event("recheck_external_tools", _params, socket) do
@@ -577,14 +593,12 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
       <span class="text-sm">
         {gettext("Not found on this server: %{tools}.", tools: Enum.map_join(@tools, ", ", & &1.name))}
       </span>
-      <button
-        type="button"
-        phx-click="switch_settings_tab"
-        phx-value-tab="external_libraries"
+      <.link
+        patch={Routes.path("/admin/settings/media?tab=external_libraries")}
         class="btn btn-ghost btn-xs"
       >
         {gettext("Details")}
-      </button>
+      </.link>
     </div>
     """
   end

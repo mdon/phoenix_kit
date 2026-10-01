@@ -13,6 +13,7 @@ defmodule PhoenixKitWeb.Live.Settings.Organization do
   alias PhoenixKit.Utils.CountryData
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKitWeb.Live.Settings.UrlTabs
 
   @default_company_info %{
     "name" => "",
@@ -51,7 +52,6 @@ defmodule PhoenixKitWeb.Live.Settings.Organization do
       |> assign(:page_section_path, Routes.path("/admin/settings"))
       |> assign(:project_title, project_title)
       |> assign(:current_path, get_current_path(socket.assigns.current_locale_base))
-      |> assign(:active_tab, "company")
       # Kept out of load_settings/1 on purpose: that runs on every save AND
       # on the PubSub broadcast from any OTHER admin session's edit, and
       # neither should be able to slam this session's own open modal shut.
@@ -62,8 +62,19 @@ defmodule PhoenixKitWeb.Live.Settings.Organization do
     {:ok, socket}
   end
 
-  def handle_params(_params, _url, socket) do
-    {:noreply, socket}
+  # The tab lives in the URL (`?tab=sessions`); see `UrlTabs`.
+  def handle_params(params, _url, socket) do
+    {:noreply, assign(socket, :active_tab, UrlTabs.active(params, tabs()))}
+  end
+
+  defp tabs do
+    [
+      %{id: "company", label: gettext("Company Information"), icon: "hero-building-office-2"},
+      %{id: "countries", label: gettext("Main Countries"), icon: "hero-map-pin"},
+      %{id: "bank", label: gettext("Bank Accounts"), icon: "hero-building-library"},
+      %{id: "tax", label: gettext("Tax Settings"), icon: "hero-receipt-percent"},
+      %{id: "site_url", label: gettext("Site URL"), icon: "hero-globe-alt"}
+    ]
   end
 
   defp load_settings(socket) do
@@ -189,10 +200,6 @@ defmodule PhoenixKitWeb.Live.Settings.Organization do
   # ===================================
   # EVENT HANDLERS
   # ===================================
-
-  def handle_event("switch_settings_tab", %{"tab" => tab}, socket) do
-    {:noreply, assign(socket, :active_tab, tab)}
-  end
 
   def handle_event("country_changed", %{"company_country" => country_code}, socket) do
     # Update suggested tax rate when country changes

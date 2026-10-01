@@ -16,20 +16,8 @@
 
     <.nav_tabs
       active_tab={@active_tab}
-      on_change="switch_settings_tab"
       variant={:border}
-      tabs={[
-        %{id: "buckets", label: gettext("Buckets"), icon: "hero-inbox-stack"},
-        %{id: "profiles", label: gettext("Storage profiles"), icon: "hero-server-stack"},
-        %{id: "libraries", label: gettext("Libraries"), icon: "hero-rectangle-stack"},
-        %{id: "configuration", label: gettext("Configuration"), icon: "hero-cog-6-tooth"},
-        %{id: "tools", label: gettext("Tools"), icon: "hero-wrench-screwdriver"},
-        %{
-          id: "external_libraries",
-          label: gettext("External libraries"),
-          icon: "hero-command-line"
-        }
-      ]}
+      tabs={UrlTabs.patch_links(tabs(), "/admin/settings/media")}
     />
 
     <div id="media-tab-buckets" class={@active_tab != "buckets" && "hidden"}>

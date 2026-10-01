@@ -1,3 +1,20 @@
+## Unreleased
+
+### Changed
+
+- **Settings → Integrations is split into tabs.** "Connections" and "Personal integrations" (which
+  services users may connect on their own) are tabs of the page; the encryption key warning stays
+  above them, so it is seen whichever one is open.
+- **The tab of a settings page is in the URL.** General (`/admin/settings`), Users, Authorization,
+  Organization, Website access, Emails Transactional, Integrations, Crawlers, Media and Sitemap kept the
+  active tab only in the page's state, so a refresh went back to the first tab and a tab could not be
+  linked to or reached with the browser's Back button. Each tab now has its own URL
+  (`/admin/settings/users?tab=sessions`); the first tab's URL carries no query and an unknown `?tab=`
+  opens it. The tabs patch, so the page is not reloaded and unsaved edits in a hidden tab are kept.
+  `PhoenixKitWeb.Live.Settings.UrlTabs` (`active/2`, `patch_links/2`) is the shared helper. The
+  `switch_settings_tab` event is gone from these pages; the Media page's "Details" link on the
+  missing-tools warning is a link to `?tab=external_libraries` now.
+
 ## 2.44.0 - 2026-10-01
 
 ### Added

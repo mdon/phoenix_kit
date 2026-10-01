@@ -14,13 +14,8 @@
     <%!-- Features --%>
     <.nav_tabs
       active_tab={@active_tab}
-      on_change="switch_settings_tab"
       variant={:border}
-      tabs={
-        Enum.map(@features, fn feature ->
-          %{id: to_string(feature.key), label: feature.label, icon: feature_icon(feature.key)}
-        end)
-      }
+      tabs={UrlTabs.patch_links(tabs(@features), "/admin/settings/website-access")}
     />
 
     <div

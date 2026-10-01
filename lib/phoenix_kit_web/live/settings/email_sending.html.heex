@@ -13,29 +13,12 @@
   <div class="flex flex-col px-4 py-6 gap-6">
     <.nav_tabs
       active_tab={@active_tab}
-      on_change="switch_settings_tab"
       variant={:border}
       tabs={
-        [
-          %{id: "identity", label: gettext("Sender Identity"), icon: "hero-identification"},
-          %{id: "branding", label: gettext("Branding"), icon: "hero-swatch"},
-          %{id: "transport", label: gettext("Transport"), icon: "hero-server-stack"}
-        ] ++
-          if(@mailbox_local?,
-            do: [%{id: "mailbox", label: gettext("Local Dev Mailbox"), icon: "hero-inbox"}],
-            else: []
-          ) ++
-          [
-            %{
-              id: "default_integration",
-              label: gettext("Default Integration"),
-              icon: "hero-paper-airplane"
-            },
-            %{id: "test_send", label: gettext("Test Send"), icon: "hero-paper-airplane"}
-          ] ++
-          Enum.map(@email_settings_sections, fn section ->
-            %{id: "module_#{section.id}", label: section.title, icon: "hero-puzzle-piece"}
-          end)
+        UrlTabs.patch_links(
+          tabs(@mailbox_local?, @email_settings_sections),
+          "/admin/settings/email-sending"
+        )
       }
     />
 

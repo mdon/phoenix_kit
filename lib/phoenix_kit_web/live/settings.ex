@@ -16,6 +16,7 @@ defmodule PhoenixKitWeb.Live.Settings do
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Utils.TimeZone
   alias PhoenixKitWeb.Actor
+  alias PhoenixKitWeb.Live.Settings.UrlTabs
 
   require Logger
 
@@ -65,7 +66,6 @@ defmodule PhoenixKitWeb.Live.Settings do
       |> assign(:page_subtitle, gettext("Configure system preferences and options"))
       |> assign(:page_section, gettext("Settings"))
       |> assign(:page_section_path, Routes.path("/admin/settings"))
-      |> assign(:active_tab, "identity")
       |> assign(:settings, merged_settings)
       # Track saved values separately
       |> assign(:saved_settings, merged_settings)
@@ -84,12 +84,19 @@ defmodule PhoenixKitWeb.Live.Settings do
     {:ok, socket}
   end
 
-  def handle_params(_params, _url, socket) do
-    {:noreply, socket}
+  # The tab lives in the URL (`?tab=sessions`); see `UrlTabs`.
+  def handle_params(params, _url, socket) do
+    {:noreply, assign(socket, :active_tab, UrlTabs.active(params, tabs()))}
   end
 
-  def handle_event("switch_settings_tab", %{"tab" => tab}, socket) do
-    {:noreply, assign(socket, :active_tab, tab)}
+  defp tabs do
+    [
+      %{id: "identity", label: gettext("Site Identity"), icon: "hero-identification"},
+      %{id: "address", label: gettext("Site Address"), icon: "hero-globe-alt"},
+      %{id: "features", label: gettext("Features"), icon: "hero-adjustments-horizontal"},
+      %{id: "editor", label: gettext("Content Editor"), icon: "hero-pencil-square"},
+      %{id: "datetime", label: gettext("Date & Time"), icon: "hero-clock"}
+    ]
   end
 
   def handle_event("validate_settings", %{"settings" => settings_params}, socket) do
