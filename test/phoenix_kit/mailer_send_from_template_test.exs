@@ -71,6 +71,21 @@ defmodule PhoenixKit.MailerSendFromTemplateTest do
       end)
     end
 
+    @tag :tmp_dir
+    test "an empty html file alone is no message, with or without the layout",
+         %{tmp_dir: root} do
+      write(root, "empty_only_probe", "html.html", "")
+
+      for layout <- [true, false] do
+        assert Mailer.send_from_template("empty_only_probe", "a@b.c", %{},
+                 paths: [root],
+                 layout: layout
+               ) == {:error, :template_not_found}
+      end
+
+      refute_email_sent()
+    end
+
     test "layout: false sends text-only content as text only" do
       assert {:ok, _} =
                Mailer.send_from_template("layout_off_probe", "a@b.c", %{},

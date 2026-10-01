@@ -44,7 +44,7 @@ defmodule PhoenixKit.Email.Content do
   Content resolved from a file or a default is wrapped in the shared HTML
   layout, `PhoenixKit.Email.Layout`, which a host overrides with its own
   `_layout/html.html`. Only the `html` part changes; `subject` and `text` are
-  returned as resolved.
+  returned as resolved (a blank part aside, below).
 
     * `html` is a fragment — it is wrapped.
     * `html` is `nil` — the text is turned into HTML (escaped, paragraphs,
@@ -53,10 +53,12 @@ defmodule PhoenixKit.Email.Content do
     * `html` is a whole document (`<!doctype …` or `<html …`, after any BOM,
       whitespace, comments or XML prolog; `Layout.document?/1`) — it is left
       alone; it already carries its own chrome.
-    * both `html` and `text` are `nil` or blank — nothing to wrap, `html` is
-      `nil`. A blank `html` (an empty override file) counts as `nil`, so the
-      text is wrapped instead.
+    * both `html` and `text` are `nil` — nothing to wrap, `html` stays `nil`.
     * `layout: false` — nothing is wrapped.
+
+  A blank `html` or `text` (an empty override file, whitespace only) is
+  returned as `nil`, with or without the layout, so an empty `html.html`
+  never sends an empty body: the text is wrapped instead.
 
   A database template (layer 1) is never wrapped.
 
@@ -116,6 +118,7 @@ defmodule PhoenixKit.Email.Content do
           )
 
         rendered
+        |> drop_blank_parts()
         |> maybe_wrap(Keyword.get(opts, :layout, true), locale: locale, paths: paths)
         |> Map.put(:db_template, nil)
 
@@ -137,28 +140,31 @@ defmodule PhoenixKit.Email.Content do
     end
   end
 
+  # A blank part (an empty override file) is no part, with or without the
+  # layout, so whether a message exists never depends on the layout.
+  defp drop_blank_parts(rendered) do
+    %{
+      rendered
+      | html: if(present?(rendered.html), do: rendered.html),
+        text: if(present?(rendered.text), do: rendered.text)
+    }
+  end
+
   # The html part is the only one the layout touches: subject and text reach
-  # the reader exactly as resolved. A blank part (an empty override file) counts
-  # as absent. With neither html nor text there is no message to wrap, and
-  # leaving html nil is what keeps an unknown name answering
-  # `{:error, :template_not_found}` in `Mailer.send_from_template/4`.
+  # the reader exactly as resolved. With neither html nor text there is no
+  # message to wrap, and leaving html nil is what keeps an unknown name
+  # answering `{:error, :template_not_found}` in `Mailer.send_from_template/4`.
   defp maybe_wrap(rendered, false, _opts), do: rendered
+  defp maybe_wrap(%{html: nil, text: nil} = rendered, _layout, _opts), do: rendered
 
-  defp maybe_wrap(rendered, _layout, opts) do
-    cond do
-      present?(rendered.html) and Layout.document?(rendered.html) ->
-        rendered
+  defp maybe_wrap(%{html: nil, text: text} = rendered, _layout, opts) do
+    %{rendered | html: text |> Layout.text_to_html() |> Layout.wrap(rendered.subject, opts)}
+  end
 
-      present?(rendered.html) ->
-        %{rendered | html: Layout.wrap(rendered.html, rendered.subject, opts)}
-
-      present?(rendered.text) ->
-        html = rendered.text |> Layout.text_to_html() |> Layout.wrap(rendered.subject, opts)
-        %{rendered | html: html}
-
-      true ->
-        %{rendered | html: nil}
-    end
+  defp maybe_wrap(%{html: html} = rendered, _layout, opts) do
+    if Layout.document?(html),
+      do: rendered,
+      else: %{rendered | html: Layout.wrap(html, rendered.subject, opts)}
   end
 
   defp present?(part), do: is_binary(part) and String.trim(part) != ""

@@ -31,11 +31,14 @@ defmodule PhoenixKit.Email.Layout do
 
   Locale selection, roots and caching are exactly those of the message itself
   (`PhoenixKit.Templates`). The layout's `subject` and `text` parts are never
-  read. A layout with no `content` placeholder (an empty file, a typo such as
-  `{{{contnet}}}`) would drop the body of every email, so it is refused: a
-  warning is logged and core's default is used instead. Finding a file under a name that starts with `_` needs
+  read. Finding a file under a name that starts with `_` needs
   `phoenix_kit_templates` 0.2.1 or later; older releases skip such names and
   core's default is used.
+
+  A layout with no `content` placeholder (an empty file, a typo such as
+  `{{{contnet}}}`) would drop the body of every email, so it is refused:
+  core's default is used instead, and a warning is logged once per override
+  roots and locale for the life of the VM.
 
   ## Variables
 
@@ -94,7 +97,8 @@ defmodule PhoenixKit.Email.Layout do
   ## Options
 
     * `:locale` — becomes the document's `lang` attribute when it is a
-      well-formed language tag; omitted otherwise.
+      well-formed language tag (`pt_BR` is written `pt-BR`); omitted
+      otherwise.
     * `:link` — `false` prints `{{site_url}}` in the footer as text instead of
       a link. Default `true`.
   """
@@ -147,7 +151,8 @@ defmodule PhoenixKit.Email.Layout do
 
   Every character of `text` is escaped. A blank line separates paragraphs,
   each a `<p>`; a single line break becomes `<br>`. An `http://` or `https://`
-  address becomes a link — it ends at any whitespace (Unicode included) or
+  address becomes a link — it ends at any whitespace (Unicode and zero-width
+  included), typographic quotes and guillemets, dashes, an ellipsis, or
   CJK/fullwidth punctuation, and trailing sentence punctuation and unbalanced
   closing parentheses stay outside it. No other scheme becomes a link, so
   `javascript:` and friends remain text, and neither does an address longer
@@ -193,10 +198,7 @@ defmodule PhoenixKit.Email.Layout do
     if places_content?(defaults, variables, render_opts) do
       Templates.render(@name, defaults, variables, render_opts).html
     else
-      Logger.warning(
-        "Email layout #{@name}/html for locale #{inspect(locale)} in #{inspect(paths)} " <>
-          "has no {{{content}}} placeholder; using PhoenixKit's default layout instead"
-      )
+      warn_once_without_content(paths, locale)
 
       Templates.render(@name, defaults, variables, locale: locale, paths: []).html
     end
@@ -241,13 +243,37 @@ defmodule PhoenixKit.Email.Layout do
     end
   end
 
-  defp lang_attribute(locale) when is_binary(locale) do
-    if Regex.match?(~r/\A[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8}){0,3}\z/, locale),
-      do: ~s( lang="#{escape(locale)}"),
-      else: ""
+  # The layout is resolved on every send, so a broken one would log on every
+  # send. One warning per (roots, locale) is enough to be seen; the keys are
+  # bounded by the configured roots times the well-formed language tags.
+  defp warn_once_without_content(paths, locale) do
+    key = {__MODULE__, :warned_without_content, paths, language_tag(locale)}
+
+    unless :persistent_term.get(key, false) do
+      :persistent_term.put(key, true)
+
+      Logger.warning(
+        "Email layout #{@name}/html for locale #{inspect(locale)} in #{inspect(paths)} " <>
+          "has no {{{content}}} placeholder; using PhoenixKit's default layout instead"
+      )
+    end
   end
 
-  defp lang_attribute(_locale), do: ""
+  defp lang_attribute(locale) do
+    case language_tag(locale) do
+      nil -> ""
+      tag -> ~s( lang="#{escape(tag)}")
+    end
+  end
+
+  # A locale as an HTML language tag: `pt_BR` is written `pt-BR`. Anything that
+  # is not a well-formed tag is no tag at all.
+  defp language_tag(locale) when is_binary(locale) do
+    tag = String.replace(locale, "_", "-")
+    if Regex.match?(~r/\A[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8}){0,3}\z/, tag), do: tag
+  end
+
+  defp language_tag(_locale), do: nil
 
   defp http_url?(url), do: Regex.match?(~r{\Ahttps?://[^\s]}i, url)
 
@@ -257,7 +283,7 @@ defmodule PhoenixKit.Email.Layout do
   # Unicode and is escaped whole.
   defp linkify(line) do
     if String.valid?(line) do
-      ~r|https?://[^\s\p{Z}<>"\N{U+3000}-\N{U+303F}\N{U+FF01}-\N{U+FF65}]+|iu
+      ~r/https?:\/\/[^\s\p{Z}<>"\x{00AB}\x{00BB}\x{200B}-\x{200D}\x{2010}-\x{2027}\x{2060}\x{FEFF}\x{3000}-\x{303F}\x{FF01}-\x{FF65}]+/iu
       |> Regex.split(line, include_captures: true)
       |> Enum.with_index()
       |> Enum.map_join(fn

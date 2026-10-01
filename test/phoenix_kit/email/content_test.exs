@@ -197,14 +197,26 @@ defmodule PhoenixKit.Email.ContentTest do
       assert html =~ "from text</p>"
     end
 
-    test "blank html and blank text leave no html at all" do
+    test "blank html and blank text resolve to nil" do
       resolved =
         Content.resolve("blank_probe", user("en"), %{}, fn ->
           %{subject: "s", text: "", html: "  \n"}
         end)
 
       assert resolved.html == nil
-      assert resolved.text == ""
+      assert resolved.text == nil
+    end
+
+    test "a blank part is no part without the layout either", %{tmp_dir: root} do
+      write(root, "blank_off_probe", "html.html", "")
+
+      resolved =
+        Content.resolve("blank_off_probe", user("en"), %{}, fn -> %{subject: "s", text: " "} end,
+          paths: [root],
+          layout: false
+        )
+
+      assert %{html: nil, text: nil} = resolved
     end
 
     @tag skip: @needs_underscore_names

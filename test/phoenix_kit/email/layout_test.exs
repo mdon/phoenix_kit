@@ -82,8 +82,25 @@ defmodule PhoenixKit.Email.LayoutTest do
     end
 
     test "non-ASCII letters stay part of the address" do
-      assert Layout.text_to_html("https://ru.wikipedia.org/wiki/Москва") =~
-               ~s(<a href="https://ru.wikipedia.org/wiki/Москва">)
+      assert Layout.text_to_html("https://de.wikipedia.org/wiki/Köln") =~
+               ~s(<a href="https://de.wikipedia.org/wiki/Köln">)
+    end
+
+    test "an address ends at typographic quotes, guillemets, dashes, an ellipsis" do
+      for {text, after_link} <- [
+            {"«https://a.test/x»", "</a>»"},
+            {"“https://a.test/x”", "</a>”"},
+            {"‘https://a.test/x’", "</a>’"},
+            {"https://a.test/x…", "</a>…"},
+            {"https://a.test/x—next", "</a>—next"},
+            {"https://a.test/x–next", "</a>–next"},
+            {"https://a.test/x\u200Bnext", "</a>\u200Bnext"}
+          ] do
+        html = Layout.text_to_html(text)
+
+        assert html =~ ~s(<a href="https://a.test/x">https://a.test/x) <> after_link,
+               "#{inspect(text)}: #{html}"
+      end
     end
 
     test "a long run of punctuation after an address neither raises nor stalls" do
@@ -176,6 +193,7 @@ defmodule PhoenixKit.Email.LayoutTest do
     test "names the document's language only for a well-formed tag" do
       assert Layout.default_html(locale: "de") =~ ~s(<html lang="de">)
       assert Layout.default_html(locale: "pt-BR") =~ ~s(<html lang="pt-BR">)
+      assert Layout.default_html(locale: "pt_BR") =~ ~s(<html lang="pt-BR">)
       assert Layout.default_html() =~ "<html>\n"
       assert Layout.default_html(locale: ~s(de" onload="x)) =~ "<html>\n"
     end
@@ -276,6 +294,12 @@ defmodule PhoenixKit.Email.LayoutTest do
         end)
 
       assert log =~ "has no {{{content}}} placeholder"
+
+      # Once per roots and locale, not on every send.
+      assert capture_log(fn -> Layout.wrap("<p>again</p>", "s", paths: [root]) end) == ""
+
+      assert capture_log(fn -> Layout.wrap("<p>x</p>", "s", paths: [root], locale: "de") end) =~
+               "has no {{{content}}} placeholder"
     end
 
     @tag skip: @needs_underscore_names

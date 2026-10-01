@@ -56,13 +56,15 @@ Every email built from a file or a default is sent with an HTML body inside a
 shared layout. PhoenixKit's own layout is deliberately plain: the site's name
 above the message, the name and a link to the site below it — table markup
 with inline styles, no colours of any brand, no images, and no words of its
-own, so it needs no translation. Its `<html lang>` is the reader's locale.
+own, so it needs no translation. Its `<html lang>` is the reader's locale
+(`pt_BR` written as `pt-BR`).
 
 - An email with only a `text` part gets its HTML body built from the text:
   every character escaped, a blank line starts a paragraph, a line break
   becomes `<br>`, and `http://`/`https://` addresses become links (no other
   scheme does, and neither does an address longer than 2 KB). The `text`
-  body is sent unchanged next to it. An empty part counts as missing.
+  body is sent unchanged next to it. An empty or whitespace-only part counts
+  as missing, with or without the layout.
 - An `html` part that is a fragment (`<p>…</p>`) is placed inside the layout.
 - An `html` part that is a whole document — starting with `<!doctype` or
   `<html`, after any byte-order mark, whitespace, comments or `<?xml ?>`
@@ -88,8 +90,9 @@ it wraps. Only `html` is read. Finding `_layout` needs
 
 A layout with no `content` placeholder — an empty file, or a typo such as
 `{{{contnet}}}` — would drop the body of every email, the password reset
-included. PhoenixKit refuses it: it logs a warning on each send and uses its
-own layout until the file is fixed.
+included. PhoenixKit refuses it: it uses its own layout until the file is
+fixed, and logs a warning the first time (once per directory list and
+language until the next restart).
 
 Variables available to the layout:
 
