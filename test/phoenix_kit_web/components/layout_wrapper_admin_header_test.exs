@@ -179,6 +179,42 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
     refute binary_part(header, toolbar_at - 120, 120) =~ "[&>*]:btn"
   end
 
+  test "page_action is an icon-only circle unless show_label writes the label beside it" do
+    assigns = %{scope: owner_scope()}
+
+    render = fn action ->
+      assigns = Map.put(assigns, :action, action)
+
+      ~H"""
+      <LayoutWrapper.app_layout
+        flash={%{}}
+        socket={nil}
+        current_path="/admin"
+        page_title="Copper"
+        page_action={@action}
+        project_title="Acme"
+        phoenix_kit_current_scope={@scope}
+      >
+        <span>body</span>
+      </LayoutWrapper.app_layout>
+      """
+      |> rendered_to_string()
+    end
+
+    link = fn html ->
+      [tag] = Regex.run(~r{<a[^>]*href="/admin/new"[^>]*>.*?</a>}s, html)
+      tag
+    end
+
+    circle = link.(render.(%{label: "New template", navigate: "/admin/new"}))
+    assert circle =~ "btn-circle"
+    refute circle =~ ">New template<"
+
+    labelled = link.(render.(%{label: "New template", navigate: "/admin/new", show_label: true}))
+    assert labelled =~ "max-sm:btn-circle"
+    assert labelled =~ ~r{<span class="hidden sm:inline">\s*New template\s*</span>}
+  end
+
   test "render_page_toolbar/1 renders {Module, :fun} with the page's assigns, nil without one" do
     rendered =
       LayoutWrapper.render_page_toolbar(%{

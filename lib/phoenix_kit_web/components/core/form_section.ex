@@ -54,7 +54,12 @@ defmodule PhoenixKitWeb.Components.Core.FormSection do
 
   import PhoenixKitWeb.Components.Core.Icon, only: [icon: 1]
 
-  attr :title, :string, required: true
+  attr :title, :string,
+    default: nil,
+    doc:
+      "The card's heading. Optional: a card holding a single form (a page's " <>
+        "only section) reads fine without one, and no empty heading row is drawn."
+
   attr :icon, :string, default: nil
   attr :class, :string, default: nil
   attr :body_class, :string, default: nil
@@ -71,12 +76,13 @@ defmodule PhoenixKitWeb.Components.Core.FormSection do
     <section class={["card bg-base-100 shadow-lg", @class]} {@rest}>
       <div class={["card-body", @body_class]}>
         <div :if={@actions != []} class="flex items-start justify-between gap-3">
-          <h2 class="card-title text-lg">
+          <h2 :if={@title} class="card-title text-lg">
             <.icon :if={@icon} name={@icon} class="w-5 h-5" /> {@title}
           </h2>
+          <div :if={!@title}></div>
           <div class="shrink-0 flex items-center gap-2">{render_slot(@actions)}</div>
         </div>
-        <h2 :if={@actions == []} class="card-title text-lg">
+        <h2 :if={@actions == [] and @title} class="card-title text-lg">
           <.icon :if={@icon} name={@icon} class="w-5 h-5" /> {@title}
         </h2>
         <p :if={@subtitle != []} class="text-sm text-base-content/60 -mt-1">

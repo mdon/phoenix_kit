@@ -111,7 +111,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   attr :page_action, :map,
     default: nil,
     doc:
-      "Optional compact action button rendered right after the breadcrumb title: `%{icon: \"hero-plus\", label: \"New template\", navigate: path}`. Lets a page keep its primary create action without spending an in-content header row. `label` becomes the tooltip/aria-label; `icon` defaults to hero-plus. Navigation only, by design: it renders a real link, so middle-click, open-in-new-tab and copy-link keep working. For anything interactive — a `phx-click`, a modal, a `JS` command — use `page_toolbar: {Module, :fun}` on the socket (see the `:toolbar` slot), which reaches every page including plugin LiveViews rendered through the admin layout. Do not add click handling to this map."
+      "Optional compact action button rendered right after the breadcrumb title: `%{icon: \"hero-plus\", label: \"New template\", navigate: path}`. Lets a page keep its primary create action without spending an in-content header row. `label` becomes the tooltip/aria-label; `icon` defaults to hero-plus. With `show_label: true` the label is written beside the icon (hidden on narrow screens, where the circle stays), for a page whose primary action should read as one. Navigation only, by design: it renders a real link, so middle-click, open-in-new-tab and copy-link keep working. For anything interactive — a `phx-click`, a modal, a `JS` command — use `page_toolbar: {Module, :fun}` on the socket (see the `:toolbar` slot), which reaches every page including plugin LiveViews rendered through the admin layout. Do not add click handling to this map."
 
   attr :current_path, :string, default: nil
   attr :inner_content, :string, default: nil
@@ -1129,7 +1129,13 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       <.link
                         :if={@action == [] and @page_action}
                         navigate={@page_action[:navigate]}
-                        class="btn btn-xs btn-primary btn-circle shrink-0"
+                        class={[
+                          "btn btn-xs btn-primary shrink-0",
+                          if(@page_action[:show_label],
+                            do: "max-sm:btn-circle sm:gap-1",
+                            else: "btn-circle"
+                          )
+                        ]}
                         title={@page_action[:label]}
                         aria-label={@page_action[:label]}
                       >
@@ -1137,6 +1143,9 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                           name={@page_action[:icon] || "hero-plus"}
                           class="w-4 h-4"
                         />
+                        <span :if={@page_action[:show_label]} class="hidden sm:inline">
+                          {@page_action[:label]}
+                        </span>
                       </.link>
                     </span>
                   </div>

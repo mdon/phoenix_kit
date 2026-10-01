@@ -39,6 +39,32 @@ defmodule PhoenixKitWeb.Components.Core.FormSectionActionsTest do
       assert length(:binary.matches(html, "card-title")) == 1
       refute html =~ "justify-between"
     end
+
+    test "without a title no heading is drawn, and actions still sit on the right" do
+      assigns = %{}
+
+      plain =
+        rendered_to_string(~H"""
+        <.form_section>
+          <p>body</p>
+        </.form_section>
+        """)
+
+      refute plain =~ "<h2"
+      assert plain =~ "<p>body</p>"
+
+      with_actions =
+        rendered_to_string(~H"""
+        <.form_section>
+          <:actions><button id="reset">Reset</button></:actions>
+          <p>body</p>
+        </.form_section>
+        """)
+
+      refute with_actions =~ "<h2"
+      assert with_actions =~ "justify-between"
+      assert with_actions =~ ~s(id="reset")
+    end
   end
 
   describe "form_actions submit_disabled" do
