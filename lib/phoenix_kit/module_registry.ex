@@ -151,6 +151,25 @@ defmodule PhoenixKit.ModuleRegistry do
     |> Enum.flat_map(&safe_call(&1, :email_settings_sections, []))
   end
 
+  @doc """
+  Collect the emails enabled modules send (`c:PhoenixKit.Module.email_templates/0`),
+  each tagged with `:module`, the module that declared it.
+
+  Enabled modules only, like `all_email_settings_sections/0`: a disabled
+  module sends nothing, so the preview has none of its emails to show.
+  """
+  @spec all_email_templates() :: [map()]
+  def all_email_templates do
+    enabled_modules()
+    |> Enum.flat_map(fn mod ->
+      mod
+      |> safe_call(:email_templates, [])
+      |> List.wrap()
+      |> Enum.filter(&is_map/1)
+      |> Enum.map(&Map.put(&1, :module, mod))
+    end)
+  end
+
   @doc "Collect all user dashboard tabs from all registered modules."
   @spec all_user_dashboard_tabs() :: [PhoenixKit.Dashboard.Tab.t()]
   def all_user_dashboard_tabs do

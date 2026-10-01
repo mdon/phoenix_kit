@@ -582,6 +582,7 @@ defmodule PhoenixKitWeb.Integration do
       # settings_tabs/0 + the module route generator below). A5 will collapse
       # the two into one page; until then they coexist under different paths.
       live "/admin/settings/email-sending", Live.Settings.EmailSending, :index
+      live "/admin/settings/email-sending/preview", Live.Settings.EmailPreview, :index
 
       # "Emails Bulk" — Send Profiles, promoted to a top-level Settings tab
       # (sibling of Emails Transactional, not nested under it): bulk/marketing

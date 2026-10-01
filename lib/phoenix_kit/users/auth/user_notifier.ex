@@ -29,6 +29,7 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
   import Swoosh.Email
 
   alias PhoenixKit.Email.Content
+  alias PhoenixKit.Email.CoreTemplates
   alias PhoenixKit.Email.Provider
   alias PhoenixKit.Mailer
   alias PhoenixKit.Users.LoginAttempts
@@ -122,21 +123,7 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
       user.email,
       "register",
       %{"user_email" => user.email, "confirmation_url" => url},
-      fn ->
-        %{
-          subject: gettext("Confirm your account"),
-          text:
-            gettext("""
-            Hi {{user_email}},
-
-            You can confirm your account by visiting the URL below:
-
-            {{confirmation_url}}
-
-            If you didn't create an account with us, please ignore this.
-            """)
-        }
-      end
+      &CoreTemplates.register_defaults/0
     )
   end
 
@@ -149,21 +136,7 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
       user.email,
       "reset_password",
       %{"user_email" => user.email, "reset_url" => url},
-      fn ->
-        %{
-          subject: gettext("Reset your password"),
-          text:
-            gettext("""
-            Hi {{user_email}},
-
-            You can reset your password by visiting the URL below:
-
-            {{reset_url}}
-
-            If you didn't request this change, please ignore this.
-            """)
-        }
-      end
+      &CoreTemplates.reset_password_defaults/0
     )
   end
 
@@ -176,21 +149,7 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
       user.email,
       "update_email",
       %{"user_email" => user.email, "update_url" => url},
-      fn ->
-        %{
-          subject: gettext("Confirm your email change"),
-          text:
-            gettext("""
-            Hi {{user_email}},
-
-            You can change your email by visiting the URL below:
-
-            {{update_url}}
-
-            If you didn't request this change, please ignore this.
-            """)
-        }
-      end
+      &CoreTemplates.update_email_defaults/0
     )
   end
 
@@ -210,25 +169,7 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
         "organization_name" => organization_name,
         "registration_url" => registration_url
       },
-      fn ->
-        %{
-          subject: gettext("You've been invited to join {{organization_name}}"),
-          text:
-            gettext("""
-            Hi {{user_email}},
-
-            {{organization_name}} has invited you to join their organization.
-
-            To accept the invitation, register an account by visiting the link below:
-
-            {{registration_url}}
-
-            This invitation link will expire in 7 days.
-
-            If you did not expect this invitation, you can safely ignore this email.
-            """)
-        }
-      end
+      &CoreTemplates.organization_invitation_defaults/0
     )
   end
 
@@ -250,23 +191,7 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
       email,
       "magic_link_registration",
       %{"user_email" => email, "registration_url" => url},
-      fn ->
-        %{
-          subject: gettext("Complete your registration"),
-          text:
-            gettext("""
-            Hi {{user_email}},
-
-            Welcome! To complete your registration, please visit the URL below:
-
-            {{registration_url}}
-
-            This link will expire in 30 minutes for your security.
-
-            If you didn't request this registration, please ignore this email.
-            """)
-        }
-      end
+      &CoreTemplates.magic_link_registration_defaults/0
     )
   end
 
@@ -292,7 +217,7 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
           "user_email" => user.email,
           "login_time" => login_time(user, attrs.first_seen_at),
           "ip_address" => attrs.ip_address,
-          "location" => location_line(attrs[:location]),
+          "location" => CoreTemplates.location_line(attrs[:location]),
           "browser_os" => (browser_os == "" && gettext("Unknown")) || browser_os,
           # The line that separates "my new laptop" from "someone finally
           # guessed it". Empty (not "0") when there is nothing to report, and
@@ -306,28 +231,13 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
         }
       end)
 
-    deliver_templated(user, user.email, "new_login_alert", variables, fn ->
-      %{
-        subject: gettext("New login to your account"),
-        text:
-          gettext("""
-          Hi {{user_email}},
-
-          We noticed a new login to your account from an unrecognized device:
-
-          Time: {{login_time}}
-          IP address: {{ip_address}}
-          Location: {{location}}
-          Device: {{browser_os}}
-
-          {{failed_attempts}}If this was you, no action is needed.
-
-          If you don't recognize this activity, secure your account here:
-
-          {{security_url}}
-          """)
-      }
-    end)
+    deliver_templated(
+      user,
+      user.email,
+      "new_login_alert",
+      variables,
+      &CoreTemplates.new_login_alert_defaults/0
+    )
   end
 
   @doc """
@@ -349,28 +259,13 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
         }
       end)
 
-    deliver_templated(user, user.email, "failed_login_alert", variables, fn ->
-      %{
-        subject: gettext("Failed sign-in attempts on your account"),
-        text:
-          gettext("""
-          Hi {{user_email}},
-
-          Someone has been trying to sign in to your account and failing.
-
-          Failed attempts: {{attempt_count}}
-          In the last: {{window_hours}} hour(s)
-
-          Nobody has signed in. You do not need to do anything if you recognize
-          this as your own mistyped password.
-
-          If you do not, your password may be being guessed. Change it to
-          something you do not use anywhere else:
-
-          {{security_url}}
-          """)
-      }
-    end)
+    deliver_templated(
+      user,
+      user.email,
+      "failed_login_alert",
+      variables,
+      &CoreTemplates.failed_login_alert_defaults/0
+    )
   end
 
   # 24 hours, not "since your last successful sign-in": the latter needs a
@@ -379,26 +274,8 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
   defp failed_attempts_note(user) do
     since = DateTime.add(DateTime.utc_now(), -86_400, :second)
 
-    case LoginAttempts.count_for_user_since(user, since) do
-      0 ->
-        ""
-
-      count ->
-        ngettext(
-          "There was also %{count} failed sign-in attempt on your account in the last 24 hours.",
-          "There were also %{count} failed sign-in attempts on your account in the last 24 hours.",
-          count
-        ) <> "\n\n"
-    end
+    user |> LoginAttempts.count_for_user_since(since) |> CoreTemplates.failed_attempts_note()
   end
-
-  # IP geolocation is city-accurate at best and routinely a hundred kilometres
-  # out. Saying so is the difference between a reader dismissing a genuine
-  # alert because the city looks wrong and a reader checking the device.
-  defp location_line(location) when is_binary(location) and location != "",
-    do: gettext("%{location} (approximate)", location: location)
-
-  defp location_line(_location), do: gettext("Unknown")
 
   # The line exists so the reader can answer "was that me?", which nobody can
   # do against UTC. Rendered in their own timezone (their preference, else the

@@ -95,6 +95,8 @@ defmodule PhoenixKit.Module do
   - `integration_providers/0` - Additional provider definitions this module contributes (default: `[]`).
   - `email_settings_sections/0` - Sections this module contributes to the core Emails
     Transactional settings page (default: `[]`).
+  - `email_templates/0` - Emails this module sends, for the admin email preview
+    (default: `[]`).
   - `media_reorganizer/0` - Module implementing
     `PhoenixKit.Modules.Storage.Reorganizer.Source` for this module's own
     records (default: `nil`).
@@ -522,6 +524,34 @@ defmodule PhoenixKit.Module do
   @callback email_settings_sections() :: [email_settings_section()]
 
   @doc """
+  Returns the emails this module sends, so the admin email preview
+  (`/admin/settings/email-sending/preview`) can list them next to core's.
+
+  Each entry is a `t:PhoenixKit.Email.Catalog.entry/0`: the template `name`
+  the module passes to `PhoenixKit.Mailer.send_from_template/4`, a `label`,
+  and — so the preview renders what a real send would — the same `defaults`
+  function the send uses, sample `variables`, and the `layout` option the
+  send passes. Collected via `PhoenixKit.ModuleRegistry.all_email_templates/0`
+  from **enabled** modules only; a name core already lists is ignored.
+
+  ## Example
+
+      @impl PhoenixKit.Module
+      def email_templates do
+        [%{
+          name: "billing_invoice",
+          label: gettext("Invoice"),
+          defaults: &MyModule.Emails.invoice_defaults/0,
+          variables: fn -> %{"invoice_number" => "INV-0001"} end,
+          layout: "billing"
+        }]
+      end
+
+  Modules that send no email skip this callback — the default is `[]`.
+  """
+  @callback email_templates() :: [PhoenixKit.Email.Catalog.entry()]
+
+  @doc """
   Returns the module implementing
   `PhoenixKit.Modules.Storage.Reorganizer.Source` for this module's own
   records, or `nil` if it has nothing to contribute.
@@ -563,6 +593,7 @@ defmodule PhoenixKit.Module do
     reserved_route_prefixes: 0,
     migrate_legacy: 0,
     email_settings_sections: 0,
+    email_templates: 0,
     media_reorganizer: 0
   ]
 
@@ -643,6 +674,9 @@ defmodule PhoenixKit.Module do
       def email_settings_sections, do: []
 
       @impl PhoenixKit.Module
+      def email_templates, do: []
+
+      @impl PhoenixKit.Module
       def media_reorganizer, do: nil
 
       defoverridable get_config: 0,
@@ -667,6 +701,7 @@ defmodule PhoenixKit.Module do
                      reserved_route_prefixes: 0,
                      migrate_legacy: 0,
                      email_settings_sections: 0,
+                     email_templates: 0,
                      media_reorganizer: 0
     end
   end

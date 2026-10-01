@@ -1,0 +1,294 @@
+defmodule PhoenixKit.Email.CatalogTest do
+  @moduledoc """
+  The email catalog: which emails the system knows, and their previews.
+
+  Core's emails come from `CoreTemplates`; modules add theirs through
+  `email_templates/0`. A preview runs the same resolution as a send, so the
+  checks here pin both the list and that the send and the preview share one
+  copy.
+  """
+
+  use PhoenixKit.DataCase, async: false
+
+  import Swoosh.TestAssertions
+
+  alias PhoenixKit.Email.Catalog
+  alias PhoenixKit.Email.Content
+  alias PhoenixKit.Email.CoreTemplates
+  alias PhoenixKit.Mailer
+  alias PhoenixKit.ModuleRegistry
+  alias PhoenixKit.Templates
+  alias PhoenixKit.Users.Auth.User
+  alias PhoenixKit.Users.Auth.UserNotifier
+  alias PhoenixKit.Utils.RecipientLocale
+  alias PhoenixKit.Utils.Routes
+
+  @core_names ~w(register reset_password update_email magic_link magic_link_registration
+                 organization_invitation new_login_alert failed_login_alert)
+
+  defmodule EnabledEmailModule do
+    @moduledoc false
+    def enabled?, do: true
+    def module_name, do: "Fixture Billing"
+
+    def email_templates do
+      [
+        %{
+          name: "fixture_invoice",
+          label: "Invoice",
+          defaults: fn -> %{subject: "Invoice {{number}}", markdown: "Pay [now]({{pay_url}})"} end,
+          variables: %{"number" => "INV-1", "pay_url" => "https://pay.example.test/1"},
+          layout: "billing"
+        },
+        # A name core already lists: core's entry stays.
+        %{name: "register", label: "Hijacked"},
+        # Not a template name: dropped.
+        %{name: "_layout", label: "Reserved"},
+        %{name: "Bad Name", label: "Spaces"},
+        :not_a_map
+      ]
+    end
+  end
+
+  defmodule DisabledEmailModule do
+    @moduledoc false
+    def enabled?, do: false
+    def email_templates, do: [%{name: "fixture_disabled", label: "Disabled"}]
+  end
+
+  defp tmp_root do
+    root = Path.join(System.tmp_dir!(), "pk_catalog_#{System.unique_integer([:positive])}")
+    File.mkdir_p!(root)
+    on_exit(fn -> File.rm_rf!(root) end)
+    root
+  end
+
+  defp write(root, rel, content) do
+    path = Path.join(root, rel)
+    File.mkdir_p!(Path.dirname(path))
+    File.write!(path, content)
+    path
+  end
+
+  describe "entries/0" do
+    test "lists core's emails first, in order, each with a label, defaults and samples" do
+      entries = Catalog.entries()
+      core = Enum.take(entries, length(@core_names))
+
+      assert Enum.map(core, & &1.name) == @core_names
+
+      for entry <- core do
+        assert entry.module == nil
+        assert is_binary(entry.label) and entry.label != ""
+        assert is_function(entry.defaults, 0)
+        assert is_function(entry.variables, 0)
+      end
+    end
+
+    test "adds an enabled module's emails, tagged with the module; drops invalid ones" do
+      ModuleRegistry.register(EnabledEmailModule)
+      ModuleRegistry.register(DisabledEmailModule)
+
+      try do
+        entries = Catalog.entries()
+        names = Enum.map(entries, & &1.name)
+
+        assert %{module: EnabledEmailModule, layout: "billing"} =
+                 Enum.find(entries, &(&1.name == "fixture_invoice"))
+
+        # core wins a clash, and appears once
+        assert Enum.count(names, &(&1 == "register")) == 1
+        assert Catalog.get("register").label != "Hijacked"
+
+        refute "_layout" in names
+        refute "Bad Name" in names
+        refute "fixture_disabled" in names
+      after
+        ModuleRegistry.unregister(EnabledEmailModule)
+        ModuleRegistry.unregister(DisabledEmailModule)
+      end
+    end
+  end
+
+  describe "preview/3 of core's emails" do
+    for name <- ~w(register reset_password update_email magic_link magic_link_registration
+                   organization_invitation new_login_alert failed_login_alert) do
+      test "#{name}: every placeholder has a sample, and all three versions render" do
+        entry = Catalog.get(unquote(name))
+
+        for locale <- ["en", "ru"] do
+          assert {:ok, preview} = Catalog.preview(entry, locale, paths: [])
+
+          assert preview.missing == %{}, "unbound in #{locale}: #{inspect(preview.missing)}"
+          assert preview.content.subject not in [nil, ""]
+          refute preview.content.subject =~ "{{"
+          refute preview.content.text =~ "{{"
+          assert preview.content.html =~ "<!DOCTYPE html>"
+          assert preview.sources.subject == :default
+          assert preview.sources.text == :default
+          assert preview.sources.html_from == :text
+        end
+      end
+    end
+
+    test "is rendered in the chosen language" do
+      assert {:ok, %{content: %{subject: subject}}} =
+               Catalog.preview(Catalog.get("register"), "ru", paths: [])
+
+      refute subject == "Confirm your account"
+    end
+  end
+
+  describe "preview/3 sources" do
+    test "reports a host file with its path, and the group the email names" do
+      root = tmp_root()
+      subject = write(root, "register/subject.ru.txt", "Файл {{user_email}}\n")
+      markdown = write(root, "register/markdown.md", "Hello [Confirm]({{confirmation_url}})")
+      write(root, "register/layout.txt", "auth")
+      header = write(root, "_header-auth/html.html", "<p>AUTH HEADER</p>")
+
+      assert {:ok, preview} = Catalog.preview(Catalog.get("register"), "ru", paths: [root])
+
+      assert preview.content.subject == "Файл jane.doe@example.com"
+      assert preview.content.html =~ "AUTH HEADER"
+      assert preview.sources.subject == {:file, subject}
+      assert preview.sources.markdown == {:file, markdown}
+      assert preview.sources.html_from == :markdown
+      assert preview.sources.group == "auth"
+      assert preview.sources.header == {:file, header}
+      assert preview.sources.footer == :default
+    end
+
+    test "lists a placeholder the samples do not bind" do
+      root = tmp_root()
+      write(root, "register/text.txt", "Hi {{user_email}}, your code is {{code}}")
+
+      assert {:ok, %{missing: %{text: ["code"]}}} =
+               Catalog.preview(Catalog.get("register"), "en", paths: [root])
+    end
+
+    test "a module entry previews with its own defaults, samples and layout group" do
+      entry = hd(EnabledEmailModule.email_templates())
+
+      assert {:ok, preview} = Catalog.preview(entry, "en", paths: [])
+
+      assert preview.content.subject == "Invoice INV-1"
+      assert preview.content.html =~ ~s(href="https://pay.example.test/1")
+      assert preview.sources.group == "billing"
+      assert preview.sources.group_from == :option
+    end
+
+    test "an entry whose own function raises answers an error, not a crash" do
+      entry = %{name: "fixture_broken", label: "Broken", variables: fn -> raise "boom" end}
+
+      assert {:error, "boom"} = Catalog.preview(entry, "en", paths: [])
+    end
+  end
+
+  describe "the send uses the catalog's defaults" do
+    defp user(locale) do
+      %User{
+        uuid: Ecto.UUID.generate(),
+        email: "reader@example.test",
+        custom_fields: %{"preferred_locale" => locale}
+      }
+    end
+
+    # What the send must produce if it renders `fun` — so copy that drifts
+    # between a send site and CoreTemplates fails here.
+    defp expected(name, recipient, variables, fun) do
+      Content.resolve(name, recipient, variables, fun)
+    end
+
+    test "UserNotifier's emails" do
+      u = user("de")
+      url = "https://x.test/t"
+
+      cases = [
+        {fn -> UserNotifier.deliver_confirmation_instructions(u, url) end, "register",
+         %{"user_email" => u.email, "confirmation_url" => url},
+         &CoreTemplates.register_defaults/0},
+        {fn -> UserNotifier.deliver_reset_password_instructions(u, url) end, "reset_password",
+         %{"user_email" => u.email, "reset_url" => url},
+         &CoreTemplates.reset_password_defaults/0},
+        {fn -> UserNotifier.deliver_update_email_instructions(u, url) end, "update_email",
+         %{"user_email" => u.email, "update_url" => url}, &CoreTemplates.update_email_defaults/0},
+        {fn -> UserNotifier.deliver_magic_link_registration(u, url) end,
+         "magic_link_registration", %{"user_email" => u.email, "registration_url" => url},
+         &CoreTemplates.magic_link_registration_defaults/0},
+        {fn -> UserNotifier.deliver_failed_login_alert(u, %{count: 4, window_hours: 1}) end,
+         "failed_login_alert",
+         %{
+           "user_email" => u.email,
+           "attempt_count" => "4",
+           "window_hours" => "1",
+           # built in the recipient's locale, as the send builds it
+           "security_url" =>
+             RecipientLocale.in_locale("de", fn ->
+               Routes.base_url() <> Routes.user_settings_path()
+             end)
+         }, &CoreTemplates.failed_login_alert_defaults/0}
+      ]
+
+      for {send, name, variables, fun} <- cases do
+        assert {:ok, email} = send.()
+        want = expected(name, u, variables, fun)
+
+        assert {email.subject, email.text_body, email.html_body} ==
+                 {want.subject, want.text, want.html},
+               name
+      end
+    end
+
+    test "the organization invitation" do
+      url = "https://x.test/o"
+      assert {:ok, email} = UserNotifier.deliver_organization_invitation("a@x.test", "Acme", url)
+
+      want =
+        expected(
+          "organization_invitation",
+          "a@x.test",
+          %{"user_email" => "a@x.test", "organization_name" => "Acme", "registration_url" => url},
+          &CoreTemplates.organization_invitation_defaults/0
+        )
+
+      assert {email.subject, email.text_body} == {want.subject, want.text}
+    end
+
+    test "the magic link (Mailer's own send)" do
+      u = user("en")
+      url = "https://x.test/m"
+      assert {:ok, _} = Mailer.send_magic_link_email(u, url)
+
+      want =
+        expected(
+          "magic_link",
+          u,
+          %{"user_email" => u.email, "magic_link_url" => url},
+          &CoreTemplates.magic_link_defaults/0
+        )
+
+      assert_email_sent(fn email ->
+        assert {email.subject, email.text_body} == {want.subject, want.text}
+      end)
+    end
+
+    test "the new login alert's helper lines" do
+      assert CoreTemplates.failed_attempts_note(0) == ""
+      assert CoreTemplates.failed_attempts_note(1) =~ ~r/1 failed sign-in attempt on/
+      assert CoreTemplates.failed_attempts_note(3) =~ ~r/\n\n\z/
+      assert CoreTemplates.location_line("Tallinn") == "Tallinn (approximate)"
+      assert CoreTemplates.location_line(nil) == "Unknown"
+
+      # every placeholder of the default copy is one the send binds
+      assert Templates.missing_variables(
+               "new_login_alert",
+               CoreTemplates.new_login_alert_defaults(),
+               Map.new(
+                 ~w(user_email login_time ip_address location browser_os failed_attempts security_url),
+                 &{&1, "x"}
+               )
+             ) == %{}
+    end
+  end
+end

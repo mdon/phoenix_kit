@@ -20,6 +20,14 @@ defmodule PhoenixKitWeb.Live.Settings.EmailSending do
   `settings_tabs/0`). The two pages coexist under different paths for
   now; a later change (Stage 1 task A5) will collapse them into one.
 
+  ## Branding
+
+  The "Branding" tab holds the email accent colour (`email_accent_color`,
+  read by `PhoenixKit.Email.Branding`) and shows the logo emails carry,
+  linking to Settings → General where the logo is edited. A preview of every
+  known email lives at `/admin/settings/email-sending/preview`
+  (`PhoenixKitWeb.Live.Settings.EmailPreview`).
+
   ## Module-contributed sections
 
   Modules can extend this page without the core page knowing anything
@@ -36,6 +44,7 @@ defmodule PhoenixKitWeb.Live.Settings.EmailSending do
   import PhoenixKitWeb.Components.Core.IntegrationsUI, only: [validation_note_style: 1]
 
   alias PhoenixKit.Config
+  alias PhoenixKit.Email.Branding
   alias PhoenixKit.Integrations
   alias PhoenixKit.Integrations.Providers
   alias PhoenixKit.Mailer
@@ -65,6 +74,7 @@ defmodule PhoenixKitWeb.Live.Settings.EmailSending do
       |> assign_email_integrations()
       |> assign_default_integration()
       |> assign_dev_mailbox()
+      |> assign_branding()
       |> assign_email_settings_sections()
       |> assign(:active_tab, "identity")
 
@@ -146,6 +156,46 @@ defmodule PhoenixKitWeb.Live.Settings.EmailSending do
 
       {:error, _changeset} ->
         {:noreply, put_flash(socket, :error, gettext("Could not update the mailbox setting"))}
+    end
+  end
+
+  # Live check while typing: the swatch follows a valid value, the error
+  # follows an invalid one. The colour picker and the text field edit the same
+  # value; whichever the browser reports as changed wins.
+  def handle_event("validate_accent_color", params, socket) do
+    value =
+      case params do
+        %{"_target" => ["accent_color_picker"], "accent_color_picker" => picked} -> picked
+        %{"accent_color" => typed} -> typed
+        _ -> socket.assigns.accent_input
+      end
+
+    {:noreply, assign_accent_input(socket, value)}
+  end
+
+  def handle_event("save_accent_color", params, socket) do
+    value = params |> Map.get("accent_color", "") |> String.trim()
+
+    case accent_color_value(value) do
+      {:ok, color} ->
+        case Settings.update_setting(Branding.accent_color_key(), color) do
+          {:ok, _} ->
+            message =
+              if color == "",
+                do: gettext("Email accent colour reset to the default"),
+                else: gettext("Email accent colour updated")
+
+            {:noreply, socket |> assign_branding() |> put_flash(:info, message)}
+
+          {:error, _changeset} ->
+            {:noreply, put_flash(socket, :error, gettext("Could not save the accent colour"))}
+        end
+
+      :error ->
+        {:noreply,
+         socket
+         |> assign_accent_input(value)
+         |> put_flash(:error, gettext("Enter the colour as #RRGGBB, for example #1d4ed8"))}
     end
   end
 
@@ -288,6 +338,45 @@ defmodule PhoenixKitWeb.Live.Settings.EmailSending do
     |> assign(:dev_mailbox_enabled, Settings.get_boolean_setting("dev_mailbox_enabled", false))
   end
 
+  defp assign_branding(socket) do
+    saved = Settings.get_setting(Branding.accent_color_key(), "") || ""
+
+    socket
+    |> assign(:accent_color, Branding.accent_color())
+    |> assign(:email_logo_url, Branding.logo_url())
+    |> assign_accent_input(saved)
+  end
+
+  # `accent_input` is what the field shows; `accent_preview` is the colour the
+  # swatch paints — only ever a normalised `#rrggbb`, so the inline style can
+  # never carry anything else.
+  defp assign_accent_input(socket, value) do
+    value = to_string(value)
+
+    {preview, error} =
+      case accent_color_value(String.trim(value)) do
+        {:ok, ""} -> {Branding.default_accent_color(), nil}
+        {:ok, color} -> {color, nil}
+        :error -> {socket.assigns[:accent_color] || Branding.default_accent_color(), true}
+      end
+
+    socket
+    |> assign(:accent_input, value)
+    |> assign(:accent_preview, preview)
+    |> assign(:accent_error, error)
+  end
+
+  # "" clears the setting (emails fall back to the neutral default); anything
+  # else must be a six-digit hex colour. `Branding.normalize_color/1` answers
+  # the default for a bad value, so compare against the input to tell them apart.
+  defp accent_color_value(""), do: {:ok, ""}
+
+  defp accent_color_value(value) do
+    color = Branding.normalize_color(value)
+
+    if color == String.downcase(value), do: {:ok, color}, else: :error
+  end
+
   defp assign_email_settings_sections(socket) do
     scope = socket.assigns[:phoenix_kit_current_scope]
 
@@ -312,6 +401,16 @@ defmodule PhoenixKitWeb.Live.Settings.EmailSending do
   defp integration_status_badge("disconnected"), do: {"badge-ghost", gettext("Not connected")}
   defp integration_status_badge("error"), do: {"badge-error", gettext("Error")}
   defp integration_status_badge(_), do: {"badge-ghost", gettext("Not configured")}
+
+  # Kept out of the template: the `{{accent_color}}` braces would read as a
+  # HEEx expression there.
+  defp accent_help_text do
+    gettext(
+      "Used for buttons, links and the accent bar of every email. Leave blank for the neutral default (%{color}). Email files read it as %{placeholder}.",
+      color: Branding.default_accent_color(),
+      placeholder: "{{accent_color}}"
+    )
+  end
 
   defp get_current_path(locale) do
     Routes.path("/admin/settings/email-sending", locale: locale)

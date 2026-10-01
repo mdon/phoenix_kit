@@ -1,0 +1,202 @@
+<PhoenixKitWeb.Components.LayoutWrapper.app_layout
+  socket={@socket}
+  flash={@flash}
+  phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
+  page_title={@page_title}
+  page_subtitle={@page_subtitle}
+  page_section={@page_section}
+  page_section_path={@page_section_path}
+  page_crumbs={@page_crumbs}
+  current_path={@current_path}
+  project_title={@project_title}
+  current_locale={@current_locale}
+>
+  <div class="flex flex-col lg:flex-row gap-6 px-4 py-6">
+    <aside class="lg:w-72 shrink-0">
+      <ul id="email-preview-list" class="menu w-full bg-base-100 rounded-box shadow-lg">
+        <%= for {owner, group} <- grouped_entries(@entries) do %>
+          <li class="menu-title">{owner}</li>
+          <li :for={entry <- group}>
+            <.link
+              id={"email-preview-item-#{entry.name}"}
+              patch={preview_path(entry, @locale)}
+              class={[@entry && @entry.name == entry.name && "menu-active"]}
+              aria-current={@entry && @entry.name == entry.name && "page"}
+            >
+              <span class="flex flex-col">
+                <span>{entry.label}</span>
+                <code class="text-xs opacity-60">{entry.name}</code>
+              </span>
+            </.link>
+          </li>
+        <% end %>
+      </ul>
+    </aside>
+
+    <div class="flex-1 min-w-0 space-y-6">
+      <%= if @entry do %>
+        <.form_section title={@entry.label} icon="hero-envelope" body_class="space-y-3">
+          <:subtitle>
+            <code>{@entry.name}</code>
+            <span :if={@entry[:description]}>— {@entry.description}</span>
+          </:subtitle>
+          <:actions>
+            <form id="email-preview-locale-form" phx-change="select_locale">
+              <.select
+                id="email-preview-locale"
+                name="locale"
+                value={@locale}
+                label={gettext("Language")}
+                options={Enum.map(@locales, fn {code, label} -> {label, code} end)}
+              />
+            </form>
+          </:actions>
+
+          <div :if={@preview_error} id="email-preview-error" class="alert alert-error">
+            <.icon name="hero-exclamation-circle" class="w-5 h-5 shrink-0" />
+            <div class="text-sm">
+              {gettext("This email could not be rendered: %{reason}", reason: @preview_error)}
+            </div>
+          </div>
+
+          <div
+            :if={@preview && @preview.content.db_template}
+            id="email-preview-db-notice"
+            class="alert alert-warning"
+          >
+            <.icon name="hero-circle-stack" class="w-5 h-5 shrink-0" />
+            <div class="text-sm">
+              {gettext(
+                "An active database template answers this email, so files and the built-in default are not used. Deactivate it in the Emails module to send from files."
+              )}
+            </div>
+          </div>
+
+          <div
+            :if={@preview && @preview.missing != %{}}
+            id="email-preview-missing"
+            class="alert alert-info"
+          >
+            <.icon name="hero-information-circle" class="w-5 h-5 shrink-0" />
+            <div class="text-sm">
+              {gettext("Placeholders with no sample value (shown as written): %{list}",
+                list: missing_line(@preview.missing)
+              )}
+            </div>
+          </div>
+        </.form_section>
+
+        <%= if @preview do %>
+          <.form_section title={gettext("Subject")} icon="hero-chat-bubble-bottom-center-text">
+            <p id="email-preview-subject" class="font-medium break-words">
+              {@preview.content.subject || gettext("(no subject)")}
+            </p>
+          </.form_section>
+
+          <.form_section title={gettext("HTML")} icon="hero-code-bracket">
+            <%= if @preview.content.html do %>
+              <%!-- An empty sandbox: no script, no same-origin access, no
+                 top navigation — the HTML may be a database template's. --%>
+              <iframe
+                id="email-preview-html"
+                sandbox=""
+                referrerpolicy="no-referrer"
+                srcdoc={@preview.content.html}
+                title={gettext("HTML version of the email")}
+                class="w-full h-[640px] rounded-lg border border-base-300 bg-white"
+              ></iframe>
+            <% else %>
+              <p id="email-preview-no-html" class="text-sm text-base-content/60">
+                {gettext("No HTML version: this email is sent as plain text only.")}
+              </p>
+            <% end %>
+          </.form_section>
+
+          <.form_section title={gettext("Text")} icon="hero-document-text">
+            <%= if @preview.content.text do %>
+              <pre
+                id="email-preview-text"
+                class="whitespace-pre-wrap break-words text-sm bg-base-200 rounded-lg p-4"
+              >{@preview.content.text}</pre>
+            <% else %>
+              <p id="email-preview-no-text" class="text-sm text-base-content/60">
+                {gettext("No text version.")}
+              </p>
+            <% end %>
+          </.form_section>
+
+          <.form_section title={gettext("Where each part comes from")} icon="hero-folder-open">
+            <:subtitle>
+              <%= if @override_root do %>
+                {gettext(
+                  "Host files are read from %{root}. A file without a language code serves every language.",
+                  root: @override_root
+                )}
+              <% else %>
+                {gettext(
+                  "No template directory is configured: add priv/phoenix_kit_templates to the host application, or set template_paths in the phoenix_kit config."
+                )}
+              <% end %>
+            </:subtitle>
+
+            <div class="overflow-x-auto">
+              <.table_default variant="zebra" size="sm" class="w-full" id="email-preview-sources">
+                <.table_default_header>
+                  <.table_default_row>
+                    <.table_default_header_cell>{gettext("Part")}</.table_default_header_cell>
+                    <.table_default_header_cell>{gettext("Source")}</.table_default_header_cell>
+                    <.table_default_header_cell>
+                      {gettext("To override, create")}
+                    </.table_default_header_cell>
+                  </.table_default_row>
+                </.table_default_header>
+                <.table_default_body>
+                  <.table_default_row
+                    :for={row <- source_rows(@preview, @entry, @locale)}
+                    id={"email-source-#{row.id}"}
+                  >
+                    <.table_default_cell>
+                      <div class="font-medium">{row.label}</div>
+                      <div :if={row.used_for} class="text-xs text-base-content/60">
+                        {gettext("used for the %{what}", what: row.used_for)}
+                      </div>
+                      <code :if={row[:value]} class="text-xs">{row.value}</code>
+                    </.table_default_cell>
+                    <.table_default_cell>
+                      <.source_badge source={row.source} />
+                      <code
+                        :if={source_path(row.source)}
+                        class="block text-xs mt-1 break-all"
+                        data-source-path
+                      >
+                        {source_path(row.source)}
+                      </code>
+                    </.table_default_cell>
+                    <.table_default_cell>
+                      <code class="text-xs break-all">
+                        {override_file(@override_root, row.file)}
+                      </code>
+                    </.table_default_cell>
+                  </.table_default_row>
+                </.table_default_body>
+              </.table_default>
+            </div>
+
+            <div :if={@preview.sources.ignored != []} id="email-preview-ignored" class="mt-3">
+              <h4 class="font-medium text-sm mb-1">{gettext("Files found but not used")}</h4>
+              <ul class="text-sm list-disc list-inside">
+                <li :for={{reason, path} <- @preview.sources.ignored}>
+                  <code class="text-xs break-all">{path}</code> — {ignored_reason(reason)}
+                </li>
+              </ul>
+            </div>
+          </.form_section>
+        <% end %>
+      <% else %>
+        <p id="email-preview-empty" class="text-base-content/60">
+          {gettext("No emails are registered.")}
+        </p>
+      <% end %>
+    </div>
+  </div>
+</PhoenixKitWeb.Components.LayoutWrapper.app_layout>
