@@ -213,10 +213,16 @@ defmodule PhoenixKit.Email.LayoutTest do
       assert Layout.default_html(locale: ~s(de" onload="x)) =~ "<html>\n"
     end
 
-    test "links the site unless told not to" do
-      assert Layout.default_html() =~ ~s(<a href="{{site_url}}")
-      refute Layout.default_html(link: false) =~ "<a "
-      assert Layout.default_html(link: false) =~ "{{site_url}}"
+    test "places the header, the body and the footer, all raw" do
+      html = Layout.default_html()
+
+      assert html =~ "{{{header}}}"
+      assert html =~ "{{{content}}}"
+      assert html =~ "{{{footer}}}"
+    end
+
+    test "carries the accent colour as a bar on top of the card" do
+      assert Layout.default_html() =~ "border-top:3px solid {{accent_color}};"
     end
 
     test "carries bgcolor for clients that drop CSS backgrounds, and an Outlook width" do
@@ -337,4 +343,205 @@ defmodule PhoenixKit.Email.LayoutTest do
       refute html =~ "{{site_url}}"
     end
   end
+
+  describe "header and footer" do
+    @no_logo %{"logo_url" => "", "accent_color" => "#1d4ed8"}
+    @logo %{"logo_url" => "https://a.test/logo.jpg", "accent_color" => "#1d4ed8"}
+
+    test "core's header is the site's name without a logo, the logo with one" do
+      without = Layout.wrap("<p>x</p>", "s", branding: @no_logo)
+      with_logo = Layout.wrap("<p>x</p>", "s", branding: @logo)
+
+      refute without =~ "<img"
+
+      assert with_logo =~
+               ~s(<img src="https://a.test/logo.jpg" alt="#{escape(Settings.get_project_title())}" height="40")
+    end
+
+    test "core's footer names and links the site; the accent colour tops the card" do
+      html = Layout.wrap("<p>x</p>", "s", branding: @no_logo)
+
+      assert html =~ ~s(<a href="#{Routes.base_url()}" style="color:#71717a;">)
+      assert html =~ "border-top:3px solid #1d4ed8;"
+    end
+
+    test "a host _header replaces only the header", %{tmp_dir: root} do
+      write(root, "_header", "html.html", ~s(<b class="brand">{{site_name}} {{accent_color}}</b>))
+
+      {html, sources} = Layout.render("<p>x</p>", "s", paths: [root], branding: @logo)
+
+      assert html =~ ~s(<b class="brand">#{escape(Settings.get_project_title())} #1d4ed8</b>)
+      # Core's layout and footer are still there; core's header is not.
+      assert html =~ "<!DOCTYPE html>"
+      assert html =~ ~s(style="color:#71717a;")
+      refute html =~ "<img"
+
+      assert sources == %{
+               layout: :default,
+               header: {:file, Path.join([root, "_header", "html.html"])},
+               footer: :default,
+               ignored: []
+             }
+    end
+
+    test "a host _footer replaces only the footer, per locale", %{tmp_dir: root} do
+      write(root, "_footer", "html.html", "any-footer")
+      write(root, "_footer", "html.de.html", "de-footer {{logo_url}}")
+
+      assert Layout.wrap("b", "s", paths: [root], branding: @logo, locale: "de") =~
+               "de-footer https://a.test/logo.jpg"
+
+      assert Layout.wrap("b", "s", paths: [root], branding: @logo, locale: "fr") =~ "any-footer"
+    end
+
+    test "an empty or blank header file counts as missing, without a warning", %{tmp_dir: root} do
+      write(root, "_header", "html.html", "  \n\t ")
+
+      log =
+        capture_log(fn ->
+          {html, sources} = Layout.render("<p>x</p>", "s", paths: [root], branding: @logo)
+
+          assert html =~ "<img"
+          assert sources.header == :default
+          assert sources.ignored == [{:blank_file, Path.join([root, "_header", "html.html"])}]
+        end)
+
+      # Other async tests log too; nothing here may be about this header.
+      refute log =~ "_header"
+      refute log =~ "Email layout"
+    end
+
+    test "header and footer values are escaped where written with two braces",
+         %{tmp_dir: root} do
+      write(root, "_header", "html.html", "<h1>{{subject}}</h1>")
+
+      assert Layout.wrap("b", "<i>s</i>", paths: [root], branding: @logo) =~
+               "<h1>&lt;i&gt;s&lt;/i&gt;</h1>"
+    end
+
+    test "a host layout places the header and footer as raw HTML", %{tmp_dir: root} do
+      write(root, "_layout", "html.html", "[{{{header}}}|{{{content}}}|{{{footer}}}]")
+      write(root, "_header", "html.html", "<b>H</b>")
+      write(root, "_footer", "html.html", "<i>F</i>")
+
+      assert Layout.wrap("<p>x</p>", "s", paths: [root], branding: @logo) ==
+               "[<b>H</b>|<p>x</p>|<i>F</i>]"
+    end
+
+    test "a layout that does not place the header reports no header source",
+         %{tmp_dir: root} do
+      write(root, "_layout", "html.html", "<main>{{{content}}}</main>")
+      write(root, "_header", "html.html", "<b>H</b>")
+
+      {_html, sources} = Layout.render("x", "s", paths: [root], branding: @logo)
+
+      assert sources == %{
+               layout: {:file, Path.join([root, "_layout", "html.html"])},
+               header: nil,
+               footer: nil,
+               ignored: []
+             }
+    end
+  end
+
+  describe "groups" do
+    @branding %{"logo_url" => "", "accent_color" => "#18181b"}
+
+    test "a group's own layout, header and footer win", %{tmp_dir: root} do
+      write(root, "_layout", "html.html", "shared[{{{header}}}{{{content}}}{{{footer}}}]")
+
+      write(
+        root,
+        "_layout-billing",
+        "html.html",
+        "billing[{{{header}}}{{{content}}}{{{footer}}}]"
+      )
+
+      write(root, "_header", "html.html", "h")
+      write(root, "_header-billing", "html.html", "bh")
+      write(root, "_footer-billing", "html.html", "bf")
+
+      opts = [paths: [root], branding: @branding]
+
+      assert Layout.wrap("x", "s", [group: "billing"] ++ opts) == "billing[bhxbf]"
+      assert Layout.wrap("x", "s", opts) =~ "shared[hx"
+    end
+
+    test "each part falls back on its own: group → shared → core", %{tmp_dir: root} do
+      write(root, "_header", "html.html", "shared-header")
+      write(root, "_footer-billing", "html.html", "billing-footer")
+
+      {html, sources} =
+        Layout.render("<p>x</p>", "s", paths: [root], group: "billing", branding: @branding)
+
+      assert html =~ "<!DOCTYPE html>"
+      assert html =~ "shared-header"
+      assert html =~ "billing-footer"
+
+      assert sources == %{
+               layout: :default,
+               header: {:file, Path.join([root, "_header", "html.html"])},
+               footer: {:file, Path.join([root, "_footer-billing", "html.html"])},
+               ignored: []
+             }
+    end
+
+    test "a group with no files of its own is the shared chrome", %{tmp_dir: root} do
+      write(root, "_layout", "html.html", "<main>{{{content}}}</main>")
+
+      assert Layout.wrap("x", "s", paths: [root], group: "nothing-here", branding: @branding) ==
+               "<main>x</main>"
+    end
+
+    test "a group layout that drops the body falls back to the shared one", %{tmp_dir: root} do
+      write(root, "_layout", "html.html", "<main>{{{content}}}</main>")
+      write(root, "_layout-billing", "html.html", "<main>{{{contnet}}}</main>")
+
+      log =
+        capture_log(fn ->
+          assert Layout.wrap("x", "s", paths: [root], group: "billing", branding: @branding) ==
+                   "<main>x</main>"
+        end)
+
+      assert log =~ "_layout-billing/html"
+      assert log =~ "has no {{{content}}} placeholder"
+
+      capture_log(fn ->
+        {_html, sources} =
+          Layout.render("x", "s", paths: [root], group: "billing", branding: @branding)
+
+        assert sources.layout == {:file, Path.join([root, "_layout", "html.html"])}
+
+        assert sources.ignored == [
+                 {:no_content, Path.join([root, "_layout-billing", "html.html"])}
+               ]
+      end)
+    end
+
+    test "an invalid group name is ignored, with a warning", %{tmp_dir: root} do
+      write(root, "_layout", "html.html", "<main>{{{content}}}</main>")
+
+      for group <- ["Billing", "../etc", "bill_ing", ""] do
+        log =
+          capture_log(fn ->
+            assert Layout.wrap("x", "s", paths: [root], group: group, branding: @branding) ==
+                     "<main>x</main>"
+          end)
+
+        assert log =~ "not a valid group name", inspect(group)
+      end
+    end
+
+    test "valid_group?/1" do
+      assert Layout.valid_group?("billing")
+      assert Layout.valid_group?("shop-2")
+      refute Layout.valid_group?("Billing")
+      refute Layout.valid_group?("a_b")
+      refute Layout.valid_group?("a/b")
+      refute Layout.valid_group?("")
+      refute Layout.valid_group?(nil)
+    end
+  end
+
+  defp escape(text), do: text |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
 end
