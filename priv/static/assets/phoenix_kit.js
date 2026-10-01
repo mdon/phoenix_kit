@@ -7780,15 +7780,55 @@ if (typeof window.Chart === "undefined") {
       this.limit = 8;
       this.hasMore = false;
       this.loadingMore = false;
+      this.closeOnPick = this.el.dataset.closeOnPick != null;
+      this.stacked = this.el.dataset.rowLayout === "stacked";
+      // The list opens in the top layer where the Popover API exists, so an
+      // overflow ancestor (a modal body) cannot clip it; the old absolute
+      // positioning is the fallback.
+      this.usePopover = typeof this.dd.showPopover === "function";
+      // Whether the user is still asking for the list: results that arrive
+      // after it was closed, or for a field nobody is in, are kept, not shown.
+      this.wantOpen = false;
+      this._place = () => {
+        if (this._placeQueued) return;
+        this._placeQueued = true;
+        requestAnimationFrame(() => {
+          this._placeQueued = false;
+          this.place();
+        });
+      };
+      this._dialog = this.el.closest("dialog");
+      this._dialogClose = () => this.close();
+      if (this._dialog) this._dialog.addEventListener("close", this._dialogClose);
 
       this.el.addEventListener("input", (e) => {
         if (e._pkPickerSynthetic) return;
         this.onInput();
       });
       this.el.addEventListener("keydown", (e) => this.onKeydown(e));
+      // Focus moving to another element closes the list (and so drops a
+      // late answer). Not when the whole window lost focus — the user is
+      // coming back — and not when focus went into the list itself.
+      this.el.addEventListener("blur", () => {
+        setTimeout(() => {
+          if (!document.hasFocus()) return;
+          var active = document.activeElement;
+          if (active === this.el || this.dd.contains(active)) return;
+          this.close();
+        }, 200);
+      });
       this.el.addEventListener("focus", () => {
+        // A close_on_pick picker refocuses its input after a pick; that
+        // focus must not reopen the list.
+        if (this._quiet) {
+          this._quiet = false;
+          return;
+        }
         if (this.searchOnFocus) this.kickSearch();
-        else if (this.el.value.trim()) this.render();
+        else if (this.el.value.trim()) {
+          this.wantOpen = true;
+          this.render();
+        }
       });
       if (this.searchOnFocus) {
         this.el.addEventListener("click", () => {
@@ -7802,7 +7842,40 @@ if (typeof window.Chart === "undefined") {
       document.addEventListener("click", this._docClick);
 
       // mousedown (not click) so a pick registers before the input's blur.
-      this.dd.addEventListener("mousedown", (e) => this.onPick(e));
+      // After a touch has been handled, the browser's late mouse events for
+      // the same tap are ignored.
+      this.dd.addEventListener("mousedown", (e) => {
+        if (this._touchAt && Date.now() - this._touchAt < 800) {
+          e.preventDefault();
+          return;
+        }
+        this.onPick(e);
+      });
+
+      // Touch: pick when the finger lifts without having moved (a move is a
+      // scroll of the list). On an iPhone with the keyboard up the tap's
+      // mouse events arrive late and land on the input, so picking on
+      // mousedown alone missed the first tap.
+      this.dd.addEventListener(
+        "touchstart",
+        (e) => {
+          var t = e.touches[0];
+          this._touchStart = t ? { x: t.clientX, y: t.clientY } : null;
+        },
+        { passive: true },
+      );
+      this.dd.addEventListener("touchend", (e) => {
+        var t = e.changedTouches[0];
+        var s = this._touchStart;
+        this._touchStart = null;
+        if (!t || !s) return;
+        if (Math.abs(t.clientX - s.x) > 10 || Math.abs(t.clientY - s.y) > 10) return;
+        var target = document.elementFromPoint(t.clientX, t.clientY) || e.target;
+        if (!target.closest || !target.closest("[data-pick]")) return;
+        e.preventDefault();
+        this._touchAt = Date.now();
+        this.onPick({ target: target, preventDefault: function () {} });
+      });
 
       this.handleEvent(this.evResults, (payload) => {
         // push_event broadcasts to every hook listening on this name — a
@@ -7812,6 +7885,10 @@ if (typeof window.Chart === "undefined") {
         if (payload.id && payload.id !== this.el.id) return;
         if (this.stagingNow) return;
         if (this.el.value.trim() !== (payload.q || "")) return; // stale
+        // Closed since the search went out (Escape, a pick, a click
+        // elsewhere, or focus moved to another field — see the blur
+        // listener): a slow answer must not reopen it.
+        if (!this.wantOpen) return;
         var incoming = payload.results || [];
 
         if (this.loadingMore) {
@@ -7854,6 +7931,13 @@ if (typeof window.Chart === "undefined") {
 
     destroyed() {
       document.removeEventListener("click", this._docClick);
+      if (this._dialog) this._dialog.removeEventListener("close", this._dialogClose);
+      this.unfollow();
+      if (this.usePopover && this.dd.matches && this.dd.matches(":popover-open")) {
+        try {
+          this.dd.hidePopover();
+        } catch (_e) {}
+      }
       clearTimeout(this.t);
       clearTimeout(this.stageT);
     },
@@ -7864,6 +7948,7 @@ if (typeof window.Chart === "undefined") {
         this.close();
         return;
       }
+      this.wantOpen = true;
       this.searching = true;
       this.results = [];
       this.limit = 8;
@@ -7884,6 +7969,7 @@ if (typeof window.Chart === "undefined") {
     },
 
     kickSearch() {
+      this.wantOpen = true;
       this.searching = true;
       this.results = [];
       this.limit = 8;
@@ -7896,6 +7982,7 @@ if (typeof window.Chart === "undefined") {
     },
 
     loadMore() {
+      this.wantOpen = true;
       this.limit += 8;
       this.loadingMore = true;
       this._restoreScroll = this.scrollEl ? this.scrollEl.scrollTop : null;
@@ -7913,6 +8000,12 @@ if (typeof window.Chart === "undefined") {
           this.staging();
         }
       } else if (e.key === "Escape") {
+        // Inside a <dialog>, Escape would also close the dialog; while the
+        // list is open it closes only the list.
+        if (this.isOpen()) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
         this.close();
       }
     },
@@ -7991,6 +8084,28 @@ if (typeof window.Chart === "undefined") {
 
       var list = "";
       this.results.forEach((r) => {
+        if (this.stacked) {
+          list +=
+            '<button type="button" data-pick="result" data-kind="' +
+            escAttr(r.kind) +
+            '" data-uuid="' +
+            escAttr(r.uuid) +
+            '" data-label="' +
+            escAttr(r.label) +
+            '" class="flex items-start gap-2 w-full px-3 py-2 hover:bg-base-200 text-left cursor-pointer">' +
+            '<span class="' +
+            escAttr(r.icon || "hero-user") +
+            ' w-4 h-4 shrink-0 mt-0.5 text-base-content/50"></span>' +
+            '<span class="flex flex-col items-start min-w-0">' +
+            '<span class="line-clamp-2 break-words">' +
+            esc(r.label) +
+            "</span>" +
+            (r.sublabel
+              ? '<span class="text-xs text-base-content/50 truncate max-w-full">' + esc(r.sublabel) + "</span>"
+              : "") +
+            "</span></button>";
+          return;
+        }
         list +=
           '<button type="button" data-pick="result" data-kind="' +
           escAttr(r.kind) +
@@ -8052,12 +8167,34 @@ if (typeof window.Chart === "undefined") {
       this.open();
     },
 
+    isOpen() {
+      return !this.dd.classList.contains("hidden");
+    },
     open() {
+      var wasOpen = this.isOpen();
       this.dd.classList.remove("hidden");
+      if (this.usePopover) {
+        if (!this.dd.matches(":popover-open")) {
+          try {
+            this.dd.showPopover();
+          } catch (_e) {
+            this.usePopover = false;
+          }
+        }
+        this.place();
+        if (!wasOpen) this.follow();
+      }
     },
     close() {
+      this.wantOpen = false;
       this.dd.classList.add("hidden");
       this.dd.innerHTML = "";
+      this.unfollow();
+      if (this.usePopover && this.dd.matches(":popover-open")) {
+        try {
+          this.dd.hidePopover();
+        } catch (_e) {}
+      }
     },
     clear() {
       this.el.value = "";
@@ -8066,7 +8203,57 @@ if (typeof window.Chart === "undefined") {
       this.stagingNow = false;
       clearTimeout(this.stageT);
       this.close();
+      if (this.closeOnPick) this._quiet = true;
       this.el.focus();
+    },
+
+    // Places the top-layer list under (or over) the input, in viewport
+    // coordinates. The visual viewport counts: with a phone keyboard up the
+    // room below the field is what is left above the keyboard.
+    place() {
+      if (!this.usePopover || !this.isOpen()) return;
+      var r = this.el.getBoundingClientRect();
+      var vv = window.visualViewport;
+      var viewBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+      var viewTop = vv ? vv.offsetTop : 0;
+      if (r.bottom < viewTop || r.top > viewBottom) {
+        this.close();
+        return;
+      }
+      var below = viewBottom - r.bottom;
+      var above = r.top - viewTop;
+      var up = this.el.dataset.direction === "up" || (below < 180 && above > below);
+      var style = this.dd.style;
+      style.position = "fixed";
+      style.margin = "0";
+      style.inset = "auto";
+      style.left = r.left + "px";
+      style.width = r.width + "px";
+      if (up) {
+        style.top = "auto";
+        style.bottom = window.innerHeight - r.top + 4 + "px";
+      } else {
+        style.bottom = "auto";
+        style.top = r.bottom + 4 + "px";
+      }
+      var scroll = this.dd.querySelector("[data-scroll]");
+      if (scroll) scroll.style.maxHeight = Math.max(Math.min(224, (up ? above : below) - 48), 80) + "px";
+    },
+    follow() {
+      window.addEventListener("scroll", this._place, true);
+      window.addEventListener("resize", this._place);
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener("resize", this._place);
+        window.visualViewport.addEventListener("scroll", this._place);
+      }
+    },
+    unfollow() {
+      window.removeEventListener("scroll", this._place, true);
+      window.removeEventListener("resize", this._place);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener("resize", this._place);
+        window.visualViewport.removeEventListener("scroll", this._place);
+      }
     },
   };
 })();
@@ -9757,5 +9944,232 @@ if (typeof window.Chart === "undefined") {
   if (typeof module === "object" && module.exports) {
     module.exports.imageEditorRect = imageEditorRect;
     module.exports.imageEditorSwapped = imageEditorSwapped;
+  }
+})();
+
+// ---------------------------------------------------------------------------
+// PkChartCrosshair — the client half of `line_chart hover={:crosshair}`
+// (PhoenixKitWeb.Components.Core.Chart). The server sends the rows once and
+// one entry per datum, already positioned and formatted:
+//
+//   {rows: [[label, colour]], points: [[left%, right%, x%, y%, x_label,
+//    y_label, note, [row index]]]}
+//
+// so this only finds the entry under the pointer (or the keyboard's) and
+// places the crosshair, the dot and the readout. The hook sits on a
+// pointer-events-none layer and listens on the chart wrapper (its parent),
+// because a style it set on its own element would be dropped by the next
+// patch.
+(function () {
+  if (typeof window === "undefined") return;
+  window.PhoenixKitHooks = window.PhoenixKitHooks || {};
+
+  var STYLE_ID = "pk-chart-crosshair-style";
+
+  // The native per-point tooltips are the no-JavaScript readout; once the
+  // hook runs they would show on top of the crosshair's, so turn them off.
+  function ensureStyle() {
+    if (typeof document === "undefined" || document.getElementById(STYLE_ID)) return;
+    var style = document.createElement("style");
+    style.id = STYLE_ID;
+    style.textContent = "[data-pk-crosshair] svg rect[data-x]{pointer-events:none}";
+    document.head.appendChild(style);
+  }
+
+  // The entry whose band holds `pct` (0–100 across the chart), or -1 where
+  // no datum stands (left of the first point of a step series).
+  function crosshairPick(points, pct) {
+    if (!points || !points.length) return -1;
+    for (var i = 0; i < points.length; i++) {
+      if (pct >= points[i][0] && pct < points[i][1]) return i;
+    }
+    // The right edge itself belongs to the last band.
+    var last = points[points.length - 1];
+    if (pct >= last[1] && pct <= 100) return points.length - 1;
+    return -1;
+  }
+
+  // Which side of the line the readout goes: right of it, unless that would
+  // run off the chart.
+  function crosshairTipSide(xPct) {
+    return xPct > 55 ? "left" : "right";
+  }
+
+  // The entry a key moves to from `current` (-1 = nothing shown), or null
+  // for a key the chart does not handle.
+  function crosshairStep(key, current, count) {
+    if (!count) return null;
+    switch (key) {
+      case "ArrowRight":
+        return current < 0 ? 0 : Math.min(current + 1, count - 1);
+      case "ArrowLeft":
+        return current < 0 ? count - 1 : Math.max(current - 1, 0);
+      case "Home":
+        return 0;
+      case "End":
+        return count - 1;
+      default:
+        return null;
+    }
+  }
+
+  // The readout as plain text, for the live region.
+  function crosshairText(point, rows) {
+    var parts = [];
+    if (point[4]) parts.push(point[4]);
+    parts.push(point[5]);
+    if (point[6]) parts.push(point[6]);
+    (point[7] || []).forEach(function (i) {
+      if (rows[i]) parts.push(rows[i][0]);
+    });
+    return parts.join(", ");
+  }
+
+  function line(tag, text, className) {
+    var el = document.createElement(tag);
+    el.textContent = text;
+    if (className) el.className = className;
+    return el;
+  }
+
+  window.PhoenixKitHooks.PkChartCrosshair = {
+    mounted() {
+      ensureStyle();
+      this.host = this.el.parentElement;
+      this.lineEl = this.el.querySelector("[data-crosshair-line]");
+      this.dotEl = this.el.querySelector("[data-crosshair-dot]");
+      this.tipEl = this.el.querySelector("[data-crosshair-tip]");
+      this.liveEl = this.el.querySelector("[data-crosshair-live]");
+      this.shown = -1;
+
+      this.onMove = (event) => this.showAt(event.clientX);
+      this.onDown = (event) => {
+        this.pinned = event.pointerType === "touch";
+        this.showAt(event.clientX);
+      };
+      // A finger lifting fires pointerleave at once; a tapped readout stays
+      // up until a tap elsewhere.
+      this.onLeave = (event) => {
+        if (!(event && event.pointerType === "touch" && this.pinned)) this.hide();
+      };
+      this.onCancel = () => this.hide();
+      this.onOutside = (event) => {
+        if (this.shown >= 0 && !this.host.contains(event.target)) this.hide();
+      };
+      this.onKey = (event) => {
+        if (event.key === "Escape") {
+          if (this.shown >= 0) {
+            this.hide();
+            event.stopPropagation();
+          }
+          return;
+        }
+        var next = crosshairStep(event.key, this.shown, this.data().points.length);
+        if (next === null) return;
+        event.preventDefault();
+        this.show(next, true);
+      };
+      this.onBlur = () => this.hide();
+
+      this.host.addEventListener("pointermove", this.onMove);
+      this.host.addEventListener("pointerdown", this.onDown);
+      this.host.addEventListener("pointerleave", this.onLeave);
+      this.host.addEventListener("pointercancel", this.onCancel);
+      this.host.addEventListener("keydown", this.onKey);
+      this.host.addEventListener("blur", this.onBlur);
+      document.addEventListener("pointerdown", this.onOutside);
+    },
+
+    updated() {
+      // New data: the entry on screen may be gone or moved.
+      this.cache = null;
+      this.hide();
+    },
+
+    data() {
+      if (!this.cache) {
+        try {
+          var parsed = JSON.parse(this.el.dataset.points || "{}");
+          this.cache = { rows: parsed.rows || [], points: parsed.points || [] };
+        } catch (_err) {
+          this.cache = { rows: [], points: [] };
+        }
+      }
+      return this.cache;
+    },
+
+    showAt(clientX) {
+      var rect = this.host.getBoundingClientRect();
+      if (!rect.width) return;
+      var i = crosshairPick(this.data().points, ((clientX - rect.left) / rect.width) * 100);
+      if (i < 0) return this.hide();
+      this.show(i, false);
+    },
+
+    show(i, announce) {
+      if (i === this.shown) return;
+      this.shown = i;
+      var data = this.data();
+      var p = data.points[i];
+
+      this.lineEl.style.left = p[2] + "%";
+      this.dotEl.style.left = p[2] + "%";
+      this.dotEl.style.top = p[3] + "%";
+
+      var tip = this.tipEl;
+      tip.replaceChildren();
+      if (p[4]) tip.appendChild(line("div", p[4], "opacity-70"));
+      tip.appendChild(line("div", p[5], "font-semibold"));
+      if (p[6]) tip.appendChild(line("div", p[6], "opacity-70"));
+      (p[7] || []).forEach(function (index) {
+        var row = data.rows[index];
+        if (!row) return;
+        var el = line("div", "", "flex items-center gap-1.5");
+        var swatch = document.createElement("span");
+        swatch.className = "inline-block w-2 h-2 rounded-full bg-current";
+        if (row[1]) swatch.style.background = row[1];
+        el.appendChild(swatch);
+        el.appendChild(document.createTextNode(row[0]));
+        tip.appendChild(el);
+      });
+
+      tip.style.left = p[2] + "%";
+      tip.style.transform =
+        crosshairTipSide(p[2]) === "right" ? "translateX(8px)" : "translateX(calc(-100% - 8px))";
+
+      this.lineEl.hidden = false;
+      this.dotEl.hidden = false;
+      tip.hidden = false;
+      // Only a keyboard step is announced; a pointer sweeping across the
+      // chart would queue one announcement per band.
+      if (announce && this.liveEl) this.liveEl.textContent = crosshairText(p, data.rows);
+    },
+
+    hide() {
+      this.shown = -1;
+      this.pinned = false;
+      if (this.lineEl) this.lineEl.hidden = true;
+      if (this.dotEl) this.dotEl.hidden = true;
+      if (this.tipEl) this.tipEl.hidden = true;
+    },
+
+    destroyed() {
+      document.removeEventListener("pointerdown", this.onOutside);
+      if (!this.host) return;
+      this.host.removeEventListener("pointermove", this.onMove);
+      this.host.removeEventListener("pointerdown", this.onDown);
+      this.host.removeEventListener("pointerleave", this.onLeave);
+      this.host.removeEventListener("pointercancel", this.onCancel);
+      this.host.removeEventListener("keydown", this.onKey);
+      this.host.removeEventListener("blur", this.onBlur);
+    }
+  };
+
+  // Exported for the Node test harness (test/js); harmless in a browser.
+  if (typeof module === "object" && module.exports) {
+    module.exports.crosshairPick = crosshairPick;
+    module.exports.crosshairTipSide = crosshairTipSide;
+    module.exports.crosshairStep = crosshairStep;
+    module.exports.crosshairText = crosshairText;
   }
 })();

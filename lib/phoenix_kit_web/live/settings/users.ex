@@ -17,6 +17,7 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
   alias PhoenixKit.Users.Roles
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Actor
+  alias PhoenixKitWeb.Components.ProfileSettingsTabs
 
   def mount(_params, _session, socket) do
     # Set locale for LiveView process
@@ -71,6 +72,9 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
       |> assign(:field_form_options, [])
       |> assign(:new_option_value, "")
       |> assign(:active_tab, "registration")
+      |> assign(:profile_hideable_sections, ProfileSettingsTabs.hideable_sections())
+      |> assign(:profile_hidden_sections, ProfileSettingsTabs.hidden_sections())
+      |> assign(:profile_toggle_rev, 0)
 
     {:ok, socket}
   end
@@ -81,6 +85,33 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
 
   def handle_event("switch_settings_tab", %{"tab" => tab}, socket) do
     {:noreply, assign(socket, :active_tab, tab)}
+  end
+
+  def handle_event("toggle_profile_section", %{"section" => name}, socket) do
+    case Enum.find(ProfileSettingsTabs.hideable_sections(), &(Atom.to_string(&1) == name)) do
+      nil ->
+        {:noreply, socket}
+
+      section ->
+        hidden? = section not in socket.assigns.profile_hidden_sections
+
+        case ProfileSettingsTabs.set_section_hidden(section, hidden?,
+               actor_uuid: Actor.uuid(socket),
+               source: "settings"
+             ) do
+          :ok ->
+            {:noreply,
+             assign(socket, :profile_hidden_sections, ProfileSettingsTabs.hidden_sections())}
+
+          # The browser already flipped the switch; bumping the revision in
+          # the switches' ids re-renders them from the server's state.
+          {:error, _} ->
+            {:noreply,
+             socket
+             |> update(:profile_toggle_rev, &(&1 + 1))
+             |> put_flash(:error, gettext("Could not save that change."))}
+        end
+    end
   end
 
   def handle_event("validate_settings", %{"settings" => settings_params}, socket) do
@@ -398,4 +429,14 @@ defmodule PhoenixKitWeb.Live.Settings.Users do
   @doc false
   def always_on_role?(settings, role_uuid),
     do: role_uuid in ActiveRole.parse_always_on(settings["role_switcher_always_on_roles"])
+
+  defp profile_section_label(:google_email), do: gettext("Google email address")
+  defp profile_section_label(:custom_fields), do: gettext("Custom fields")
+  defp profile_section_label(:email), do: gettext("Change email")
+  defp profile_section_label(:start_page), do: gettext("Start page")
+  defp profile_section_label(:etcher), do: gettext("Annotation tools reset")
+  defp profile_section_label(:password), do: gettext("Password")
+  defp profile_section_label(:oauth), do: gettext("Connected sign-in accounts")
+  defp profile_section_label(:sessions), do: gettext("Sessions")
+  defp profile_section_label(:notifications), do: gettext("Notifications")
 end

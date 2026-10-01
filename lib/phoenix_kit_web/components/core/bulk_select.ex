@@ -209,6 +209,10 @@ defmodule PhoenixKitWeb.Components.Core.BulkSelect do
     doc:
       "Content rendered at the far right of the toolbar, after the contextual Reorder/Delete/Clear buttons. Common use: a view-mode switcher that should sit visually apart from the filter/sort controls on the left."
 
+  slot :primary,
+    doc:
+      "The page's primary action (a create button), rendered last — after `:trailing` — so it holds the far-right corner. Same role as `table_default`'s `:toolbar_primary`."
+
   def bulk_actions_toolbar(assigns) do
     assigns =
       assigns
@@ -270,6 +274,7 @@ defmodule PhoenixKitWeb.Components.Core.BulkSelect do
         </button>
 
         {render_slot(@trailing)}
+        {render_slot(@primary)}
       </div>
     </div>
     """

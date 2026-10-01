@@ -3,6 +3,8 @@ defmodule PhoenixKit.Modules.Storage.URLSigner do
   import Bitwise
 
   alias PhoenixKit.Config
+  alias PhoenixKit.Modules.Storage
+  alias PhoenixKit.Modules.Storage.Libraries
   alias PhoenixKit.Modules.Storage.VariantSets
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
@@ -36,6 +38,112 @@ defmodule PhoenixKit.Modules.Storage.URLSigner do
       iex> PhoenixKit.Modules.Storage.URLSigner.verify_token(file_uuid, "thumbnail", "xxxx")
       false
   """
+
+  @doc """
+  Checks a file-serving URL minted by `signed_url/3` — the parsing and the
+  token rule the file route itself applies — and returns what it points at.
+
+  Accepts a full URL or a path, with or without the kit's URL prefix and a
+  locale segment: `".../file/<uuid>/<variant>/<token>?v=<version>"`.
+
+  Returns `{:ok, %{uuid: uuid, variant: variant, version: version | nil}}`,
+  or `{:error, reason}` with `:malformed` (not a file URL), `:not_found`
+  (no such file, a system-managed one, or a trashed one), `:invalid_token`
+  or `:expired_token` (a private file's time-window token that has run out).
+
+  **`{:ok, _}` means well-formed and signed by this app, not authorized.** A
+  public file's token is short and permanent — it stops URL guessing, it
+  does not grant access. Check the viewer's rights to the file separately
+  before acting on it. Needs the database: whether a file is private is a
+  property of its library.
+
+  Only the path is checked — `/file/<uuid>/<variant>/<token>` — never the
+  scheme or host, so `https://anywhere.example/file/…` verifies too. Act on
+  the returned uuid (rebuild the URL from it); never fetch or render the
+  string you were handed.
+
+  ## Options
+
+    * `:allow_trashed` — also accept a trashed file (default `false`).
+  """
+  @spec verify_url(String.t(), keyword()) ::
+          {:ok, %{uuid: String.t(), variant: String.t(), version: String.t() | nil}}
+          | {:error, :malformed | :not_found | :invalid_token | :expired_token}
+  def verify_url(url, opts \\ [])
+
+  def verify_url(url, opts) when is_binary(url) do
+    %URI{path: path, query: query} = URI.parse(url)
+
+    with ["file", raw_uuid, variant, token] <- path |> to_string() |> file_segments(),
+         {:ok, uuid} <- cast_uuid(raw_uuid),
+         {:ok, file} <- servable_file(uuid, opts),
+         :ok <- verify_file_token(file, variant, token) do
+      {:ok, %{uuid: uuid, variant: variant, version: query_version(query)}}
+    else
+      {:error, _} = error -> error
+      _ -> {:error, :malformed}
+    end
+  end
+
+  def verify_url(_url, _opts), do: {:error, :malformed}
+
+  @doc """
+  The token rule the file route applies: a file in a private library takes
+  only a time-window token (its permanent one is refused); every other
+  file only its permanent token.
+  """
+  @spec verify_file_token(map(), String.t(), String.t()) ::
+          :ok | {:error, :invalid_token | :expired_token}
+  def verify_file_token(file, variant, token) do
+    if Libraries.private_file?(file) do
+      case verify_private_token(file.uuid, variant, token) do
+        :ok -> :ok
+        :expired -> {:error, :expired_token}
+        :invalid -> {:error, :invalid_token}
+      end
+    else
+      if verify_token(file.uuid, variant, token),
+        do: :ok,
+        else: {:error, :invalid_token}
+    end
+  end
+
+  # The last four path segments of a file URL, whatever prefix or locale
+  # segment comes before them.
+  defp file_segments(path) do
+    segments = String.split(path, "/", trim: true)
+
+    case Enum.drop(segments, max(length(segments) - 4, 0)) do
+      ["file", _uuid, _variant, _token] = tail -> tail
+      _ -> :malformed
+    end
+  end
+
+  defp cast_uuid(raw) do
+    case Ecto.UUID.cast(raw) do
+      {:ok, uuid} -> {:ok, uuid}
+      :error -> :malformed
+    end
+  end
+
+  defp servable_file(uuid, opts) do
+    case Storage.get_file(uuid) do
+      nil ->
+        {:error, :not_found}
+
+      %{system_managed: true} ->
+        {:error, :not_found}
+
+      %{status: "trashed"} = file ->
+        if opts[:allow_trashed], do: {:ok, file}, else: {:error, :not_found}
+
+      file ->
+        {:ok, file}
+    end
+  end
+
+  defp query_version(nil), do: nil
+  defp query_version(query), do: query |> URI.decode_query() |> Map.get("v")
 
   @doc """
   Generate a signed URL for a file instance.

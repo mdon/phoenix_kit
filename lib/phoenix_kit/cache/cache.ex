@@ -43,6 +43,7 @@ defmodule PhoenixKit.Cache do
   """
 
   use GenServer
+  alias PhoenixKit.Utils.TimeZone
   require Logger
 
   @type cache_name :: atom()
@@ -235,6 +236,10 @@ defmodule PhoenixKit.Cache do
   is written only if nothing has been invalidated since that read — the form
   a miss-fill must use. Without it the write is unconditional.
 
+  With `expires_in: ms` the entry expires exactly that many milliseconds
+  from now, instead of after the cache's own TTL (and without its jitter —
+  a calendar boundary must not be overshot).
+
   ## Examples
 
       PhoenixKit.Cache.put(:settings, "date_format", "m/d/Y")
@@ -247,7 +252,19 @@ defmodule PhoenixKit.Cache do
   def put(_cache_name, _key, _value, if_generation: nil), do: :ok
 
   def put(cache_name, key, value, opts) do
-    GenServer.cast(via_tuple(cache_name), {:put, [{key, value}], opts[:if_generation]})
+    cond do
+      Keyword.has_key?(opts, :if_generation) and is_nil(opts[:if_generation]) ->
+        :ok
+
+      is_integer(opts[:expires_in]) ->
+        GenServer.cast(
+          via_tuple(cache_name),
+          {:put, [{key, value}], opts[:if_generation], {:expires_in, max(opts[:expires_in], 1)}}
+        )
+
+      true ->
+        GenServer.cast(via_tuple(cache_name), {:put, [{key, value}], opts[:if_generation]})
+    end
   rescue
     error in [ArgumentError, RuntimeError] ->
       Logger.warning("Cache #{cache_name} unavailable: #{inspect(error)}")
@@ -257,6 +274,94 @@ defmodule PhoenixKit.Cache do
       Logger.warning("Cache #{cache_name} not started")
       :ok
   end
+
+  @doc """
+  Returns the cached value for `key`, or runs `fun`, caches its result and
+  returns it — get-or-compute.
+
+  ## Options
+
+    * `:until` — when the computed value expires:
+      * an integer: that many milliseconds from now;
+      * `{:end_of_minute | :end_of_hour | :end_of_day, time_zone}`: the next
+        such boundary on the wall clock of `time_zone` (an IANA name, e.g.
+        `"Europe/Tallinn"`) — "valid for this clock minute / hour / day, then
+        dead", daylight-saving changes included;
+      * omitted: the cache's own TTL.
+
+  The fill is generation-checked: if the key (or the cache) is invalidated
+  while `fun` runs, its result is returned to this caller but not stored.
+
+  There is no single-flight lock: when a key expires, every process that
+  misses before the first fill lands runs `fun`. Keep `fun` free of side
+  effects, and put anything expensive behind its own guard if that matters.
+  A cached `nil` counts as a hit. An error — `:error` or `{:error, _}` — is
+  returned but never stored, so one failed load (a timeout) is not served
+  until the TTL runs out.
+
+  ## Example
+
+      Cache.remember(:prices, {:day, zone}, fn -> load_prices(zone) end,
+        until: {:end_of_day, "Europe/Tallinn"}
+      )
+  """
+  @spec remember(cache_name(), cache_key(), (-> cache_value()), keyword()) :: cache_value()
+  def remember(cache_name, key, fun, opts \\ []) when is_function(fun, 0) do
+    case get_with_generation(cache_name, key, :__phoenix_kit_cache_miss__) do
+      {:__phoenix_kit_cache_miss__, generation} ->
+        value = fun.()
+
+        put_opts =
+          case ttl_until(Keyword.get(opts, :until), DateTime.utc_now()) do
+            nil -> [if_generation: generation]
+            ms -> [if_generation: generation, expires_in: ms]
+          end
+
+        unless error_value?(value), do: put(cache_name, key, value, put_opts)
+        value
+
+      {value, _generation} ->
+        value
+    end
+  end
+
+  defp error_value?(:error), do: true
+  defp error_value?({:error, _}), do: true
+  defp error_value?(_value), do: false
+
+  @doc false
+  # Milliseconds from `now` until the `:until` boundary; public for its tests,
+  # which pin `now` to a daylight-saving change.
+  @spec ttl_until(term(), DateTime.t()) :: pos_integer() | nil
+  def ttl_until(nil, _now), do: nil
+  def ttl_until(ms, _now) when is_integer(ms), do: max(ms, 1)
+
+  def ttl_until({boundary, zone}, %DateTime{} = now)
+      when boundary in [:end_of_minute, :end_of_hour, :end_of_day] do
+    database = TimeZone.database()
+
+    # An unknown or missing zone falls back to UTC rather than failing.
+    at =
+      with true <- is_binary(zone) and zone != "",
+           {:ok, local} <- DateTime.shift_zone(now, zone, database),
+           naive = next_boundary(boundary, DateTime.to_naive(local)),
+           {:ok, at} <- TimeZone.from_wall(naive, zone) do
+        at
+      else
+        _ -> boundary |> next_boundary(DateTime.to_naive(now)) |> DateTime.from_naive!("Etc/UTC")
+      end
+
+    max(DateTime.diff(at, now, :millisecond), 1)
+  end
+
+  defp next_boundary(:end_of_minute, naive),
+    do: %{naive | second: 0, microsecond: {0, 0}} |> NaiveDateTime.add(60, :second)
+
+  defp next_boundary(:end_of_hour, naive),
+    do: %{naive | minute: 0, second: 0, microsecond: {0, 0}} |> NaiveDateTime.add(3600, :second)
+
+  defp next_boundary(:end_of_day, naive),
+    do: NaiveDateTime.new!(Date.add(NaiveDateTime.to_date(naive), 1), ~T[00:00:00])
 
   @doc """
   Puts multiple values in the cache. Takes `if_generation:` like `put/4`.
@@ -666,6 +771,19 @@ defmodule PhoenixKit.Cache do
   def handle_cast({:put, _key_values, generation}, %{generation: current} = state)
       when is_integer(generation) and generation != current do
     {:noreply, state}
+  end
+
+  def handle_cast({:put, _key_values, generation, _expiry}, %{generation: current} = state)
+      when is_integer(generation) and generation != current do
+    {:noreply, state}
+  end
+
+  # An explicit expiry (from `put/4`'s `expires_in:`): exact, no jitter.
+  def handle_cast({:put, key_values, _generation, {:expires_in, ms}}, %{table: table} = state) do
+    at = System.monotonic_time(:millisecond) + ms
+    :ets.insert(table, Enum.map(key_values, fn {key, value} -> {key, value, at} end))
+    stats = state.stats
+    {:noreply, maybe_evict(%{state | stats: %{stats | puts: stats.puts + length(key_values)}})}
   end
 
   def handle_cast({:put, key_values, _generation}, state) do

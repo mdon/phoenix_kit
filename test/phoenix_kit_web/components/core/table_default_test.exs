@@ -465,4 +465,69 @@ defmodule PhoenixKitWeb.Components.Core.TableDefaultTest do
       assert html =~ ~s(phx-value-mode="table")
     end
   end
+
+  describe "toolbar_primary slot" do
+    test "renders the primary action after the view toggle, actions before it" do
+      assigns = %{}
+
+      html =
+        rendered_to_string(~H"""
+        <.table_default id="t" toggleable items={[]}>
+          <.table_default_body></.table_default_body>
+          <:toolbar_actions><span id="secondary">S</span></:toolbar_actions>
+          <:toolbar_primary><a id="primary" href="/new">New</a></:toolbar_primary>
+        </.table_default>
+        """)
+
+      {secondary, _} = :binary.match(html, ~s(id="secondary"))
+      {toggle, _} = :binary.match(html, ~s(data-view-action="card"))
+      {primary, _} = :binary.match(html, ~s(id="primary"))
+
+      assert secondary < toggle
+      assert toggle < primary
+    end
+
+    test "alone it still renders the toolbar row" do
+      assigns = %{}
+
+      html =
+        rendered_to_string(~H"""
+        <.table_default id="t" items={[%{uuid: "1"}]} show_toggle={false}>
+          <.table_default_body></.table_default_body>
+          <:toolbar_primary><a id="primary" href="/new">New</a></:toolbar_primary>
+        </.table_default>
+        """)
+
+      assert html =~ ~s(id="primary")
+      refute html =~ ~s(data-view-action)
+    end
+
+    # The plain table (an empty list, no card toggle) used to drop every
+    # toolbar slot: a list lost its filters and its create button exactly
+    # when it was empty.
+    test "an empty list without a card toggle keeps its toolbar" do
+      assigns = %{}
+
+      for items <- [[], nil] do
+        assigns = Map.put(assigns, :items, items || [])
+
+        html =
+          rendered_to_string(~H"""
+          <.table_default id="t" items={@items}>
+            <:toolbar_title>
+              <form id="filters"></form>
+            </:toolbar_title>
+            <:toolbar_actions><span id="secondary">S</span></:toolbar_actions>
+            <:toolbar_primary><a id="primary" href="/new">New</a></:toolbar_primary>
+            <.table_default_body></.table_default_body>
+          </.table_default>
+          """)
+
+        assert html =~ ~s(id="filters")
+        assert html =~ ~s(id="secondary")
+        assert html =~ ~s(id="primary")
+        refute html =~ ~s(data-view-action)
+      end
+    end
+  end
 end

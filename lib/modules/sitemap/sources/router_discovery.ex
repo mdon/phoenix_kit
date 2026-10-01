@@ -68,6 +68,13 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
   - `{PhoenixKitWeb.Users.Auth, :phoenix_kit_ensure_authenticated_scope}` - Ensures user is authenticated
   - `{PhoenixKitWeb.Users.Auth, :phoenix_kit_redirect_if_authenticated_scope}` - Redirects if already authenticated
 
+  A route can also opt out itself, for what none of the above can see — a
+  page whose sign-in is decided by the host's own `on_mount` dispatcher, or one
+  that should simply never be indexed:
+
+      live "/account", AccountLive, :show, metadata: %{sitemap: false}
+      get "/print/:id", PrintController, :show, metadata: %{sitemap: false}
+
   ## Examples
 
       # Enable auto-discovery (default)
@@ -299,11 +306,19 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.RouterDiscovery do
 
   defp valid_for_sitemap?(route, exclude_patterns, include_only) do
     get_route?(route) and
+      not opted_out?(route) and
       not excluded?(route.path, exclude_patterns) and
       included?(route.path, include_only) and
       not excluded_by_route_info?(route) and
       not disabled_module_route?(route.path)
   end
+
+  # A host route can opt out where nothing else can tell: sign-in decided by
+  # the host's own on_mount dispatcher, a page that should never be indexed.
+  #
+  #     live "/account", AccountLive, :show, metadata: %{sitemap: false}
+  defp opted_out?(%{metadata: %{sitemap: false}}), do: true
+  defp opted_out?(_route), do: false
 
   # Single route_info call checks pipelines (both auth-protected and
   # JSON-serving) and on_mount hooks

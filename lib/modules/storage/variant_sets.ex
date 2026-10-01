@@ -31,11 +31,15 @@ defmodule PhoenixKit.Modules.Storage.VariantSets do
 
   import Ecto.Query
 
-  alias PhoenixKit.Modules.Storage.{Dimension, Library, VariantSet}
+  alias PhoenixKit.Modules.Storage.{Dimension, Library, VariantGenerator, VariantSet}
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
   alias PhoenixKit.Modules.Storage.Libraries
   alias PhoenixKit.Modules.Storage.Workers.ReconcileJob
   alias PhoenixKit.Settings
+
+  # The version of the size-rendering rules, part of every spec hash.
+  # 2: see-through images get PNG (or WebP) sizes, sizes never upscale.
+  @pipeline 2
 
   @default_uuid "00000000-0000-7000-8000-000000000003"
 
@@ -274,6 +278,23 @@ defmodule PhoenixKit.Modules.Storage.VariantSets do
         |> repo().update()
         |> tap(&if(match?({:ok, _}, &1), do: ReconcileJob.enqueue()))
     end
+  end
+
+  @doc """
+  Marks every file stale, so the reconciler remakes each file's sizes whose
+  spec hash no longer matches — after an upgrade that changed how sizes are
+  rendered (`@pipeline`). Lazy: the reconciler works through files in
+  batches in the background; nothing is regenerated in this call.
+  """
+  @spec remake_all() :: :ok
+  def remake_all do
+    repo().update_all(VariantSet,
+      inc: [revision: 1],
+      set: [updated_at: DateTime.truncate(DateTime.utc_now(), :second)]
+    )
+
+    ReconcileJob.enqueue()
+    :ok
   end
 
   @doc "Bumps a set's revision: every file whose variants it made is stale."
@@ -523,14 +544,49 @@ defmodule PhoenixKit.Modules.Storage.VariantSets do
   The spec hash of the variant `dimension` makes in `format` (its own
   format when not given; nil keeps the original's). Only what changes the
   pixels counts: width, height, quality, format and whether the aspect
-  ratio is kept. V205 stamped existing instances with the same text in SQL
-  (`PhoenixKit.Migrations.Postgres.V205.spec_hash_sql/1`).
+  ratio is kept — plus `@pipeline`, the version of the rendering rules
+  themselves.
+
+  V205 stamped existing instances with the `v1` text in SQL
+  (`PhoenixKit.Migrations.Postgres.V205.spec_hash_sql/1`). Pipeline 2
+  (see-through images get PNG sizes instead of black-backed JPEGs; sizes
+  never upscale) changes every hash, so the reconciler remakes a file's
+  sizes the next time it looks at the file; `remake_all/0` makes it look
+  at every file.
   """
   @spec spec_hash(Dimension.t()) :: String.t()
   @spec spec_hash(Dimension.t(), String.t() | nil) :: String.t()
   def spec_hash(%Dimension{} = dimension), do: spec_hash(dimension, dimension.format)
 
   def spec_hash(%Dimension{} = d, format) do
+    aspect = if d.maintain_aspect_ratio, do: "t", else: "f"
+
+    "v1|w=#{d.width}|h=#{d.height}|q=#{d.quality}|f=#{format}|a=#{aspect}|p=#{@pipeline}"
+    |> Kernel.<>(alpha_part(format))
+    |> then(&:crypto.hash(:md5, &1))
+    |> Base.encode16(case: :lower)
+  end
+
+  # `variant_alpha_format` changes the pixels of a see-through image's
+  # JPEG-configured sizes, so a non-default value is part of the hash. The
+  # default adds nothing, so existing hashes are unchanged.
+  # Only a size that can come out JPEG (configured JPEG, or keeping the
+  # original's format) is affected; a PNG or WebP size never is, so changing
+  # the setting does not mark every size of every file outdated.
+  defp alpha_part(format) when format in [nil, "", "jpg", "jpeg"] do
+    case VariantGenerator.alpha_format() do
+      "png" -> ""
+      other -> "|af=#{other}"
+    end
+  end
+
+  defp alpha_part(_format), do: ""
+
+  @doc false
+  # The pipeline-1 text V205 stamped in SQL, kept so its migration test can
+  # show those stamps are the old hash (and so remade under pipeline 2).
+  @spec legacy_spec_hash(Dimension.t(), String.t() | nil) :: String.t()
+  def legacy_spec_hash(%Dimension{} = d, format) do
     aspect = if d.maintain_aspect_ratio, do: "t", else: "f"
 
     "v1|w=#{d.width}|h=#{d.height}|q=#{d.quality}|f=#{format}|a=#{aspect}"

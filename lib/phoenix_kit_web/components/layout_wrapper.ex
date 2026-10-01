@@ -111,7 +111,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   attr :page_action, :map,
     default: nil,
     doc:
-      "Optional compact action button rendered right after the breadcrumb title: `%{icon: \"hero-plus\", label: \"New template\", navigate: path}`. Lets a page keep its primary create action without spending an in-content header row. `label` becomes the tooltip/aria-label; `icon` defaults to hero-plus. Navigation only, by design: it renders a real link, so middle-click, open-in-new-tab and copy-link keep working. For anything interactive — a `phx-click`, a modal, a `JS` command — use `page_toolbar: {Module, :fun}` on the socket (see the `:toolbar` slot), which reaches every page including plugin LiveViews rendered through the admin layout. Do not add click handling to this map."
+      "Optional compact action button rendered right after the breadcrumb title: `%{icon: \"hero-plus\", label: \"New template\", navigate: path}`. Lets a page keep its primary create action without spending an in-content header row. `label` becomes the tooltip/aria-label; `icon` defaults to hero-plus. With `show_label: true` the label is written beside the icon (hidden on narrow screens, where the circle stays), for a page whose primary action should read as one. Navigation only, by design: it renders a real link, so middle-click, open-in-new-tab and copy-link keep working. For anything interactive — a `phx-click`, a modal, a `JS` command — use `page_toolbar: {Module, :fun}` on the socket (see the `:toolbar` slot), which reaches every page including plugin LiveViews rendered through the admin layout. Do not add click handling to this map."
 
   attr :current_path, :string, default: nil
   attr :inner_content, :string, default: nil
@@ -866,6 +866,36 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
     }
   end
 
+  # A non-admin kit page (profile settings, the user dashboard's pages) inside
+  # the HOST's layout has no kit `<body>` to carry `data-phoenix-kit`, and the
+  # host's root layout does not render `phoenix_kit_globals`. Mark the kit's
+  # own content instead — `display: contents`, so the host's flex/grid sees
+  # the children as before — and bring the phone form-control style with it.
+  # Admin pages are already marked by `#admin-drawer`. Public for testing.
+  @doc false
+  def mark_kit_content(assigns) do
+    if admin_page?(assigns) or assigns[:inner_block] in [nil, []] do
+      assigns
+    else
+      original_inner_block = assigns[:inner_block]
+
+      assign(assigns, :inner_block, [
+        %{
+          inner_block: fn _slot_assigns, _index ->
+            assigns = %{original_inner_block: original_inner_block}
+
+            ~H"""
+            <div data-phoenix-kit class="contents">
+              <PhoenixKitWeb.Components.Core.PhoenixKitGlobals.mobile_inputs_style />
+              {render_slot(@original_inner_block)}
+            </div>
+            """
+          end
+        }
+      ])
+    end
+  end
+
   defp wrap_inner_block_with_admin_nav_if_needed(assigns) do
     if admin_page?(assigns) do
       # Mark that admin chrome is being rendered by this (LiveView) call.
@@ -1099,7 +1129,13 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       <.link
                         :if={@action == [] and @page_action}
                         navigate={@page_action[:navigate]}
-                        class="btn btn-xs btn-primary btn-circle shrink-0"
+                        class={[
+                          "btn btn-xs btn-primary shrink-0",
+                          if(@page_action[:show_label],
+                            do: "max-sm:btn-circle sm:gap-1",
+                            else: "btn-circle"
+                          )
+                        ]}
                         title={@page_action[:label]}
                         aria-label={@page_action[:label]}
                       >
@@ -1107,6 +1143,9 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                           name={@page_action[:icon] || "hero-plus"}
                           class="w-4 h-4"
                         />
+                        <span :if={@page_action[:show_label]} class="hidden sm:inline">
+                          {@page_action[:label]}
+                        </span>
                       </.link>
                     </span>
                   </div>
@@ -1313,7 +1352,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   # Phoenix v1.8+ approach - function components
   defp render_modern_parent_layout(assigns, module, function) do
     # Wrap inner content with admin navigation if needed
-    assigns = wrap_inner_block_with_admin_nav_if_needed(assigns)
+    assigns = assigns |> wrap_inner_block_with_admin_nav_if_needed() |> mark_kit_content()
 
     # `app_layout` is the single owner of the host layout (the native `:layout`
     # is a passthrough — see `PhoenixKitWeb.__using__(:live_view)`), so this is
@@ -1357,7 +1396,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   defp render_legacy_parent_layout(assigns, _module, _function) do
     # For legacy Phoenix, layouts are handled at router level
     # Wrap inner content with admin navigation if needed
-    assigns = wrap_inner_block_with_admin_nav_if_needed(assigns)
+    assigns = assigns |> wrap_inner_block_with_admin_nav_if_needed() |> mark_kit_content()
 
     # Just render content without wrapper - layout comes from router
     ~H"""
@@ -1421,7 +1460,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
           </script>
         <% end %>
       </head>
-      <body class="bg-base-100 antialiased transition-colors">
+      <body class="bg-base-100 antialiased transition-colors" data-phoenix-kit>
         <%!-- Admin pages without parent headers --%>
         <main class="min-h-screen bg-base-100 transition-colors">
           <.flash_group flash={@flash} />
@@ -1586,7 +1625,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   end
 
   # Prepare assigns for parent layout compatibility
-  defp prepare_parent_layout_assigns(assigns) do
+  @doc false
+  def prepare_parent_layout_assigns(assigns) do
     # Flatten `:module_assigns` into the top-level assigns map FIRST so that
     # host layouts can read module-supplied keys directly (e.g.
     # `assigns[:phoenix_kit_publishing_translations]`). Existing top-level
@@ -1601,11 +1641,37 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
     assigns
     |> Map.put_new(:current_user, get_current_user_for_parent(assigns))
+    |> maybe_put_anonymous_scope()
     |> Map.put_new(:phoenix_kit_integrated, true)
     |> Map.put_new(:phoenix_kit_version, get_phoenix_kit_version())
     |> Map.put_new(:phoenix_version_info, PhoenixVersion.get_version_info())
     |> Map.put_new(:crawlers_no_index, assigns[:crawlers_no_index] || false)
   end
+
+  # A host layout written for Phoenix 1.8 reads `@current_scope`, which the
+  # kit's pages never set — so on the login and registration pages (no user)
+  # it got nil and every such layout needed a nil guard. A host can name a
+  # function returning its own anonymous scope:
+  #
+  #     config :phoenix_kit, host_anonymous_scope: {MyApp.Accounts.Scope, :anonymous, []}
+  #
+  # It is given to the layout when nobody is signed in, and is the host's own
+  # struct: display only — the kit never uses it for an access decision.
+  # Unset (the default) leaves `current_scope` absent, as before.
+  defp maybe_put_anonymous_scope(%{current_user: nil} = assigns) do
+    case Application.get_env(:phoenix_kit, :host_anonymous_scope) do
+      {mod, fun, args} when is_atom(mod) and is_atom(fun) and is_list(args) ->
+        Map.put_new(assigns, :current_scope, apply(mod, fun, args))
+
+      fun when is_function(fun, 0) ->
+        Map.put_new(assigns, :current_scope, fun.())
+
+      _ ->
+        assigns
+    end
+  end
+
+  defp maybe_put_anonymous_scope(assigns), do: assigns
 
   # Extract current user from scope for parent layout compatibility
   defp get_current_user_for_parent(assigns) do

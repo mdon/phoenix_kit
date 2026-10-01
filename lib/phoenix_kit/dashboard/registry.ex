@@ -606,11 +606,26 @@ defmodule PhoenixKit.Dashboard.Registry do
     {:noreply, state}
   end
 
+  @doc """
+  Whether `tab` is named in `:hidden_admin_tabs`. Admin tabs only — a user
+  dashboard tab of the same id is not affected.
+
+  Applies to every source of admin tabs: the kit's and modules' defaults,
+  the host's `:admin_dashboard_tabs` (and legacy categories), and tabs
+  registered at runtime. Hiding drops the sidebar entry only; the permission
+  mapping is still registered, so the route stays guarded exactly as before.
+  """
+  @spec hidden_admin_tab?(Tab.t()) :: boolean()
+  def hidden_admin_tab?(%Tab{level: :admin, id: id}), do: id in hidden_admin_tabs()
+  def hidden_admin_tab?(_tab), do: false
+
   @impl true
   def handle_call({:register, namespace, tabs}, _from, state) do
     Enum.each(tabs, fn tab ->
-      :ets.insert(@ets_table, {{:tab, tab.id}, tab})
-      :ets.insert(@ets_table, {{:namespace, namespace, tab.id}, true})
+      unless hidden_admin_tab?(tab) do
+        :ets.insert(@ets_table, {{:tab, tab.id}, tab})
+        :ets.insert(@ets_table, {{:namespace, namespace, tab.id}, true})
+      end
 
       # Auto-register custom permission keys for admin tabs. Thread
       # `auto_grant_admin` (default true) so a host registering a SENSITIVE tab
@@ -1051,9 +1066,7 @@ defmodule PhoenixKit.Dashboard.Registry do
 
           case Tab.new(tab_config) do
             {:ok, tab} ->
-              tab = Tab.resolve_path(tab, :admin)
-              :ets.insert(@ets_table, {{:tab, tab.id}, tab})
-              :ets.insert(@ets_table, {{:namespace, :admin_config, tab.id}, true})
+              insert_config_admin_tab(Tab.resolve_path(tab, :admin))
 
               # Auto-register custom permission key and cache view mapping
               auto_register_custom_permission(tab_config)
@@ -1062,6 +1075,13 @@ defmodule PhoenixKit.Dashboard.Registry do
               :ok
           end
         end)
+    end
+  end
+
+  defp insert_config_admin_tab(tab) do
+    unless hidden_admin_tab?(tab) do
+      :ets.insert(@ets_table, {{:tab, tab.id}, tab})
+      :ets.insert(@ets_table, {{:namespace, :admin_config, tab.id}, true})
     end
   end
 
@@ -1214,8 +1234,10 @@ defmodule PhoenixKit.Dashboard.Registry do
           }
           |> Tab.resolve_path(:admin)
 
-        :ets.insert(@ets_table, {{:tab, parent.id}, parent})
-        :ets.insert(@ets_table, {{:namespace, :admin_legacy, parent.id}, true})
+        unless hidden_admin_tab?(parent) do
+          :ets.insert(@ets_table, {{:tab, parent.id}, parent})
+          :ets.insert(@ets_table, {{:namespace, :admin_legacy, parent.id}, true})
+        end
 
         # Create child tabs from subsections
         category.subsections
@@ -1252,8 +1274,10 @@ defmodule PhoenixKit.Dashboard.Registry do
 
     child = Tab.resolve_path(child, :admin)
 
-    :ets.insert(@ets_table, {{:tab, child.id}, child})
-    :ets.insert(@ets_table, {{:namespace, :admin_legacy, child.id}, true})
+    unless hidden_admin_tab?(child) do
+      :ets.insert(@ets_table, {{:tab, child.id}, child})
+      :ets.insert(@ets_table, {{:namespace, :admin_legacy, child.id}, true})
+    end
   end
 
   # Adds live_view to tab if a corresponding module can be inferred from the URL.

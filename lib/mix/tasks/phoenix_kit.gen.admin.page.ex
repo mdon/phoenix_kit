@@ -62,7 +62,6 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
 
     use Igniter.Mix.Task
 
-    alias Igniter.Code.Common
     alias Igniter.Project.Config
     alias PhoenixKit.Install.IgniterHelpers
     alias PhoenixKit.Install.MissingIgniter
@@ -301,14 +300,12 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
                 if url_duplicate? do
                   {:error, "A page with URL '#{url}' already exists in category '#{category}'"}
                 else
-                  updated_tabs =
-                    if parent_exists? do
-                      existing_tabs ++ [child_tab]
-                    else
-                      existing_tabs ++ [parent_tab, child_tab]
-                    end
+                  new_tabs = if parent_exists?, do: [child_tab], else: [parent_tab, child_tab]
 
-                  {:ok, Common.replace_code(zipper, updated_tabs)}
+                  # Append to the list in place. Rewriting the whole list from
+                  # its evaluated value dropped the host's comments inside it
+                  # and moved a trailing one onto the next setting.
+                  append_tabs(zipper, new_tabs)
                 end
               end
 
@@ -323,6 +320,20 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
           end
         end
       )
+    end
+
+    defp append_tabs(zipper, tabs) do
+      Enum.reduce_while(tabs, {:ok, zipper}, fn tab, {:ok, acc} ->
+        # Parsed from its printed form, not `Macro.escape/1`: an escaped
+        # 2-tuple value (`live_view: {Mod, :index}`) is indistinguishable from
+        # a map pair in the AST and prints as `Mod => :index`.
+        quoted = Sourceror.parse_string!(inspect(tab, pretty: true, limit: :infinity))
+
+        case Igniter.Code.List.append_to_list(acc, quoted) do
+          {:ok, next} -> {:cont, {:ok, next}}
+          :error -> {:halt, {:error, "could not append to admin_dashboard_tabs"}}
+        end
+      end)
     end
 
     defp derive_parent_tab_id(category) do

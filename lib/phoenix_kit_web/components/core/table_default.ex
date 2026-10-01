@@ -45,9 +45,9 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
         <:toolbar_title>
           <span class="text-sm text-base-content/60">{length(@users)} users</span>
         </:toolbar_title>
-        <:toolbar_actions>
+        <:toolbar_primary>
           <.button size="sm" navigate={~p"/users/new"}>Add User</.button>
-        </:toolbar_actions>
+        </:toolbar_primary>
       </.table_default>
   """
 
@@ -92,6 +92,10 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
   * `card_actions` - Action buttons rendered in each card footer (receives item via :let)
   * `toolbar_title` - Title/content rendered at the start of the toolbar row
   * `toolbar_actions` - Buttons rendered in the toolbar before the view toggle
+  * `toolbar_primary` - The page's primary action (e.g. "New …"), rendered
+    last in the toolbar, AFTER the view toggle, so it holds the far-right
+    corner at every breakpoint — the toggle hides on phones in JS mode and
+    would otherwise shift it
 
   ## Controlled view mode
 
@@ -218,6 +222,10 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
   slot :toolbar_actions,
     doc: "Action buttons rendered in the toolbar, before the view toggle"
 
+  slot :toolbar_primary,
+    doc:
+      "The page's primary action (a create button), rendered after the view toggle so it sits in the far-right corner"
+
   def table_default(assigns) do
     if assigns.items == [] and not assigns.toggleable do
       table_default_classic(assigns)
@@ -226,8 +234,25 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
     end
   end
 
+  # The plain table (no items, no card toggle) still carries the toolbar: a
+  # list's filters and its create button must not vanish when the list is
+  # empty, which is exactly when they are needed.
   defp table_default_classic(assigns) do
     ~H"""
+    <div
+      :if={@toolbar_title != [] || @toolbar_actions != [] || @toolbar_primary != []}
+      class="flex flex-wrap items-center justify-between gap-2 mb-2"
+    >
+      <div :if={@toolbar_title != []} class="min-w-0 flex-1 md:flex-none">
+        {render_slot(@toolbar_title)}
+      </div>
+      <div class="flex flex-wrap items-center gap-2 ml-auto">
+        <div :if={@toolbar_actions != []} class="flex flex-wrap items-center gap-2">
+          {render_slot(@toolbar_actions)}
+        </div>
+        {render_slot(@toolbar_primary)}
+      </div>
+    </div>
     <div class={@wrapper_class}>
       <table
         class={[
@@ -271,7 +296,7 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
       <%!-- Toolbar row: title (left) + actions and view toggle (right) --%>
       <div
         :if={
-          @toolbar_title != [] || @toolbar_actions != [] ||
+          @toolbar_title != [] || @toolbar_actions != [] || @toolbar_primary != [] ||
             (@toggleable && @show_toggle)
         }
         class="flex flex-wrap items-center justify-between gap-2 mb-2"
@@ -335,6 +360,9 @@ defmodule PhoenixKitWeb.Components.Core.TableDefault do
             >
               <.icon name="hero-bars-4" class="w-4 h-4" />
             </button>
+          </div>
+          <div :if={@toolbar_primary != []} class="flex items-center gap-2">
+            {render_slot(@toolbar_primary)}
           </div>
         </div>
       </div>

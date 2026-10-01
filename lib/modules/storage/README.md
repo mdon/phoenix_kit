@@ -390,6 +390,17 @@ Every set has the **standard sizes** `thumbnail`, `small`, `medium`,
 - Sets are edited on Settings → Media → Variant sets; a user library may
   pick a set an admin marked `selectable`.
 
+- **A see-through image keeps its transparency.** A size configured as
+  JPEG is written as `config :phoenix_kit, :variant_alpha_format` (default
+  `"png"`; `"webp"`, `"avif"` and `"gif"` also accepted) when the original has an alpha
+  channel. Only nil/`jpg`/`jpeg` sizes are redirected; a size set to webp or
+  png keeps its own format.
+- **Regenerating after an upgrade is manual, on purpose.** When a release
+  changes how sizes are rendered, `Storage.VariantSets.remake_all/0` bumps
+  every set's revision; the reconciler then remakes each file's sizes in the
+  background, a batch at a time. Nothing triggers it automatically — on a
+  large library it is real work, so the operator chooses when.
+
 ### The reconciler (V205)
 
 `Storage.Reconciler`, run by `Workers.ReconcileJob` (10 files a run, 2 s
@@ -519,6 +530,36 @@ tile URLs from the manifest's path and drops its query:
 stored under `_tiles/<uuid>/<v>/`. A version that is not the current one is
 a 404. The legacy `/tiles/<token>/<uuid>.dzi` resolves to the current version
 and is never cached.
+
+### Checking a file URL you were handed
+
+`URLSigner.verify_url(url, opts)` returns `{:ok, %{uuid:, variant:, version:}}`
+when the string is a well-formed file URL signed by this app (and the file
+exists, is not system-managed or trashed, and a private file's time-window
+token is still valid). **That is not authorization**: check the viewer's
+rights to the uuid separately. Only the path is checked, never the scheme or
+host — act on the returned uuid, never fetch or render the string itself.
+
+## Storing a file from a URL
+
+`Storage.store_from_url(url, user_uuid: …)` downloads a URL and stores it
+like an upload (`:library_uuid`, `:allowed_types` — default `["image/"]` —,
+`:filename`). It blocks for the whole download: call it from a Task or a
+job, never a LiveView event handler.
+
+- **The fetch never reaches the server's own network.**
+  `Storage.RemoteFetch.download/2` allows https only (`allow_http:`), ports
+  80/443 (`allowed_ports:`), resolves the host once, requires every address
+  to be public (`PhoenixKit.Utils.PublicAddress`) and connects to the
+  address it checked; redirects are followed by hand and re-checked; the body
+  is capped (`max_bytes`, 25 MB) within one `timeout` (15 s). A network with
+  its own internal ranges (a NAT64 prefix that is not `64:ff9b::/96`) lists
+  them in `config :phoenix_kit, :blocked_ip_ranges, ["…/96"]`. Never fetch a
+  user-supplied URL with a plain HTTP client.
+- **The stored type comes from the bytes** (`Storage.Sniff`), not the
+  response's `Content-Type` or the name; an unknown or disallowed type is
+  `{:error, :unsupported_type}`. The stored name is the URL's last path
+  segment, cleaned of separators.
 
 ---
 

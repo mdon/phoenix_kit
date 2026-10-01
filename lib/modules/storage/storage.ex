@@ -115,6 +115,8 @@ defmodule PhoenixKit.Modules.Storage do
   alias PhoenixKit.Modules.Storage.ProcessFileJob
   alias PhoenixKit.Modules.Storage.Profiles
   alias PhoenixKit.Modules.Storage.ProviderRegistry
+  alias PhoenixKit.Modules.Storage.RemoteFetch
+  alias PhoenixKit.Modules.Storage.Sniff
   alias PhoenixKit.Modules.Storage.StorageProfile
   # NOTE: Temporary helper for Publishing component system.
   # The dedicated storage/media APIs under development should replace this fallback once available.
@@ -5051,9 +5053,12 @@ defmodule PhoenixKit.Modules.Storage do
     # call sites that don't exist yet (a live example: an external module
     # stored every board upload, .mov and .mp3 included, as `"image"`, and
     # the media page trusted the column everywhere).
-    mime_type = resolve_mime_type(opts[:mime_type], ext)
+    claimed_mime = resolve_mime_type(opts[:mime_type], ext)
+    mime_type = content_mime_type(claimed_mime, source_path, orig_filename)
     file_type = reconcile_file_type(file_type, mime_type, orig_filename)
-    ext = stored_ext(ext, mime_type)
+
+    ext =
+      if mime_type == claimed_mime, do: stored_ext(ext, mime_type), else: ext_for(mime_type, ext)
 
     # Create file record
     file_attrs = %{
@@ -5585,6 +5590,131 @@ defmodule PhoenixKit.Modules.Storage do
 
   defp stored_ext(ext, _mime_type), do: ext
 
+  # The raster image types the image pipeline (ImageMagick) processes.
+  @raster_mimes ~w(image/png image/jpeg image/pjpeg image/jpg image/gif image/webp image/tiff
+                   image/bmp image/heic image/heif image/avif)
+
+  @doc """
+  Downloads `url` and stores it like an upload, returning what
+  `store_file_in_buckets/7` returns.
+
+  The download is `PhoenixKit.Modules.Storage.RemoteFetch.download/2`: https
+  only by default, never to a non-public address (redirects and DNS
+  rebinding included), streamed to a temporary file with a size cap and an
+  overall timeout. The stored type comes from the bytes (`Storage.Sniff`),
+  not the response's `Content-Type`, and must be one of `:allowed_types`.
+  The temporary file is always removed.
+
+  This blocks for as long as the download takes; call it from a Task or a
+  job, not a LiveView's event handler.
+
+  ## Options
+
+    * `:user_uuid` (required) — the uploader.
+    * `:library_uuid` — the library to store into (default: Media).
+    * `:allowed_types` — MIME types or prefixes (`"image/"`) the sniffed
+      type must match. Default `["image/"]`.
+    * `:filename` — the stored original name (default: the URL's last
+      path segment).
+    * `:max_bytes`, `:timeout`, `:max_redirects`, `:allow_http`,
+      `:allowed_ports` — see `RemoteFetch`.
+
+  Errors: RemoteFetch's reasons, `:unsupported_type` (bytes of no known
+  type, or one not allowed), or `store_file_in_buckets/7`'s.
+  """
+  @spec store_from_url(String.t(), keyword()) ::
+          {:ok, term()} | {:ok, term(), atom()} | {:error, term()}
+  def store_from_url(url, opts) do
+    user_uuid = Keyword.fetch!(opts, :user_uuid)
+    allowed = Keyword.get(opts, :allowed_types, ["image/"])
+
+    with {:ok, %{path: path, filename: name}} <- RemoteFetch.download(url, opts) do
+      try do
+        with {:ok, %{mime: mime}} <- Sniff.sniff(path),
+             true <- Enum.any?(allowed, &String.starts_with?(mime, &1)) do
+          filename = opts[:filename] || name
+          ext = mime |> MIME.extensions() |> List.first() || "bin"
+
+          checksum =
+            :sha256 |> :crypto.hash(Elixir.File.read!(path)) |> Base.encode16(case: :lower)
+
+          store_file_in_buckets(
+            path,
+            determine_file_type(mime, filename),
+            user_uuid,
+            checksum,
+            ext,
+            filename,
+            mime_type: mime,
+            library_uuid: opts[:library_uuid]
+          )
+        else
+          _ -> {:error, :unsupported_type}
+        end
+      after
+        Elixir.File.rm(path)
+      end
+    end
+  end
+
+  # The bytes, not the name or the browser, decide what a raster image is:
+  #
+  #   * a file whose first bytes are a raster image is stored as THAT type,
+  #     whatever it was called (a PNG named .jpg, a HEIC the browser said was
+  #     JPEG) — the variant pipeline then decodes it with the right coder;
+  #   * a file that CLAIMS to be a raster image but whose bytes are something
+  #     else (an SVG, a PDF, a script renamed .png) is stored as what it is,
+  #     or as octet-stream when unrecognised, so it never reaches ImageMagick
+  #     as an "image".
+  #
+  # Every other claim (documents, audio, video, archives) is left as it was —
+  # sniffing only corrects the image path, which is the one that decodes.
+  @doc false
+  def content_mime_type(claimed, source_path, filename) do
+    case Sniff.sniff(source_path) do
+      {:ok, %{format: format, mime: sniffed}} ->
+        cond do
+          Sniff.raster?(format) and sniffed != claimed ->
+            log_mime_mismatch(filename, claimed, sniffed)
+            sniffed
+
+          claimed in @raster_mimes and not Sniff.raster?(format) ->
+            log_mime_mismatch(filename, claimed, sniffed)
+            sniffed
+
+          true ->
+            claimed
+        end
+
+      # Bytes nothing recognises are not an image, whatever the claim —
+      # raster or not (an `image/svg+xml` claim over unknown bytes too).
+      :unknown ->
+        if claimed in @raster_mimes or image_claim?(claimed) do
+          log_mime_mismatch(filename, claimed, "application/octet-stream")
+          "application/octet-stream"
+        else
+          claimed
+        end
+    end
+  end
+
+  defp image_claim?(claimed) when is_binary(claimed), do: String.starts_with?(claimed, "image/")
+  defp image_claim?(_claimed), do: false
+
+  defp log_mime_mismatch(filename, claimed, actual) do
+    Logger.warning(
+      "Storage: #{inspect(filename)} claimed #{claimed} but its bytes are #{actual}; storing #{actual}"
+    )
+  end
+
+  # The extension that goes with a corrected mime type (`image/png` → "png").
+  defp ext_for(mime_type, fallback) do
+    case MIME.extensions(mime_type) do
+      [ext | _] -> ext
+      [] -> stored_ext(fallback, mime_type)
+    end
+  end
+
   # The caller's observed mime wins when it carries information; blank and
   # octet-stream carry none, so they fall through to the extension guess
   # rather than being enshrined on the row.
@@ -5850,6 +5980,8 @@ defmodule PhoenixKit.Modules.Storage do
          user_uuid,
          metadata
        ) do
+    content_type = content_mime_type(content_type, source_path, filename)
+
     # Store file using manager
     case store_by_profile(source_path, nil, :original) do
       {:ok, storage_info} ->

@@ -351,7 +351,8 @@ defmodule PhoenixKit.Modules.Storage.UserStorageReviewTest do
                    "integration_uuid" => connection!(owner)
                  })
 
-        assert %{bucket_name: [_]} = Ecto.Changeset.traverse_errors(changeset, fn {m, _} -> m end),
+        assert %{bucket_name: [_]} =
+                 Ecto.Changeset.traverse_errors(changeset, fn {m, _} -> m end),
                name
       end
     end

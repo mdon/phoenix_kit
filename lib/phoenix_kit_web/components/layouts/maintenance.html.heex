@@ -30,11 +30,11 @@
             id="maintenance-countdown"
             phx-hook="MaintenanceCountdown"
             data-end={DateTime.to_iso8601(scheduled_end)}
-            data-elapsed-text={Gettext.gettext(PhoenixKitWeb.Gettext, "any moment now...")}
+            data-elapsed-text={gettext("any moment now...")}
             class="text-base-content/50"
           >
             <p class="text-sm">
-              {Gettext.gettext(PhoenixKitWeb.Gettext, "Expected back in")}
+              {gettext("Expected back in")}
               <span id="countdown-value" class="font-mono font-semibold text-base-content/70"></span>
             </p>
           </div>

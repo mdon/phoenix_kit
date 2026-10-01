@@ -632,9 +632,16 @@ defmodule PhoenixKit.Modules.Sitemap.Generator do
 
   @doc false
   def get_sources do
+    config = Application.get_env(:phoenix_kit, :sitemap, [])
+
+    # `:sources` REPLACES the kit's default list; `:extra_sources` is added to
+    # whichever base is in force, so a host that only wants one more source
+    # does not have to restate (and later keep in step with) the defaults:
+    #
+    #     config :phoenix_kit, sitemap: [extra_sources: [MyAppWeb.SitemapSource]]
     base_sources =
-      Application.get_env(:phoenix_kit, :sitemap, [])
-      |> Keyword.get(:sources, default_sources())
+      Keyword.get(config, :sources, default_sources()) ++
+        Keyword.get(config, :extra_sources, [])
 
     # Append sitemap sources contributed by external modules (e.g. Entities)
     # via the PhoenixKit.Module `sitemap_sources/0` callback. Deduplicated so

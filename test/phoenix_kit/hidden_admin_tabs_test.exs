@@ -73,4 +73,28 @@ defmodule PhoenixKit.HiddenAdminTabsTest do
 
     assert Registry.hidden_admin_tabs() == [:admin_dashboard]
   end
+
+  describe "hidden_admin_tab?/1 — the check every other admin tab source applies" do
+    # Host `:admin_dashboard_tabs`, legacy categories and runtime `register/2`
+    # all insert through this predicate; before it, only the kit's defaults
+    # were filtered and a host's own tab could not be hidden from config.
+    test "an admin tab named in the config is hidden, whatever its source" do
+      Application.put_env(:phoenix_kit, :hidden_admin_tabs, [:admin_host_reports])
+
+      assert Registry.hidden_admin_tab?(%PhoenixKit.Dashboard.Tab{
+               id: :admin_host_reports,
+               level: :admin
+             })
+
+      refute Registry.hidden_admin_tab?(%PhoenixKit.Dashboard.Tab{
+               id: :admin_host_other,
+               level: :admin
+             })
+    end
+
+    test "a user dashboard tab with the same id is not affected" do
+      Application.put_env(:phoenix_kit, :hidden_admin_tabs, [:reports])
+      refute Registry.hidden_admin_tab?(%PhoenixKit.Dashboard.Tab{id: :reports, level: :user})
+    end
+  end
 end

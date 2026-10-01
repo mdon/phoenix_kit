@@ -1234,7 +1234,16 @@ defmodule PhoenixKitWeb.Users.Auth do
   end
 
   @doc false
-  def put_gettext_locale(dialect) when is_binary(dialect) do
+  def put_gettext_locale(dialect) when is_binary(dialect), do: put_gettext_locale(dialect, nil)
+
+  @doc false
+  # `view` is the LiveView module the hook runs for (nil from a plug). With
+  # `config :phoenix_kit, host_live_view_locale: :leave`, a HOST LiveView —
+  # one outside the kit's and its modules' namespaces — gets only the kit's
+  # own backend set: the process-global Gettext locale, which the host's
+  # backend reads, is left to the host. The default, `:set`, sets both for
+  # every view, as always.
+  def put_gettext_locale(dialect, view) when is_binary(dialect) do
     locale =
       if dialect in Gettext.known_locales(PhoenixKitWeb.Gettext) do
         dialect
@@ -1243,12 +1252,26 @@ defmodule PhoenixKitWeb.Users.Auth do
       end
 
     Gettext.put_locale(PhoenixKitWeb.Gettext, locale)
-    Gettext.put_locale(locale)
+
+    unless leave_host_locale?(view), do: Gettext.put_locale(locale)
+
     # The undowngraded dialect, for per-language content (see
     # `Languages.put_request_locale/1`).
     Languages.put_request_locale(dialect)
     locale
   end
+
+  @doc false
+  def leave_host_locale?(nil), do: false
+
+  def leave_host_locale?(view) when is_atom(view) do
+    Application.get_env(:phoenix_kit, :host_live_view_locale, :set) == :leave and
+      not kit_view?(view)
+  end
+
+  # The kit's own LiveViews and its modules' (PhoenixKitWeb.*, PhoenixKit*.*)
+  # read the global locale through their backends and always get it.
+  defp kit_view?(view), do: view |> Atom.to_string() |> String.starts_with?("Elixir.PhoenixKit")
 
   # Update locale assigns when navigating to a URL with a locale param
   defp maybe_update_locale_from_params(socket, %{"locale" => locale}) when is_binary(locale) do
@@ -1264,7 +1287,7 @@ defmodule PhoenixKitWeb.Users.Auth do
         if socket.assigns[:current_locale] == dialect do
           socket
         else
-          put_gettext_locale(dialect)
+          put_gettext_locale(dialect, socket.view)
 
           socket
           |> Phoenix.Component.assign(:current_locale_base, DialectMapper.extract_base(dialect))
@@ -1299,7 +1322,7 @@ defmodule PhoenixKitWeb.Users.Auth do
       # `preferred_locale` is intentionally ignored for routing).
       default_dialect = resolve_active_dialect(default_base)
 
-      put_gettext_locale(default_dialect)
+      put_gettext_locale(default_dialect, socket.view)
 
       socket
       |> Phoenix.Component.assign(:current_locale_base, default_base)
@@ -1317,7 +1340,7 @@ defmodule PhoenixKitWeb.Users.Auth do
 
     # Set both the backend-specific Gettext value and the process-global
     # default (feature modules with their own backends pick it up too).
-    put_gettext_locale(full_dialect)
+    put_gettext_locale(full_dialect, socket.view)
 
     socket
     |> Phoenix.Component.assign(:current_locale_base, locale)
@@ -1480,7 +1503,7 @@ defmodule PhoenixKitWeb.Users.Auth do
 
     # Set Gettext locale for translations (backend-specific + global, so
     # module backends like PhoenixKitProjects.Gettext sync too).
-    put_gettext_locale(current_locale)
+    put_gettext_locale(current_locale, socket.view)
 
     socket
     |> maybe_manage_scope_subscription(user)

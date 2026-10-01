@@ -81,6 +81,7 @@ defmodule PhoenixKit.TestSupport.PostgresPreflight do
           | :insufficient_privilege
           | :too_many_connections
           | :server_unavailable
+          | :protocol_violation
           | :unreachable
           | :unknown
 
@@ -204,7 +205,10 @@ defmodule PhoenixKit.TestSupport.PostgresPreflight do
   # answered with the same 28P01 as a bad password — so both are reported as
   # "credentials rejected" and the server's own wording is passed through
   # when it happens to say more.
-  defp classify(%Postgrex.Error{postgres: %{} = pg}) do
+  @doc false
+  # Public only for its tests: the connection failures it tells apart are
+  # hard to produce on demand.
+  def classify(%Postgrex.Error{postgres: %{} = pg}) do
     code = Map.get(pg, :pg_code) || Map.get(pg, :code)
     detail = Map.get(pg, :message)
 
@@ -226,6 +230,14 @@ defmodule PhoenixKit.TestSupport.PostgresPreflight do
         c when c in ["57P03", "cannot_connect_now"] ->
           :server_unavailable
 
+        # PgBouncer answers a login it will not route with 08P01 — an unknown
+        # role, a failed password, a database it has no entry for — so the
+        # message says which. Anything else under that code is a real
+        # protocol violation (PGPORT pointing at something that is not
+        # PostgreSQL), not "nothing answered".
+        c when c in ["08P01", "protocol_violation"] ->
+          classify_protocol_violation(detail)
+
         "08" <> _ ->
           :unreachable
 
@@ -240,12 +252,28 @@ defmodule PhoenixKit.TestSupport.PostgresPreflight do
   # endpoint" — econnrefused, nxdomain, ehostunreach, enoent on a socket path,
   # a connect timeout. The distinction between them is in the message, which
   # is passed through, and does not change the advice.
-  defp classify(%DBConnection.ConnectionError{} = error) do
+  def classify(%DBConnection.ConnectionError{} = error) do
     {:unreachable, Exception.message(error)}
   end
 
-  defp classify(error) when is_exception(error), do: {:unknown, Exception.message(error)}
-  defp classify(other), do: {:unknown, inspect(other, limit: 5)}
+  def classify(error) when is_exception(error), do: {:unknown, Exception.message(error)}
+  def classify(other), do: {:unknown, inspect(other, limit: 5)}
+
+  defp classify_protocol_violation(detail) do
+    text = to_string(detail)
+
+    cond do
+      text =~ ~r/no such database/i ->
+        :database_not_found
+
+      text =~
+          ~r/no such user|password authentication failed|SASL authentication failed|auth_query|not allowed|login rejected/i ->
+        :auth_rejected
+
+      true ->
+        :protocol_violation
+    end
+  end
 
   defp message(opts, reason, detail) do
     """
@@ -264,6 +292,10 @@ defmodule PhoenixKit.TestSupport.PostgresPreflight do
   defp header(:insufficient_privilege), do: "PostgreSQL refused access to that database."
   defp header(:too_many_connections), do: "PostgreSQL has no free connection slots."
   defp header(:server_unavailable), do: "PostgreSQL is not accepting connections yet."
+
+  defp header(:protocol_violation),
+    do: "The server on that port did not speak the PostgreSQL protocol as expected."
+
   defp header(:unreachable), do: "No PostgreSQL server answered."
   defp header(:unknown), do: "Could not connect to PostgreSQL."
 
@@ -281,6 +313,13 @@ defmodule PhoenixKit.TestSupport.PostgresPreflight do
 
   defp advice(:server_unavailable),
     do: "The server is starting up or recovering; retry shortly.\n"
+
+  defp advice(:protocol_violation) do
+    """
+    Check that PGHOST / PGPORT point at PostgreSQL or a pooler in front of it
+    (PgBouncer), not at another service.
+    """
+  end
 
   defp advice(:unreachable) do
     "Check PGHOST / PGPORT and that the server is running.\n"

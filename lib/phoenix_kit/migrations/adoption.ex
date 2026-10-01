@@ -502,7 +502,10 @@ defmodule PhoenixKit.Migrations.Adoption do
           :ok | {:drift, [drift()]}
   def verify_shape(repo, prefix, checks) when is_list(checks) do
     Helpers.validate_prefix!(prefix)
-    snapshot = with_preserved_search_path(repo, fn -> Probe.snapshot(repo, prefix) end)
+    # Probe.snapshot/2 keeps its `search_path = ''` inside its own
+    # transaction (a savepoint here) and puts the caller's value back, so a
+    # migration connection's deliberately-set search_path survives it.
+    snapshot = Probe.snapshot(repo, prefix)
 
     drifted =
       checks
@@ -510,35 +513,6 @@ defmodule PhoenixKit.Migrations.Adoption do
       |> Enum.reject(&is_nil/1)
 
     if drifted == [], do: :ok, else: {:drift, drifted}
-  end
-
-  # Probe.snapshot/2 forces `search_path = ''` for the duration of its own
-  # queries and unconditionally `RESET`s afterward — correct for ITS OWN
-  # caller (mix phoenix_kit.repair/doctor, where nothing downstream relies
-  # on search_path; see Probe's own moduledoc for the full reasoning) but
-  # wrong here: `verify_shape/3` runs on an arbitrary migration connection,
-  # which may carry its own deliberately-set search_path (a scratch-schema
-  # migration, say) that a bare `RESET` would silently replace with the
-  # role's session default instead of restoring. Save the real value first
-  # and restore it explicitly — independent of whatever `Probe.snapshot/2`
-  # itself does internally, and regardless of whether `fun` raises.
-  #
-  # The `checkout/1` pins the save, the snapshot and the restore to ONE
-  # physical connection. Inside a migration's transaction they already share
-  # one; called outside a transaction (a mix task, a console), each
-  # `repo.query!` would otherwise borrow any pooled connection, so the value
-  # read on one would be restored onto another. Checkouts nest, so
-  # `Probe.snapshot/2`'s own checkout reuses this connection.
-  defp with_preserved_search_path(repo, fun) do
-    repo.checkout(fn ->
-      %{rows: [[saved]]} = repo.query!("SHOW search_path", [], log: false)
-
-      try do
-        fun.()
-      after
-        repo.query!("SELECT set_config('search_path', $1, false)", [saved], log: false)
-      end
-    end)
   end
 
   @doc """

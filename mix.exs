@@ -351,6 +351,9 @@ defmodule PhoenixKit.MixProject do
       {:ex_aws_ec2, "~> 2.0"},
       {:saxy, "~> 1.5"},
       {:finch, "~> 0.18"},
+      # Direct HTTP for Storage.RemoteFetch: it must connect to the address it
+      # checked (Mint's :hostname), which a pooled client cannot promise.
+      {:mint, "~> 1.6"},
 
       # HTTP client for payment providers
       {:req, "~> 0.5"},

@@ -93,6 +93,27 @@ defmodule PhoenixKitWeb.Components.Core.SearchPicker do
     `text_event` nil = no free-text row)
   - `placeholder`, `class` — input presentation
   - `searching_label` etc. — translated strings for the client-rendered rows
+  - `close_on_pick` — multi mode: after a pick the list stays closed until
+    the user types again (by default it clears the input and, with
+    `search_on_focus`, reopens straight away)
+  - `row_layout` — `"inline"` (default: label and sublabel on one line,
+    the label truncated) or `"stacked"` (label on top, up to two lines,
+    sublabel underneath)
+  - anything else in `rest` (`form`, `maxlength`, `required`, `inputmode`,
+    `enterkeyhint`, `autocapitalize`…) lands on the input
+
+  ## Where the list is drawn
+
+  The dropdown is a `popover="manual"` element: it opens in the top layer,
+  positioned from the input, so an `overflow` ancestor — a modal's body, a
+  scrolling panel — can no longer cut it off. It stays a DOM child of the
+  picker, so inside a `<dialog>` it is not inert. It opens downward unless
+  `direction="up"` or there is no room below (the phone keyboard counts),
+  follows the input when anything scrolls, and closes with the dialog.
+  Browsers without the Popover API get the old absolute positioning.
+
+  On touch screens a row is picked when the finger lifts (and has not
+  moved to scroll), so the first tap counts even with the keyboard up.
   """
   attr :id, :string, required: true
   attr :dropdown_id, :string, required: true
@@ -116,7 +137,12 @@ defmodule PhoenixKitWeb.Components.Core.SearchPicker do
   attr :more_label, :string, default: "Load more"
   attr :loading_more_label, :string, default: "Loading…"
   attr :no_matches_label, :string, default: "No matches"
-  attr :rest, :global
+  attr :close_on_pick, :boolean, default: false
+  attr :row_layout, :string, default: "inline", values: ["inline", "stacked"]
+
+  attr :rest, :global,
+    include:
+      ~w(form maxlength minlength required disabled readonly autofocus inputmode enterkeyhint autocapitalize spellcheck pattern)
 
   def search_picker(assigns) do
     ~H"""
@@ -131,6 +157,9 @@ defmodule PhoenixKitWeb.Components.Core.SearchPicker do
         data-dropdown={@dropdown_id}
         data-mode={@mode}
         data-search-on-focus={@search_on_focus || nil}
+        data-direction={@direction}
+        data-close-on-pick={@close_on_pick || nil}
+        data-row-layout={@row_layout}
         data-search-event={@search_event}
         data-results-event={@results_event}
         data-pick-event={@pick_event}
@@ -151,8 +180,9 @@ defmodule PhoenixKitWeb.Components.Core.SearchPicker do
       <div
         id={@dropdown_id}
         phx-update="ignore"
+        popover="manual"
         class={[
-          "hidden absolute left-0 right-0 z-20 border border-base-200 rounded-box bg-base-100 shadow overflow-hidden",
+          "hidden absolute left-0 right-0 z-20 m-0 p-0 border border-base-200 rounded-box bg-base-100 text-base-content shadow overflow-hidden",
           if(@direction == "up", do: "bottom-full mb-1", else: "top-full mt-1")
         ]}
       >
@@ -162,7 +192,7 @@ defmodule PhoenixKitWeb.Components.Core.SearchPicker do
            giving buttons a pointer, so the dropdown rows read as decoration
            without it — and a host that never writes the class by hand would
            otherwise not have it compiled at all. --%>
-      <span class="hidden loading loading-spinner loading-xs hero-user hero-plus-mini cursor-pointer"></span>
+      <span class="hidden loading loading-spinner loading-xs hero-user hero-plus-mini cursor-pointer items-start flex-col line-clamp-2 break-words mt-0.5"></span>
     </div>
     """
   end

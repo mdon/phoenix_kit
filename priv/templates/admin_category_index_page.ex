@@ -4,7 +4,6 @@ defmodule <%= @web_module_prefix %>.PhoenixKit.Admin.<%= @category %>.Index do
   """
 
   use <%= @web_module_prefix %>, :live_view
-  use Gettext, backend: PhoenixKitWeb.Gettext
 
   alias PhoenixKit.Settings
 

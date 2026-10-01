@@ -73,7 +73,8 @@
                 },
                 %{id: "defaults", label: gettext("New User Defaults"), icon: "hero-user-circle"},
                 %{id: "roles", label: gettext("Roles"), icon: "hero-identification"},
-                %{id: "fields", label: gettext("Custom User Fields"), icon: "hero-list-bullet"}
+                %{id: "fields", label: gettext("Custom User Fields"), icon: "hero-list-bullet"},
+                %{id: "profile_page", label: gettext("Profile Page"), icon: "hero-identification"}
               ]}
             />
 
@@ -728,8 +729,8 @@
               </div>
             </div>
 
-            <%!-- Action Buttons --%>
-            <div class="flex gap-3 pt-4">
+            <%!-- Action Buttons (the Profile Page tab saves each switch at once) --%>
+            <div class={["flex gap-3 pt-4", @active_tab == "profile_page" && "hidden"]}>
               <button
                 type="submit"
                 class={[
@@ -746,6 +747,29 @@
               </button>
             </div>
           </.form>
+
+          <%!-- Profile Page tab: outside the main form, each switch saves at
+               once. What is stored is the list of HIDDEN sections, so a
+               section added later shows on existing sites. --%>
+          <div :if={@active_tab == "profile_page"} id="profile-page-sections" class="space-y-4">
+            <p class="text-sm text-base-content/70">
+              {gettext(
+                "Choose what people see on their own settings page. A tab whose sections are all hidden disappears. Hiding only removes the section from the page; it does not change anyone's data."
+              )}
+            </p>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <.checkbox
+                :for={section <- @profile_hideable_sections}
+                id={"profile-section-#{section}-#{@profile_toggle_rev}"}
+                name={"profile_section_#{section}"}
+                variant="toggle"
+                checked={section not in @profile_hidden_sections}
+                label={profile_section_label(section)}
+                phx-click="toggle_profile_section"
+                phx-value-section={section}
+              />
+            </div>
+          </div>
 
           <%!-- Field Form Modal (outside main form) --%>
           <%= if @show_field_form do %>
