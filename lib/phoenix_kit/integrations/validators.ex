@@ -31,6 +31,7 @@ defmodule PhoenixKit.Integrations.Validators do
   alias PhoenixKit.AWS.CredentialsVerifier
   alias PhoenixKit.Integrations.Probe
   alias PhoenixKit.Mailer.SmtpTransport
+  alias PhoenixKit.Modules.Storage.Endpoint
   alias PhoenixKit.Utils.Number
 
   @http_timeout 15_000
@@ -602,13 +603,44 @@ defmodule PhoenixKit.Integrations.Validators do
   including the `.amazonaws.com.cn` host for the China partition. A GovCloud
   environment that requires the FIPS endpoint (`s3-fips.<region>.amazonaws.com`)
   rather than the standard one should set it explicitly via `endpoint`.
+
+  `opts[:owner]` is the connection's owner (`:system` or `{:user, uuid}`). The
+  endpoint is where this server is about to connect, so it is checked before
+  any request (`Storage.Endpoint.check/3`, resolving the host): a system
+  connection may use a local or private endpoint (a MinIO on the same network
+  is normal), a personal one may not, and nobody may use a metadata or
+  link-local address.
   """
-  @spec object_storage(map()) :: verdict()
-  def object_storage(data) do
-    if blank?(data["access_key"]) or blank?(data["secret_key"]) do
-      {:error, gettext("Incomplete credentials")}
-    else
-      Probe.run(fn -> request_list_buckets(data) end)
+  @spec object_storage(map(), keyword()) :: verdict()
+  def object_storage(data, opts \\ []) do
+    cond do
+      blank?(data["access_key"]) or blank?(data["secret_key"]) ->
+        {:error, gettext("Incomplete credentials")}
+
+      message = object_storage_endpoint_refusal(data, opts) ->
+        {:error, message}
+
+      true ->
+        Probe.run(fn -> request_list_buckets(data) end)
+    end
+  end
+
+  # An unknown owner is treated as personal: the strict policy is the default.
+  defp object_storage_endpoint_refusal(data, opts) do
+    policy = if Keyword.get(opts, :owner) == :system, do: :system, else: :personal
+
+    case Endpoint.check(data["endpoint"], policy, resolve: true) do
+      :ok ->
+        nil
+
+      {:error, :invalid_endpoint} ->
+        gettext("The endpoint is not a usable host or URL")
+
+      {:error, :insecure_scheme} ->
+        gettext("The endpoint must use https")
+
+      {:error, _blocked} ->
+        gettext("The endpoint must not be a local, private or metadata address")
     end
   end
 
@@ -689,13 +721,22 @@ defmodule PhoenixKit.Integrations.Validators do
     # dodges above by building the SES host itself instead of trusting ExAws.
     # ExAws's resolver DOES get the China partition right, though (`.cn`
     # suffix) — `object_storage_default_host/1` below keeps that one case.
-    host =
-      case object_storage_endpoint(data) do
-        nil -> object_storage_default_host(region)
-        endpoint -> endpoint
-      end
+    #
+    # A custom endpoint goes through `Storage.Endpoint.parse/1`, the parser a
+    # bucket's endpoint goes through, so the host validated here is the host a
+    # bucket using this connection talks to (a pasted scheme, a trailing slash
+    # and a port all read the same way). A set but unusable endpoint never
+    # falls back to AWS: `object_storage/2` refuses it first.
+    case Endpoint.parse(data["endpoint"]) do
+      nil ->
+        base ++ [host: object_storage_default_host(region), scheme: "https://"]
 
-    base ++ [host: host, scheme: "https://"]
+      %{scheme: scheme, host: host, port: port} ->
+        base ++ [host: host, scheme: scheme <> "://", port: port]
+
+      {:error, :invalid_endpoint} ->
+        raise ArgumentError, "the endpoint is not a usable URL"
+    end
   end
 
   # The China partition answers on .amazonaws.com.cn — the global host does
@@ -706,24 +747,6 @@ defmodule PhoenixKit.Integrations.Validators do
 
   defp object_storage_region(data) do
     if blank?(data["region"]), do: "us-east-1", else: String.trim(data["region"])
-  end
-
-  # Operators paste this straight from a provider's dashboard — Cloudflare R2
-  # hands out `https://<account_id>.r2.cloudflarestorage.com`, scheme
-  # included, and sometimes with a trailing slash — but ExAws's `host:`
-  # config wants a bare hostname. A scheme prefix makes `URI` read the host
-  # as an IPv6 literal and ExAws RAISES a `MatchError` building the request
-  # (confirmed), which the rescue above would otherwise silently relabel as
-  # "could not reach" instead of naming the actual mistake.
-  defp object_storage_endpoint(data) do
-    if blank?(data["endpoint"]) do
-      nil
-    else
-      data["endpoint"]
-      |> String.trim()
-      |> String.replace(~r{\Ahttps?://}i, "")
-      |> String.trim_trailing("/")
-    end
   end
 
   @doc false

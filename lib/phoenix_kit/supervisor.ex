@@ -100,6 +100,7 @@ defmodule PhoenixKit.Supervisor do
          fn ->
            try do
              Permissions.auto_grant_new_keys_to_admin()
+             Permissions.backfill_media_sub_permissions()
            rescue
              error ->
                require Logger

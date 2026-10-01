@@ -400,6 +400,7 @@ defmodule PhoenixKit.Modules.Storage.UserLibrariesTest do
       # A holder of "media" edits system-library files, never a user library's.
       {:ok, media_role} = Roles.create_role(%{name: "Media #{System.unique_integer()}"})
       {:ok, _} = Permissions.grant_permission(media_role.uuid, "media")
+      {:ok, _} = Permissions.grant_permission(media_role.uuid, "media.view_all")
       media_holder = user!(media_role)
       refute Libraries.can?(scope(media_holder), file, :edit)
       assert Libraries.can?(scope(media_holder), %{file | library_uuid: nil}, :edit)

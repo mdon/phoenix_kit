@@ -479,7 +479,7 @@
               type="button"
               phx-click="delete_connection"
               class="btn btn-outline btn-error btn-sm shrink-0"
-              data-confirm={gettext("Permanently delete this connection? This cannot be undone.")}
+              data-confirm={delete_confirm(@bucket_uses)}
               phx-disable-with={gettext("Deleting…")}
             >
               <.icon name="hero-trash" class="w-4 h-4" />

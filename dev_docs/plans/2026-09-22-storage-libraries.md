@@ -501,6 +501,98 @@ every phase here is a new version, starting at **V201**.
 
 ---
 
+### Next: V206, user-owned storage (decisions 2026-09-30)
+
+Decided with the maintainer: **backup mode snapshots the Default profile's
+buckets** when the library is created (a site bucket added later is not used
+by existing user libraries; removing or disabling one already reaches every
+profile); **purging a library deletes the objects it wrote** (its key prefix)
+on the user's own bucket too, after the trash step; **quotas move to V207**.
+A library's storage choice (site storage, or its own) is fixed once the
+library exists. Both modes ship: "only storage" (a profile with the user's
+bucket as its one `primary`) and "backup" (the snapshot as primaries, the
+user's bucket as a `backup` row).
+
+Risks this design answers (found reading the code, 2026-09-30):
+
+- Buckets are one global pool and ~10 callers enumerate it (`Manager` reads,
+  the location backfill, the media browser, the settings list…). A user bucket
+  is a row in `phoenix_kit_buckets` with `owner_uuid`; **`list_buckets/0` and
+  `list_enabled_buckets/0` return system buckets only**, so every existing
+  caller stays correct untouched.
+- `Manager.read_order` resolves a file's located buckets against that pool and
+  would drop a user bucket: located buckets are resolved by uuid (user-owned
+  included, if enabled); the fallback probe of unlocated buckets stays
+  system-only. `delete_stored_object` deletes from the pool only, so objects in
+  a user bucket are removed through the location rows.
+- `owner_uuid` has **no foreign key**: a `SET NULL` FK would turn a deleted
+  user's bucket, credentials and all, into a system bucket in the shared pool.
+  A dangling owner is inert. The purge of an owner's libraries also removes
+  their buckets and profiles.
+- Database guard: `CHECK (owner_uuid IS NULL OR (provider <> 'local' AND
+  integration_uuid IS NOT NULL))`. A user bucket is never a filesystem path and
+  never carries keys of its own.
+- Every personal bucket's config runs `Endpoint.check(:personal, resolve: true)`
+  when it is built, and resolves credentials with `owner: {:user, uuid}`;
+  `cdn_url` is checked the same way. The ExAws Req adapter does not follow
+  redirects (default), so a public host cannot bounce a request inward.
+- User buckets are served through signed URLs (or the proxy), never a plain
+  object URL.
+- Gating: setting `storage_user_buckets_enabled` (off by default) and the
+  sub-permission `storage.own_storage`.
+- User profiles are named by their own uuid (the name is never shown), so the
+  profile name index is not reshaped; they are excluded from
+  `Profiles.list_profiles/0`, and `set_library_profile/2` refuses to move a
+  library off (or onto) user-owned storage.
+
+Work order (tick as built):
+
+1. [x] V206: `owner_uuid` on buckets and profiles, two partial indexes, the
+   CHECK; manifest objects; `v206_test`; `Bucket`/`StorageProfile` schemas.
+2. [x] System-only `list_buckets`/`list_enabled_buckets`; owner-aware getters;
+   the changeset rules for an owned bucket.
+3. [x] `S3`: credential owner and personal endpoint guard at config time.
+4. [x] `Manager`: read order, serving and deletes for user buckets.
+5. [x] `Profiles`: create a user profile (only/backup), exclusions, refusals.
+6. [x] `Libraries.create_user_library` with a storage choice; purge and user
+   deletion clean up the owner's buckets and profiles.
+7. [x] Profile → Settings → Media: the creation wizard, the setting and the
+   sub-permission; admin metadata shows the storage kind, never credentials.
+8. [ ] Tests, README, CHANGELOG, translations, `mix precommit`, full suite.
+
+As built (2026-09-30), where it differs from the list above:
+
+- The owned-bucket check also forbids `access_type = 'public'`.
+- A user's own buckets are found for deletion through the **library's profile**,
+  not its owner (a library of a deleted user has no owner left).
+- **Backup mode wants one original on every snapshotted site bucket plus the
+  backup**, not "the Default's count + 1": placement fills primaries before
+  backups, so the latter never wrote the backup when the site had more buckets
+  than its copy count (found by the end-to-end test). At most 5 copies: more than
+  four site buckets are trimmed to four by serve order.
+- Object Storage was not on the personal provider allowlist
+  (`@personal_offered`), so a user could not make the connection; it is offered
+  while `storage_user_buckets_enabled` is on.
+- Deleting a user account deletes their personal connections first, so the purge
+  of their libraries cannot reach their own bucket: those objects are left there.
+- After the Codex review (2026-09-30, `dev_docs/reviews/2026-09-30-user-owned-storage/`):
+  the personal probe rechecks permissions and validates the fields; Tigris is
+  checked at the prefixed host and owned bucket names are syntax-checked; the
+  probe uses a fresh key, reads back and is deadline-bounded; `min_copies_on_write`
+  ignores backups; backup trimming limits only original-capable rows; the final
+  choice is decided under a row lock; purge deletes objects before rows and
+  retries (`:objects_remain`) instead of forgetting them; owned buckets are edited
+  under the owned rules.
+- Open: a site with no site bucket at all offers uploads (`buckets_available?/0`
+  counts a user's bucket) even on the site's libraries; the upload then fails with
+  "no available storage buckets".
+
+### Next: Media by viewer (2026-09-30)
+
+Media becomes the one browser: it shows each viewer only what is theirs, user libraries
+join its switcher, and `/admin/libraries` goes. Plan and work order:
+`dev_docs/plans/2026-09-30-media-by-viewer.md`.
+
 ## 1. The idea
 
 Every stored file belongs to exactly one **library**. A library is a partition

@@ -42,7 +42,8 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
 
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
-  alias PhoenixKit.Modules.Storage.{Folder, Library, LibraryMember}
+  alias PhoenixKit.Modules.Storage.{Folder, Library, LibraryMember, Profiles}
+  alias PhoenixKit.Modules.Storage.Providers.S3
   alias PhoenixKit.Modules.Storage.Workers.PurgeLibraryJob
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth.{Scope, User}
@@ -359,7 +360,8 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
       other user's file metadata (issue #687).
     * `:edit` — change the picture (image editing, annotation burn-in, the
       unedited original): the uploader, an Owner/Admin, a holder of the
-      `"media"` permission when the file is in a system library, or the
+      `"media"` permission with `"media.view_all"` when the file is in a system
+      library, or the
       owner or a manager of the user library it is in.
 
   Anything else, and a scope without a user, is refused.
@@ -379,8 +381,13 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
     grants?(scope, library, action)
   end
 
+  # Changing someone else's file in a site library is for a holder of `media` who
+  # sees everyone's files (`media.view_all`); a holder of `media` alone changes only
+  # their own (the uploader clause of `can?/3`).
   defp grants?(scope, :media, action),
-    do: action == :edit and Scope.has_module_access?(scope, "media")
+    do:
+      action == :edit and Scope.has_module_access?(scope, "media") and
+        Scope.can?(scope, "media.view_all")
 
   defp grants?(scope, %Library{kind: "system"}, action), do: grants?(scope, :media, action)
 
@@ -425,6 +432,67 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   end
 
   def may_use_libraries?(_scope), do: false
+
+  @doc """
+  Whether Media (`/admin/media`) is where `scope` browses their user libraries:
+  they hold `media` and are not an Owner/Admin. Media's switcher then lists their
+  own and shared libraries beside the site's (`/admin/media/my/<id>`); everyone
+  else (only `storage`, or an Owner/Admin who also opens other people's libraries,
+  audit-logged) uses `/admin/libraries`.
+  """
+  @spec browse_in_media?(Scope.t() | nil) :: boolean()
+  def browse_in_media?(%Scope{} = scope),
+    do: Scope.has_module_access?(scope, "media") and not Scope.system_role?(scope)
+
+  def browse_in_media?(_scope), do: false
+
+  @doc """
+  Whether the sidebar lists a separate "Libraries" entry for `scope`: user
+  libraries are on for them, and they do not already have them in Media.
+  """
+  @spec show_libraries_entry?(Scope.t() | nil) :: boolean()
+  def show_libraries_entry?(scope), do: may_use_libraries?(scope) and not browse_in_media?(scope)
+
+  @doc """
+  The (canonical, unprefixed) path of the page that browses `library` for
+  `scope`: Media's for a holder of `media`, `/admin/libraries` otherwise.
+  """
+  @spec browse_path(Scope.t() | nil, Library.t()) :: String.t()
+  def browse_path(scope, %Library{} = library) do
+    id = url_id(library, Scope.user_uuid(scope))
+
+    if browse_in_media?(scope),
+      do: "/admin/media/my/#{id}",
+      else: "/admin/libraries/#{id}"
+  end
+
+  @doc "The path of the page that lists `scope`'s libraries (see `browse_path/2`)."
+  @spec browse_index_path(Scope.t() | nil) :: String.t()
+  def browse_index_path(scope),
+    do: if(browse_in_media?(scope), do: "/admin/media", else: "/admin/libraries")
+
+  @doc """
+  Whether the site lets users keep a library on their own bucket (the
+  `storage_user_buckets_enabled` setting, off by default: the site answers for
+  nothing that lands outside its own storage until it says so).
+  """
+  @spec user_buckets_enabled?() :: boolean()
+  def user_buckets_enabled?,
+    do: Settings.get_boolean_setting("storage_user_buckets_enabled", false)
+
+  @doc """
+  Whether `scope` may put a new library on their own storage:
+  `may_create_library?/1`, the site allowing it (`user_buckets_enabled?/0`), the
+  `"storage.own_storage"` permission, and the `"integrations"` permission: the
+  bucket's keys are a personal connection, which only a holder of it can make.
+  """
+  @spec may_use_own_storage?(Scope.t() | nil) :: boolean()
+  def may_use_own_storage?(%Scope{} = scope) do
+    may_create_library?(scope) and user_buckets_enabled?() and
+      Scope.can?(scope, "storage.own_storage") and Scope.has_module_access?(scope, "integrations")
+  end
+
+  def may_use_own_storage?(_scope), do: false
 
   @doc """
   Whether `scope` may create user libraries: `may_use_libraries?/1`, and the
@@ -563,28 +631,150 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   def url_id(%Library{uuid: uuid}, _user_uuid), do: to_string(uuid)
 
   @doc """
-  Creates a user library owned by `scope`'s user. `attrs` takes a `"name"`.
-  The first live library a user has becomes their default. Refused with
-  `:not_allowed` without `may_create_library?/1`, and `:limit_reached` at
-  `user_library_limit/0` live libraries.
-  """
-  @spec create_user_library(Scope.t() | nil, map()) ::
-          {:ok, Library.t()} | {:error, :not_allowed | :limit_reached | Ecto.Changeset.t()}
-  def create_user_library(scope, attrs) do
-    with true <- may_create_library?(scope) || {:error, :not_allowed},
-         user_uuid when is_binary(user_uuid) <- Scope.user_uuid(scope) || {:error, :not_allowed} do
-      attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
+  Creates a user library owned by `scope`'s user. `attrs` takes a `"name"` and
+  optionally a `"storage"` (below). The first live library a user has becomes
+  their default. Refused with `:not_allowed` without `may_create_library?/1`,
+  and `:limit_reached` at `user_library_limit/0` live libraries.
 
+  ## Where the library keeps its files
+
+  By default on the site's storage (the Default profile). With `"storage"` a map
+  the user chooses their own instead, and **the choice is final**: the library's
+  profile can never be changed afterwards (`Profiles.set_library_profile/2`
+  refuses it).
+
+      %{"name" => "Photos",
+        "storage" => %{
+          "mode" => "only",               # or "backup"
+          "integration_uuid" => "…",      # one of the user's own connections
+          "provider" => "s3",             # s3 | b2 | r2 | tigris
+          "bucket_name" => "my-photos",
+          "region" => "eu-central-1",     # and/or
+          "endpoint" => "https://…"}}
+
+  `"only"` keeps everything in their bucket; `"backup"` keeps the site's
+  storage as it is and copies the originals to theirs (see
+  `Profiles.create_user_profile/3`). Needs `may_use_own_storage?/1`
+  (`{:error, :not_allowed}` otherwise).
+
+  The bucket is probed first, reading, writing and deleting a small object
+  (`:probe`, a function of the bucket params, `Storage.test_connection/1` by
+  default): a library that could not store anything is not created, and the
+  reason is `{:error, {:storage, message}}`. A bucket, profile or library that
+  cannot be created undoes the rest. Problems with the bucket fields are
+  `{:error, {:storage, %Ecto.Changeset{}}}`.
+  """
+  @spec create_user_library(Scope.t() | nil, map(), keyword()) ::
+          {:ok, Library.t()}
+          | {:error,
+             :not_allowed
+             | :limit_reached
+             | :no_site_storage
+             | {:storage, String.t() | Ecto.Changeset.t()}
+             | Ecto.Changeset.t()}
+  def create_user_library(scope, attrs, opts \\ []) do
+    attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
+    {storage, attrs} = Map.pop(attrs, "storage")
+
+    with true <- may_create_library?(scope) || {:error, :not_allowed},
+         user_uuid when is_binary(user_uuid) <- Scope.user_uuid(scope) || {:error, :not_allowed},
+         {:ok, own} <- own_storage_request(scope, user_uuid, storage, opts) do
       repo().transaction(fn ->
         # One creation per user at a time, so two tabs cannot both pass the
         # limit check.
         lock_user(user_uuid)
         owned = count_owned(user_uuid)
 
-        if owned >= user_library_limit(),
-          do: repo().rollback(:limit_reached),
-          else: insert_owned(attrs, user_uuid, owned == 0)
+        if owned >= user_library_limit() do
+          repo().rollback(:limit_reached)
+        else
+          library = insert_owned(attrs, user_uuid, owned == 0)
+          attach_own_storage(library, user_uuid, own)
+        end
       end)
+    end
+  end
+
+  # No `"storage"` (or the site's own): the library stays on the Default.
+  defp own_storage_request(_scope, _user_uuid, nil, _opts), do: {:ok, nil}
+  defp own_storage_request(_scope, _user_uuid, %{"mode" => "site"}, _opts), do: {:ok, nil}
+
+  defp own_storage_request(scope, user_uuid, %{} = storage, opts) do
+    mode = storage["mode"]
+
+    cond do
+      not may_use_own_storage?(scope) ->
+        {:error, :not_allowed}
+
+      mode not in ["only", "backup"] ->
+        {:error, :not_allowed}
+
+      true ->
+        params = Map.take(storage, ~w(integration_uuid provider bucket_name region endpoint))
+        probe = Keyword.get(opts, :probe, &Storage.test_connection/1)
+
+        case probe_owned(params, user_uuid, probe) do
+          :ok -> {:ok, %{mode: String.to_existing_atom(mode), params: params}}
+          {:error, message} -> {:error, {:storage, message}}
+        end
+    end
+  end
+
+  defp own_storage_request(_scope, _user_uuid, _storage, _opts), do: {:error, :not_allowed}
+
+  @doc """
+  Checks a bucket for `scope`'s user to put a library on (what the wizard's "Test
+  the bucket" asks, and what creating the library asks again): they may use their
+  own storage at all, the fields pass `Bucket.owned_changeset/4` (an S3-protocol
+  provider, their own connection, a host the server may reach), and a small
+  object can be written, read back and deleted.
+
+  Returns `:ok`, `{:error, :not_allowed}`, `{:error, message}` from the bucket, or
+  `{:error, %Ecto.Changeset{}}` for the fields. `:probe` replaces the network
+  check (a function of the bucket params), for tests.
+  """
+  @spec probe_own_storage(Scope.t() | nil, map(), keyword()) ::
+          :ok | {:error, :not_allowed | String.t() | Ecto.Changeset.t()}
+  def probe_own_storage(scope, params, opts \\ []) do
+    with true <- may_use_own_storage?(scope) || {:error, :not_allowed},
+         user_uuid when is_binary(user_uuid) <- Scope.user_uuid(scope) || {:error, :not_allowed} do
+      fields = Map.take(params, ~w(integration_uuid provider bucket_name region endpoint))
+      probe_owned(fields, user_uuid, Keyword.get(opts, :probe, &Storage.test_connection/1))
+    end
+  end
+
+  # The probe runs before anything is written, as the user the bucket would
+  # belong to: their connection, the strict endpoint policy. A bucket that does
+  # not even pass the changeset is not probed.
+  defp probe_owned(params, user_uuid, probe) do
+    # The bucket gets the library's name when it is created; the probe only
+    # needs one to be valid.
+    params = Map.put(params, "name", "probe")
+
+    changeset =
+      Storage.Bucket.owned_changeset(%Storage.Bucket{}, params, user_uuid,
+        connection_owned?: &Storage.owns_connection?(user_uuid, &1)
+      )
+
+    if changeset.valid?,
+      do: probe.(Map.put(params, "owner_uuid", user_uuid)),
+      else: {:error, changeset}
+  end
+
+  # Inside the creation transaction: the bucket, its profile, then the library
+  # pointed at it. Any failure rolls the whole library back.
+  defp attach_own_storage(library, _user_uuid, nil), do: library
+
+  defp attach_own_storage(library, user_uuid, %{mode: mode, params: params}) do
+    attrs = Map.put(params, "name", library.name)
+
+    with {:ok, bucket} <- Storage.create_owned_bucket(user_uuid, attrs),
+         {:ok, profile} <- Profiles.create_user_profile(user_uuid, bucket, mode),
+         {:ok, library} <- Profiles.assign_user_profile(library, profile) do
+      library
+    else
+      {:error, %Ecto.Changeset{} = changeset} -> repo().rollback({:storage, changeset})
+      {:error, reason} -> repo().rollback(reason)
     end
   end
 
@@ -961,9 +1151,15 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
       |> repo().all()
       |> Map.new()
 
+    own_storage = Profiles.user_storage_for(libraries)
+
     libraries
     |> with_stats()
-    |> Enum.map(&Map.put(&1, :members, Map.get(members, &1.library.uuid, 0)))
+    |> Enum.map(fn row ->
+      row
+      |> Map.put(:members, Map.get(members, row.library.uuid, 0))
+      |> Map.put(:own_storage, Map.get(own_storage, to_string(row.library.uuid)))
+    end)
   end
 
   @doc """
@@ -971,8 +1167,18 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   ones included) through the normal delete path, which deletes the bytes
   no other file still names; then its folders; then the library row (its
   members go with it). A live library is refused.
+
+  A library on a user's own storage (V206) is purged more carefully: each file's
+  objects are deleted BEFORE its rows, and a file whose objects could not be
+  deleted is left as it was, along with the library, its profile and the bucket
+  row (the record of where the objects are and how to reach them). The purge then
+  returns `{:error, :objects_remain}`, so the job is retried, and nothing is
+  forgotten that could not be cleaned up. If the user's credentials are gone
+  (their account was deleted, taking their connections with it) nothing can be
+  deleted from their bucket, and the purge goes on without waiting for it.
   """
-  @spec purge_library(Library.t() | term()) :: :ok | {:error, :not_trashed | :not_found}
+  @spec purge_library(Library.t() | term()) ::
+          :ok | {:error, :not_trashed | :not_found | :objects_remain}
   def purge_library(%Library{trashed_at: nil}), do: {:error, :not_trashed}
 
   def purge_library(%Library{uuid: uuid} = library) do
@@ -1007,21 +1213,85 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   end
 
   defp do_purge(%Library{uuid: uuid} = library) do
+    confirm? = confirm_objects?(library)
+
     # Parents first: a parent's delete takes its system-managed children
     # (tiles, edit backups) with it.
-    from(f in StorageFile,
-      where: f.library_uuid == ^uuid,
-      order_by: [asc: not is_nil(f.parent_file_uuid)],
-      select: f.uuid
-    )
-    |> repo().all()
-    |> Enum.each(fn file_uuid ->
-      case repo().get(StorageFile, file_uuid) do
-        nil -> :ok
-        file -> Storage.delete_file_completely(file)
-      end
-    end)
+    remaining =
+      from(f in StorageFile,
+        where: f.library_uuid == ^uuid,
+        order_by: [asc: not is_nil(f.parent_file_uuid)],
+        select: f.uuid
+      )
+      |> repo().all()
+      |> Enum.count(fn file_uuid ->
+        case repo().get(StorageFile, file_uuid) do
+          nil -> false
+          file -> not purge_file(file, confirm?)
+        end
+      end)
 
+    if remaining > 0 do
+      Logger.warning(
+        "Storage: #{remaining} file(s) of library #{uuid} kept their objects on the user's own bucket; the purge will be retried"
+      )
+
+      {:error, :objects_remain}
+    else
+      finish_purge(library)
+    end
+  rescue
+    error ->
+      Logger.error("Storage: purging library #{uuid} failed: #{Exception.message(error)}")
+      reraise error, __STACKTRACE__
+  end
+
+  # Whether the purge waits for each file's objects to be confirmed deleted: the
+  # library is on a user's own bucket, and that bucket can still be reached.
+  defp confirm_objects?(%Library{} = library) do
+    case Profiles.user_storage_for([library]) do
+      %{} = own when map_size(own) == 0 ->
+        false
+
+      own ->
+        reachable? =
+          Enum.all?(own, fn {_uuid, %{bucket: bucket}} ->
+            match?(
+              {key, secret}
+              when is_binary(key) and key != "" and is_binary(secret) and secret != "",
+              S3.resolve_credentials(bucket)
+            )
+          end)
+
+        if not reachable?,
+          do:
+            Logger.warning(
+              "Storage: library #{library.uuid} is on a bucket whose credentials are gone; its objects there cannot be deleted and are left"
+            )
+
+        reachable?
+    end
+  end
+
+  # `true` when the file is gone. With `confirm?`, its objects go first and the
+  # rows stay until they have: `false` leaves the file for the retry.
+  defp purge_file(file, false) do
+    Storage.delete_file_completely(file)
+    true
+  end
+
+  defp purge_file(file, true) do
+    case Storage.delete_file_data(file) do
+      result when result == :ok or result == {:error, "No file instances found"} ->
+        Storage.delete_file_completely(file)
+        true
+
+      {:error, _reason} ->
+        false
+    end
+  end
+
+  defp finish_purge(%Library{uuid: uuid} = library) do
     # Folders go deepest first, so no parent is deleted under a child.
     from(f in Folder, where: f.library_uuid == ^uuid)
     |> repo().all()
@@ -1029,11 +1299,18 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
     |> Enum.each(fn folder -> repo().delete!(folder) end)
 
     repo().delete!(library)
+
+    # What was left of a user's own storage: their profile, and the buckets
+    # only it used. A bucket that cannot be removed (it still holds file
+    # locations) stays, and is reported; the purge itself is done.
+    with profile when not is_nil(profile) <- library.storage_profile_uuid,
+         {:error, reason} <- Profiles.delete_user_profile(profile) do
+      Logger.warning(
+        "Storage: the own storage of purged library #{uuid} was not fully removed: #{inspect(reason)}"
+      )
+    end
+
     :ok
-  rescue
-    error ->
-      Logger.error("Storage: purging library #{uuid} failed: #{Exception.message(error)}")
-      reraise error, __STACKTRACE__
   end
 
   defp folder_depth(%Folder{} = folder), do: folder_depth(folder, 0)

@@ -15,6 +15,7 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3 do
   alias ExAws.S3.Upload
   alias PhoenixKit.Integrations
   alias PhoenixKit.Integrations.Encryption
+  alias PhoenixKit.Modules.Storage.Endpoint
 
   @behaviour PhoenixKit.Modules.Storage.Provider
 
@@ -65,16 +66,24 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3 do
     error -> {:error, "Error deleting file from S3: #{inspect(error)}"}
   end
 
+  # Only a 404 means the object is not there. Any other failure (denied,
+  # a timeout, a client that cannot parse the reply) raises, naming the
+  # bucket and the reason, never a credential: a broken connection must not
+  # read as missing data. Every caller rescues it into "not here, for this
+  # request" and logs it (`Manager`, the location backfill).
   @impl true
   def file_exists?(bucket, file_path) do
     case ExAws.S3.head_object(bucket.bucket_name, file_path)
          |> ExAws.request(aws_config(bucket)) do
-      {:ok, _result} -> true
-      {:error, {:http_error, 404, _}} -> false
-      {:error, _reason} -> false
+      {:ok, _result} ->
+        true
+
+      {:error, {:http_error, 404, _}} ->
+        false
+
+      {:error, reason} ->
+        raise "S3 HEAD on bucket #{bucket.name} failed: #{inspect(reason, limit: 5)}"
     end
-  rescue
-    _error -> false
   end
 
   @impl true
@@ -127,44 +136,14 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3 do
   @doc """
   A bucket's endpoint, parsed: `%{scheme:, host:, port:}`; nil when none is
   set (plain AWS); `{:error, :invalid_endpoint}` when one is set but cannot
-  be used. The one place an endpoint is read, so the host requests go to
-  and the host a public URL names cannot disagree.
-
-  Accepted: a bare host (`s3.us-west-002.backblazeb2.com`), host:port, or an
-  `http`/`https` URL with no path (`http://minio.local:9000`, `https://h/`);
-  the scheme defaults to https. Refused rather than read as plain AWS: any
-  other scheme, a path (a gateway prefix would be dropped silently), a
-  query, and an IPv6 zone id (`%eth0`).
+  be used. The one place a bucket's endpoint is read, so the host requests go
+  to and the host a public URL names cannot disagree. The parsing itself is
+  `PhoenixKit.Modules.Storage.Endpoint.parse/1`, shared with the Integrations
+  validator so a connection is checked against the host it will be used on.
   """
-  @spec endpoint(map()) ::
-          %{scheme: String.t(), host: String.t(), port: pos_integer()}
-          | nil
-          | {:error, :invalid_endpoint}
-  def endpoint(%{endpoint: endpoint}) when is_binary(endpoint) do
-    case String.trim(endpoint) do
-      "" -> nil
-      trimmed -> parse_endpoint(trimmed)
-    end
-  end
-
+  @spec endpoint(map()) :: Endpoint.parsed() | nil | {:error, :invalid_endpoint}
+  def endpoint(%{endpoint: endpoint}), do: Endpoint.parse(endpoint)
   def endpoint(_bucket), do: nil
-
-  defp parse_endpoint(trimmed) do
-    with_scheme =
-      if trimmed =~ ~r{\A[a-zA-Z][a-zA-Z0-9+.-]*://}, do: trimmed, else: "https://" <> trimmed
-
-    case URI.parse(with_scheme) do
-      %URI{scheme: scheme, host: host, port: port, path: path, query: nil}
-      when scheme in ["http", "https"] and is_binary(host) and host != "" and
-             path in [nil, "", "/"] ->
-        if String.contains?(trimmed, "%"),
-          do: {:error, :invalid_endpoint},
-          else: %{scheme: scheme, host: host, port: port}
-
-      _ ->
-        {:error, :invalid_endpoint}
-    end
-  end
 
   defp ipv6_endpoint?(bucket) do
     case endpoint(bucket) do
@@ -209,17 +188,84 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3 do
     error -> {:error, "Error signing S3 download URL: #{Exception.message(error)}"}
   end
 
+  # A bucket is usable only if an object can be written, read back and deleted,
+  # so the check does all three with one throwaway object: read-only keys are
+  # the most common misconfiguration, and listing the bucket (which a key scoped
+  # to a prefix may not do) says nothing about object reads. The key is fresh
+  # and unpredictable for every call, so it can never overwrite, or delete, an
+  # object the bucket already holds, and two checks at once do not meet. What
+  # this call wrote is removed again whatever stage failed.
   @impl true
   def test_connection(bucket) do
-    case ExAws.S3.list_objects(bucket.bucket_name, max_keys: 1)
-         |> ExAws.request(aws_config(bucket)) do
-      {:ok, _result} -> :ok
-      {:error, {:http_error, 403, _}} -> {:error, "Access denied - check permissions"}
-      {:error, {:http_error, 404, _}} -> {:error, "Bucket not found"}
-      {:error, reason} -> {:error, "S3 connection test failed: #{inspect(reason)}"}
+    config = aws_config(bucket)
+    key = probe_key()
+
+    with :ok <- probe_put(bucket, config, key) do
+      read = probe_get(bucket, config, key)
+      deleted = probe_delete(bucket, config, key)
+
+      case {read, deleted} do
+        {:ok, :ok} -> :ok
+        {{:error, _} = error, _} -> error
+        {:ok, {:error, _} = error} -> error
+      end
     end
   rescue
-    error -> {:error, "Error testing S3 connection: #{inspect(error)}"}
+    error -> {:error, "Error testing S3 connection: #{Exception.message(error)}"}
+  end
+
+  defp probe_key,
+    do:
+      ".phoenix_kit/connection-test-" <>
+        Base.encode16(:crypto.strong_rand_bytes(12), case: :lower)
+
+  defp probe_put(bucket, config, key) do
+    case ExAws.S3.put_object(bucket.bucket_name, key, "ok", acl: "private")
+         |> ExAws.request(config) do
+      {:ok, _result} ->
+        :ok
+
+      {:error, {:http_error, 404, _}} ->
+        {:error, "Bucket not found"}
+
+      {:error, {:http_error, 403, _}} ->
+        {:error, "The bucket could not be written to - check the key's write permission"}
+
+      {:error, reason} ->
+        {:error, "Could not write a test file: #{inspect(reason, limit: 5)}"}
+    end
+  end
+
+  defp probe_get(bucket, config, key) do
+    case ExAws.S3.get_object(bucket.bucket_name, key) |> ExAws.request(config) do
+      {:ok, %{body: "ok"}} ->
+        :ok
+
+      {:ok, _other} ->
+        {:error, "The test file read back differently from what was written"}
+
+      {:error, {:http_error, 403, _}} ->
+        {:error,
+         "A test file was written but could not be read back - the key needs read permission"}
+
+      {:error, reason} ->
+        {:error, "Could not read the test file back: #{inspect(reason, limit: 5)}"}
+    end
+  end
+
+  defp probe_delete(bucket, config, key) do
+    case ExAws.S3.delete_object(bucket.bucket_name, key) |> ExAws.request(config) do
+      {:ok, _result} ->
+        :ok
+
+      {:error, {:http_error, 403, _}} ->
+        {:error,
+         "The bucket can be written to but files cannot be deleted - the key needs delete " <>
+           "permission (a test file was left at #{key})"}
+
+      {:error, reason} ->
+        {:error, "Could not delete the test file #{key}: #{inspect(reason, limit: 5)}"}
+    end
   end
 
   # Single-request upload for small files (<5 MB).
@@ -273,16 +319,26 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3 do
 
   # Build per-request ExAws config from bucket credentials.
   # Passed to ExAws.request/2 instead of using global Application.put_env.
-  defp aws_config(bucket) do
+  #
+  # The HTTP client is Req, set here rather than left to the host's
+  # `config :ex_aws, http_client:`. ExAws's default, hackney, returns a
+  # 3-tuple for a HEAD under hackney 4 (which PhoenixKit requires), and
+  # ExAws 2.7's hackney adapter does not match it: every HEAD raised, so
+  # every object on an S3/R2 bucket read as missing and every download
+  # (which starts with a HEAD) failed (#882; ex-aws/ex_aws#1255).
+  @doc false
+  def aws_config(bucket) do
     {access_key_id, secret_access_key} = resolve_credentials(bucket)
 
     config = [
       access_key_id: access_key_id,
       secret_access_key: secret_access_key,
-      region: bucket.region || "us-east-1"
+      region: bucket.region || "us-east-1",
+      http_client: ExAws.Request.Req
     ]
 
     config = if virtual_host?(bucket), do: config ++ [virtual_host: true], else: config
+    ensure_bucket_name!(bucket)
 
     case endpoint(bucket) do
       nil ->
@@ -294,10 +350,68 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3 do
       {:error, :invalid_endpoint} ->
         raise ArgumentError, "bucket #{bucket.name}: the endpoint is not a usable URL"
 
-      %{scheme: scheme, host: host, port: port} ->
-        config ++ [host: host, scheme: scheme <> "://", port: port]
+      %{scheme: scheme, host: host, port: port} = endpoint ->
+        # The host a request really goes to: a virtual-host bucket (Tigris) puts
+        # its name in front of the endpoint's host, and it is THAT host the
+        # policy must see — a name can resolve somewhere the base host does not.
+        request = %{endpoint | host: request_host(bucket, host)}
+
+        # An IP literal in a metadata/link-local/reserved range is never a
+        # storage endpoint, whoever set it. Names are not resolved here for the
+        # site's buckets (this runs per request); the bucket changeset and the
+        # connection check resolve them when an endpoint is saved or tested.
+        case Endpoint.check(request, endpoint_policy(bucket), endpoint_check_opts(bucket)) do
+          :ok ->
+            config ++ [host: host, scheme: scheme <> "://", port: port]
+
+          {:error, reason} ->
+            raise ArgumentError,
+                  "bucket #{bucket.name}: the endpoint #{Endpoint.error_message(reason)}"
+        end
     end
   end
+
+  # Where a request for `bucket` is sent: its name in front of the endpoint's
+  # host when the provider addresses buckets by host, the endpoint's host
+  # otherwise.
+  @doc false
+  def request_host(bucket, host) do
+    if virtual_host?(bucket) and is_binary(bucket.bucket_name),
+      do: "#{bucket.bucket_name}.#{host}",
+      else: host
+  end
+
+  # An owned bucket's name goes into the request's host or path: a delimiter in
+  # it would change where a request or a presigned URL points.
+  defp ensure_bucket_name!(%{owner_uuid: owner} = bucket) when is_binary(owner) do
+    unless valid_bucket_name?(bucket.bucket_name),
+      do: raise(ArgumentError, "bucket #{bucket.name}: the bucket name is not valid")
+  end
+
+  defp ensure_bucket_name!(_bucket), do: :ok
+
+  @doc """
+  Whether `name` is a bucket name an S3-protocol service accepts: 3 to 63
+  lowercase letters, digits, dots and hyphens, starting and ending with a letter
+  or digit, no `..`, and not shaped like an IP address. Nothing that could
+  change the host or path of a request.
+  """
+  @spec valid_bucket_name?(term()) :: boolean()
+  def valid_bucket_name?(name) when is_binary(name) do
+    name =~ ~r/\A[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]\z/ and not String.contains?(name, "..") and
+      not (name =~ ~r/\A\d+\.\d+\.\d+\.\d+\z/)
+  end
+
+  def valid_bucket_name?(_name), do: false
+
+  # A user's own bucket is held to the strict policy every time a request is
+  # built, with the host resolved: the name may have changed since it was saved.
+  # The site's buckets are literal-only here (this is a per-request path).
+  defp endpoint_policy(%{owner_uuid: owner}) when is_binary(owner), do: :personal
+  defp endpoint_policy(_bucket), do: :system
+
+  defp endpoint_check_opts(%{owner_uuid: owner}) when is_binary(owner), do: [resolve: true]
+  defp endpoint_check_opts(_bucket), do: []
 
   # Resolves the actual (plaintext) access key id / secret access key for a
   # bucket — the one place this happens, right where the ExAws config needs
@@ -317,7 +431,10 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3 do
           {String.t() | nil, String.t() | nil}
   def resolve_credentials(%{integration_uuid: integration_uuid} = bucket)
       when is_binary(integration_uuid) and integration_uuid != "" do
-    case Integrations.get_credentials(integration_uuid) do
+    # The owner is passed, never left at the `:any` default: a bucket may
+    # only read a connection its own owner owns. Every bucket is a system
+    # bucket until buckets can be user-owned (V206), which adds its owner here.
+    case Integrations.get_credentials(integration_uuid, owner: credential_owner(bucket)) do
       {:ok, creds} ->
         # "access_key"/"secret_key" is the generic key-secret shape
         # `PhoenixKit.Integrations` providers use for AWS-style credentials
@@ -366,4 +483,9 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3 do
 
     {bucket.access_key_id, secret}
   end
+
+  # Whose connections a bucket may read: the owner's, for a user's own bucket
+  # (V206); the site's for every other.
+  defp credential_owner(%{owner_uuid: owner}) when is_binary(owner), do: {:user, owner}
+  defp credential_owner(_bucket), do: :system
 end

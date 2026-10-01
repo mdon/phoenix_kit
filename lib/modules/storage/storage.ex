@@ -95,11 +95,13 @@ defmodule PhoenixKit.Modules.Storage do
   import Ecto.Query, warn: false
   require Logger
 
+  alias PhoenixKit.Integrations.Probe
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
   alias PhoenixKit.Modules.Storage.Bucket
   alias PhoenixKit.Modules.Storage.CaptureDate
   alias PhoenixKit.Modules.Storage.Dimension
+  alias PhoenixKit.Modules.Storage.Endpoint
   alias PhoenixKit.Modules.Storage.FileDetails
   alias PhoenixKit.Modules.Storage.FileInstance
   alias PhoenixKit.Modules.Storage.FileLocation
@@ -311,12 +313,44 @@ defmodule PhoenixKit.Modules.Storage do
   # ===== BUCKETS =====
 
   @doc """
-  Returns a list of all storage buckets, ordered by priority.
+  Returns the site's storage buckets, ordered by priority.
+
+  A user's own bucket (V206, `owner_uuid` set) is **not** here: everything
+  that enumerates the site's storage (placement, the read fallback, the
+  location backfill, Health, the admin list) goes through this function or
+  `list_enabled_buckets/0`, so a user's bucket never reaches any of it. Use
+  `list_owned_buckets/1` for a user's own.
   """
   def list_buckets do
     Bucket
+    |> where([b], is_nil(b.owner_uuid))
     |> order_by(asc: :priority)
     |> repo().all()
+  end
+
+  @doc """
+  A user's own buckets (V206), oldest first.
+  """
+  @spec list_owned_buckets(String.t() | nil) :: [Bucket.t()]
+  def list_owned_buckets(owner_uuid) when is_binary(owner_uuid) do
+    Bucket
+    |> where([b], b.owner_uuid == ^owner_uuid)
+    |> order_by(asc: :inserted_at)
+    |> repo().all()
+  end
+
+  def list_owned_buckets(_owner_uuid), do: []
+
+  @doc """
+  The buckets with these uuids, whoever owns them. For resolving the buckets a
+  file's location rows name: the read path must reach a user's own bucket
+  although the site's listings leave it out.
+  """
+  @spec get_buckets([String.t()]) :: [Bucket.t()]
+  def get_buckets([]), do: []
+
+  def get_buckets(uuids) when is_list(uuids) do
+    Bucket |> where([b], b.uuid in ^uuids) |> repo().all()
   end
 
   @doc """
@@ -330,6 +364,22 @@ defmodule PhoenixKit.Modules.Storage do
   def get_bucket(id), do: repo().get(Bucket, id)
 
   @doc """
+  Gets a site bucket by id, or nil: a user's own bucket (V206) is not one, and is
+  not found here. The site's bucket screens load through this, so an id of a
+  user's bucket cannot be edited, toggled or deleted from them.
+  """
+  @spec get_site_bucket(term()) :: Bucket.t() | nil
+  def get_site_bucket(id) do
+    case Ecto.UUID.cast(id) do
+      {:ok, uuid} ->
+        repo().one(from(b in Bucket, where: b.uuid == ^uuid and is_nil(b.owner_uuid)))
+
+      :error ->
+        nil
+    end
+  end
+
+  @doc """
   Gets a bucket by name.
   """
   def get_bucket_by_name(name) do
@@ -337,11 +387,41 @@ defmodule PhoenixKit.Modules.Storage do
   end
 
   @doc """
-  Gets enabled buckets, ordered by priority.
+  How many buckets use each Integrations connection, as `%{connection_uuid => count}`.
+
+  Removing a connection does not check who uses it (a missing one fails loudly
+  at the next use), so the Integrations pages read this to say so before it
+  happens.
+  """
+  @spec bucket_counts_by_connection() :: %{String.t() => pos_integer()}
+  def bucket_counts_by_connection do
+    Bucket
+    |> where([b], not is_nil(b.integration_uuid))
+    |> group_by([b], b.integration_uuid)
+    |> select([b], {b.integration_uuid, count(b.uuid)})
+    |> repo().all()
+    |> Map.new()
+  end
+
+  @doc """
+  Whether any enabled bucket exists, the site's or a user's own (V206): what
+  the upload screens ask before offering an upload. A site with no bucket of
+  its own may still let users keep libraries on their own storage. (The upload
+  that follows still picks the library's own buckets; this only answers "is
+  there anywhere at all".)
+  """
+  @spec buckets_available?() :: boolean()
+  def buckets_available? do
+    repo().exists?(from(b in Bucket, where: b.enabled == true))
+  end
+
+  @doc """
+  Gets the site's enabled buckets, ordered by priority. A user's own bucket is
+  not here (see `list_buckets/0`).
   """
   def list_enabled_buckets do
     Bucket
-    |> where([b], b.enabled == true)
+    |> where([b], b.enabled == true and is_nil(b.owner_uuid))
     |> order_by(asc: :priority)
     |> repo().all()
   end
@@ -375,6 +455,35 @@ defmodule PhoenixKit.Modules.Storage do
   end
 
   @doc """
+  Creates a user's own bucket (V206).
+
+  Through `Bucket.owned_changeset/4`, which fixes everything a user must not
+  choose: the owner (this function's argument, never `attrs`), an S3-protocol
+  provider, `signed` access, the owner's own connection for the keys. The
+  bucket does **not** join the Default storage profile (it is nobody's but its
+  owner's); put it in one with `Profiles.create_user_profile/3`.
+  """
+  @spec create_owned_bucket(String.t(), map()) :: {:ok, Bucket.t()} | {:error, Ecto.Changeset.t()}
+  def create_owned_bucket(owner_uuid, attrs) when is_binary(owner_uuid) do
+    %Bucket{}
+    |> Bucket.owned_changeset(attrs, owner_uuid,
+      connection_owned?: &owns_connection?(owner_uuid, &1)
+    )
+    |> repo().insert()
+    |> tap(&bucket_changed/1)
+  end
+
+  # Whether `owner_uuid` owns the Object Storage connection `uuid`: the lookup
+  # is owner-scoped, so another user's (or a site) connection is "not found".
+  @doc false
+  def owns_connection?(owner_uuid, uuid) do
+    match?(
+      {:ok, %{provider: "object_storage"}},
+      PhoenixKit.Integrations.get_integration_by_uuid(uuid, {:user, owner_uuid})
+    )
+  end
+
+  @doc """
   Updates a bucket.
 
   ## Examples
@@ -387,7 +496,7 @@ defmodule PhoenixKit.Modules.Storage do
 
   """
   def update_bucket(%Bucket{} = bucket, attrs) do
-    changeset = Bucket.changeset(bucket, attrs)
+    changeset = bucket_update_changeset(bucket, attrs)
 
     repo().transaction(fn ->
       case repo().update(changeset) do
@@ -403,6 +512,16 @@ defmodule PhoenixKit.Modules.Storage do
     end)
     |> tap(&bucket_changed/1)
   end
+
+  # A user's own bucket is edited under the rules it was created under (its
+  # owner's connection, the personal endpoint policy, an S3-protocol provider),
+  # not the site's: the general changeset knows none of them.
+  defp bucket_update_changeset(%Bucket{owner_uuid: owner} = bucket, attrs)
+       when is_binary(owner) do
+    Bucket.owned_changeset(bucket, attrs, owner, connection_owned?: &owns_connection?(owner, &1))
+  end
+
+  defp bucket_update_changeset(%Bucket{} = bucket, attrs), do: Bucket.changeset(bucket, attrs)
 
   defp sync_default_priority(%Bucket{} = bucket) do
     case Profiles.default_profile() do
@@ -478,12 +597,45 @@ defmodule PhoenixKit.Modules.Storage do
   def test_connection(bucket_params) when is_map(bucket_params) do
     bucket = build_probe_bucket(bucket_params)
 
-    case ProviderRegistry.get_provider(bucket.provider) do
-      {:ok, provider_module} -> provider_module.test_connection(bucket)
-      {:error, reason} -> {:error, reason}
+    with :ok <- check_probe_provider(bucket),
+         :ok <- check_endpoint(bucket),
+         {:ok, provider_module} <- ProviderRegistry.get_provider(bucket.provider) do
+      probe(provider_module, bucket)
     end
   rescue
     error -> {:error, "Connection test failed: #{Exception.message(error)}"}
+  end
+
+  # A local bucket's check is a few file operations; a remote one talks to the
+  # network, through a client that retries, so it runs in `Integrations.Probe`:
+  # isolated from the caller and under a hard deadline.
+  defp probe(provider_module, %Bucket{provider: "local"} = bucket),
+    do: provider_module.test_connection(bucket)
+
+  defp probe(provider_module, bucket),
+    do: Probe.run(fn -> provider_module.test_connection(bucket) end)
+
+  # A user's own bucket is an S3-protocol bucket or nothing: the `local` provider
+  # would create and delete files in a directory of the server's choosing. The
+  # owner is set by the caller from the signed-in user, never from a form.
+  defp check_probe_provider(%Bucket{owner_uuid: owner, provider: provider})
+       when is_binary(owner) and provider not in ~w(s3 b2 r2 tigris),
+       do: {:error, "Your own storage must be an S3-compatible bucket"}
+
+  defp check_probe_provider(_bucket), do: :ok
+
+  # The endpoint a probe is about to connect to, looked up and checked here (a
+  # hostname is resolved: this is a save/test path, not a per-request one). A
+  # local bucket's endpoint is a filesystem path, not a URL.
+  defp check_endpoint(%Bucket{provider: "local"}), do: :ok
+
+  defp check_endpoint(%Bucket{endpoint: endpoint, owner_uuid: owner_uuid}) do
+    policy = if is_binary(owner_uuid), do: :personal, else: :system
+
+    case Endpoint.check(endpoint, policy, resolve: true) do
+      :ok -> :ok
+      {:error, reason} -> {:error, "The endpoint " <> Endpoint.error_message(reason)}
+    end
   end
 
   # Builds the throwaway %Bucket{} test_connection/1 probes with, before any
@@ -505,7 +657,11 @@ defmodule PhoenixKit.Modules.Storage do
       bucket_name: bucket_params["bucket_name"],
       access_key_id: bucket_params["access_key_id"],
       secret_access_key: bucket_params["secret_access_key"],
-      integration_uuid: bucket_params["integration_uuid"]
+      integration_uuid: bucket_params["integration_uuid"],
+      # Set by the caller from the signed-in user, never from a form: it picks
+      # the connections the probe may read and how strictly the endpoint is
+      # checked.
+      owner_uuid: bucket_params["owner_uuid"]
     }
   end
 
@@ -1021,7 +1177,11 @@ defmodule PhoenixKit.Modules.Storage do
   For nil scope, returns the real-root tree.
   """
   def list_folder_tree(scope_folder_id \\ nil, opts \\ []) do
-    all_folders = list_all_folders() |> in_library(opts[:library_uuid])
+    all_folders =
+      list_all_folders()
+      |> in_library(opts[:library_uuid])
+      |> only_viewer_folders(opts)
+
     by_parent = Enum.group_by(all_folders, & &1.parent_uuid)
 
     if scope_folder_id do
@@ -1049,22 +1209,25 @@ defmodule PhoenixKit.Modules.Storage do
       order_by: [asc: f.name]
     )
     |> where_library(opts[:library_uuid])
+    |> where_viewer_folders(opts)
     |> repo().all()
   end
 
-  def list_folders(nil, scope_folder_id, _opts) do
+  def list_folders(nil, scope_folder_id, opts) do
     from(f in Folder,
       where: f.parent_uuid == ^scope_folder_id and is_nil(f.trashed_at),
       order_by: [asc: f.name]
     )
+    |> where_viewer_folders(opts)
     |> repo().all()
   end
 
-  def list_folders(parent_uuid, _scope_folder_id, _opts) do
+  def list_folders(parent_uuid, _scope_folder_id, opts) do
     from(f in Folder,
       where: f.parent_uuid == ^parent_uuid and is_nil(f.trashed_at),
       order_by: [asc: f.name]
     )
+    |> where_viewer_folders(opts)
     |> repo().all()
   end
 
@@ -1100,6 +1263,7 @@ defmodule PhoenixKit.Modules.Storage do
     base
     |> where([f], is_nil(f.trashed_at))
     |> where_library(opts[:library_uuid])
+    |> where_viewer_folders(opts)
     |> where([f], ilike(f.name, ^"%#{search}%"))
     |> order_by([f], asc: f.name)
     |> repo().all()
@@ -1630,6 +1794,7 @@ defmodule PhoenixKit.Modules.Storage do
     )
     |> scope_trashed_folders(scope_folder_id)
     |> where_library(opts[:library_uuid])
+    |> where_viewer_folders(opts)
     |> repo().all()
   end
 
@@ -1638,6 +1803,7 @@ defmodule PhoenixKit.Modules.Storage do
     from(f in Folder, where: not is_nil(f.trashed_at), select: count(f.uuid))
     |> scope_trashed_folders(scope_folder_id)
     |> where_library(opts[:library_uuid])
+    |> where_viewer_folders(opts)
     |> repo().one()
     |> Kernel.||(0)
   end
@@ -1825,6 +1991,7 @@ defmodule PhoenixKit.Modules.Storage do
         |> exclude_system_managed()
         |> maybe_filter_file_type(file_type)
         |> where_library(opts[:library_uuid])
+        |> where_viewer(opts[:viewer_uuid])
 
       total = repo().aggregate(query, :count, :uuid)
 
@@ -2452,6 +2619,108 @@ defmodule PhoenixKit.Modules.Storage do
   defp where_library(query, nil), do: Libraries.exclude_private(query)
   defp where_library(query, library_uuid), do: where(query, [r], r.library_uuid == ^library_uuid)
 
+  # A restricted viewer's view of a site library (`:viewer_uuid`, see
+  # `viewer_folder_uuids/2`): only the files they uploaded, only the folders they
+  # created, hold a file of theirs in, or that lead to one of those. `nil` (every
+  # caller that does not pass it) is unrestricted.
+  defp where_viewer(query, nil), do: query
+  defp where_viewer(query, viewer_uuid), do: where(query, [r], r.user_uuid == ^viewer_uuid)
+
+  defp where_viewer_folders(query, opts) do
+    case opts[:viewer_uuid] do
+      nil ->
+        query
+
+      viewer_uuid ->
+        visible = viewer_folder_uuids(viewer_uuid, opts[:library_uuid])
+        where(query, [f], f.uuid in ^visible)
+    end
+  end
+
+  defp only_viewer_folders(folders, opts) do
+    case opts[:viewer_uuid] do
+      nil ->
+        folders
+
+      viewer_uuid ->
+        visible =
+          viewer_uuid |> viewer_folder_uuids(opts[:library_uuid]) |> MapSet.new(&to_string/1)
+
+        Enum.filter(folders, &MapSet.member?(visible, to_string(&1.uuid)))
+    end
+  end
+
+  @doc """
+  The folders of a library that a restricted viewer may see (`:viewer_uuid`): the
+  ones they created, the ones that hold a file they uploaded (whatever its status,
+  so the path to a trashed file of theirs reads), and every ancestor of those, so
+  a path reads from the root. `library_uuid` narrows it to one library; `nil`
+  leaves out the private ones, as the other listings do.
+
+  An ancestor's name is visible, as in any breadcrumb; nothing else of it is.
+  """
+  @spec viewer_folder_uuids(String.t(), term()) :: [String.t()]
+  def viewer_folder_uuids(viewer_uuid, library_uuid \\ nil) when is_binary(viewer_uuid) do
+    created =
+      from(f in Folder, where: f.user_uuid == ^viewer_uuid, select: f.uuid)
+      |> where_library(library_uuid)
+      |> repo().all()
+
+    homes =
+      from(f in PhoenixKit.Modules.Storage.File,
+        where: f.user_uuid == ^viewer_uuid and not is_nil(f.folder_uuid),
+        distinct: true,
+        select: f.folder_uuid
+      )
+      |> where_library(library_uuid)
+      |> repo().all()
+
+    (created ++ homes) |> Enum.map(&to_string/1) |> Enum.uniq() |> with_ancestors()
+  end
+
+  # Adds the ancestors of `uuids`, level by level (a folder tree is a few levels
+  # deep; the depth guard is for a cycle that should not exist).
+  defp with_ancestors(uuids), do: with_ancestors(uuids, MapSet.new(uuids), uuids, 0)
+
+  defp with_ancestors(_all, seen, [], _depth), do: MapSet.to_list(seen)
+  defp with_ancestors(_all, seen, _frontier, depth) when depth >= 100, do: MapSet.to_list(seen)
+
+  defp with_ancestors(all, seen, frontier, depth) do
+    parents =
+      from(f in Folder,
+        where: f.uuid in ^frontier and not is_nil(f.parent_uuid),
+        select: f.parent_uuid
+      )
+      |> repo().all()
+      |> Enum.map(&to_string/1)
+      |> Enum.reject(&MapSet.member?(seen, &1))
+      |> Enum.uniq()
+
+    with_ancestors(all, Enum.reduce(parents, seen, &MapSet.put(&2, &1)), parents, depth + 1)
+  end
+
+  @doc """
+  Whether a restricted viewer (`:viewer_uuid`) may see `file`: only a file they
+  uploaded. `nil` for the viewer is unrestricted.
+  """
+  @spec viewer_can_see_file?(String.t() | nil, map()) :: boolean()
+  def viewer_can_see_file?(nil, _file), do: true
+
+  def viewer_can_see_file?(viewer_uuid, %{user_uuid: uploader}),
+    do: to_string(uploader) == viewer_uuid
+
+  def viewer_can_see_file?(_viewer_uuid, _file), do: false
+
+  @doc """
+  Whether a restricted viewer may see the folder `folder_uuid` of `library_uuid`
+  (`viewer_folder_uuids/2`). `nil` for the viewer is unrestricted.
+  """
+  @spec viewer_can_see_folder?(String.t() | nil, term(), term()) :: boolean()
+  def viewer_can_see_folder?(nil, _folder_uuid, _library_uuid), do: true
+
+  def viewer_can_see_folder?(viewer_uuid, folder_uuid, library_uuid),
+    do: to_string(folder_uuid) in viewer_folder_uuids(viewer_uuid, library_uuid)
+
   defp in_library(folders, nil) do
     private = folders |> Enum.map(& &1.library_uuid) |> Libraries.private_among()
     Enum.reject(folders, &(to_string(&1.library_uuid) in private))
@@ -2965,6 +3234,7 @@ defmodule PhoenixKit.Modules.Storage do
   def find_orphaned_files(opts \\ []) do
     orphaned_files_query()
     |> where_library(opts[:library_uuid])
+    |> where_viewer(opts[:viewer_uuid])
     |> order_by([f], desc: f.inserted_at)
     |> maybe_limit(opts[:limit])
     |> maybe_offset(opts[:offset])
@@ -2984,6 +3254,7 @@ defmodule PhoenixKit.Modules.Storage do
   def count_orphaned_files(nil, opts) do
     orphaned_files_query()
     |> where_library(opts[:library_uuid])
+    |> where_viewer(opts[:viewer_uuid])
     |> repo().aggregate(:count, :uuid)
   end
 
@@ -3525,6 +3796,12 @@ defmodule PhoenixKit.Modules.Storage do
           key: "create_library",
           label: "Create libraries",
           description: "Create storage libraries of their own (up to the per-user limit)"
+        },
+        %{
+          key: "own_storage",
+          label: "Use their own storage",
+          description:
+            "Keep a library they create on their own S3-compatible bucket, when the site allows it (also needs the Integrations permission, for the bucket's keys)"
         }
       ]
     }
@@ -3851,9 +4128,11 @@ defmodule PhoenixKit.Modules.Storage do
       fn ->
         lock_storage_paths([dir])
 
+        owned = owned_buckets_for_dir(dir)
+
         keys
         |> unreferenced_keys(exclude_file_uuids: excluded)
-        |> Enum.map(&delete_stored_object/1)
+        |> Enum.map(&delete_stored_object(&1, owned))
       end,
       timeout: :infinity
     )
@@ -3999,14 +4278,55 @@ defmodule PhoenixKit.Modules.Storage do
     end
   end
 
-  defp delete_stored_object(key) do
-    case Manager.delete_file(key) do
-      :ok ->
+  # The object goes from every bucket of the site, and from the owner's own
+  # buckets when the key belongs to a user's library (V206). `Manager.delete_file/1`
+  # only reaches the site's pool, and by the time a key is deleted its location
+  # rows are gone, so a user's bucket is found through the library that owns the
+  # key's first segment (`owned_buckets_for_dir/1`).
+  defp delete_stored_object(key, owned) do
+    results = [Manager.delete_file(key) | Enum.map(owned, &delete_from_owned(&1, key))]
+
+    case Enum.find(results, &(&1 != :ok)) do
+      nil ->
         :ok
 
       error ->
         Logger.warning("Storage: could not delete #{key}: #{inspect(error)}")
         error
+    end
+  end
+
+  defp delete_from_owned(%Bucket{} = bucket, key) do
+    case Manager.delete_from_bucket(bucket, key) do
+      :ok -> :ok
+      error -> {:error, {bucket.name, error}}
+    end
+  end
+
+  # The user's own buckets in the storage profile of the library whose
+  # `key_prefix` is the first segment of `dir`: where that library's objects may
+  # live besides the site's buckets. Found through the library's profile, not its
+  # owner: a library of a deleted user has no owner left (its purge is what runs
+  # then), and a user with two libraries on two buckets must only touch the right
+  # one. Nothing for a key of a site library (no user library has its prefix).
+  # One query per directory.
+  @doc false
+  def owned_buckets_for_dir(dir) do
+    case dir |> String.split("/", parts: 2) |> hd() do
+      prefix when prefix in ["", "."] ->
+        []
+
+      prefix ->
+        from(l in Library,
+          join: pb in PhoenixKit.Modules.Storage.ProfileBucket,
+          on: pb.profile_uuid == l.storage_profile_uuid,
+          join: b in Bucket,
+          on: b.uuid == pb.bucket_uuid,
+          where: l.kind == "user" and l.key_prefix == ^prefix and not is_nil(b.owner_uuid),
+          distinct: true,
+          select: b
+        )
+        |> repo().all()
     end
   end
 
@@ -4132,6 +4452,7 @@ defmodule PhoenixKit.Modules.Storage do
     query =
       build_trashed_query(scope)
       |> where_library(opts[:library_uuid])
+      |> where_viewer(opts[:viewer_uuid])
       |> order_by([f], desc: f.trashed_at)
 
     query = if opts[:limit], do: limit(query, ^opts[:limit]), else: query
@@ -4143,6 +4464,7 @@ defmodule PhoenixKit.Modules.Storage do
   def count_trashed_files(scope \\ nil, opts \\ []) do
     build_trashed_query(scope)
     |> where_library(opts[:library_uuid])
+    |> where_viewer(opts[:viewer_uuid])
     |> repo().aggregate(:count, :uuid)
   end
 
@@ -4182,7 +4504,7 @@ defmodule PhoenixKit.Modules.Storage do
   subtree, and with `library_uuid:` to one storage library.
   """
   def empty_trash(scope \\ nil, opts \\ []) do
-    trashed = list_trashed_files(scope, Keyword.take(opts, [:library_uuid]))
+    trashed = list_trashed_files(scope, Keyword.take(opts, [:library_uuid, :viewer_uuid]))
     Enum.each(trashed, &delete_file_completely/1)
     {:ok, length(trashed)}
   end
@@ -4556,12 +4878,13 @@ defmodule PhoenixKit.Modules.Storage do
         original_filename \\ nil,
         opts \\ []
       ) do
-    # Check if any enabled buckets exist
-    case list_enabled_buckets() do
-      [] ->
+    # Check if any enabled bucket exists, a user's own included (V206): the
+    # library's profile then decides which of them this file goes to.
+    case buckets_available?() do
+      false ->
         {:error, :no_buckets_configured}
 
-      _buckets ->
+      true ->
         # Proceed with storage
         store_file_with_buckets_available(
           source_path,

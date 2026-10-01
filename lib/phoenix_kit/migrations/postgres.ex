@@ -7,7 +7,16 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V205 - Storage profiles and variant sets ⚡ LATEST
+  ### V206 - User-owned storage ⚡ LATEST
+
+  `owner_uuid` (nullable, no foreign key) on buckets and storage profiles: a
+  user's own S3-compatible bucket and the profile that uses it. NULL is the
+  site's, which is every existing row; the site's listings leave owned rows
+  out. A check keeps an owned bucket off the filesystem (`provider <> 'local'`)
+  and off its own keys (`integration_uuid IS NOT NULL`). Nothing is moved or
+  rewritten. Phase 5 of `dev_docs/plans/2026-09-22-storage-libraries.md`.
+
+  ### V205 - Storage profiles and variant sets
 
   A library points at a storage profile (where its bytes live: buckets with
   a role, what they store, write priority, serve order and status, and copy
@@ -891,7 +900,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 205
+  @current_version 206
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

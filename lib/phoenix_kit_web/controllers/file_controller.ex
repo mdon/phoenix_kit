@@ -276,7 +276,7 @@ defmodule PhoenixKitWeb.FileController do
   end
 
   defp trashed_if_authorized(conn, file) do
-    if authorize_trashed_read(conn.assigns[:phoenix_kit_current_user]) do
+    if authorize_trashed_read(conn.assigns[:phoenix_kit_current_user], file) do
       {:ok, file}
     else
       {:error, :not_found}
@@ -310,6 +310,45 @@ defmodule PhoenixKitWeb.FileController do
   end
 
   def authorize_trashed_read(user), do: trashed_read_allowed?(user)
+
+  @doc false
+  # Whether `user` may read THIS trashed file: holding `media` (the gate above) and
+  # either uploading it, or seeing everyone's files (an Owner/Admin, or
+  # `media.view_all`). A holder of `media` alone sees only their own trash, as
+  # Media's Trash view shows them, so its URL must not answer for anyone else's.
+  def authorize_trashed_read(user, file) do
+    authorize_trashed_read(user) and trashed_file_visible?(user, file)
+  end
+
+  defp trashed_file_visible?(%{uuid: uuid} = user, file) when is_binary(uuid) do
+    to_string(Map.get(file, :user_uuid)) == uuid or sees_all_media?(user)
+  end
+
+  defp trashed_file_visible?(_user, _file), do: false
+
+  # Cached like `authorize_trashed_read/1`: a Trash tab asks per thumbnail.
+  defp sees_all_media?(%{uuid: uuid} = user) do
+    if trashed_access_cache?() do
+      key = {uuid, Map.get(user, :active_role_uuid), :view_all}
+
+      case PhoenixKit.Cache.get(@trashed_access_cache, key, :miss) do
+        :miss ->
+          allowed? = compute_sees_all_media?(user)
+          PhoenixKit.Cache.put(@trashed_access_cache, key, allowed?)
+          allowed?
+
+        allowed? ->
+          allowed?
+      end
+    else
+      compute_sees_all_media?(user)
+    end
+  end
+
+  defp compute_sees_all_media?(user) do
+    scope = Scope.for_user(user)
+    Scope.system_role?(scope) or Scope.can?(scope, "media.view_all")
+  end
 
   # `Cache.put/4` logs when its cache is not running; the same check the
   # settings cache uses keeps an update-mode node or a bare test quiet.
@@ -779,7 +818,7 @@ defmodule PhoenixKitWeb.FileController do
       file ->
         with :ok <- verify_tile_token(file, token) do
           if file.status == "trashed" and
-               not authorize_trashed_read(conn.assigns[:phoenix_kit_current_user]),
+               not authorize_trashed_read(conn.assigns[:phoenix_kit_current_user], file),
              do: {:error, :not_found},
              else: :ok
         end

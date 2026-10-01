@@ -20,6 +20,7 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
 
   import Ecto.Query
 
+  alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
   alias PhoenixKit.Modules.Storage.Libraries
   alias PhoenixKit.Modules.Storage.{Library, ProfileBucket, StorageProfile}
@@ -37,10 +38,17 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
   def default?(%StorageProfile{uuid: uuid}), do: default?(uuid)
   def default?(uuid), do: to_string(uuid) == @default_uuid
 
-  @doc "Every profile, the Default first, each with its buckets."
+  @doc """
+  The site's profiles, the Default first, each with its buckets. A user's own
+  profile (V206) is not here: the site's profile editor and pickers read this,
+  and a user's storage is not something an admin assigns or edits.
+  """
   @spec list_profiles() :: [StorageProfile.t()]
   def list_profiles do
-    from(p in StorageProfile, order_by: [desc: p.is_default, asc: fragment("lower(?)", p.name)])
+    from(p in StorageProfile,
+      where: is_nil(p.owner_uuid),
+      order_by: [desc: p.is_default, asc: fragment("lower(?)", p.name)]
+    )
     |> repo().all()
     |> preload_buckets()
   end
@@ -179,6 +187,32 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
   @spec put_bucket(StorageProfile.t(), term(), map()) ::
           {:ok, ProfileBucket.t()} | {:error, Ecto.Changeset.t()}
   def put_bucket(%StorageProfile{uuid: profile_uuid}, bucket_uuid, attrs) do
+    with :ok <- check_same_owner(profile_uuid, bucket_uuid) do
+      do_put_bucket(profile_uuid, bucket_uuid, attrs)
+    end
+  end
+
+  # A user's bucket is only ever in its owner's profile, and a user's profile
+  # holds only the site's buckets and its owner's own: nobody's storage is
+  # reachable through somebody else's profile.
+  defp check_same_owner(profile_uuid, bucket_uuid) do
+    profile_owner =
+      repo().one(from(p in StorageProfile, where: p.uuid == ^profile_uuid, select: p.owner_uuid))
+
+    bucket_owner =
+      repo().one(
+        from(b in PhoenixKit.Modules.Storage.Bucket,
+          where: b.uuid == ^bucket_uuid,
+          select: b.owner_uuid
+        )
+      )
+
+    if is_nil(bucket_owner) or bucket_owner == profile_owner,
+      do: :ok,
+      else: {:error, :foreign_bucket}
+  end
+
+  defp do_put_bucket(profile_uuid, bucket_uuid, attrs) do
     row =
       repo().get_by(ProfileBucket, profile_uuid: profile_uuid, bucket_uuid: bucket_uuid) ||
         %ProfileBucket{profile_uuid: profile_uuid, bucket_uuid: bucket_uuid}
@@ -282,21 +316,323 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
   become stale unless the new profile is the one they were placed by.
   """
   @spec set_library_profile(Library.t(), term()) ::
-          {:ok, Library.t()} | {:error, Ecto.Changeset.t() | :not_found}
-  def set_library_profile(%Library{} = library, profile_uuid) do
+          {:ok, Library.t()}
+          | {:error, Ecto.Changeset.t() | :not_found | :user_storage_locked}
+  def set_library_profile(%Library{uuid: uuid}, profile_uuid) do
     profile_uuid = if default?(profile_uuid), do: nil, else: profile_uuid
 
-    if profile_uuid && is_nil(get_profile(profile_uuid)) do
-      {:error, :not_found}
-    else
-      library
-      |> Ecto.Changeset.change(storage_profile_uuid: profile_uuid)
-      |> Ecto.Changeset.foreign_key_constraint(:storage_profile_uuid,
-        name: :phoenix_kit_storage_libraries_profile_fkey
+    # Decided on the library as it is NOW, under a row lock: the struct the
+    # caller holds may be stale (another request may have put the library on a
+    # user's storage since), and two callers must not both pass the check.
+    locked_library_update(uuid, fn current ->
+      target = profile_uuid && get_profile(profile_uuid)
+
+      cond do
+        is_nil(current) -> {:error, :not_found}
+        profile_uuid && is_nil(target) -> {:error, :not_found}
+        # Where a user library keeps its bytes is chosen when it is created and
+        # does not change: not off the user's own storage, and not onto anyone's.
+        user_profile?(current.storage_profile_uuid) -> {:error, :user_storage_locked}
+        target && target.owner_uuid != nil -> {:error, :user_storage_locked}
+        true -> do_set_library_profile(current, profile_uuid)
+      end
+    end)
+  end
+
+  @doc false
+  # Points a NEW user library at its own profile (V206): the one way a library
+  # gets a user's profile, and only a library that has none yet (the row as it
+  # is now, under a lock): anything else is `{:error, :user_storage_locked}`.
+  # `set_library_profile/2` refuses a user's profile altogether.
+  def assign_user_profile(
+        %Library{kind: "user", owner_uuid: owner, uuid: uuid},
+        %StorageProfile{
+          owner_uuid: owner
+        } = profile
       )
-      |> repo().update()
-      |> tap(&if(match?({:ok, _}, &1), do: ReconcileJob.enqueue()))
+      when is_binary(owner) do
+    locked_library_update(uuid, fn
+      %Library{kind: "user", owner_uuid: ^owner, storage_profile_uuid: nil} = current ->
+        do_set_library_profile(current, profile.uuid)
+
+      %Library{} ->
+        {:error, :user_storage_locked}
+
+      nil ->
+        {:error, :not_found}
+    end)
+  end
+
+  # Runs `fun` with the library row as it is now, locked for the rest of the
+  # transaction (`FOR NO KEY UPDATE`: other rows reference it by foreign key).
+  defp locked_library_update(uuid, fun) do
+    repo().transaction(fn ->
+      current =
+        repo().one(from(l in Library, where: l.uuid == ^uuid, lock: "FOR NO KEY UPDATE"))
+
+      case fun.(current) do
+        {:ok, library} -> library
+        {:error, reason} -> repo().rollback(reason)
+      end
+    end)
+  end
+
+  defp user_profile?(nil), do: false
+
+  defp user_profile?(uuid),
+    do:
+      repo().exists?(
+        from(p in StorageProfile, where: p.uuid == ^uuid and not is_nil(p.owner_uuid))
+      )
+
+  defp do_set_library_profile(library, profile_uuid) do
+    library
+    |> Ecto.Changeset.change(storage_profile_uuid: profile_uuid)
+    |> Ecto.Changeset.foreign_key_constraint(:storage_profile_uuid,
+      name: :phoenix_kit_storage_libraries_profile_fkey
+    )
+    |> repo().update()
+    |> tap(&if(match?({:ok, _}, &1), do: ReconcileJob.enqueue()))
+  end
+
+  # ===== A user's own storage (V206) =====
+
+  @doc """
+  Creates the profile of a user's own storage, in one of two modes:
+
+    * `:only` — the user's bucket is the profile's one `primary`: everything
+      the library stores lives there.
+    * `:backup` — the site's buckets stay the primaries and the user's bucket
+      is a `backup` of the originals. The site buckets are a **snapshot of the
+      Default profile taken now**: a site bucket added later is not used by
+      this library (removing or disabling one already reaches every profile).
+      An original is kept on every one of those site buckets that is writable
+      and stores originals (not only as many as the Default's copy count:
+      placement writes all primaries before any backup, so the backup would
+      otherwise never get one) and on the backup, at most 5 copies in all (the
+      original-capable site rows are limited to four). An upload still succeeds
+      on the Default's terms, counting the site's copies only; the backup copy is
+      made by the reconciler if the write missed it. Sizes and tiles are not
+      backed up (they can be regenerated), and the site's derived-only buckets
+      are kept. A site with no writable bucket for originals has nothing to
+      back up: `{:error, :no_site_storage}`.
+
+  The profile is the user's (`owner_uuid`), named by its own uuid (the name is
+  never shown), and `bucket` must be theirs. Returns `{:error, :no_site_storage}`
+  for `:backup` on a site with no site bucket to back up.
+  """
+  @spec create_user_profile(String.t(), PhoenixKit.Modules.Storage.Bucket.t(), :only | :backup) ::
+          {:ok, StorageProfile.t()} | {:error, :no_site_storage | :foreign_bucket | term()}
+  def create_user_profile(owner_uuid, %{owner_uuid: owner_uuid} = bucket, mode)
+      when is_binary(owner_uuid) and mode in [:only, :backup] do
+    transact(fn ->
+      with {:ok, rows, copies} <- user_profile_plan(mode, bucket),
+           {:ok, profile} <- insert_user_profile(owner_uuid, copies),
+           :ok <- insert_user_profile_rows(profile, rows) do
+        {:ok, profile.uuid}
+      end
+    end)
+    |> case do
+      {:ok, uuid} -> {:ok, get_profile(uuid)}
+      error -> error
     end
+  end
+
+  def create_user_profile(_owner_uuid, _bucket, _mode), do: {:error, :foreign_bucket}
+
+  defp user_profile_plan(:only, bucket) do
+    row = %{
+      bucket_uuid: bucket.uuid,
+      role: "primary",
+      stores: "all",
+      write_priority: nil,
+      serve_order: 1,
+      status: "active"
+    }
+
+    {:ok, [row], %{copies_originals: 1, copies_variants: 1, min_copies_on_write: 1}}
+  end
+
+  # Placement writes every primary before any backup, up to the copy count, so
+  # a backup only gets a copy when the profile wants MORE copies than it has
+  # writable primaries and replicas. The profile therefore wants one original on
+  # every writable site bucket that stores originals, plus the backup (at most 5
+  # copies). Only the ORIGINAL-capable rows are limited to four (kept: active
+  # before read-only, then by serve order): derived-only buckets do not use up a
+  # copy of an original and all stay, or thumbnails and tiles would have nowhere
+  # to go. An upload succeeds on the Default's terms: `min_copies_on_write` counts
+  # the site's copies only (`Manager`), because a backup is never served; a
+  # backup the write missed is made by the reconciler.
+  @max_original_site_rows 4
+
+  defp user_profile_plan(:backup, bucket) do
+    case default_profile() do
+      %StorageProfile{buckets: [_ | _] = rows} = default ->
+        site_rows =
+          rows
+          |> Enum.filter(&(&1.status in ["active", "read_only"] and &1.bucket.owner_uuid == nil))
+          |> Enum.map(
+            &%{
+              bucket_uuid: &1.bucket_uuid,
+              role: &1.role,
+              stores: &1.stores,
+              write_priority: &1.write_priority,
+              serve_order: &1.serve_order,
+              status: &1.status
+            }
+          )
+          |> keep_room_for_backup()
+
+        writable_originals =
+          Enum.count(site_rows, &(&1.status == "active" and stores?(&1, :originals)))
+
+        writable_derived =
+          Enum.count(site_rows, &(&1.status == "active" and stores?(&1, :derived)))
+
+        # Without a bucket an original can be WRITTEN to, the backup alone would
+        # hold it: never served, and gone if the backup is. A read-only site
+        # bucket does not count.
+        if writable_originals == 0 do
+          {:error, :no_site_storage}
+        else
+          backup = %{
+            bucket_uuid: bucket.uuid,
+            role: "backup",
+            stores: "originals",
+            write_priority: nil,
+            serve_order: Enum.max(Enum.map(site_rows, & &1.serve_order)) + 1,
+            status: "active"
+          }
+
+          {:ok, site_rows ++ [backup],
+           %{
+             copies_originals: writable_originals + 1,
+             copies_variants: min(default.copies_variants, max(writable_derived, 1)),
+             min_copies_on_write: min(default.min_copies_on_write, writable_originals)
+           }}
+        end
+
+      _ ->
+        {:error, :no_site_storage}
+    end
+  end
+
+  defp stores?(%{stores: "all"}, _kind), do: true
+  defp stores?(%{stores: "originals"}, :originals), do: true
+  defp stores?(%{stores: "derived"}, :derived), do: true
+  defp stores?(_row, _kind), do: false
+
+  defp keep_room_for_backup(rows) do
+    {original_capable, derived_only} = Enum.split_with(rows, &stores?(&1, :originals))
+
+    kept =
+      original_capable
+      |> Enum.sort_by(&{&1.status != "active", &1.serve_order})
+      |> Enum.take(@max_original_site_rows)
+
+    kept ++ derived_only
+  end
+
+  defp insert_user_profile(owner_uuid, copies) do
+    %StorageProfile{}
+    |> StorageProfile.changeset(Map.put(copies, :name, "user-storage-#{Ecto.UUID.generate()}"))
+    |> Ecto.Changeset.put_change(:owner_uuid, owner_uuid)
+    |> repo().insert()
+  end
+
+  defp insert_user_profile_rows(profile, rows) do
+    Enum.reduce_while(rows, :ok, fn row, :ok ->
+      {bucket_uuid, attrs} = Map.pop!(row, :bucket_uuid)
+
+      case put_bucket(profile, bucket_uuid, attrs) do
+        {:ok, _row} -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  @doc """
+  What each of these libraries keeps its files on, for the ones on a user's own
+  storage (V206): `%{library_uuid => %{mode: :only | :backup, bucket: Bucket.t()}}`.
+  A library on the site's storage has no entry. One query.
+  """
+  @spec user_storage_for([Library.t()]) :: %{
+          String.t() => %{mode: :only | :backup, bucket: PhoenixKit.Modules.Storage.Bucket.t()}
+        }
+  def user_storage_for([]), do: %{}
+
+  def user_storage_for(libraries) do
+    uuids = Enum.map(libraries, & &1.uuid)
+
+    from(l in Library,
+      join: p in StorageProfile,
+      on: p.uuid == l.storage_profile_uuid and not is_nil(p.owner_uuid),
+      join: pb in ProfileBucket,
+      on: pb.profile_uuid == p.uuid,
+      join: b in PhoenixKit.Modules.Storage.Bucket,
+      on: b.uuid == pb.bucket_uuid and not is_nil(b.owner_uuid),
+      where: l.uuid in ^uuids,
+      select: {l.uuid, pb.role, b}
+    )
+    |> repo().all()
+    |> Enum.group_by(fn {library_uuid, _role, _bucket} -> to_string(library_uuid) end)
+    |> Map.new(fn {library_uuid, rows} ->
+      {_uuid, role, bucket} = hd(rows)
+      {library_uuid, %{mode: if(role == "backup", do: :backup, else: :only), bucket: bucket}}
+    end)
+  end
+
+  @doc """
+  Removes a user's own profile (V206) and the buckets that were in it and are
+  in no profile now: what is left of a user's storage once their library is
+  purged. A site profile, or one a library still uses, is left alone.
+
+  Returns `:ok`, or `{:error, reason}` for the first bucket that could not go
+  (one that still holds file locations cannot be deleted).
+  """
+  @spec delete_user_profile(term()) :: :ok | {:error, term()}
+  def delete_user_profile(profile_uuid) do
+    case get_profile(profile_uuid) do
+      %StorageProfile{owner_uuid: owner} = profile when is_binary(owner) ->
+        if libraries_using(profile.uuid) > 0,
+          do: {:error, :in_use},
+          else: remove_user_profile(profile)
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp remove_user_profile(profile) do
+    bucket_uuids = Enum.map(profile.buckets, & &1.bucket_uuid)
+
+    {:ok, _} =
+      repo().transaction(fn ->
+        from(r in ProfileBucket, where: r.profile_uuid == ^profile.uuid) |> repo().delete_all()
+        repo().delete!(profile)
+      end)
+
+    bucket_uuids
+    |> Storage.get_buckets()
+    |> Enum.filter(&(is_binary(&1.owner_uuid) and not in_any_profile?(&1.uuid)))
+    |> each_ok(fn bucket ->
+      case Storage.delete_bucket(bucket) do
+        {:ok, _} -> :ok
+        {:error, reason} -> {:error, reason}
+      end
+    end)
+  end
+
+  defp in_any_profile?(bucket_uuid),
+    do: repo().exists?(from(r in ProfileBucket, where: r.bucket_uuid == ^bucket_uuid))
+
+  defp each_ok(items, fun) do
+    Enum.reduce_while(items, :ok, fn item, :ok ->
+      case fun.(item) do
+        :ok -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
   end
 
   @doc """

@@ -17,6 +17,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
   alias PhoenixKit.Integrations.Events
   alias PhoenixKit.Integrations.OAuth
   alias PhoenixKit.Integrations.Providers
+  alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Actor
@@ -66,11 +67,16 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
     {:noreply, socket}
   end
 
-  defp apply_action(socket, :new, _params) do
+  defp apply_action(socket, :new, params) do
+    # `?provider=key` opens the form on that provider (another page links here,
+    # e.g. the storage bucket form's "Add a connection"). Only a provider a
+    # website-wide connection may use is taken; anything else shows the picker.
+    provider = preselected_provider(params["provider"])
+
     socket
     |> assign(:page_title, gettext("Add Integration"))
-    |> assign(:selected_provider, nil)
-    |> assign(:provider, nil)
+    |> assign(:selected_provider, provider && provider.key)
+    |> assign(:provider, provider)
     |> assign(:name, nil)
     |> assign(:data, %{})
     |> assign(:form_values, %{})
@@ -91,6 +97,10 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
           |> assign(:provider, provider)
           |> assign(:name, name)
           |> assign(:uuid, uuid)
+          |> assign(
+            :bucket_uses,
+            Map.get(Storage.bucket_counts_by_connection(), uuid, 0)
+          )
           |> assign(:data, data)
           # Values typed on /new (a dry-run Test) are saved by now. Kept, they
           # would be rendered as typed — a secret included — on the edit page
@@ -140,6 +150,28 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
     |> put_flash(:error, gettext("Invalid integration URL"))
     |> push_navigate(to: Routes.path("/admin/settings/integrations"))
   end
+
+  # A connection is deleted without checking who uses it, so a storage bucket
+  # that does is named before it stops working.
+  defp delete_confirm(0),
+    do: gettext("Permanently delete this connection? This cannot be undone.")
+
+  defp delete_confirm(count) do
+    ngettext(
+      "%{count} storage bucket uses this connection and will stop working. Permanently delete it? This cannot be undone.",
+      "%{count} storage buckets use this connection and will stop working. Permanently delete it? This cannot be undone.",
+      count
+    )
+  end
+
+  defp preselected_provider(key) when is_binary(key) do
+    case Providers.get(key) do
+      %{} = provider -> if :system in Providers.scopes_of(provider), do: provider
+      _ -> nil
+    end
+  end
+
+  defp preselected_provider(_key), do: nil
 
   # ---------------------------------------------------------------------------
   # Events — provider selection (new mode)

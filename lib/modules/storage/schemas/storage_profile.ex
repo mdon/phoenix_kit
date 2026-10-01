@@ -37,6 +37,7 @@ defmodule PhoenixKit.Modules.Storage.StorageProfile do
           copies_variants: pos_integer(),
           min_copies_on_write: pos_integer(),
           revision: pos_integer(),
+          owner_uuid: UUIDv7.t() | nil,
           buckets:
             [PhoenixKit.Modules.Storage.ProfileBucket.t()] | Ecto.Association.NotLoaded.t(),
           inserted_at: DateTime.t() | nil,
@@ -50,6 +51,10 @@ defmodule PhoenixKit.Modules.Storage.StorageProfile do
     field :copies_variants, :integer, default: 1
     field :min_copies_on_write, :integer, default: 1
     field :revision, :integer, default: 1
+    # Whose profile it is (V206). NULL is the site's; a user's is left out of
+    # `Profiles.list_profiles/0`. Set only by `Profiles.create_user_profile/3`,
+    # never cast from params.
+    field :owner_uuid, UUIDv7
 
     has_many :buckets, PhoenixKit.Modules.Storage.ProfileBucket,
       foreign_key: :profile_uuid,

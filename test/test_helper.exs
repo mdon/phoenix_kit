@@ -55,6 +55,19 @@ repo_available =
       # story.
       PhoenixKit.Migration.ensure_current(PhoenixKit.Test.Repo, log: false)
 
+      # What the boot sweep gives the Admin role (`Permissions.auto_grant_new_keys_to_admin/0`
+      # runs at application start, not here): the two sub-permissions of `media`, so an Admin
+      # in a test sees everything in Media and opens the storage screens, as in production.
+      # Committed once; idempotent.
+      case PhoenixKit.Users.Roles.get_role_by_name("Admin") do
+        %{uuid: admin_uuid} ->
+          for key <- ~w(media.view_all media.manage),
+              do: PhoenixKit.Users.Permissions.grant_permission(admin_uuid, key)
+
+        _ ->
+          :ok
+      end
+
       # A COMMITTED Owner, seeded before the sandbox goes manual. Without one,
       # every async test's first `register_user` sees a committed owner-count
       # of 0 and takes FOR NO KEY UPDATE on the one committed Owner role row

@@ -52,6 +52,9 @@ defmodule PhoenixKitWeb.Live.Users.UserLibrariesUITest do
     n = System.unique_integer([:positive])
     {:ok, role} = Roles.create_role(%{name: "Media holders #{n}"})
     {:ok, _} = Permissions.grant_permission(role.uuid, "media")
+    # Seeing the site's files is `media.view_all`; a holder of `media` alone sees
+    # only their own (`own_media_test.exs`). This role is the site editor.
+    {:ok, _} = Permissions.grant_permission(role.uuid, "media.view_all")
     role
   end
 

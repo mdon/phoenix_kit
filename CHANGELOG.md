@@ -1,3 +1,248 @@
+## Unreleased
+
+### Added
+
+- **Media shows each viewer only what is theirs.** A holder of `media` without the new
+  `media.view_all` sees, in a site library, the files they uploaded, the folders they
+  created or that hold their files, and those folders' ancestors: in the grid, folders,
+  tree, search, counts, trash and orphans, and on the file's own page. An Owner/Admin or a
+  holder of `media.view_all` sees everything, as before. Every event that names someone
+  else's file or a folder the viewer cannot see is refused, so is changing a folder they did
+  not create, and a hand-edited `?file=` link opens only a file of the library shown that the
+  viewer may see (it opened any file, of any library, before). A trashed file's URL answers its
+  uploader, an Owner/Admin or a `media.view_all` holder; changing another person's file needs
+  `media.view_all`. Emptying the trash and clearing orphans work for a restricted viewer on
+  their own files only.
+- **User libraries join Media's switcher**, grouped "Site" and "Mine" (`/admin/media/my/<id>`).
+  A holder of `media` who is not an Owner/Admin is sent there from `/admin/libraries`; that page
+  remains for people who hold `storage` without `media` and for the admin's audited list of other
+  users' libraries. The profile's Media tab has an "Open" link on every library.
+- **Two sub-permissions of `media`:** `media.view_all` (see everyone's files in the site's
+  libraries) and `media.manage` (Settings → Media: buckets, sizes, health). They appear under
+  Media in the permissions matrix.
+- **Which services users may connect on their own is a site setting.** Settings →
+  Integrations has a "Personal integrations" card: a checkbox per provider that supports
+  personal use, and the personal "add integration" page offers exactly the ticked ones. The
+  list used to be fixed in code (Telegram and OpenRouter); until an admin saves a choice those
+  two are still what users are offered, so nothing changes on upgrade. A provider opts in with
+  `personal_default: true` (offered until the admin chooses), and Object Storage is also
+  offered while users may keep a library on their own bucket (`personal_also_while`). The
+  page refuses a provider it did not offer, even to a hand-made event.
+
+### Fixed
+
+- **The profile's tabs stay on the personal integration "add" and edit pages.** They
+  disappeared after "Add integration", so the page no longer said where you were.
+- **The Multiple Sessions setting reads "Enable multiple sessions"** (it said "multi-account
+  switcher in the header"; the switcher is in the user menu).
+
+### Changed
+
+- **The storage administration screens (Settings → Media: buckets, sizes, profiles, health) need
+  `media.manage`, no longer just `media`.** So giving an end user Media does not hand them the
+  bucket form.
+
+### Upgrading
+
+- Every role that holds `media` when this boots is granted `media.view_all` and `media.manage`
+  once (and Admin gets them with the other new keys), so **nothing changes for existing roles**.
+  A role created afterwards gets neither by default: a holder of `media` alone sees only their own
+  files. Revoke `media.view_all` from a role to make it so; it is not given back.
+- The media pickers (`MediaSelectorModal` and the featured-image picker) are not filtered by viewer.
+
+## 2.42.1 - 2026-09-30
+
+### Changed
+
+- **Etcher 0.18.0 (and Fresco 0.13.1).** The requirement moves to
+  `~> 0.18.0`, the lock to 0.18.0 and the jsDelivr pin in `phoenix_kit.js`
+  to `etcher@v0.18.0`, together, so a host's Elixir half never floats past
+  the frozen browser bundle. Fresco's pin follows its lock to `v0.13.1`
+  (the requirement already admitted it). What the media viewer's annotation
+  editor gains: peers watch a shape being drawn, two fingers pan and pinch
+  whatever tool is armed (Fresco 0.13.1 stops an annotation layer keeping
+  the second finger), label size has plus/minus buttons, and a batch of
+  iOS fixes (a slow stroke is no longer a long press, a tap places a dot, a
+  new text box raises the keyboard). No core API change; hosts that held
+  etcher at 0.17 see the `deps.upgrade` "newer release, requirement will not
+  allow it" warning clear.
+
+## 2.42.0 - 2026-09-30
+
+### Added
+
+- **A cloud bucket takes its keys from an Integrations connection.** The bucket
+  form (Settings → Media) has a connection picker (Object Storage connections,
+  with "Add a connection", which opens Integrations on the right provider and
+  shows up in the picker without a reload) instead of Access Key ID / Secret
+  Access Key fields. No migration: nothing changes for a bucket until someone
+  moves it. A bucket that still carries its own keys is flagged "Keys on
+  bucket", keeps working, and offers "Move keys to an integration" (and "Move
+  all to integrations" on the bucket list). The move reuses a connection that
+  already holds the same key pair, clears the bucket's copy only after reading
+  the keys back through the connection, and rolls back entirely on any failure;
+  a secret that can no longer be decrypted is refused rather than moved.
+  `Storage.create_bucket/1` with keys still works for scripts and seeds.
+  The form's region and endpoint are prefilled from the picked connection; the
+  bucket keeps its own copies.
+- The bucket form gains **Public URL (CDN)** (a public Cloudflare R2 bucket
+  could not be configured from the UI before), **Size limit (MB)**, and an
+  optional **Custom Endpoint** for the `s3` provider (MinIO, Wasabi,
+  DigitalOcean Spaces).
+- Removing an Integrations connection that buckets use says so first ("2
+  storage buckets use this connection and will stop working") on both the
+  list and the connection's own page.
+- `/admin/settings/integrations/new?provider=<key>` opens on that provider.
+
+### Added (V206: user-owned storage)
+
+- **A user can keep a library in their own S3-compatible bucket** (AWS S3,
+  Backblaze B2, Cloudflare R2, Tigris), chosen when the library is created on
+  the profile's Media tab: **only there**, or **the site's storage with the
+  originals backed up there**. The bucket is tested first (list, write, delete)
+  and nothing is created if it fails; the choice is final. Off by default: the
+  site turns it on (Settings → Media → Libraries → "Allow their own buckets"),
+  and a user needs the new `storage.own_storage` sub-permission and the
+  Integrations permission (their keys are a personal Object Storage connection,
+  which is offered on their "add integration" page only while it is on). Backup
+  mode snapshots the Default profile's buckets at creation and keeps an original
+  on each of them plus the backup.
+- **V206**: `owner_uuid` on `phoenix_kit_buckets` and `phoenix_kit_storage_profiles`
+  (nullable, no foreign key: a deleted user's bucket can never become a site
+  bucket) and a check that an owned bucket is never `local`, always on a
+  connection and never public. Nothing is moved or rewritten.
+- The site never sees a user's bucket: the site's bucket and profile listings,
+  placement, the read fallback, the location backfill and Health leave it out.
+  Reads reach it through the file's location rows; deleting a file, or purging a
+  library, deletes the objects from it (the user's profile and bucket go with a
+  purged library; deleting a user *account* removes their connections first, so
+  objects in their own bucket are left there).
+- The Libraries tab lists each user library's storage (never a credential);
+  removing a connection a user's bucket uses is warned about on both the
+  admin and the personal Integrations pages.
+
+### Changed
+
+- **Test Connection on a bucket writes, reads back and deletes** a small object
+  (a fresh `.phoenix_kit/connection-test-…` key each time) and says which step
+  failed. It no longer gates Save: a bucket can be saved
+  without a passing test, and editing its priority no longer needs a re-test.
+- The bucket edit page no longer renders the stored secret (the encrypted
+  value was written into the password input).
+
+### Fixed
+
+- **Tigris is a cloud provider everywhere**: a Tigris bucket now requires a
+  bucket name and credentials on the server (only the browser's `required`
+  attribute asked before), `Bucket.cloud?/1` covers it, and the bucket list
+  shows its bucket instead of "unknown configuration".
+- **A bucket reads only connections its own owner owns.**
+  `S3.resolve_credentials/1` no longer resolves any uuid it is handed; it
+  passes the owner (system, for every bucket today).
+- **One reading of an endpoint.** The Object Storage connection check parsed
+  endpoints its own way (forcing https and dropping the port), so a connection
+  could validate against a different host than a bucket used. Both now go
+  through `Storage.Endpoint.parse/1`.
+- **The server no longer connects to a metadata, link-local or reserved
+  address** named as a storage endpoint, by a bucket or a connection
+  (`Storage.Endpoint.check/3`). A *personal* Object Storage connection (an
+  ordinary user's) also may not use plain http or a loopback, private or
+  unique-local address; its host is resolved and every address checked. Until
+  now the connection check connected to whatever a user typed, and told them
+  whether it answered. System connections and buckets may still use a local
+  endpoint (a MinIO on the same network). The check is not a connect-time
+  pin: a name whose DNS changes between the check and the request is not
+  caught.
+
+### Fixed (from the second review of the above)
+
+- **A crafted "Test the bucket" event could make the server create and delete a
+  file in any directory** of a user who had no own-storage permission (the
+  wizard's handlers trusted what the page showed). The test now goes through
+  `Libraries.probe_own_storage/3`, which asks again who may and validates the
+  fields as a real bucket would be; an owned probe is refused the `local`
+  provider in the storage context itself.
+- **A Tigris request is checked at the host it is sent to** (bucket name in
+  front of the endpoint's host), for ordinary requests, the probe, multipart and
+  presigned URLs alike. An owned bucket's name must be a valid S3 bucket name,
+  so it cannot carry URL delimiters that move a request or a presigned URL.
+- **The connection test no longer overwrites or deletes an object of the
+  bucket's.** It writes a throwaway object under a fresh, unpredictable key,
+  **reads it back** (a key that can list but not read is no longer called
+  readable, and a key scoped to a prefix that cannot list is no longer refused),
+  deletes it, and removes it again if a later stage failed. It runs in a
+  hard-deadline probe process, and creating a library does its bucket check off
+  the page's process with a pending state.
+- **A backup can no longer satisfy an upload by itself.** `min_copies_on_write`
+  now counts copies on buckets that can be served from; a copy on a backup does
+  not count (this holds for any profile with a `backup` row, site profiles
+  included). Backup mode needs a site bucket an original can actually be written
+  to (a read-only one does not count), and its minimum follows the writable
+  ones.
+- **Backup mode keeps derived-only site buckets.** Only the original-capable
+  rows are limited to four (active before read-only); thumbnails and tiles keep
+  a destination, and copy counts follow the buckets of each kind.
+- **The final storage choice is judged on the library as it is now**, under a row
+  lock: a stale copy of the library cannot be moved off (or onto) user storage,
+  and a library that already has its own storage cannot be given another.
+- **Purging a library on a user's own bucket no longer forgets objects it could
+  not delete.** Each file's objects are deleted before its rows; if one cannot be
+  (the key was revoked for delete, the bucket is down) the file, library, profile
+  and bucket row stay and the purge job is retried. When the credentials are
+  gone (the account was deleted) the purge goes on, as before.
+- **A user's bucket is edited under the rules it was created under** (their own
+  connection, the personal endpoint policy, an S3-protocol provider), and the
+  site's bucket screens (edit, toggle, delete) no longer find it.
+
+### Upgrading
+
+- Run `mix phoenix_kit.update` (migration **V206**): two nullable columns
+  (`owner_uuid` on buckets and storage profiles), two partial indexes and a check
+  constraint. Nothing is moved, copied or rewritten, and every existing row keeps a
+  NULL owner (the site's).
+- Nothing changes for an existing bucket until someone acts: a bucket that carries
+  its own keys keeps working (it shows "Keys on bucket" on Settings → Media and can
+  be moved into an Integrations connection one by one, or all at once), and user
+  libraries stay on the site's storage. Users can keep a library on their own
+  bucket only after the site turns on **Settings → Media → Libraries → "Allow their
+  own buckets"** and grants them `storage.own_storage` (and Integrations).
+- Behavior changes worth knowing: "Test Connection" on a bucket now writes, reads
+  back and deletes a small object, and no longer gates Save; an existing Tigris
+  bucket saved without a bucket name or keys fails validation on its next save;
+  `min_copies_on_write` no longer counts a copy on a bucket a profile marks
+  `backup` (it is never served).
+
+### i18n
+
+- New strings (the bucket form and the own-storage wizard) extracted and translated in all locales.
+
+## 2.41.6 - 2026-09-30
+
+### Fixed
+
+- **S3 and Cloudflare R2 buckets can be read again under hackney 4 (#882).**
+  ExAws's default HTTP client did not handle hackney 4's reply to a `HEAD`,
+  so every `HEAD` raised: an object on an S3/R2 bucket read as missing, and
+  every download (which starts with a `HEAD`) failed with "File not found
+  in any bucket", so uploads that landed there got no sizes and the
+  reconciler never counted its copies. The S3 provider now sends its
+  requests through `ExAws.Request.Req` (already a dependency), whatever
+  the host's `config :ex_aws, http_client:` says; hosts need no change. The
+  workaround from the issue (`http_client: ExAws.Request.Req` in the host)
+  can stay or go.
+- **A bucket that cannot answer no longer reads as missing data.**
+  `Providers.S3.file_exists?/2` returns false only for a 404; any other
+  failure is logged with the bucket and the reason. The location backfill
+  leaves an object unchecked when a bucket could not answer, instead of
+  recording it as found nowhere (which made reads stop looking for it).
+  Files hit by #882 recover by themselves once this is deployed: the
+  reconciler copies and counts them again, and a missing size is queued
+  the next time it is requested.
+- **An external module that requires Storage no longer shows "Requires
+  Storage"** on the Modules page. The badge read the required module's
+  `enabled` flag, and Storage (always on) reports `module_enabled`; the
+  card now reads either, as the built-in modules' cards already did.
+
 ## 2.41.5 - 2026-09-29
 
 ### Fixed

@@ -19,6 +19,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
   alias PhoenixKit.Integrations.Encryption
   alias PhoenixKit.Integrations.Events
   alias PhoenixKit.Integrations.Providers
+  alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Actor
@@ -41,6 +42,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
       |> assign(:current_path, get_current_path(socket.assigns.current_locale_base))
       |> load_encryption_report()
       |> load_connections()
+      |> assign_personal_providers()
       |> assign(:validating, nil)
 
     {:ok, socket}
@@ -61,6 +63,23 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
      socket
      |> put_flash(:info, gettext("Disconnected"))
      |> load_connections()}
+  end
+
+  # Which services users may connect on their own (the personal "add" picker).
+  # Only providers that may be personal are kept.
+  def handle_event("save_personal_providers", params, socket) do
+    keys = params |> get_in(["personal", "providers"]) |> List.wrap()
+
+    case Providers.put_personal_enabled(keys) do
+      {:ok, _kept} ->
+        {:noreply,
+         socket
+         |> assign_personal_providers()
+         |> put_flash(:info, gettext("Personal integrations saved"))}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, gettext("Personal integrations could not be saved"))}
+    end
   end
 
   def handle_event("validate_connection", %{"uuid" => uuid}, socket) do
@@ -157,6 +176,43 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
     |> assign(:encryption_fingerprint, encryption_fingerprint(report))
   end
 
+  # The providers that may be personal, each with whether users are offered it:
+  # ticked by the admin, or (Object Storage) because users may keep a library on
+  # their own bucket (`Providers.also_while_on?/1`).
+  defp assign_personal_providers(socket) do
+    capable = Providers.for_scope(:personal)
+    enabled = Providers.personal_enabled_keys(capable)
+
+    rows =
+      Enum.map(capable, fn provider ->
+        %{
+          provider: provider,
+          enabled: provider.key in enabled,
+          forced: Providers.also_while_on?(provider)
+        }
+      end)
+
+    assign(socket, :personal_providers, rows)
+  end
+
+  # What the Remove confirmation says. A connection is removed without checking
+  # who uses it, so a bucket that does is named before it stops working.
+  defp remove_confirm(bucket_counts, uuid) do
+    case Map.get(bucket_counts, uuid, 0) do
+      0 ->
+        gettext(
+          "This integration may be in use by other parts of the system. Remove it permanently?"
+        )
+
+      count ->
+        ngettext(
+          "%{count} storage bucket uses this connection and will stop working. Remove it permanently?",
+          "%{count} storage buckets use this connection and will stop working. Remove it permanently?",
+          count
+        )
+    end
+  end
+
   defp load_connections(socket) do
     # System page: only providers usable system-wide, and only SYSTEM-owned
     # connections (owner: :system) — a user's personal connection never leaks here.
@@ -182,6 +238,7 @@ defmodule PhoenixKitWeb.Live.Settings.Integrations do
 
     socket
     |> assign(:connections, connections)
+    |> assign(:bucket_counts, Storage.bucket_counts_by_connection())
     |> assign(:provider_names, join_with_and(Enum.map(providers, & &1.name)))
   end
 

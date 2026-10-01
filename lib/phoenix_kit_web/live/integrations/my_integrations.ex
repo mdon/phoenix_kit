@@ -26,6 +26,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrations do
   alias PhoenixKit.Integrations
   alias PhoenixKit.Integrations.Events
   alias PhoenixKit.Integrations.Providers
+  alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
@@ -129,10 +130,30 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrations do
         end)
       end)
 
-    assign(socket, :connections, connections)
+    socket
+    |> assign(:connections, connections)
+    |> assign(:bucket_counts, Storage.bucket_counts_by_connection())
   end
 
-  defp load_connections(socket), do: assign(socket, :connections, [])
+  defp load_connections(socket),
+    do: socket |> assign(:connections, []) |> assign(:bucket_counts, %{})
+
+  # What Remove asks. A connection is removed without checking who uses it, so
+  # a library of the user's own storage that does is named before it stops
+  # working.
+  defp remove_confirm(bucket_counts, uuid) do
+    case Map.get(bucket_counts, uuid, 0) do
+      0 ->
+        gettext("Remove this connection?")
+
+      count ->
+        ngettext(
+          "%{count} of your libraries keeps its files in a bucket that uses this connection, and will stop working. Remove it?",
+          "%{count} of your libraries keep their files in buckets that use this connection, and will stop working. Remove it?",
+          count
+        )
+    end
+  end
 
   @impl true
   def render(assigns) do
@@ -282,7 +303,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrations do
                       icon="hero-trash"
                       label={gettext("Remove")}
                       variant="error"
-                      data-confirm={gettext("Remove this connection?")}
+                      data-confirm={remove_confirm(@bucket_counts, conn.uuid)}
                     />
                   </.table_row_menu>
                 </.table_default_cell>
@@ -314,7 +335,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrations do
                   icon="hero-trash"
                   label={gettext("Remove")}
                   variant="error"
-                  data-confirm={gettext("Remove this connection?")}
+                  data-confirm={remove_confirm(@bucket_counts, conn.uuid)}
                 />
               </.table_row_menu>
             </:card_actions>

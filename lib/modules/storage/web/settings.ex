@@ -12,10 +12,13 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
   import Ecto.Query
 
   alias PhoenixKit.Modules.Storage
+  alias PhoenixKit.Modules.Storage.BucketCredentials
   alias PhoenixKit.Modules.Storage.ImageEditing
   alias PhoenixKit.Settings
   alias PhoenixKit.System.Dependencies
+  alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKitWeb.Actor
 
   def mount(_params, _session, socket) do
     # Get current path for navigation
@@ -343,7 +346,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
   end
 
   def handle_event("toggle_bucket", %{"id" => bucket_uuid}, socket) do
-    case Storage.get_bucket(bucket_uuid) do
+    case Storage.get_site_bucket(bucket_uuid) do
       nil ->
         {:noreply, put_flash(socket, :error, gettext("Bucket not found"))}
 
@@ -366,10 +369,53 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
     end
   end
 
-  def handle_event("delete_bucket", %{"id" => bucket_uuid}, socket) do
-    bucket = Storage.get_bucket(bucket_uuid)
+  # Moves every bucket that still carries its own keys into Integrations.
+  # Creating the connections needs the integrations key, so it is checked here
+  # too: the button is only hidden from a role without it.
+  def handle_event("move_all_credentials", _params, socket) do
+    if Scope.has_module_access?(socket.assigns[:phoenix_kit_current_scope], "integrations_system") do
+      results = BucketCredentials.move_all_to_integrations(actor_uuid: Actor.uuid(socket))
+      failed = Enum.count(results, &match?({_bucket, {:error, _reason}}, &1))
+      moved = length(results) - failed
 
-    case Storage.delete_bucket(bucket) do
+      socket = reload_settings_data(socket)
+
+      socket =
+        if failed == 0,
+          do:
+            put_flash(
+              socket,
+              :info,
+              ngettext(
+                "Moved the keys of %{count} bucket into an integration.",
+                "Moved the keys of %{count} buckets into an integration.",
+                moved
+              )
+            ),
+          else:
+            put_flash(
+              socket,
+              :error,
+              gettext(
+                "Moved %{moved} bucket(s); %{failed} could not be moved and were left as they were.",
+                moved: moved,
+                failed: failed
+              )
+            )
+
+      {:noreply, socket}
+    else
+      {:noreply,
+       put_flash(
+         socket,
+         :error,
+         gettext("Moving keys creates integrations, which needs access to Integrations.")
+       )}
+    end
+  end
+
+  def handle_event("delete_bucket", %{"id" => bucket_uuid}, socket) do
+    case bucket_uuid |> Storage.get_site_bucket() |> delete_site_bucket() do
       {:ok, _bucket} ->
         # Reload buckets and recalculate max redundancy
         buckets = Storage.list_buckets()
@@ -384,6 +430,9 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
           |> put_flash(:info, gettext("Bucket deleted successfully"))
 
         {:noreply, socket}
+
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, gettext("Bucket not found"))}
 
       {:error, changeset} ->
         message =
@@ -435,6 +484,14 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
     {:noreply, put_flash(socket, kind, message)}
   end
 
+  defp delete_site_bucket(nil), do: {:error, :not_found}
+  defp delete_site_bucket(bucket), do: Storage.delete_bucket(bucket)
+
+  defp legacy_bucket_count(buckets), do: Enum.count(buckets, &BucketCredentials.legacy?/1)
+
+  defp can_manage_integrations?(assigns),
+    do: Scope.has_module_access?(assigns[:phoenix_kit_current_scope], "integrations_system")
+
   defp get_current_path(_socket, _session) do
     # For Storage settings page
     Routes.path("/admin/settings/media")
@@ -446,7 +503,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
       "local" ->
         bucket.endpoint || "No path configured"
 
-      provider when provider in ["s3", "b2", "r2"] ->
+      provider when provider in ["s3", "b2", "r2", "tigris"] ->
         path_parts = [
           provider <> ":",
           if(bucket.bucket_name, do: bucket.bucket_name, else: "no-bucket"),

@@ -168,7 +168,8 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
         group: :admin_main,
         gettext_backend: PhoenixKitWeb.Gettext
       },
-      # The user's own storage libraries, while user libraries are on.
+      # The user's own storage libraries, while user libraries are on — unless they
+      # hold `media`, where Media's switcher lists them.
       %Tab{
         id: :admin_libraries,
         label: gettext_noop("Libraries"),
@@ -179,7 +180,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
         permission: "storage",
         match: :prefix,
         group: :admin_main,
-        visible: &Libraries.may_use_libraries?/1,
+        visible: &Libraries.show_libraries_entry?/1,
         gettext_backend: PhoenixKitWeb.Gettext
       }
     ]
@@ -335,7 +336,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
         path: "media",
         priority: 933,
         level: :admin,
-        permission: "media",
+        permission: "media.manage",
         match: :prefix,
         parent: :admin_settings,
         subtab_display: :when_active,
@@ -349,7 +350,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
         "media/dimensions",
         934,
         :admin_settings_media,
-        "media"
+        "media.manage"
       ),
       admin_subtab(
         :admin_settings_media_health,
@@ -358,7 +359,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
         "media/health",
         935,
         :admin_settings_media,
-        "media"
+        "media.manage"
       )
     ]
 
@@ -371,13 +372,13 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
   """
   @spec settings_visible?(map()) :: boolean()
   def settings_visible?(scope) do
-    # Settings visible if user has core "settings" permission, "media",
+    # Settings visible if user has core "settings" permission, "media.manage",
     # the website-wide integrations key (the Website Integrations subtab),
     # or any module permission that provides settings tabs. The personal
     # `integrations` key does NOT belong here — "My Integrations" lives on
     # the profile settings page now, not under site-wide Settings.
     Scope.has_module_access?(scope, "settings") or
-      Scope.has_module_access?(scope, "media") or
+      Scope.has_module_access?(scope, "media.manage") or
       integrations_visible?(scope) or
       Enum.any?(settings_tab_permissions(), &Scope.has_module_access?(scope, &1))
   rescue

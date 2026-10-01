@@ -53,6 +53,7 @@ defmodule PhoenixKitWeb.TrashedFileCacheTest do
     owner = user!("owner-#{n}")
     holder = user!("holder-#{n}")
     {:ok, _} = Permissions.grant_permission(Roles.get_role_by_name("User").uuid, "media")
+    {:ok, _} = Permissions.grant_permission(Roles.get_role_by_name("User").uuid, "media.view_all")
 
     # Any bytes will do: `show/2` serves the stored original as it is.
     File.write!(source, "stored bytes #{n}")

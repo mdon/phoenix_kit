@@ -78,6 +78,26 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3ResolveCredentialsTest do
                {"AKIAFROMINTEGRATION", "secret-from-integration"}
     end
 
+    test "returns {nil, nil} for a connection owned by a user: a bucket reads only its own owner's" do
+      # An arbitrary owner uuid: owner_uuid is a stored string, no FK.
+      owner = {:user, UUIDv7.generate()}
+
+      {:ok, %{uuid: uuid}} =
+        Integrations.add_connection("object_storage", "personal", nil, owner: owner)
+
+      {:ok, _} =
+        Integrations.save_setup(
+          uuid,
+          %{"access_key" => "AKIAPERSONAL", "secret_key" => "personal-secret"},
+          nil,
+          owner: owner
+        )
+
+      bucket = %Bucket{integration_uuid: uuid}
+
+      assert S3.resolve_credentials(bucket) == {nil, nil}
+    end
+
     test "returns {nil, nil} when the integration_uuid does not resolve to a connected integration" do
       ghost_uuid = "00000000-0000-7000-8000-000000000000"
       bucket = %Bucket{integration_uuid: ghost_uuid}

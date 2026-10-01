@@ -350,7 +350,7 @@
             <span class="badge badge-outline">v{ext.version}</span>
             <span class="badge badge-info badge-outline">{gettext("External")}</span>
             <%= for req_mod <- ext.required_modules do %>
-              <%= unless mcfg(@module_configs, req_mod, :enabled, false) do %>
+              <%= unless module_enabled?(@module_configs[req_mod] || %{}) do %>
                 <span class="badge badge-warning">
                   {gettext("Requires %{module}", module: String.capitalize(req_mod))}
                 </span>

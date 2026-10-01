@@ -51,21 +51,45 @@ defmodule PhoenixKitWeb.Live.Users.Libraries do
   def handle_params(params, _uri, socket) do
     scope = socket.assigns[:phoenix_kit_current_scope]
 
-    if Libraries.may_use_libraries?(scope) or Scope.system_role?(scope) do
-      socket =
-        if socket.assigns.libraries,
-          do: socket,
-          else: assign(socket, :libraries, Libraries.list_user_libraries(Scope.user_uuid(scope)))
+    cond do
+      # A holder of `media` browses their libraries in Media (one switcher over
+      # the site's libraries and their own); old links and bookmarks land there.
+      Libraries.browse_in_media?(scope) ->
+        {:noreply,
+         push_navigate(socket, to: Routes.path(media_destination(scope, params["library_id"])))}
 
-      {:noreply, open(socket, scope, params["library_id"])}
-    else
-      {:noreply,
-       socket
-       |> put_flash(:error, gettext("Libraries are not available"))
-       # Not /admin: a user whose only permission is "storage" is sent from
-       # there to here, so while libraries are off that would loop.
-       |> push_navigate(to: Routes.path("/profile/settings"))}
+      Libraries.may_use_libraries?(scope) or Scope.system_role?(scope) ->
+        browse(socket, scope, params)
+
+      true ->
+        {:noreply,
+         socket
+         |> put_flash(:error, gettext("Libraries are not available"))
+         # Not /admin: a user whose only permission is "storage" is sent from
+         # there to here, so while libraries are off that would loop.
+         |> push_navigate(to: Routes.path("/profile/settings"))}
     end
+  end
+
+  defp media_destination(_scope, id) when is_binary(id), do: "/admin/media/my/#{id}"
+
+  defp media_destination(scope, nil) do
+    case Libraries.default_user_library(Scope.user_uuid(scope)) do
+      %Library{} = library ->
+        "/admin/media/my/#{Libraries.url_id(library, Scope.user_uuid(scope))}"
+
+      _ ->
+        "/admin/media"
+    end
+  end
+
+  defp browse(socket, scope, params) do
+    socket =
+      if socket.assigns.libraries,
+        do: socket,
+        else: assign(socket, :libraries, Libraries.list_user_libraries(Scope.user_uuid(scope)))
+
+    {:noreply, open(socket, scope, params["library_id"])}
   end
 
   def handle_event("switch_library", %{"library" => id}, socket) do

@@ -24,6 +24,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
   alias PhoenixKit.Integrations.Providers
   alias PhoenixKit.Integrations.Telegram
   alias PhoenixKit.Integrations.Telegram.ChatLink
+  alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
@@ -44,6 +45,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
        |> assign(:selected_provider, nil)
        |> assign(:provider, nil)
        |> assign(:uuid, nil)
+       |> assign(:bucket_uses, 0)
        |> assign(:name, nil)
        |> assign(:data, %{})
        # Groups the last Test found but did not link — held here, never
@@ -71,11 +73,16 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
      |> apply_action(socket.assigns.live_action, params)}
   end
 
-  defp apply_action(socket, :new, _params) do
+  defp apply_action(socket, :new, params) do
+    # `?provider=key` opens the form on that provider (another page links here,
+    # e.g. the Media tab's "Add a connection"). Only a provider offered to
+    # users is taken; anything else shows the picker.
+    provider = Enum.find(socket.assigns.providers, &(&1.key == params["provider"]))
+
     socket
     |> assign(:page_title, gettext("Add Integration"))
-    |> assign(:selected_provider, nil)
-    |> assign(:provider, nil)
+    |> assign(:selected_provider, provider && provider.key)
+    |> assign(:provider, provider)
     |> assign(:uuid, nil)
     |> assign(:name, nil)
     |> assign(:data, %{})
@@ -91,6 +98,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
         socket
         |> assign(:page_title, gettext("Integration"))
         |> assign(:uuid, uuid)
+        |> assign(:bucket_uses, Map.get(Storage.bucket_counts_by_connection(), uuid, 0))
         |> assign(:name, name)
         |> assign(:data, data)
         |> assign(:selected_provider, provider_key)
@@ -104,14 +112,23 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
   end
 
   @impl true
+  # Only a provider the picker offered: the key arrives from the client, and the
+  # list is what a site admin chose (`Providers.personal_offered/0`), not whatever
+  # a hand-made event names.
   def handle_event("select_provider", %{"provider" => key}, socket) do
-    {:noreply,
-     socket
-     |> assign(:selected_provider, key)
-     |> assign(:provider, Providers.get(key))
-     |> assign(:data, %{})
-     |> assign(:new_name, "")
-     |> assign(:form_values, %{})}
+    case Enum.find(socket.assigns.providers, &(&1.key == key)) do
+      nil ->
+        {:noreply, socket}
+
+      provider ->
+        {:noreply,
+         socket
+         |> assign(:selected_provider, key)
+         |> assign(:provider, provider)
+         |> assign(:data, %{})
+         |> assign(:new_name, "")
+         |> assign(:form_values, %{})}
+    end
   end
 
   def handle_event("back_to_providers", _params, socket) do
@@ -132,7 +149,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
       |> assign(:form_values, attrs)
 
     {flash_kind, flash_msg} =
-      case Integrations.validate_credentials(provider_key, attrs) do
+      case Integrations.validate_credentials(provider_key, attrs, owner: owner(socket)) do
         :ok -> {:info, gettext("Connection works")}
         {:ok, note} -> {:info, Integrations.note_text({:ok, note})}
         # Neither a pass nor a failure — this provider has no way to check a
@@ -467,6 +484,19 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
 
   # ── Internals ────────────────────────────────────────────────────────
 
+  # A connection is deleted without checking who uses it, so a library of the
+  # user's own storage that does is named before it stops working.
+  defp delete_confirm(0),
+    do: gettext("Permanently delete this connection? This cannot be undone.")
+
+  defp delete_confirm(count) do
+    ngettext(
+      "%{count} of your libraries keeps its files in a bucket that uses this connection, and will stop working. Permanently delete it? This cannot be undone.",
+      "%{count} of your libraries keep their files in buckets that use this connection, and will stop working. Permanently delete it? This cannot be undone.",
+      count
+    )
+  end
+
   defp owner(socket), do: {:user, socket.assigns.user_uuid}
 
   # Rename only when the posted name is non-empty and actually differs.
@@ -535,6 +565,12 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
       current_locale={assigns[:current_locale]}
     >
       <div class="px-4 py-6">
+        <%!-- The profile's settings tabs, as on the list page, so "Add integration"
+             and a connection's own page still say where you are. --%>
+        <PhoenixKitWeb.Components.ProfileSettingsTabs.profile_tabs
+          active="integrations"
+          scope={assigns[:phoenix_kit_current_scope]}
+        />
         <%!-- Step 1: Provider picker (new mode, no provider selected yet) --%>
         <div :if={@live_action == :new && @selected_provider == nil} class="max-w-4xl mx-auto">
           <.provider_picker providers={@providers} />
@@ -778,7 +814,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
                   type="button"
                   phx-click="delete_connection"
                   class="btn btn-outline btn-error btn-sm shrink-0"
-                  data-confirm={gettext("Permanently delete this connection? This cannot be undone.")}
+                  data-confirm={delete_confirm(@bucket_uses)}
                   phx-disable-with={gettext("Deleting…")}
                 >
                   <.icon name="hero-trash" class="w-4 h-4" />

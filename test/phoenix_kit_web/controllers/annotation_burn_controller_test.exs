@@ -64,12 +64,17 @@ defmodule PhoenixKitWeb.AnnotationBurnControllerTest do
       owner = %User{uuid: "file-owner"}
       other = %User{uuid: "someone-else"}
       user_scope = scope(["User"], [])
-      media_scope = scope(["User"], ["media"])
+      # A site editor: `media` with `media.view_all`. `media` alone changes only
+      # one's own files.
+      media_scope = scope(["User"], ["media", "media.view_all"])
+      own_media_scope = scope(["User"], ["media"])
       admin_scope = scope(["Admin"], [])
 
       assert Burn.allowed?(file, owner, user_scope)
       refute Burn.allowed?(file, other, user_scope)
       assert Burn.allowed?(file, other, media_scope)
+      refute Burn.allowed?(file, other, own_media_scope)
+      assert Burn.allowed?(file, owner, own_media_scope)
       assert Burn.allowed?(file, other, admin_scope)
     end
 

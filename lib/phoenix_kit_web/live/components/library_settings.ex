@@ -9,6 +9,10 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
     * leave a library someone else shared
     * pick the variant set of a library they own, among the ones an admin
       made selectable (V205): which sizes its uploads get
+    * keep a new library on their own S3-compatible bucket instead of the
+      site's storage (V206; `storage.own_storage`, when the site allows it):
+      only there, or the site's storage plus a backup copy there. The choice is
+      made here, once, and cannot be changed afterwards.
 
   Browsing and uploading are `/admin/libraries`. Every action goes through
   `PhoenixKit.Modules.Storage.Libraries`, which re-checks who may do it;
@@ -19,8 +23,10 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
   """
   use PhoenixKitWeb, :live_component
 
-  alias PhoenixKit.Modules.Storage.{Libraries, Library, LibraryMember, VariantSets}
+  alias PhoenixKit.Integrations
+  alias PhoenixKit.Modules.Storage.{Libraries, Library, LibraryMember, Profiles, VariantSets}
   alias PhoenixKit.Users.Auth.Scope
+  alias PhoenixKit.Utils.Routes
 
   @impl true
   def update(assigns, socket) do
@@ -28,8 +34,14 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
       socket
       |> assign(:id, assigns.id)
       |> assign(:scope, assigns.scope)
+      |> assign(:probe, assigns[:probe])
       |> assign_new(:message, fn -> nil end)
       |> assign_new(:open_members, fn -> nil end)
+      |> assign_new(:form, fn -> new_form() end)
+      |> assign_new(:testing, fn -> false end)
+      |> assign_new(:creating, fn -> false end)
+      |> assign_new(:pending_create, fn -> nil end)
+      |> assign_new(:test_result, fn -> nil end)
       |> load()
 
     {:ok, socket}
@@ -50,6 +62,9 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
     |> assign(:owned, owned)
     |> assign(:shared, shared)
     |> assign(:can_create, Libraries.may_create_library?(scope))
+    |> assign(:can_own_storage, Libraries.may_use_own_storage?(scope))
+    |> assign(:connections, connections(scope))
+    |> assign(:own_storage, Profiles.user_storage_for(Enum.map(owned, & &1.library)))
     |> assign(:limit, Libraries.user_library_limit())
     |> assign(:managed_uuids, Enum.map(managed, & &1.library.uuid))
     |> assign(:variant_sets, VariantSets.list_selectable())
@@ -73,19 +88,39 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
     do: {:noreply, socket |> assign(:message, {kind, text}) |> load()}
 
   @impl true
-  def handle_event("create", %{"library" => %{"name" => name}}, socket) do
-    case Libraries.create_user_library(socket.assigns.scope, %{"name" => name}) do
-      {:ok, library} ->
-        reply(socket, :success, gettext("Library “%{name}” created", name: library.name))
+  def handle_event("form_change", %{"library" => params}, socket) do
+    {:noreply, assign(socket, form: merge_form(socket, params), test_result: nil)}
+  end
 
-      {:error, :limit_reached} ->
-        reply(socket, :error, gettext("You have reached the number of libraries you may own"))
+  def handle_event("refresh_connections", _params, socket), do: {:noreply, load(socket)}
 
-      {:error, :not_allowed} ->
-        reply(socket, :error, gettext("You may not create libraries"))
+  def handle_event("test_storage", _params, socket) do
+    scope = socket.assigns.scope
+    params = socket.assigns.form
+    probe_opts = probe_opts(socket)
 
-      {:error, %Ecto.Changeset{} = changeset} ->
-        reply(socket, :error, changeset_message(changeset))
+    # Through `Libraries.probe_own_storage/3`, which asks again whether this user
+    # may use their own storage and validates the bucket fields as a real one
+    # would be: the events of this component come from the client, and what the
+    # page hides is a courtesy. Unlinked, so a stalled endpoint cannot hold the
+    # page.
+    {:noreply,
+     socket
+     |> assign(:testing, true)
+     |> assign(:test_result, nil)
+     |> start_async(:test_storage, fn ->
+       Libraries.probe_own_storage(scope, params, probe_opts)
+     end)}
+  end
+
+  def handle_event("create", %{"library" => params}, socket) do
+    form = merge_form(socket, params)
+    attrs = %{"name" => form["name"]}
+
+    if form["kind"] == "own" and socket.assigns.can_own_storage do
+      create_on_own_storage(socket, form, attrs)
+    else
+      finish_create(socket, attrs, probe_opts(socket))
     end
   end
 
@@ -228,6 +263,187 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
     end
   end
 
+  @impl true
+  def handle_async(:test_storage, {:ok, result}, socket) do
+    {:noreply, assign(socket, testing: false, test_result: probe_message(result))}
+  end
+
+  def handle_async(:test_storage, {:exit, _reason}, socket) do
+    {:noreply,
+     assign(socket,
+       testing: false,
+       test_result: {:error, gettext("The test stopped unexpectedly")}
+     )}
+  end
+
+  # The bucket was checked off the page's process; now the library is created
+  # (database only) without checking it again.
+  def handle_async(:probe_storage, {:ok, :ok}, socket) do
+    attrs = socket.assigns.pending_create
+    socket = assign(socket, creating: false, pending_create: nil)
+    finish_create(socket, attrs, probe: fn _params -> :ok end)
+  end
+
+  def handle_async(:probe_storage, {:ok, result}, socket) do
+    socket = assign(socket, creating: false, pending_create: nil)
+
+    case probe_message(result) do
+      {:error, message} ->
+        reply(
+          socket,
+          :error,
+          gettext("Your storage could not be used: %{reason}", reason: message)
+        )
+    end
+  end
+
+  def handle_async(:probe_storage, {:exit, _reason}, socket) do
+    socket = assign(socket, creating: false, pending_create: nil)
+    reply(socket, :error, gettext("The test stopped unexpectedly"))
+  end
+
+  # `:probe` (an assign, unset in production) replaces the bucket check, and with
+  # it the wait: the library is created at once.
+  defp probe_opts(socket), do: if(probe = socket.assigns[:probe], do: [probe: probe], else: [])
+
+  defp create_on_own_storage(socket, form, attrs) do
+    attrs =
+      Map.put(
+        attrs,
+        "storage",
+        Map.take(form, ~w(mode integration_uuid provider bucket_name region endpoint))
+      )
+
+    case socket.assigns[:probe] do
+      nil ->
+        # The network check runs off the page's process, with a pending state;
+        # the library itself is created when it passes.
+        scope = socket.assigns.scope
+
+        {:noreply,
+         socket
+         |> assign(:creating, true)
+         |> assign(:pending_create, attrs)
+         |> start_async(:probe_storage, fn -> Libraries.probe_own_storage(scope, form) end)}
+
+      probe ->
+        finish_create(socket, attrs, probe: probe)
+    end
+  end
+
+  defp finish_create(socket, attrs, opts) do
+    case Libraries.create_user_library(socket.assigns.scope, attrs, opts) do
+      {:ok, library} ->
+        socket = assign(socket, form: new_form(), test_result: nil)
+        reply(socket, :success, gettext("Library “%{name}” created", name: library.name))
+
+      {:error, :limit_reached} ->
+        reply(socket, :error, gettext("You have reached the number of libraries you may own"))
+
+      {:error, :not_allowed} ->
+        reply(socket, :error, gettext("You may not create libraries"))
+
+      {:error, :no_site_storage} ->
+        reply(
+          socket,
+          :error,
+          gettext(
+            "The site has no storage of its own to keep the originals on, so a backup is not possible."
+          )
+        )
+
+      {:error, {:storage, message}} when is_binary(message) ->
+        reply(
+          socket,
+          :error,
+          gettext("Your storage could not be used: %{reason}", reason: message)
+        )
+
+      {:error, {:storage, %Ecto.Changeset{} = changeset}} ->
+        reply(socket, :error, storage_message(changeset))
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        reply(socket, :error, changeset_message(changeset))
+    end
+  end
+
+  # What the wizard shows for a `Libraries.probe_own_storage/3` result.
+  defp probe_message(:ok), do: :ok
+
+  defp probe_message({:error, :not_allowed}),
+    do: {:error, gettext("You may not use your own storage")}
+
+  defp probe_message({:error, %Ecto.Changeset{} = changeset}),
+    do: {:error, storage_message(changeset)}
+
+  defp probe_message({:error, message}) when is_binary(message), do: {:error, message}
+
+  @storage_fields ~w(kind mode integration_uuid provider bucket_name region endpoint)
+
+  defp new_form,
+    do: %{"name" => "", "kind" => "site", "mode" => "only", "provider" => "s3"}
+
+  # The form as the user has it: what they typed over what was there. A newly
+  # picked connection fills a blank region and endpoint from its own settings.
+  defp merge_form(socket, params) do
+    storage = params["storage"] || %{}
+    old = socket.assigns.form
+
+    form =
+      old
+      |> Map.put("name", params["name"] || old["name"] || "")
+      |> Map.merge(Map.take(storage, @storage_fields))
+
+    if form["integration_uuid"] in [nil, "", old["integration_uuid"]],
+      do: form,
+      else: prefill_from_connection(form, socket.assigns.connections)
+  end
+
+  defp prefill_from_connection(form, connections) do
+    case Enum.find(connections, &(&1.uuid == form["integration_uuid"])) do
+      nil ->
+        form
+
+      connection ->
+        form
+        |> put_if_blank("region", connection.region)
+        |> put_if_blank("endpoint", connection.endpoint)
+    end
+  end
+
+  defp put_if_blank(form, key, value) do
+    if form[key] in [nil, ""] and value not in [nil, ""],
+      do: Map.put(form, key, value),
+      else: form
+  end
+
+  # The user's own Object Storage connections, reduced to what the form shows
+  # (the list holds decrypted data; none of it is kept in assigns).
+  defp connections(scope) do
+    if Libraries.may_use_own_storage?(scope) do
+      "object_storage"
+      |> Integrations.list_connections(owner: {:user, Scope.user_uuid(scope)})
+      |> Enum.map(fn %{uuid: uuid, name: name, data: data} ->
+        %{uuid: uuid, name: name, region: data["region"], endpoint: data["endpoint"]}
+      end)
+    else
+      []
+    end
+  end
+
+  defp storage_message(%Ecto.Changeset{} = changeset) do
+    details =
+      changeset
+      |> Ecto.Changeset.traverse_errors(fn {message, opts} ->
+        translate_error({message, opts})
+      end)
+      |> Enum.map_join("; ", fn {field, messages} ->
+        "#{field |> to_string() |> String.replace("_", " ")} #{Enum.join(List.wrap(messages), ", ")}"
+      end)
+
+    gettext("Your storage could not be used: %{reason}", reason: details)
+  end
+
   defp changeset_message(%Ecto.Changeset{errors: errors}) do
     case errors[:name] do
       {message, opts} -> gettext("Name %{error}", error: translate_error({message, opts}))
@@ -244,6 +460,35 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
     if Enum.any?(sets, &(to_string(&1.uuid) == current)),
       do: sets,
       else: sets ++ List.wrap(VariantSets.get_variant_set(current))
+  end
+
+  defp provider_options do
+    [
+      {"AWS S3", "s3"},
+      {"Backblaze B2", "b2"},
+      {"Cloudflare R2", "r2"},
+      {"Tigris", "tigris"}
+    ]
+  end
+
+  defp own_storage_label(%{mode: :only, bucket: bucket}),
+    do: gettext("Your bucket: %{name}", name: bucket.bucket_name)
+
+  defp own_storage_label(%{mode: :backup, bucket: bucket}),
+    do: gettext("Backed up to: %{name}", name: bucket.bucket_name)
+
+  defp trash_confirm(library, own_storage) do
+    if Map.has_key?(own_storage, to_string(library.uuid)) do
+      gettext(
+        "Move “%{name}” to the trash? Its files are deleted for good after the trash period, including the copies in your own bucket, and its members lose it now.",
+        name: library.name
+      )
+    else
+      gettext(
+        "Move “%{name}” to the trash? Its files are deleted for good after the trash period, and its members lose it now.",
+        name: library.name
+      )
+    end
   end
 
   @doc false
@@ -283,7 +528,7 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
             )}
           </p>
         </div>
-        <.pk_link navigate="/admin/libraries" class="btn btn-sm btn-outline">
+        <.pk_link navigate={Libraries.browse_index_path(@scope)} class="btn btn-sm btn-outline">
           {gettext("Open libraries")}
         </.pk_link>
       </div>
@@ -291,23 +536,231 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
       <form
         :if={@can_create}
         id={"#{@id}-create"}
+        phx-change="form_change"
         phx-submit="create"
         phx-target={@myself}
-        class="flex flex-wrap items-end gap-2"
+        class="flex flex-col gap-3"
       >
-        <label class="form-control grow">
-          <span class="label-text text-sm">{gettext("New library")}</span>
-          <input
-            type="text"
-            name="library[name]"
-            required
-            maxlength="255"
-            placeholder={gettext("Name")}
-            class="input input-sm input-bordered w-full"
-          />
-        </label>
-        <button type="submit" class="btn btn-sm btn-primary">{gettext("Create")}</button>
-        <span class="text-xs text-base-content/60 w-full">
+        <div class="flex flex-wrap items-end gap-2">
+          <label class="form-control grow">
+            <span class="label-text text-sm">{gettext("New library")}</span>
+            <input
+              type="text"
+              name="library[name]"
+              value={@form["name"]}
+              required
+              maxlength="255"
+              placeholder={gettext("Name")}
+              class="input input-sm input-bordered w-full"
+            />
+          </label>
+          <button
+            type="submit"
+            class="btn btn-sm btn-primary"
+            disabled={@creating}
+            phx-disable-with={gettext("Creating…")}
+          >
+            <span :if={@creating} class="loading loading-spinner loading-xs"></span>
+            {gettext("Create")}
+          </button>
+        </div>
+
+        <fieldset :if={@can_own_storage} class="flex flex-col gap-2">
+          <legend class="label-text text-sm">{gettext("Where its files are kept")}</legend>
+          <label class="flex items-start gap-2 cursor-pointer">
+            <input
+              type="radio"
+              name="library[storage][kind]"
+              value="site"
+              checked={@form["kind"] != "own"}
+              class="radio radio-sm mt-0.5"
+            />
+            <span class="text-sm">
+              {gettext("The site's storage")}
+              <span class="block text-xs text-base-content/60">
+                {gettext("Nothing to set up.")}
+              </span>
+            </span>
+          </label>
+          <label class="flex items-start gap-2 cursor-pointer">
+            <input
+              type="radio"
+              name="library[storage][kind]"
+              value="own"
+              checked={@form["kind"] == "own"}
+              class="radio radio-sm mt-0.5"
+            />
+            <span class="text-sm">
+              {gettext("My own storage")}
+              <span class="block text-xs text-base-content/60">
+                {gettext(
+                  "An S3-compatible bucket you own: AWS S3, Backblaze B2, Cloudflare R2 or Tigris."
+                )}
+              </span>
+            </span>
+          </label>
+
+          <div
+            :if={@form["kind"] == "own"}
+            id={"#{@id}-own-storage"}
+            class="rounded-lg border border-base-300 p-3 flex flex-col gap-3"
+          >
+            <div class="flex flex-col gap-1">
+              <label class="label-text text-sm" for={"#{@id}-connection"}>
+                {gettext("Connection")}
+              </label>
+              <div class="flex flex-wrap items-center gap-2">
+                <select
+                  id={"#{@id}-connection"}
+                  name="library[storage][integration_uuid]"
+                  class="select select-sm select-bordered grow"
+                >
+                  <option value="">{gettext("Select a connection...")}</option>
+                  <option
+                    :for={connection <- @connections}
+                    value={connection.uuid}
+                    selected={@form["integration_uuid"] == connection.uuid}
+                  >
+                    {connection.name}
+                  </option>
+                </select>
+                <a
+                  href={Routes.path("/profile/settings/integrations/new?provider=object_storage")}
+                  target="_blank"
+                  rel="noopener"
+                  class="btn btn-sm btn-ghost"
+                >
+                  {gettext("Add a connection")}
+                </a>
+                <button
+                  type="button"
+                  phx-click="refresh_connections"
+                  phx-target={@myself}
+                  class="btn btn-sm btn-ghost"
+                >
+                  {gettext("Refresh")}
+                </button>
+              </div>
+              <span class="text-xs text-base-content/60">
+                {gettext("The access keys stay in your connection; the library only uses them.")}
+              </span>
+              <span :if={@connections == []} class="text-xs text-warning">
+                {gettext("You have no Object Storage connection yet.")}
+              </span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label class="form-control">
+                <span class="label-text text-sm">{gettext("Provider")}</span>
+                <select name="library[storage][provider]" class="select select-sm select-bordered">
+                  <option
+                    :for={{label, value} <- provider_options()}
+                    value={value}
+                    selected={@form["provider"] == value}
+                  >
+                    {label}
+                  </option>
+                </select>
+              </label>
+              <label class="form-control">
+                <span class="label-text text-sm">{gettext("Bucket name")}</span>
+                <input
+                  type="text"
+                  name="library[storage][bucket_name]"
+                  value={@form["bucket_name"]}
+                  placeholder="my-photos"
+                  class="input input-sm input-bordered"
+                />
+              </label>
+              <label class="form-control">
+                <span class="label-text text-sm">{gettext("Region")}</span>
+                <input
+                  type="text"
+                  name="library[storage][region]"
+                  value={@form["region"]}
+                  placeholder="eu-central-1"
+                  class="input input-sm input-bordered"
+                />
+              </label>
+              <label class="form-control">
+                <span class="label-text text-sm">
+                  {gettext("Endpoint")}
+                  <span :if={@form["provider"] in ["b2", "r2", "tigris"]}>*</span>
+                </span>
+                <input
+                  type="text"
+                  name="library[storage][endpoint]"
+                  value={@form["endpoint"]}
+                  placeholder="https://s3.example.com"
+                  class="input input-sm input-bordered"
+                />
+              </label>
+            </div>
+
+            <fieldset class="flex flex-col gap-2">
+              <legend class="label-text text-sm">{gettext("How it is used")}</legend>
+              <label class="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="library[storage][mode]"
+                  value="only"
+                  checked={@form["mode"] != "backup"}
+                  class="radio radio-sm mt-0.5"
+                />
+                <span class="text-sm">
+                  {gettext("Only here")}
+                  <span class="block text-xs text-base-content/60">
+                    {gettext("Everything this library stores lives in your bucket.")}
+                  </span>
+                </span>
+              </label>
+              <label class="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="library[storage][mode]"
+                  value="backup"
+                  checked={@form["mode"] == "backup"}
+                  class="radio radio-sm mt-0.5"
+                />
+                <span class="text-sm">
+                  {gettext("The site's storage, backed up here")}
+                  <span class="block text-xs text-base-content/60">
+                    {gettext(
+                      "Files are kept by the site as usual, and the originals are copied to your bucket."
+                    )}
+                  </span>
+                </span>
+              </label>
+            </fieldset>
+
+            <div class="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                phx-click="test_storage"
+                phx-target={@myself}
+                disabled={@testing}
+                class="btn btn-sm btn-outline"
+              >
+                <span :if={@testing} class="loading loading-spinner loading-xs"></span>
+                {if @testing, do: gettext("Testing..."), else: gettext("Test the bucket")}
+              </button>
+              <span :if={@test_result == :ok} class="text-sm text-success">
+                {gettext("The bucket can be read, written to and deleted from")}
+              </span>
+              <span :if={match?({:error, _}, @test_result)} class="text-sm text-error">
+                {elem(@test_result, 1)}
+              </span>
+            </div>
+
+            <p class="text-xs text-base-content/60">
+              {gettext(
+                "This cannot be changed once the library is created. The bucket is tested when you create the library. Deleting the library deletes the files it stored in your bucket."
+              )}
+            </p>
+          </div>
+        </fieldset>
+
+        <span class="text-xs text-base-content/60">
           {gettext("%{count} of %{limit} libraries", count: length(@owned), limit: @limit)}
         </span>
       </form>
@@ -341,6 +794,13 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
             <button type="submit" class="btn btn-sm btn-ghost">{gettext("Rename")}</button>
           </form>
           <span :if={library.is_default} class="badge badge-primary badge-sm">{gettext("Default")}</span>
+          <span
+            :if={storage = @own_storage[to_string(library.uuid)]}
+            class="badge badge-outline badge-sm"
+            title={gettext("Where this library keeps its files")}
+          >
+            {own_storage_label(storage)}
+          </span>
           <form
             :if={length(set_options(library, @variant_sets)) > 1}
             id={"#{@id}-sizes-#{library.uuid}"}
@@ -374,6 +834,9 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
           >
             {gettext("Make default")}
           </button>
+          <.pk_link navigate={Libraries.browse_path(@scope, library)} class="btn btn-sm btn-ghost">
+            <.icon name="hero-photo" class="w-4 h-4" /> {gettext("Open")}
+          </.pk_link>
           <button
             type="button"
             phx-click="toggle_members"
@@ -388,12 +851,7 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
             phx-click="trash"
             phx-value-uuid={library.uuid}
             phx-target={@myself}
-            data-confirm={
-              gettext(
-                "Move “%{name}” to the trash? Its files are deleted for good after the trash period, and its members lose it now.",
-                name: library.name
-              )
-            }
+            data-confirm={trash_confirm(library, @own_storage)}
             class="btn btn-sm btn-ghost text-error"
           >
             <.icon name="hero-trash" class="w-4 h-4" /> {gettext("Trash")}
@@ -419,6 +877,9 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
           <div class="flex flex-wrap items-center gap-2">
             <span class="font-medium grow">{library.name}</span>
             <span class="badge badge-ghost badge-sm">{role_label(role)}</span>
+            <.pk_link navigate={Libraries.browse_path(@scope, library)} class="btn btn-sm btn-ghost">
+              <.icon name="hero-photo" class="w-4 h-4" /> {gettext("Open")}
+            </.pk_link>
             <button
               :if={library.uuid in @managed_uuids}
               type="button"

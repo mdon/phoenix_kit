@@ -106,6 +106,33 @@ defmodule PhoenixKit.Users.Permissions do
 
   @core_section_keys ~w(dashboard users media settings modules)
 
+  # Sub-permissions of CORE sections. A feature module declares its own in
+  # `permission_metadata/0`; a core section has no module, so they live here and
+  # are merged into the registry's (`sub_permission_map/0`).
+  #
+  # `media.view_all` — Media shows the holder every file of the site's libraries.
+  # Without it a holder of `media` sees only their own stuff
+  # (`docs: dev_docs/plans/2026-09-30-media-by-viewer.md`).
+  # `media.manage` — the storage administration screens (buckets, sizes, health)
+  # and the site-wide actions in Media (empty the trash, delete every orphan).
+  # Both are granted once to every role that held `media` before they existed
+  # (`backfill_media_sub_permissions/0`), so an upgrade changes nothing.
+  @core_sub_permissions %{
+    "media" => [
+      %{
+        key: "media.view_all",
+        label: "See everyone's files",
+        description: "See the files other people uploaded to the site's libraries"
+      },
+      %{
+        key: "media.manage",
+        label: "Manage storage",
+        description: "Buckets, sizes and health, and the site-wide trash and orphan actions"
+      }
+    ]
+  }
+  @media_subs_flag "media_sub_permissions_backfilled"
+
   # Core-managed integration permission keys. TWO INDEPENDENT flat keys (not
   # dotted ⇒ no cascade / no sub-implies-base): `integrations` gates the
   # personal per-user page; `integrations_system` gates the website-wide page.
@@ -436,13 +463,22 @@ defmodule PhoenixKit.Users.Permissions do
   # `Scope.can?/2`. Base and sub parts each match ~r/^[a-z][a-z0-9_]*$/, so a
   # composed key contains exactly one dot — plain keys never contain dots.
 
+  # The registry's sub-permissions plus the core sections' (`@core_sub_permissions`).
+  defp sub_permission_map do
+    Map.merge(ModuleRegistry.sub_permission_map(), @core_sub_permissions, fn _base,
+                                                                             from_modules,
+                                                                             core ->
+      from_modules ++ core
+    end)
+  end
+
   @doc """
   Returns all composed sub-permission keys (`"calendar.view_others"`)
   declared by registered modules.
   """
   @spec sub_permission_keys() :: [String.t()]
   def sub_permission_keys do
-    ModuleRegistry.sub_permission_map()
+    sub_permission_map()
     |> Enum.flat_map(fn {_base, subs} -> Enum.map(subs, & &1.key) end)
     |> Enum.sort()
   end
@@ -453,7 +489,7 @@ defmodule PhoenixKit.Users.Permissions do
   """
   @spec sub_permissions_for(String.t()) :: [map()]
   def sub_permissions_for(base_key) when is_binary(base_key) do
-    ModuleRegistry.sub_permission_map() |> Map.get(base_key, [])
+    sub_permission_map() |> Map.get(base_key, [])
   end
 
   @doc """
@@ -464,7 +500,7 @@ defmodule PhoenixKit.Users.Permissions do
   @spec parent_key(String.t()) :: String.t() | nil
   def parent_key(key) when is_binary(key) do
     if String.contains?(key, ".") do
-      ModuleRegistry.sub_permission_map()
+      sub_permission_map()
       |> Enum.find_value(fn {base, subs} ->
         if Enum.any?(subs, &(&1.key == key)), do: base
       end)
@@ -562,10 +598,11 @@ defmodule PhoenixKit.Users.Permissions do
       feature_module_keys()
       |> Enum.filter(&do_feature_enabled?/1)
 
-    sub_map = ModuleRegistry.sub_permission_map()
+    sub_map = sub_permission_map()
 
+    # Core sections are always on, so are their sub-permissions.
     enabled_subs =
-      Enum.flat_map(enabled_features, fn base ->
+      Enum.flat_map(enabled_features ++ @core_section_keys, fn base ->
         sub_map |> Map.get(base, []) |> Enum.map(& &1.key)
       end)
 
@@ -1614,6 +1651,43 @@ defmodule PhoenixKit.Users.Permissions do
     |> Enum.each(&auto_grant_to_admin_roles/1)
 
     :ok
+  end
+
+  @doc """
+  Grants `media.view_all` and `media.manage` ONCE to every role that holds `media`:
+  before they existed, holding `media` meant seeing every file and opening the
+  storage screens, and an upgrade must not take either away. A flag records that it
+  ran, so a role that later has one revoked (or a role created afterwards) is not
+  given it back. Idempotent; called at boot after `auto_grant_new_keys_to_admin/0`.
+  """
+  @spec backfill_media_sub_permissions() :: :ok
+  def backfill_media_sub_permissions do
+    if Settings.get_setting(@media_subs_flag) == "true" do
+      :ok
+    else
+      subs = Enum.map(@core_sub_permissions["media"], & &1.key)
+      roles = roles_with_permission("media")
+
+      results =
+        for role <- roles, key <- subs do
+          grant_permission(role, key)
+        end
+
+      # Flagged only when every grant went through: a failure is retried next boot.
+      if Enum.all?(results, &match?({:ok, _}, &1)),
+        do: Settings.update_setting(@media_subs_flag, "true")
+
+      :ok
+    end
+  rescue
+    error ->
+      unless table_missing_error?(error) do
+        Logger.warning(
+          "[Permissions] media sub-permission backfill failed: #{Exception.message(error)}"
+        )
+      end
+
+      :ok
   end
 
   @doc """

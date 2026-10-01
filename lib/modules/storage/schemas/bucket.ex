@@ -7,6 +7,7 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
   - **AWS S3** buckets
   - **Backblaze B2** buckets
   - **Cloudflare R2** buckets
+  - **Tigris** buckets
 
   ## Priority System
 
@@ -16,7 +17,7 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
   ## Fields
 
   - `name` - Display name for the bucket
-  - `provider` - Storage provider: "local", "s3", "b2", "r2"
+  - `provider` - Storage provider: "local", "s3", "b2", "r2", "tigris"
   - `region` - AWS region or equivalent (nullable)
   - `endpoint` - Custom S3-compatible endpoint (nullable)
   - `bucket_name` - S3 bucket name (nullable)
@@ -37,6 +38,13 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
   - `enabled` - Whether bucket is active
   - `priority` - Selection priority (0 = random/emptiest)
   - `max_size_mb` - Maximum storage capacity in MB (nullable = unlimited)
+  - `owner_uuid` - Whose bucket it is (V206). NULL is the site's, which is every
+    bucket an admin creates. A user's own bucket carries its owner, never
+    appears in a site listing (`Storage.list_buckets/0`,
+    `Storage.list_enabled_buckets/0`), cannot be `local`, and takes its keys
+    from the owner's personal connection only. **Never cast from params**:
+    only `owned_changeset/3` sets it, from the signed-in user. No foreign key
+    (see `Migrations.Postgres.V206`).
 
   ## Access Types
 
@@ -86,9 +94,14 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
   use PhoenixKit.SchemaPrefix
   import Ecto.Changeset
 
+  alias PhoenixKit.Integrations.Encryption
+  alias PhoenixKit.Modules.Storage.Endpoint
   alias PhoenixKit.Modules.Storage.Providers.S3
 
-  alias PhoenixKit.Integrations.Encryption
+  # Every provider that speaks the S3 protocol and so needs a bucket name and
+  # credentials. Tigris is one: it was once left out of this list, so a Tigris
+  # bucket saved with neither.
+  @cloud_providers ~w(s3 b2 r2 tigris)
 
   @primary_key {:uuid, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
@@ -108,6 +121,7 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
           enabled: boolean(),
           priority: integer(),
           max_size_mb: integer() | nil,
+          owner_uuid: UUIDv7.t() | nil,
           file_locations:
             [PhoenixKit.Modules.Storage.FileLocation.t()] | Ecto.Association.NotLoaded.t(),
           inserted_at: DateTime.t() | nil,
@@ -128,6 +142,7 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
     field :enabled, :boolean, default: true
     field :priority, :integer, default: 0
     field :max_size_mb, :integer
+    field :owner_uuid, UUIDv7
 
     has_many :file_locations, PhoenixKit.Modules.Storage.FileLocation, foreign_key: :bucket_uuid
 
@@ -140,7 +155,7 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
   ## Required Fields
 
   - `name`
-  - `provider` (must be one of: "local", "s3", "b2", "r2")
+  - `provider` (must be one of: "local", "s3", "b2", "r2", "tigris")
 
   ## Validation Rules
 
@@ -185,25 +200,121 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
     |> validate_cloud_credentials()
     |> validate_endpoint()
     |> encrypt_secret_access_key()
+    |> check_owned_rules()
   end
 
-  # A cloud bucket's endpoint must be one `S3.endpoint/1` can use: a set but
-  # unusable one would otherwise fail every operation. A local bucket's
-  # endpoint is a filesystem path, not a URL.
+  # The database refuses an owned bucket that is `local`, carries keys of its
+  # own, or serves plain object URLs (`phoenix_kit_buckets_owned_check`); as an
+  # error on the changeset rather than a raise, for anything that edits one.
+  defp check_owned_rules(changeset) do
+    check_constraint(changeset, :owner_uuid,
+      name: :phoenix_kit_buckets_owned_check,
+      message: "a user's bucket must be S3-protocol, on a connection, and not public"
+    )
+  end
+
+  @doc """
+  Changeset for a user's own bucket (V206).
+
+  `owner_uuid` comes from the signed-in user, never from `attrs`. Only S3
+  protocol providers (a `local` bucket would be arbitrary filesystem access on
+  the server), always on a connection the owner owns (never keys stored on the
+  bucket), always `signed` (the plain object URL is never handed out), with no
+  `cdn_url` and no priority: the owner's storage profile decides how it is used.
+
+  The endpoint is checked under the `:personal` policy, resolving the host, at
+  save time; `Providers.S3` checks it again whenever a request is built.
+  `:connection_owned?` (a function of the connection uuid) says whether the
+  owner owns the connection; `Storage` passes the real check.
+  """
+  def owned_changeset(bucket, attrs, owner_uuid, opts \\ []) when is_binary(owner_uuid) do
+    owned? = Keyword.get(opts, :connection_owned?, fn _uuid -> false end)
+
+    bucket
+    |> cast(attrs, [
+      :name,
+      :provider,
+      :region,
+      :endpoint,
+      :bucket_name,
+      :integration_uuid,
+      :enabled
+    ])
+    |> put_change(:owner_uuid, owner_uuid)
+    |> put_change(:access_type, "signed")
+    |> put_change(:access_key_id, nil)
+    |> put_change(:secret_access_key, nil)
+    |> validate_required([:name, :provider, :bucket_name, :integration_uuid])
+    |> validate_inclusion(:provider, @cloud_providers)
+    |> validate_bucket_name_syntax()
+    |> validate_endpoint_required()
+    |> validate_owned_endpoint()
+    |> validate_connection_owned(owned?)
+    |> check_owned_rules()
+  end
+
+  # The name goes into a request's host or path (and a presigned URL), so an
+  # owned bucket's must be one an S3-protocol service accepts, nothing with a
+  # delimiter in it.
+  defp validate_bucket_name_syntax(changeset) do
+    case get_field(changeset, :bucket_name) do
+      nil ->
+        changeset
+
+      name ->
+        if S3.valid_bucket_name?(name),
+          do: changeset,
+          else:
+            add_error(
+              changeset,
+              :bucket_name,
+              "must be 3-63 lowercase letters, digits, dots or hyphens"
+            )
+    end
+  end
+
+  # B2, R2 and Tigris have no default host: without an endpoint every request
+  # would go to AWS.
+  defp validate_endpoint_required(changeset) do
+    if get_field(changeset, :provider) in ["b2", "r2", "tigris"],
+      do: validate_required(changeset, [:endpoint]),
+      else: changeset
+  end
+
+  defp validate_owned_endpoint(changeset) do
+    case Endpoint.check(get_field(changeset, :endpoint), :personal, resolve: true) do
+      :ok -> changeset
+      {:error, reason} -> add_error(changeset, :endpoint, Endpoint.error_message(reason))
+    end
+  end
+
+  defp validate_connection_owned(changeset, owned?) do
+    case get_field(changeset, :integration_uuid) do
+      nil ->
+        changeset
+
+      uuid ->
+        if owned?.(uuid),
+          do: changeset,
+          else: add_error(changeset, :integration_uuid, "is not one of your connections")
+    end
+  end
+
+  # A cloud bucket's endpoint must be one `Endpoint.parse/1` can use: a set but
+  # unusable one would otherwise fail every operation. Its literal address is
+  # checked too (no metadata or link-local target); a hostname is resolved by
+  # the connection test, not on every keystroke. A local bucket's endpoint is
+  # a filesystem path, not a URL.
   defp validate_endpoint(changeset) do
     provider = get_field(changeset, :provider)
-    endpoint = get_field(changeset, :endpoint)
 
-    if provider != "local" and
-         S3.endpoint(%{endpoint: endpoint}) ==
-           {:error, :invalid_endpoint} do
-      add_error(
-        changeset,
-        :endpoint,
-        "must be a host, host:port, or an http(s) URL with no path"
-      )
-    else
+    if provider == "local" do
       changeset
+    else
+      case Endpoint.check(get_field(changeset, :endpoint), :system) do
+        :ok -> changeset
+        {:error, reason} -> add_error(changeset, :endpoint, Endpoint.error_message(reason))
+      end
     end
   end
 
@@ -235,7 +346,7 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
   defp validate_cloud_credentials(changeset) do
     provider = get_field(changeset, :provider)
 
-    if provider in ["s3", "b2", "r2"] do
+    if provider in @cloud_providers do
       changeset
       |> validate_required([:bucket_name])
       |> validate_credentials_present()
@@ -271,8 +382,8 @@ defmodule PhoenixKit.Modules.Storage.Bucket do
   def local?(_), do: false
 
   @doc """
-  Returns whether this bucket is a cloud storage bucket (S3, B2, R2).
+  Returns whether this bucket is a cloud storage bucket (S3, B2, R2, Tigris).
   """
-  def cloud?(%__MODULE__{provider: provider}) when provider in ["s3", "b2", "r2"], do: true
+  def cloud?(%__MODULE__{provider: provider}) when provider in @cloud_providers, do: true
   def cloud?(_), do: false
 end

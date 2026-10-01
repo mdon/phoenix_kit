@@ -77,11 +77,11 @@ defmodule PhoenixKit.Modules.Storage.Manager do
     # in the order given.
     # `buckets` in write order; the first `target` are written, and a
     # failed one is replaced by the next (spares only exist for a profile).
-    {buckets, min_copies, target} =
+    {buckets, min_copies, target, backups} =
       cond do
         force_bucket_ids != [] ->
           forced = forced_buckets(force_bucket_ids)
-          {forced, 1, length(forced)}
+          {forced, 1, length(forced), MapSet.new()}
 
         legacy_selection?(opts) ->
           redundancy = Keyword.get(opts, :redundancy_copies, 1)
@@ -89,7 +89,7 @@ defmodule PhoenixKit.Modules.Storage.Manager do
           selected =
             select_buckets_for_storage(redundancy, Keyword.get(opts, :priority_buckets, []))
 
-          {selected, 1, length(selected)}
+          {selected, 1, length(selected), MapSet.new()}
 
         profile = Keyword.get(opts, :profile) || Profiles.default_profile() ->
           profile_placement(profile, Keyword.get(opts, :kind, :original))
@@ -97,14 +97,14 @@ defmodule PhoenixKit.Modules.Storage.Manager do
         # No profiles on this database yet: the pre-V205 pool.
         true ->
           selected = select_buckets_for_storage(1, [])
-          {selected, 1, length(selected)}
+          {selected, 1, length(selected), MapSet.new()}
       end
 
     if Enum.empty?(buckets) do
       {:error, "No available storage buckets"}
     else
       with {:ok, info} <- store_until(source_path, buckets, target, opts) do
-        require_copies(info, min_copies, target, Keyword.get(opts, :file_uuid))
+        require_copies(info, min_copies, target, Keyword.get(opts, :file_uuid), backups)
       end
     end
   rescue
@@ -122,7 +122,15 @@ defmodule PhoenixKit.Modules.Storage.Manager do
     copies = Profiles.copies(profile, kind)
     min_copies = if kind == :original, do: profile.min_copies_on_write, else: 1
 
-    {eligible, min_copies, min(copies, length(eligible))}
+    {eligible, min_copies, min(copies, length(eligible)), backup_uuids(profile)}
+  end
+
+  # The buckets this profile keeps only as backups: never served, so a copy there
+  # does not count toward the copies an upload must make.
+  defp backup_uuids(profile) do
+    for %{role: "backup"} = row <- profile.buckets,
+        into: MapSet.new(),
+        do: to_string(row.bucket_uuid)
   end
 
   # Writes the first `want` of `buckets`, then, while fewer than `want`
@@ -180,13 +188,18 @@ defmodule PhoenixKit.Modules.Storage.Manager do
   # row already names this key (another upload of the same bytes, not yet
   # a dedup donor), the object was there before this write, and stays.
   # `file_uuid` is the row the write is for, if it has one yet.
-  defp require_copies(info, min_copies, target, file_uuid) do
+  defp require_copies(info, min_copies, target, file_uuid, backups) do
     written = info.successful_storages
 
-    if written < min_copies do
+    # A copy on a backup is not a copy anyone can be served from: only the
+    # others count toward the minimum, or a backup alone could satisfy an upload
+    # whose file then could not be opened.
+    servable = Enum.count(info.bucket_ids, &(to_string(&1) not in backups))
+
+    if servable < min_copies do
       :ok = Storage.undo_store(info.destination_path, info.bucket_ids, file_uuid)
 
-      {:error, "Stored #{written} of the #{min_copies} copies required"}
+      {:error, "Stored #{servable} of the #{min_copies} copies required"}
     else
       {:ok, Map.put(info, :complete?, written >= target)}
     end
@@ -396,13 +409,19 @@ defmodule PhoenixKit.Modules.Storage.Manager do
       false
   end
 
+  # Exactly these buckets, enabled ones only, in the order given. Looked up by
+  # uuid rather than in the site's pool: an edit's output goes where the key it
+  # replaces is, and that may be a user's own bucket (V206).
   defp forced_buckets(bucket_uuids) do
-    enabled = Map.new(Storage.list_enabled_buckets(), &{to_string(&1.uuid), &1})
+    uuids = bucket_uuids |> Enum.map(&to_string/1) |> Enum.uniq()
 
-    bucket_uuids
-    |> Enum.map(&to_string/1)
-    |> Enum.uniq()
-    |> Enum.flat_map(&List.wrap(Map.get(enabled, &1)))
+    enabled =
+      uuids
+      |> Storage.get_buckets()
+      |> Enum.filter(& &1.enabled)
+      |> Map.new(&{to_string(&1.uuid), &1})
+
+    Enum.flat_map(uuids, &List.wrap(Map.get(enabled, &1)))
   end
 
   defp select_buckets_for_retrieval(priority_buckets) do
@@ -428,9 +447,10 @@ defmodule PhoenixKit.Modules.Storage.Manager do
   #
   # `file_uuid` (serving) is the file whose copy is wanted: its own profile
   # ranks the buckets, and a bucket it marks `backup` is not probed either.
-  defp read_order(file_path, priority_buckets, purpose, file_uuid \\ nil)
+  @doc false
+  def read_order(file_path, priority_buckets, purpose, file_uuid \\ nil)
 
-  defp read_order(file_path, [], purpose, file_uuid) do
+  def read_order(file_path, [], purpose, file_uuid) do
     case Locations.ranked(file_path, file_uuid) do
       # Checked and found in no bucket: not asked about again on every
       # request (the backfill remembered the miss).
@@ -441,7 +461,7 @@ defmodule PhoenixKit.Modules.Storage.Manager do
 
       ranked ->
         enabled = select_buckets_for_retrieval([])
-        by_uuid = Map.new(enabled, &{to_string(&1.uuid), &1})
+        by_uuid = enabled |> Map.new(&{to_string(&1.uuid), &1}) |> with_owned_buckets(ranked)
         named = MapSet.new(ranked, & &1.bucket_uuid)
 
         located =
@@ -454,8 +474,23 @@ defmodule PhoenixKit.Modules.Storage.Manager do
     end
   end
 
-  defp read_order(_file_path, priority_buckets, _purpose, _file_uuid),
+  def read_order(_file_path, priority_buckets, _purpose, _file_uuid),
     do: {select_buckets_for_retrieval(priority_buckets), []}
+
+  # A user's own bucket (V206) is not in the site's pool, so the located
+  # buckets that are not there are looked up by uuid, and only an enabled,
+  # user-owned one is added: a site bucket that is disabled or gone stays out,
+  # exactly as before. This is the ONLY way a user's bucket is reached for a
+  # read: the fallback that tries every other bucket is built from the site's
+  # pool alone, so a miss never probes anyone's own storage.
+  defp with_owned_buckets(by_uuid, ranked) do
+    missing = for %{bucket_uuid: uuid} <- ranked, not Map.has_key?(by_uuid, uuid), do: uuid
+
+    missing
+    |> Storage.get_buckets()
+    |> Enum.filter(&(&1.enabled and is_binary(&1.owner_uuid)))
+    |> Enum.reduce(by_uuid, &Map.put(&2, to_string(&1.uuid), &1))
+  end
 
   defp serve_fallback(buckets, :serve, file_uuid) when not is_nil(file_uuid) do
     backups = Locations.backup_buckets(file_uuid)

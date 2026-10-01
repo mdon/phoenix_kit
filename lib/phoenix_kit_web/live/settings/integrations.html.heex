@@ -193,11 +193,7 @@
                   icon="hero-trash"
                   label={gettext("Remove")}
                   variant="error"
-                  data-confirm={
-                    gettext(
-                      "This integration may be in use by other parts of the system. Remove it permanently?"
-                    )
-                  }
+                  data-confirm={remove_confirm(@bucket_counts, conn.uuid)}
                 />
               </.table_row_menu>
             </.table_default_cell>
@@ -238,11 +234,7 @@
               icon="hero-trash"
               label={gettext("Remove")}
               variant="error"
-              data-confirm={
-                gettext(
-                  "This integration may be in use by other parts of the system. Remove it permanently?"
-                )
-              }
+              data-confirm={remove_confirm(@bucket_counts, conn.uuid)}
             />
           </.table_row_menu>
         </:card_actions>
@@ -263,5 +255,55 @@
         {gettext("Add Integration")}
       </.pk_link>
     </.empty_state>
+
+    <%!-- Which services users may connect on their own. --%>
+    <div class="card bg-base-100 shadow-sm mt-8" id="personal-integrations">
+      <div class="card-body gap-3">
+        <h2 class="card-title text-lg">
+          <.icon name="hero-user-circle" class="w-5 h-5" /> {gettext("Personal integrations")}
+        </h2>
+        <p class="text-sm text-base-content/70">
+          {gettext(
+            "Users who hold the Integrations permission can connect these services with their own accounts, under My Integrations in their profile. Only services that support personal use are listed."
+          )}
+        </p>
+
+        <form
+          id="personal-integrations-form"
+          phx-submit="save_personal_providers"
+          class="flex flex-col gap-3"
+        >
+          <%!-- Sent even when nothing is ticked, so "none" can be saved. --%>
+          <input type="hidden" name="personal[providers][]" value="" />
+          <label
+            :for={%{provider: provider, enabled: enabled, forced: forced} <- @personal_providers}
+            class="flex items-start gap-3 cursor-pointer"
+          >
+            <input
+              type="checkbox"
+              name="personal[providers][]"
+              value={provider.key}
+              checked={enabled}
+              class="checkbox checkbox-sm mt-1"
+            />
+            <span class="flex flex-col">
+              <span class="font-medium flex items-center gap-2">
+                <.icon name={provider.icon} class="w-4 h-4" /> {provider.name}
+              </span>
+              <span class="text-xs text-base-content/60">{provider.description}</span>
+              <span :if={forced and not enabled} class="text-xs text-info">
+                {gettext(
+                  "Offered anyway while users may keep a library on their own bucket (Settings → Media → Libraries)."
+                )}
+              </span>
+            </span>
+          </label>
+
+          <div>
+            <button type="submit" class="btn btn-primary btn-sm">{gettext("Save")}</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </PhoenixKitWeb.Components.LayoutWrapper.app_layout>
