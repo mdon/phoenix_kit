@@ -151,10 +151,15 @@ defmodule PhoenixKit.Email.Layout do
 
   Every character of `text` is escaped. A blank line separates paragraphs,
   each a `<p>`; a single line break becomes `<br>`. An `http://` or `https://`
-  address becomes a link — it ends at any whitespace (Unicode and zero-width
-  included), typographic quotes and guillemets, dashes, an ellipsis, or
-  CJK/fullwidth punctuation, and trailing sentence punctuation and unbalanced
-  closing parentheses stay outside it. No other scheme becomes a link, so
+  address becomes a link. It ends at `<`, `>`, `"`, any Unicode whitespace or
+  separator, any invisible format character (zero-width spaces and joiners,
+  the soft hyphen, the byte-order mark, bidirectional controls — which could
+  otherwise make a link display a different address from the one it opens),
+  guillemets, the em dash and the punctuation after it up to the ellipsis
+  (U+2014–U+2027: typographic quotes, `…` and the like), and CJK/fullwidth
+  punctuation. Hyphens and the en dash do not end it, since real addresses
+  carry them. Trailing sentence punctuation and unbalanced closing
+  parentheses stay outside it. No other scheme becomes a link, so
   `javascript:` and friends remain text, and neither does an address longer
   than #{@max_link_bytes} bytes.
   """
@@ -283,7 +288,7 @@ defmodule PhoenixKit.Email.Layout do
   # Unicode and is escaped whole.
   defp linkify(line) do
     if String.valid?(line) do
-      ~r/https?:\/\/[^\s\p{Z}<>"\x{00AB}\x{00BB}\x{200B}-\x{200D}\x{2010}-\x{2027}\x{2060}\x{FEFF}\x{3000}-\x{303F}\x{FF01}-\x{FF65}]+/iu
+      ~r/https?:\/\/[^\s\p{Z}\p{Cf}<>"\x{00AB}\x{00BB}\x{2014}-\x{2027}\x{3000}-\x{303F}\x{FF01}-\x{FF65}]+/iu
       |> Regex.split(line, include_captures: true)
       |> Enum.with_index()
       |> Enum.map_join(fn

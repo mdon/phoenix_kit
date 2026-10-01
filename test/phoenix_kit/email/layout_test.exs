@@ -86,14 +86,32 @@ defmodule PhoenixKit.Email.LayoutTest do
                ~s(<a href="https://de.wikipedia.org/wiki/Köln">)
     end
 
-    test "an address ends at typographic quotes, guillemets, dashes, an ellipsis" do
+    test "hyphens and the en dash stay inside the address" do
+      url = "https://en.wikipedia.org/wiki/Michelson–Morley_experiment"
+
+      assert Layout.text_to_html("See #{url}.") =~ ~s(<a href="#{url}">#{url}</a>.)
+      assert Layout.text_to_html("https://a.test/a\u2010b\u2011c") =~ "a\u2010b\u2011c</a>"
+    end
+
+    test "an invisible format character ends the address, so a link shows what it opens" do
+      # U+202E reverses what follows on screen: linked, "moc.knab" would read as
+      # part of the address while the href points at evil.test.
+      for char <- ["\u202E", "\u00AD", "\u200E", "\u200F", "\u202A", "\u2066", "\u2069", "\uFEFF"] do
+        html = Layout.text_to_html("https://evil.test/" <> char <> "moc.knab")
+
+        assert html =~
+                 ~s(<a href="https://evil.test/">https://evil.test/</a>) <> char <> "moc.knab",
+               "char #{inspect(char)}: #{html}"
+      end
+    end
+
+    test "an address ends at typographic quotes, guillemets, the em dash, an ellipsis" do
       for {text, after_link} <- [
             {"«https://a.test/x»", "</a>»"},
             {"“https://a.test/x”", "</a>”"},
             {"‘https://a.test/x’", "</a>’"},
             {"https://a.test/x…", "</a>…"},
             {"https://a.test/x—next", "</a>—next"},
-            {"https://a.test/x–next", "</a>–next"},
             {"https://a.test/x\u200Bnext", "</a>\u200Bnext"}
           ] do
         html = Layout.text_to_html(text)
