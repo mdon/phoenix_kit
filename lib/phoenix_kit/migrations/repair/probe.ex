@@ -309,10 +309,11 @@ defmodule PhoenixKit.Migrations.Repair.Probe do
   connection, and its local setting ends with it.
 
   Called inside an outer transaction (a migration, `Adoption.verify_shape/3`)
-  this is a savepoint, and a local setting would otherwise last until the
-  OUTER transaction ends — so the caller's own value is read first and put
-  back, locally, before returning. A raise rolls the savepoint back, which
-  undoes the local setting too.
+  it joins that transaction (DBConnection does not open a savepoint), and a
+  local setting would otherwise last until the OUTER transaction ends — so
+  the caller's own value is read first and put back, locally, before
+  returning. A raise inside marks the outer transaction failed, as any
+  failed query in it would; nothing here rescues it.
   """
   @spec snapshot(Ecto.Repo.t(), String.t()) :: snapshot()
   def snapshot(repo, prefix) do

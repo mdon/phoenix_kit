@@ -18,6 +18,13 @@ defmodule PhoenixKit.Integration.Sitemap.RouterDiscoveryOptOutTest do
     def page(conn, _), do: conn
   end
 
+  defmodule AccountController do
+    @moduledoc false
+    use Phoenix.Controller, formats: []
+
+    def show(conn, _), do: conn
+  end
+
   defmodule TestRouter do
     @moduledoc false
     use Phoenix.Router
@@ -29,7 +36,7 @@ defmodule PhoenixKit.Integration.Sitemap.RouterDiscoveryOptOutTest do
     scope "/" do
       pipe_through :browser
       get "/about", DummyController, :page
-      get "/account", DummyController, :page, metadata: %{sitemap: false}
+      get "/account", AccountController, :show, metadata: %{sitemap: false}
       get "/pricing", DummyController, :page, metadata: %{sitemap: true}
     end
   end
@@ -46,6 +53,14 @@ defmodule PhoenixKit.Integration.Sitemap.RouterDiscoveryOptOutTest do
     end)
 
     :ok
+  end
+
+  test "a static entry naming an opted-out route's plug cannot bring it back" do
+    alias PhoenixKit.Modules.Sitemap.RouteResolver
+
+    # The static source resolves a configured plug through find_route/2.
+    assert RouteResolver.find_route(DummyController) == "/about"
+    assert RouteResolver.find_route(AccountController) == nil
   end
 
   test "sitemap: false keeps a route out; anything else leaves it in" do

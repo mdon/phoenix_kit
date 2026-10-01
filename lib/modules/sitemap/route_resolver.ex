@@ -163,9 +163,13 @@ defmodule PhoenixKit.Modules.Sitemap.RouteResolver do
   def find_route(plug_module, opts \\ []) do
     verb = Keyword.get(opts, :verb, :get)
 
+    # A route that opted out of the sitemap (`metadata: %{sitemap: false}`)
+    # is not found here either, so a configured static entry naming its plug
+    # cannot bring it back.
     get_routes()
     |> Enum.find(fn route ->
-      route.plug == plug_module and route.verb == verb
+      route.plug == plug_module and route.verb == verb and
+        not match?(%{metadata: %{sitemap: false}}, route)
     end)
     |> case do
       nil -> nil
