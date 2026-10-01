@@ -10,6 +10,7 @@ defmodule PhoenixKit.Email.CatalogTest do
 
   use PhoenixKit.DataCase, async: false
 
+  import ExUnit.CaptureLog
   import Swoosh.TestAssertions
 
   alias PhoenixKit.Email.Catalog
@@ -54,6 +55,33 @@ defmodule PhoenixKit.Email.CatalogTest do
     @moduledoc false
     def enabled?, do: false
     def email_templates, do: [%{name: "fixture_disabled", label: "Disabled"}]
+  end
+
+  defmodule WarnOnceEmailModule do
+    @moduledoc false
+    def enabled?, do: true
+
+    def email_templates do
+      [
+        %{name: "Warn Once Bad", label: "x"},
+        %{name: "warn_once_dup", label: "first"},
+        %{name: "warn_once_dup", label: "second"},
+        %{label: "no name"},
+        "not a map"
+      ]
+    end
+  end
+
+  defmodule ThrowingEmailModule do
+    @moduledoc false
+    def enabled?, do: true
+    def email_templates, do: throw(:no_list)
+  end
+
+  defmodule ExitingEmailModule do
+    @moduledoc false
+    def enabled?, do: true
+    def email_templates, do: exit(:gone)
   end
 
   defp tmp_root do
@@ -106,6 +134,180 @@ defmodule PhoenixKit.Email.CatalogTest do
       after
         ModuleRegistry.unregister(EnabledEmailModule)
         ModuleRegistry.unregister(DisabledEmailModule)
+      end
+    end
+  end
+
+  describe "entries/0 robustness" do
+    test "a module whose callback throws or exits leaves the list intact" do
+      ModuleRegistry.register(ThrowingEmailModule)
+      ModuleRegistry.register(ExitingEmailModule)
+
+      try do
+        capture_log(fn ->
+          assert Enum.take(Catalog.entries(), 8) |> Enum.map(& &1.name) == @core_names
+        end)
+      after
+        ModuleRegistry.unregister(ThrowingEmailModule)
+        ModuleRegistry.unregister(ExitingEmailModule)
+      end
+    end
+
+    test "a bad entry is warned about once, not on every call" do
+      ModuleRegistry.register(WarnOnceEmailModule)
+
+      try do
+        first = capture_log(fn -> Catalog.entries() end)
+        second = capture_log(fn -> Catalog.entries() end)
+
+        assert first =~ ~s("Warn Once Bad")
+        assert first =~ ~s("warn_once_dup")
+        assert first =~ "has no name"
+        assert first =~ "non-map entry"
+        assert second == ""
+
+        assert [%{label: "first"}] =
+                 Enum.filter(Catalog.entries(), &(&1.name == "warn_once_dup"))
+      after
+        ModuleRegistry.unregister(WarnOnceEmailModule)
+      end
+    end
+  end
+
+  # The English copy is the msgid every translation is keyed on: changing a
+  # word here silently reverts that email to English in every language until
+  # the catalogues are updated. Change these literals only together with them.
+  describe "core's default copy" do
+    test "is exactly the copy the translations are keyed on" do
+      Gettext.with_locale(PhoenixKitWeb.Gettext, "en", fn ->
+        assert CoreTemplates.register_defaults() == %{
+                 subject: "Confirm your account",
+                 text: """
+                 Hi {{user_email}},
+
+                 You can confirm your account by visiting the URL below:
+
+                 {{confirmation_url}}
+
+                 If you didn't create an account with us, please ignore this.
+                 """
+               }
+
+        assert CoreTemplates.reset_password_defaults() == %{
+                 subject: "Reset your password",
+                 text: """
+                 Hi {{user_email}},
+
+                 You can reset your password by visiting the URL below:
+
+                 {{reset_url}}
+
+                 If you didn't request this change, please ignore this.
+                 """
+               }
+
+        assert CoreTemplates.update_email_defaults() == %{
+                 subject: "Confirm your email change",
+                 text: """
+                 Hi {{user_email}},
+
+                 You can change your email by visiting the URL below:
+
+                 {{update_url}}
+
+                 If you didn't request this change, please ignore this.
+                 """
+               }
+
+        assert CoreTemplates.magic_link_defaults() == %{
+                 subject: "Your secure login link",
+                 text: """
+                 Your login link: {{magic_link_url}}
+                 This link expires in 15 minutes.
+                 """
+               }
+
+        assert CoreTemplates.magic_link_registration_defaults() == %{
+                 subject: "Complete your registration",
+                 text: """
+                 Hi {{user_email}},
+
+                 Welcome! To complete your registration, please visit the URL below:
+
+                 {{registration_url}}
+
+                 This link will expire in 30 minutes for your security.
+
+                 If you didn't request this registration, please ignore this email.
+                 """
+               }
+
+        assert CoreTemplates.organization_invitation_defaults() == %{
+                 subject: "You've been invited to join {{organization_name}}",
+                 text: """
+                 Hi {{user_email}},
+
+                 {{organization_name}} has invited you to join their organization.
+
+                 To accept the invitation, register an account by visiting the link below:
+
+                 {{registration_url}}
+
+                 This invitation link will expire in 7 days.
+
+                 If you did not expect this invitation, you can safely ignore this email.
+                 """
+               }
+
+        assert CoreTemplates.new_login_alert_defaults() == %{
+                 subject: "New login to your account",
+                 text: """
+                 Hi {{user_email}},
+
+                 We noticed a new login to your account from an unrecognized device:
+
+                 Time: {{login_time}}
+                 IP address: {{ip_address}}
+                 Location: {{location}}
+                 Device: {{browser_os}}
+
+                 {{failed_attempts}}If this was you, no action is needed.
+
+                 If you don't recognize this activity, secure your account here:
+
+                 {{security_url}}
+                 """
+               }
+
+        assert CoreTemplates.failed_login_alert_defaults() == %{
+                 subject: "Failed sign-in attempts on your account",
+                 text: """
+                 Hi {{user_email}},
+
+                 Someone has been trying to sign in to your account and failing.
+
+                 Failed attempts: {{attempt_count}}
+                 In the last: {{window_hours}} hour(s)
+
+                 Nobody has signed in. You do not need to do anything if you recognize
+                 this as your own mistyped password.
+
+                 If you do not, your password may be being guessed. Change it to
+                 something you do not use anywhere else:
+
+                 {{security_url}}
+                 """
+               }
+      end)
+    end
+
+    test "every core subject is translated (a changed msgid would fall back to English)" do
+      for entry <- Enum.take(Catalog.entries(), 8), locale <- ["ru", "de", "et"] do
+        english = Gettext.with_locale(PhoenixKitWeb.Gettext, "en", entry.defaults)
+        translated = Gettext.with_locale(PhoenixKitWeb.Gettext, locale, entry.defaults)
+
+        refute translated.subject == english.subject, "#{entry.name} subject in #{locale}"
+        refute translated.text == english.text, "#{entry.name} text in #{locale}"
       end
     end
   end
@@ -195,10 +397,29 @@ defmodule PhoenixKit.Email.CatalogTest do
       assert preview.sources.group_from == :option
     end
 
-    test "an entry whose own function raises answers an error, not a crash" do
-      entry = %{name: "fixture_broken", label: "Broken", variables: fn -> raise "boom" end}
+    test "an entry whose own function raises, throws or exits answers an error, not a crash" do
+      capture_log(fn ->
+        entry = %{name: "fixture_broken", label: "Broken", variables: fn -> raise "boom" end}
+        assert {:error, "boom"} = Catalog.preview(entry, "en", paths: [])
 
-      assert {:error, "boom"} = Catalog.preview(entry, "en", paths: [])
+        entry = %{name: "fixture_broken", label: "Broken", variables: fn -> throw(:nope) end}
+        assert {:error, ":nope"} = Catalog.preview(entry, "en", paths: [])
+
+        entry = %{name: "fixture_broken", label: "Broken", defaults: fn -> exit(:gone) end}
+        assert {:error, ":gone"} = Catalog.preview(entry, "en", paths: [])
+      end)
+    end
+
+    test "sample variables and defaults are evaluated in the previewed locale" do
+      entry = %{
+        name: "fixture_locale",
+        label: "Locale",
+        defaults: fn -> %{subject: "{{loc}}", text: Gettext.get_locale(PhoenixKitWeb.Gettext)} end,
+        variables: fn -> %{"loc" => Gettext.get_locale(PhoenixKitWeb.Gettext)} end
+      }
+
+      assert {:ok, %{content: %{subject: "ru", text: "ru"}}} =
+               Catalog.preview(entry, "ru", paths: [])
     end
   end
 

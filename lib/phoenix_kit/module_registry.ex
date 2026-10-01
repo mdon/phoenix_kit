@@ -166,9 +166,30 @@ defmodule PhoenixKit.ModuleRegistry do
       mod
       |> safe_call(:email_templates, [])
       |> List.wrap()
-      |> Enum.filter(&is_map/1)
-      |> Enum.map(&Map.put(&1, :module, mod))
+      |> Enum.flat_map(fn
+        entry when is_map(entry) ->
+          [Map.put(entry, :module, mod)]
+
+        entry ->
+          warn_once_bad_email_template(mod, entry)
+          []
+      end)
     end)
+  end
+
+  # The preview page collects these on every mount; one warning per module is
+  # enough to say its callback returned something that is not an entry.
+  defp warn_once_bad_email_template(mod, entry) do
+    key = {__MODULE__, :warned_bad_email_template, mod}
+
+    unless :persistent_term.get(key, false) do
+      :persistent_term.put(key, true)
+
+      Logger.warning(
+        "[ModuleRegistry] #{inspect(mod)}.email_templates/0 returned a non-map entry, " <>
+          "ignored: #{inspect(entry, limit: 5, printable_limit: 80)}"
+      )
+    end
   end
 
   @doc "Collect all user dashboard tabs from all registered modules."
@@ -941,6 +962,15 @@ defmodule PhoenixKit.ModuleRegistry do
       Logger.warning(
         "[ModuleRegistry] #{inspect(mod)}.#{fun}/0 failed: #{Exception.message(error)}. " <>
           "Check that all required fields are valid (e.g. Tab paths must start with \"/\")."
+      )
+
+      default
+  catch
+    # A throw or exit in one module's callback must not take down the page
+    # (or the boot) that collects every module's answer.
+    kind, reason ->
+      Logger.warning(
+        "[ModuleRegistry] #{inspect(mod)}.#{fun}/0 failed: #{inspect({kind, reason})}"
       )
 
       default

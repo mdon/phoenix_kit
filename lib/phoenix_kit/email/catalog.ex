@@ -87,7 +87,28 @@ defmodule PhoenixKit.Email.Catalog do
 
     (core ++ ModuleRegistry.all_email_templates())
     |> Enum.flat_map(&normalize/1)
-    |> Enum.uniq_by(& &1.name)
+    |> drop_duplicates()
+  end
+
+  # First entry per name wins (core's, then modules in registry order); a
+  # later one is ignored with a warning, once.
+  defp drop_duplicates(entries) do
+    {kept, _seen} =
+      Enum.reduce(entries, {[], MapSet.new()}, fn entry, {kept, seen} ->
+        if MapSet.member?(seen, entry.name) do
+          warn_once(
+            {entry.module, entry.name, :duplicate},
+            "Email catalog entry #{inspect(entry.name)} from #{inspect(entry.module)} " <>
+              "repeats a name already listed; it is ignored"
+          )
+
+          {kept, seen}
+        else
+          {[entry | kept], MapSet.put(seen, entry.name)}
+        end
+      end)
+
+    Enum.reverse(kept)
   end
 
   @doc "The entry named `name`, or `nil`."
@@ -100,8 +121,8 @@ defmodule PhoenixKit.Email.Catalog do
   resolution a send uses (`Content.resolve_with_sources/5`).
 
   Returns `{:ok, preview}`, or `{:error, message}` when the entry's own
-  `defaults` or `variables` function raises — a module's broken entry must
-  not take the preview page down.
+  `defaults` or `variables` function raises, throws or exits — a module's
+  broken entry must not take the preview page down.
 
   ## Options
 
@@ -164,7 +185,8 @@ defmodule PhoenixKit.Email.Catalog do
         |> Map.put_new(:module, nil)
       ]
     else
-      Logger.warning(
+      warn_once(
+        {entry[:module], name, :invalid},
         "Email catalog entry #{inspect(name)} from #{inspect(entry[:module])} is not a valid " <>
           "template name ([a-z0-9][a-z0-9_-]*); it is not listed"
       )
@@ -174,9 +196,32 @@ defmodule PhoenixKit.Email.Catalog do
   end
 
   defp normalize(entry) do
-    Logger.warning("Email catalog entry without a name ignored: #{inspect(entry)}")
+    warn_once(
+      {entry[:module], :no_name},
+      "Email catalog entry from #{inspect(entry[:module])} has no name, ignored: " <>
+        inspect(entry, limit: 5, printable_limit: 80)
+    )
+
     []
   end
+
+  # `entries/0` runs on every mount of the preview; a bad entry is worth one
+  # line in the log, not one per page view. Names are bounded so a
+  # pathological one cannot become a large key.
+  defp warn_once(key, message) do
+    key = {__MODULE__, :warned, bound_key(key)}
+
+    unless :persistent_term.get(key, false) do
+      :persistent_term.put(key, true)
+      Logger.warning(message)
+    end
+  end
+
+  defp bound_key(key) when is_tuple(key),
+    do: key |> Tuple.to_list() |> Enum.map(&bound_key/1) |> List.to_tuple()
+
+  defp bound_key(name) when is_binary(name), do: binary_part(name, 0, min(byte_size(name), 64))
+  defp bound_key(other), do: other
 
   # Both are rendered as text on the preview page; anything else a module
   # hands over would crash the page rather than show.

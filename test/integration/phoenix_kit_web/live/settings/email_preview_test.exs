@@ -34,9 +34,26 @@ defmodule PhoenixKitWeb.Live.Settings.EmailPreviewTest do
           defaults: fn -> %{subject: "Only text", text: "Hello"} end,
           layout: false
         },
-        %{name: "fixture_broken", label: "Broken", variables: fn -> raise "boom" end}
+        %{name: "fixture_broken", label: "Broken", variables: fn -> raise "boom" end},
+        %{
+          name: "fixture_html_only",
+          label: "HTML only",
+          defaults: fn -> %{subject: "Only HTML", html: "<p>Only HTML</p>"} end
+        },
+        %{
+          name: "fixture_billing",
+          label: "Billing",
+          defaults: fn -> %{subject: "Invoice", text: "Pay"} end,
+          layout: "billing"
+        }
       ]
     end
+  end
+
+  defmodule ThrowingModule do
+    @moduledoc false
+    def enabled?, do: true
+    def email_templates, do: throw(:no_list)
   end
 
   defmodule DbProvider do
@@ -250,8 +267,13 @@ defmodule PhoenixKitWeb.Live.Settings.EmailPreviewTest do
         else: Application.delete_env(:phoenix_kit, :email_provider)
     end)
 
+    # a placeholder the file leaves unbound is not reported: the database
+    # template answered, the file was never used
+    with_template_root(%{"register/text.txt" => "Code: {{one_time_code}}"})
+
     {:ok, view, _html} = live(conn, at("register"))
 
+    refute has_element?(view, "#email-preview-missing")
     assert has_element?(view, "#email-preview-db-notice")
     assert has_element?(view, "#email-preview-subject", "From the database")
     assert has_element?(view, "#email-source-subject", "Database template")
@@ -287,6 +309,111 @@ defmodule PhoenixKitWeb.Live.Settings.EmailPreviewTest do
 
       assert {:error, _redirect} = live(conn, @path)
     end
+  end
+
+  test "a language that is not an enabled site language is not used", %{conn: conn} do
+    {:ok, view, _html} = live(conn, at("register", "xx"))
+
+    # the hint and the selection use the default language, never "xx" — an
+    # arbitrary value would otherwise also mint a lookup-cache key per value
+    refute render(view) =~ "subject.xx.txt"
+    refute has_element?(view, ~s(#email-preview-locale option[selected][value="xx"]))
+    assert has_element?(view, "#email-preview-locale option[selected]")
+  end
+
+  test "file paths are shown as they sit in the host's source tree", %{conn: conn} do
+    base = Path.join(System.tmp_dir!(), "pk_app_#{System.unique_integer([:positive])}")
+    root = Path.join(base, "priv/phoenix_kit_templates")
+    File.mkdir_p!(Path.join(root, "register"))
+    File.write!(Path.join(root, "register/subject.txt"), "Mine\n")
+
+    previous = Application.get_env(:phoenix_kit, :template_paths)
+    Application.put_env(:phoenix_kit, :template_paths, [root])
+
+    on_exit(fn ->
+      if previous,
+        do: Application.put_env(:phoenix_kit, :template_paths, previous),
+        else: Application.delete_env(:phoenix_kit, :template_paths)
+
+      File.rm_rf!(base)
+    end)
+
+    {:ok, view, _html} = live(conn, at("register"))
+
+    assert has_element?(
+             view,
+             "#email-source-subject [data-source-path]",
+             "priv/phoenix_kit_templates/register/subject.txt"
+           )
+
+    refute has_element?(view, "#email-source-subject [data-source-path]", base)
+
+    assert has_element?(
+             view,
+             "#email-source-html [data-override-file]",
+             "priv/phoenix_kit_templates/register/html.en.html"
+           )
+
+    refute has_element?(view, "#email-source-html [data-override-file]", base)
+  end
+
+  test "a group the sending code names offers no layout.txt to create", %{conn: conn} do
+    with_module(EmailModule)
+
+    {:ok, view, _html} = live(conn, at("fixture_billing"))
+
+    assert has_element?(view, "#email-source-layout-group", "billing")
+
+    assert has_element?(
+             view,
+             "#email-source-layout-group [data-no-file]",
+             "Set by the sending code"
+           )
+
+    refute has_element?(view, "#email-source-layout-group [data-override-file]")
+
+    assert has_element?(
+             view,
+             "#email-source-header [data-override-file]",
+             "_header-billing/html.html"
+           )
+  end
+
+  test "without the layout, the layout, header and footer offer no file", %{conn: conn} do
+    with_module(EmailModule)
+
+    {:ok, view, _html} = live(conn, at("fixture_text_only"))
+
+    for row <- ~w(layout header footer) do
+      assert has_element?(view, "#email-source-#{row} [data-no-file]", "Not used")
+      refute has_element?(view, "#email-source-#{row} [data-override-file]")
+    end
+  end
+
+  test "an email with no text version says so", %{conn: conn} do
+    with_module(EmailModule)
+
+    {:ok, view, _html} = live(conn, at("fixture_html_only"))
+
+    assert has_element?(view, "#email-preview-no-text")
+    assert has_element?(view, ~s(iframe#email-preview-html[srcdoc*="Only HTML"]))
+  end
+
+  test "a module whose email_templates/0 throws does not take the page down", %{conn: conn} do
+    with_module(ThrowingModule)
+
+    {:ok, view, _html} = live(conn, @path)
+
+    assert has_element?(view, "#email-preview-item-register")
+  end
+
+  test "a select_locale event without a language is ignored", %{conn: conn} do
+    {:ok, view, _html} = live(conn, at("register"))
+
+    render_hook(view, "select_locale", %{"something" => "else"})
+    render_hook(view, "select_locale", %{"locale" => %{"not" => "a string"}})
+
+    assert has_element?(view, "#email-preview-subject", "Confirm your account")
   end
 
   test "an unknown email or language falls back to the defaults", %{conn: conn} do

@@ -56,14 +56,15 @@ defmodule PhoenixKitWeb.Live.Settings.EmailPreview do
       )
       |> assign(:entries, Catalog.entries())
       |> assign(:locales, preview_locales())
-      |> assign(:override_root, List.first(Content.override_paths()))
+      |> assign(:override_roots, Content.override_paths())
 
     {:ok, socket}
   end
 
   def handle_params(params, _url, socket) do
     entries = socket.assigns.entries
-    entry = Enum.find(entries, &(&1.name == params["email"])) || List.first(entries)
+    # Core's eight entries are always listed, so there is always one to show.
+    entry = Enum.find(entries, &(&1.name == params["email"])) || hd(entries)
 
     locale =
       if Enum.any?(socket.assigns.locales, &(elem(&1, 0) == params["lang"])),
@@ -81,9 +82,7 @@ defmodule PhoenixKitWeb.Live.Settings.EmailPreview do
     {:noreply, push_patch(socket, to: preview_path(socket.assigns.entry, locale))}
   end
 
-  defp assign_preview(%{assigns: %{entry: nil}} = socket) do
-    socket |> assign(:preview, nil) |> assign(:preview_error, nil)
-  end
+  def handle_event("select_locale", _params, socket), do: {:noreply, socket}
 
   defp assign_preview(socket) do
     case Catalog.preview(socket.assigns.entry, socket.assigns.locale) do
@@ -122,7 +121,7 @@ defmodule PhoenixKitWeb.Live.Settings.EmailPreview do
   # ---------------------------------------------------------------------------
 
   defp preview_path(entry, locale) do
-    query = URI.encode_query(%{"email" => entry && entry.name, "lang" => locale})
+    query = URI.encode_query(%{"email" => entry.name, "lang" => locale})
     Routes.path(@base_path) <> "?" <> query
   end
 
@@ -183,28 +182,29 @@ defmodule PhoenixKitWeb.Live.Settings.EmailPreview do
         source: sources.group_from,
         value: group,
         used_for: [],
-        file: "#{name}/layout.txt"
+        # A group the sending code names wins over any layout.txt.
+        file: if(sources.group_from != :option, do: "#{name}/layout.txt")
       },
       %{
         id: "layout",
         label: gettext("Layout"),
         source: sources.layout,
         used_for: [],
-        file: chrome_file(Layout.name(), group)
+        file: chrome_file(Layout.name(), group, sources.layout)
       },
       %{
         id: "header",
         label: gettext("Header"),
         source: sources.header,
         used_for: [],
-        file: chrome_file(Layout.header_name(), group)
+        file: chrome_file(Layout.header_name(), group, sources.layout)
       },
       %{
         id: "footer",
         label: gettext("Footer"),
         source: sources.footer,
         used_for: [],
-        file: chrome_file(Layout.footer_name(), group)
+        file: chrome_file(Layout.footer_name(), group, sources.layout)
       }
     ]
   end
@@ -223,13 +223,41 @@ defmodule PhoenixKitWeb.Live.Settings.EmailPreview do
 
   defp part_file(name, part, ext, locale), do: "#{name}/#{part}.#{base_language(locale)}.#{ext}"
 
-  defp chrome_file(chrome, nil), do: "#{chrome}/html.html"
-  defp chrome_file(chrome, group), do: "#{chrome}-#{group}/html.html"
+  # No layout was used (sent with `layout: false`, a whole document, or no
+  # HTML at all): a chrome file would change nothing.
+  defp chrome_file(_chrome, _group, nil), do: nil
+  defp chrome_file(chrome, nil, _layout), do: "#{chrome}/html.html"
+  defp chrome_file(chrome, group, _layout), do: "#{chrome}-#{group}/html.html"
+
+  # Why a row has no file to create.
+  defp no_file_note(%{id: "layout-group"}), do: gettext("Set by the sending code")
+  defp no_file_note(_row), do: gettext("Not used")
 
   defp base_language(locale), do: locale |> String.split("-") |> hd() |> String.downcase()
 
-  defp override_file(nil, file), do: file
-  defp override_file(root, file), do: Path.join(root, file)
+  # Paths as a developer finds them in the host's source tree. The roots are
+  # resolved through `Application.app_dir/1` — under `_build/` in dev, inside
+  # the release in production — where a file added by hand is lost on the
+  # next build or deploy; the file belongs in the host's `priv/` and ships
+  # with the code.
+  defp override_file([], file), do: file
+  defp override_file([root | _], file), do: Path.join(display_root(root), file)
+
+  defp display_root(root) do
+    if root == "priv/phoenix_kit_templates" or
+         String.ends_with?(root, "/priv/phoenix_kit_templates"),
+       do: "priv/phoenix_kit_templates",
+       else: Path.relative_to_cwd(root)
+  end
+
+  defp display_path(path, roots) do
+    Enum.find_value(roots, path, fn root ->
+      case Path.relative_to(path, root) do
+        ^path -> nil
+        relative -> Path.join(display_root(root), relative)
+      end
+    end)
+  end
 
   defp source_badge(assigns) do
     ~H"""

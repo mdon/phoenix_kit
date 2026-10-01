@@ -23,8 +23,9 @@ defmodule PhoenixKit.Email.CoreTemplates do
   @doc """
   The catalog entries for core's emails, in the order the admin lists them.
 
-  Labels and sample variables are evaluated when called, so call this in the
-  locale the labels should be in.
+  Labels and descriptions are evaluated on the call, so call this in the
+  locale they should read in. Defaults and sample variables are closures,
+  evaluated later by the preview in the locale being previewed.
   """
   @spec entries() :: [PhoenixKit.Email.Catalog.entry()]
   def entries do

@@ -340,9 +340,15 @@ group, the layout, the header and the footer — it says where it came from:
 - **Empty file, ignored** — a file was found but is blank, so it counts as
   missing.
 - **Built-in default** — PhoenixKit's (or the module's) own copy.
+- **Set by the sending code** — for the layout group: the code passes
+  `layout: "<group>"`, which wins over any `layout.txt`, so no file changes it.
+- **Not used** — the part plays no role in this email: no such file or
+  default, or, for the layout, header and footer, the email is sent without
+  the layout (`layout: false`, a whole HTML document, or text only).
 
-Next to each part it names the file to create to override it, under the
-first template root. Placeholders that no sample value binds are listed, so
+Next to each part it names the file to create to override it, as a path in
+the host application's source tree (`priv/phoenix_kit_templates/…`): the file
+ships with the code — one added on the server is lost on the next deploy. Placeholders that no sample value binds are listed, so
 a typo such as `{{confirm_url}}` shows before a reader sees it.
 
 A module adds its own emails to the list with the optional
