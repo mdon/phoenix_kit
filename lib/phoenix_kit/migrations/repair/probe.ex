@@ -299,33 +299,32 @@ defmodule PhoenixKit.Migrations.Repair.Probe do
   resolvable regardless: Postgres always searches it first, whether or not
   it is named in `search_path`.
 
-  Runs inside `repo.checkout/2` so the `SET`, every catalog query, and the
-  final `RESET` land on the SAME physical connection — Ecto/DBConnection
-  checkout nests transparently, so this is equally safe called from inside
-  `PhoenixKit.Migrations.Repair.Environment.with_lock/2`'s own outer
-  checkout (the common, direct-connection path) or as the outermost
-  checkout (the `--unsafe-pooled` path, which skips the lock). The `after`
-  clause restores `search_path` unconditionally, even if a catalog query
-  raises — this is session-level state on a connection this process
-  **borrows** from a pool it shares with the rest of the host application;
-  leaving it at `''` would silently break any later unqualified query
-  issued by anything else on that physical connection once it is checked
-  back in. `RESET search_path` (never a literal previous-value `SET`)
-  correctly restores the default for every deployment this tool documents
-  supporting — PhoenixKit's own runtime queries never rely on `search_path`
-  for a prefixed install (`CLAUDE.md`: "no `search_path` requirement on the
-  DB role"), so nothing in this codebase's own connections customizes it at
-  connect time for a `RESET` to lose.
+  The setting is **transaction-local** (`set_config(…, true)`, i.e. `SET
+  LOCAL`) inside a transaction of its own, never a session-level `SET`.
+  Behind PgBouncer in transaction mode, statements outside a transaction can
+  each land on a different server connection: a session `SET` poisoned one
+  backend while the matching `RESET` restored another, and that backend's
+  later unqualified queries failed ("relation … does not exist") for every
+  app sharing the pool. A transaction keeps every statement on one server
+  connection, and its local setting ends with it.
+
+  Called inside an outer transaction (a migration, `Adoption.verify_shape/3`)
+  this is a savepoint, and a local setting would otherwise last until the
+  OUTER transaction ends — so the caller's own value is read first and put
+  back, locally, before returning. A raise rolls the savepoint back, which
+  undoes the local setting too.
   """
   @spec snapshot(Ecto.Repo.t(), String.t()) :: snapshot()
   def snapshot(repo, prefix) do
-    repo.checkout(fn ->
-      repo.query!("SET search_path TO ''", [], log: false)
+    {:ok, snapshot} =
+      repo.transaction(fn ->
+        %{rows: [[saved]]} =
+          repo.query!("SELECT current_setting('search_path')", [], log: false)
 
-      try do
+        repo.query!("SELECT set_config('search_path', '', true)", [], log: false)
         {plain_indexes, constraint_backed_indexes} = indexes(repo, prefix)
 
-        %{
+        snapshot = %{
           tables: tables(repo, prefix),
           columns: columns(repo, prefix),
           indexes: plain_indexes,
@@ -335,10 +334,12 @@ defmodule PhoenixKit.Migrations.Repair.Probe do
           functions: functions(repo, prefix),
           extensions: extensions(repo, prefix)
         }
-      after
-        repo.query!("RESET search_path", [], log: false)
-      end
-    end)
+
+        repo.query!("SELECT set_config('search_path', $1, true)", [saved], log: false)
+        snapshot
+      end)
+
+    snapshot
   end
 
   defp tables(repo, prefix) do
