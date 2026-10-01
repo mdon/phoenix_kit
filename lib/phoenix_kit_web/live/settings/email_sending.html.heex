@@ -127,8 +127,9 @@
               value={@accent_input}
               label={gettext("Accent colour")}
               placeholder={Branding.default_accent_color()}
-              maxlength="7"
               autocomplete="off"
+              aria-invalid={@accent_error && "true"}
+              aria-describedby={@accent_error && "email-accent-color-error"}
               wrapper_class="w-full max-w-xs"
             />
             <label class="flex items-center gap-2 pb-1">
@@ -138,6 +139,7 @@
                 type="color"
                 name="accent_color_picker"
                 value={@accent_preview}
+                phx-debounce="150"
                 class="w-10 h-10 cursor-pointer rounded border border-base-300 bg-transparent"
               />
             </label>
@@ -159,7 +161,7 @@
             </div>
           </div>
           <p :if={@accent_error} id="email-accent-color-error" class="text-sm text-error">
-            {gettext("Enter the colour as #RRGGBB, for example #1d4ed8.")}
+            {accent_format_error()}
           </p>
           <p class="text-xs text-base-content/50">
             {accent_help_text()}

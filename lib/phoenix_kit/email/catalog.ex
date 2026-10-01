@@ -51,7 +51,7 @@ defmodule PhoenixKit.Email.Catalog do
   @type entry :: %{
           required(:name) => String.t(),
           required(:label) => String.t(),
-          optional(:description) => String.t(),
+          optional(:description) => String.t() | nil,
           optional(:defaults) => (-> Templates.defaults()) | Templates.defaults(),
           optional(:variables) => (-> map()) | map(),
           optional(:layout) => boolean() | String.t(),
@@ -131,6 +131,10 @@ defmodule PhoenixKit.Email.Catalog do
     error ->
       Logger.warning("Email preview of #{inspect(name)} failed: #{Exception.message(error)}")
       {:error, Exception.message(error)}
+  catch
+    kind, reason ->
+      Logger.warning("Email preview of #{inspect(name)} failed: #{inspect({kind, reason})}")
+      {:error, inspect(reason)}
   end
 
   # The placeholders the samples leave unbound, against the same content the
@@ -156,6 +160,7 @@ defmodule PhoenixKit.Email.Catalog do
       [
         entry
         |> Map.put(:label, label(entry))
+        |> Map.put(:description, description(entry))
         |> Map.put_new(:module, nil)
       ]
     else
@@ -173,8 +178,13 @@ defmodule PhoenixKit.Email.Catalog do
     []
   end
 
+  # Both are rendered as text on the preview page; anything else a module
+  # hands over would crash the page rather than show.
   defp label(%{label: label}) when is_binary(label) and label != "", do: label
   defp label(%{name: name}), do: name
+
+  defp description(%{description: description}) when is_binary(description), do: description
+  defp description(_entry), do: nil
 
   defp defaults_fun(%{defaults: fun}) when is_function(fun, 0), do: fun
   defp defaults_fun(%{defaults: map}) when is_map(map), do: fn -> map end

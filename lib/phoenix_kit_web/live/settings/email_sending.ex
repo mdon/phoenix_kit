@@ -165,16 +165,28 @@ defmodule PhoenixKitWeb.Live.Settings.EmailSending do
   def handle_event("validate_accent_color", params, socket) do
     value =
       case params do
-        %{"_target" => ["accent_color_picker"], "accent_color_picker" => picked} -> picked
-        %{"accent_color" => typed} -> typed
-        _ -> socket.assigns.accent_input
+        %{"_target" => ["accent_color_picker"], "accent_color_picker" => picked}
+        when is_binary(picked) ->
+          picked
+
+        %{"accent_color" => typed} when is_binary(typed) ->
+          typed
+
+        _ ->
+          socket.assigns.accent_input
       end
 
-    {:noreply, assign_accent_input(socket, value)}
+    # A half-typed colour ("#1d4") is not an error yet; flag it once it is as
+    # long as a whole one, or cannot become one.
+    {:noreply, assign_accent_input(socket, value, complete?(value))}
   end
 
   def handle_event("save_accent_color", params, socket) do
-    value = params |> Map.get("accent_color", "") |> String.trim()
+    value =
+      case params do
+        %{"accent_color" => value} when is_binary(value) -> String.trim(value)
+        _ -> ""
+      end
 
     case accent_color_value(value) do
       {:ok, color} ->
@@ -195,7 +207,7 @@ defmodule PhoenixKitWeb.Live.Settings.EmailSending do
         {:noreply,
          socket
          |> assign_accent_input(value)
-         |> put_flash(:error, gettext("Enter the colour as #RRGGBB, for example #1d4ed8"))}
+         |> put_flash(:error, accent_format_error())}
     end
   end
 
@@ -350,14 +362,14 @@ defmodule PhoenixKitWeb.Live.Settings.EmailSending do
   # `accent_input` is what the field shows; `accent_preview` is the colour the
   # swatch paints — only ever a normalised `#rrggbb`, so the inline style can
   # never carry anything else.
-  defp assign_accent_input(socket, value) do
+  defp assign_accent_input(socket, value, show_error? \\ true) do
     value = to_string(value)
 
     {preview, error} =
       case accent_color_value(String.trim(value)) do
         {:ok, ""} -> {Branding.default_accent_color(), nil}
         {:ok, color} -> {color, nil}
-        :error -> {socket.assigns[:accent_color] || Branding.default_accent_color(), true}
+        :error -> {socket.assigns[:accent_color] || Branding.default_accent_color(), show_error?}
       end
 
     socket
@@ -365,6 +377,14 @@ defmodule PhoenixKitWeb.Live.Settings.EmailSending do
     |> assign(:accent_preview, preview)
     |> assign(:accent_error, error)
   end
+
+  defp complete?(value) do
+    value = String.trim(value)
+    String.length(value) >= 7 or not Regex.match?(~r/\A#?[0-9a-fA-F]*\z/, value)
+  end
+
+  defp accent_format_error,
+    do: gettext("Enter the colour as #RRGGBB, for example #1d4ed8")
 
   # "" clears the setting (emails fall back to the neutral default); anything
   # else must be a six-digit hex colour. `Branding.normalize_color/1` answers

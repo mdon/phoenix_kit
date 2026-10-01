@@ -131,6 +131,23 @@ defmodule PhoenixKit.Email.CatalogTest do
       end
     end
 
+    test "a dialect is rendered in its language, as a send to that reader is" do
+      {:ok, %{content: %{subject: spanish}}} =
+        Catalog.preview(Catalog.get("register"), "es", paths: [])
+
+      refute spanish == "Confirm your account"
+
+      for dialect <- ["es-ES", "es-MX"] do
+        assert {:ok, %{content: %{subject: ^spanish}}} =
+                 Catalog.preview(Catalog.get("register"), dialect, paths: [])
+      end
+
+      assert {:ok, email} =
+               UserNotifier.deliver_confirmation_instructions(user("es-ES"), "https://x.test/c")
+
+      assert email.subject == spanish
+    end
+
     test "is rendered in the chosen language" do
       assert {:ok, %{content: %{subject: subject}}} =
                Catalog.preview(Catalog.get("register"), "ru", paths: [])
@@ -271,6 +288,55 @@ defmodule PhoenixKit.Email.CatalogTest do
       assert_email_sent(fn email ->
         assert {email.subject, email.text_body} == {want.subject, want.text}
       end)
+    end
+
+    # The send site names the template; a typo there would silently stop a
+    # host's files from applying and point the preview's hints at the wrong
+    # directory. Each send must pick up an override under its catalog name.
+    test "every core send resolves under its catalog name" do
+      root = tmp_root()
+
+      for name <- @core_names, do: write(root, "#{name}/subject.txt", "OVERRIDE #{name}")
+
+      previous = Application.get_env(:phoenix_kit, :template_paths)
+      Application.put_env(:phoenix_kit, :template_paths, [root])
+
+      on_exit(fn ->
+        if previous,
+          do: Application.put_env(:phoenix_kit, :template_paths, previous),
+          else: Application.delete_env(:phoenix_kit, :template_paths)
+      end)
+
+      u = user("en")
+      url = "https://x.test/t"
+      at = ~U[2026-09-30 12:00:00Z]
+
+      sends = %{
+        "register" => fn -> UserNotifier.deliver_confirmation_instructions(u, url) end,
+        "reset_password" => fn -> UserNotifier.deliver_reset_password_instructions(u, url) end,
+        "update_email" => fn -> UserNotifier.deliver_update_email_instructions(u, url) end,
+        "magic_link" => fn -> Mailer.send_magic_link_email(u, url) end,
+        "magic_link_registration" => fn ->
+          UserNotifier.deliver_magic_link_registration(u, url)
+        end,
+        "organization_invitation" => fn ->
+          UserNotifier.deliver_organization_invitation(u.email, "Acme", url)
+        end,
+        "new_login_alert" => fn ->
+          UserNotifier.deliver_new_login_alert(u, %{ip_address: "1.2.3.4", first_seen_at: at})
+        end,
+        "failed_login_alert" => fn ->
+          UserNotifier.deliver_failed_login_alert(u, %{count: 3, window_hours: 1})
+        end
+      }
+
+      assert Enum.sort(Map.keys(sends)) == Enum.sort(@core_names)
+
+      for name <- @core_names do
+        assert {:ok, _} = sends[name].()
+        expected = "OVERRIDE #{name}"
+        assert_email_sent(fn email -> assert email.subject == expected end)
+      end
     end
 
     test "the new login alert's helper lines" do

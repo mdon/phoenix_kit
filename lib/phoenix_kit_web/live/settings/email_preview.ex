@@ -13,8 +13,9 @@ defmodule PhoenixKitWeb.Live.Settings.EmailPreview do
   database template's HTML is operator-authored and may carry anything, and
   an empty sandbox runs no script and reaches nothing of the admin page.
 
-  `?email=<name>&locale=<code>` selects the email and language, so a preview
-  can be linked to. Gated like the Emails Transactional page (`settings`).
+  `?email=<name>&lang=<code>` selects the email and language, so a preview
+  can be linked to. Not `locale`: that is the admin routes' own path
+  parameter, which would shadow it. Gated like the Emails Transactional page (`settings`).
   """
 
   use PhoenixKitWeb, :live_view
@@ -65,8 +66,8 @@ defmodule PhoenixKitWeb.Live.Settings.EmailPreview do
     entry = Enum.find(entries, &(&1.name == params["email"])) || List.first(entries)
 
     locale =
-      if Enum.any?(socket.assigns.locales, &(elem(&1, 0) == params["locale"])),
-        do: params["locale"],
+      if Enum.any?(socket.assigns.locales, &(elem(&1, 0) == params["lang"])),
+        do: params["lang"],
         else: socket.assigns.locales |> List.first() |> elem(0)
 
     {:noreply,
@@ -76,7 +77,7 @@ defmodule PhoenixKitWeb.Live.Settings.EmailPreview do
      |> assign_preview()}
   end
 
-  def handle_event("select_locale", %{"locale" => locale}, socket) do
+  def handle_event("select_locale", %{"locale" => locale}, socket) when is_binary(locale) do
     {:noreply, push_patch(socket, to: preview_path(socket.assigns.entry, locale))}
   end
 
@@ -121,7 +122,7 @@ defmodule PhoenixKitWeb.Live.Settings.EmailPreview do
   # ---------------------------------------------------------------------------
 
   defp preview_path(entry, locale) do
-    query = URI.encode_query(%{"email" => entry && entry.name, "locale" => locale})
+    query = URI.encode_query(%{"email" => entry && entry.name, "lang" => locale})
     Routes.path(@base_path) <> "?" <> query
   end
 
@@ -152,7 +153,7 @@ defmodule PhoenixKitWeb.Live.Settings.EmailPreview do
         id: "subject",
         label: gettext("Subject"),
         source: sources.subject,
-        used_for: nil,
+        used_for: [],
         file: part_file(name, "subject", "txt", locale)
       },
       %{
@@ -179,50 +180,46 @@ defmodule PhoenixKitWeb.Live.Settings.EmailPreview do
       %{
         id: "layout-group",
         label: gettext("Layout group"),
-        source: group_source(sources.group_from),
+        source: sources.group_from,
         value: group,
-        used_for: nil,
+        used_for: [],
         file: "#{name}/layout.txt"
       },
       %{
         id: "layout",
         label: gettext("Layout"),
         source: sources.layout,
-        used_for: nil,
+        used_for: [],
         file: chrome_file(Layout.name(), group)
       },
       %{
         id: "header",
         label: gettext("Header"),
         source: sources.header,
-        used_for: nil,
+        used_for: [],
         file: chrome_file(Layout.header_name(), group)
       },
       %{
         id: "footer",
         label: gettext("Footer"),
         source: sources.footer,
-        used_for: nil,
+        used_for: [],
         file: chrome_file(Layout.footer_name(), group)
       }
     ]
   end
 
+  # Which version of the email this part builds — a part can be found and
+  # still lose to another (a host `markdown.md` over core's `text`).
   defp used_for(sources, part) do
-    [
-      sources.html_from == part && gettext("HTML email"),
-      sources.text_from == part && gettext("text email")
-    ]
-    |> Enum.filter(& &1)
-    |> case do
-      [] -> nil
-      uses -> Enum.join(uses, ", ")
-    end
+    Enum.filter(
+      [
+        sources.html_from == part && {"html", gettext("Builds the HTML version")},
+        sources.text_from == part && {"text", gettext("Builds the text version")}
+      ],
+      & &1
+    )
   end
-
-  # The layout group is named either by the sending code or by a part.
-  defp group_source(:option), do: :option
-  defp group_source(source), do: source
 
   defp part_file(name, part, ext, locale), do: "#{name}/#{part}.#{base_language(locale)}.#{ext}"
 

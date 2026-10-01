@@ -12,7 +12,7 @@
   current_locale={@current_locale}
 >
   <div class="flex flex-col lg:flex-row gap-6 px-4 py-6">
-    <aside class="lg:w-72 shrink-0">
+    <aside class="lg:w-72 shrink-0" aria-label={gettext("Emails")}>
       <ul id="email-preview-list" class="menu w-full bg-base-100 rounded-box shadow-lg">
         <%= for {owner, group} <- grouped_entries(@entries) do %>
           <li class="menu-title">{owner}</li>
@@ -157,8 +157,12 @@
                   >
                     <.table_default_cell>
                       <div class="font-medium">{row.label}</div>
-                      <div :if={row.used_for} class="text-xs text-base-content/60">
-                        {gettext("used for the %{what}", what: row.used_for)}
+                      <div
+                        :for={{use, text} <- row.used_for}
+                        class="text-xs text-base-content/60"
+                        data-builds={use}
+                      >
+                        {text}
                       </div>
                       <code :if={row[:value]} class="text-xs">{row.value}</code>
                     </.table_default_cell>

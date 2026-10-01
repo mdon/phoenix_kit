@@ -10,7 +10,44 @@ defmodule PhoenixKitWeb.Live.Settings.EmailPreviewTest do
 
   use PhoenixKitWeb.ConnCase, async: false
 
+  alias PhoenixKit.Email.CoreTemplates
+  alias PhoenixKit.ModuleRegistry
+  alias PhoenixKit.Modules.Languages
+  alias PhoenixKit.Users.Permissions
+  alias PhoenixKit.Users.Roles
+  alias PhoenixKit.Utils.RecipientLocale
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKitWeb.Live.Settings.EmailPreview
+  alias PhoenixKitWeb.Users.Auth
+
+  defmodule EmailModule do
+    @moduledoc false
+    def enabled?, do: true
+    def module_name, do: "Fixture Module"
+
+    def email_templates do
+      [
+        %{
+          name: "fixture_text_only",
+          label: "Text only",
+          description: %{not: "a string"},
+          defaults: fn -> %{subject: "Only text", text: "Hello"} end,
+          layout: false
+        },
+        %{name: "fixture_broken", label: "Broken", variables: fn -> raise "boom" end}
+      ]
+    end
+  end
+
+  defmodule DbProvider do
+    @moduledoc false
+    def get_active_template_by_name("register"), do: %{name: "register", id: 1}
+    def get_active_template_by_name(_name), do: nil
+
+    def render_template(_template, _variables, _locale) do
+      %{subject: "From the database", html_body: "<p>DB BODY</p>", text_body: "DB BODY"}
+    end
+  end
 
   @path Routes.path("/admin/settings/email-sending/preview")
 
@@ -20,7 +57,20 @@ defmodule PhoenixKitWeb.Live.Settings.EmailPreviewTest do
   end
 
   defp at(email, locale \\ "en"),
-    do: @path <> "?" <> URI.encode_query(%{"email" => email, "locale" => locale})
+    do: @path <> "?" <> URI.encode_query(%{"email" => email, "lang" => locale})
+
+  defp with_module(module) do
+    ModuleRegistry.register(module)
+    on_exit(fn -> ModuleRegistry.unregister(module) end)
+  end
+
+  defp revoke(role_uuid) do
+    case Permissions.revoke_permission(role_uuid, "settings") do
+      :ok -> :ok
+      {:ok, _} -> :ok
+      other -> other
+    end
+  end
 
   defp with_template_root(files) do
     root = Path.join(System.tmp_dir!(), "pk_preview_#{System.unique_integer([:positive])}")
@@ -76,7 +126,8 @@ defmodule PhoenixKitWeb.Live.Settings.EmailPreviewTest do
 
     assert has_element?(view, "#email-source-subject", "Built-in default")
     assert has_element?(view, "#email-source-text", "Built-in default")
-    assert has_element?(view, "#email-source-text", "used for the HTML email, text email")
+    assert has_element?(view, "#email-source-text [data-builds=html]")
+    assert has_element?(view, "#email-source-text [data-builds=text]")
     assert has_element?(view, "#email-source-markdown", "Not used")
     assert has_element?(view, "#email-source-layout", "Built-in default")
     assert has_element?(view, "#email-source-header", "Built-in default")
@@ -104,7 +155,9 @@ defmodule PhoenixKitWeb.Live.Settings.EmailPreviewTest do
              Path.join(root, "register/subject.txt")
            )
 
-    assert has_element?(view, "#email-source-markdown", "used for the HTML email, text email")
+    assert has_element?(view, "#email-source-markdown [data-builds=html]")
+    assert has_element?(view, "#email-source-markdown [data-builds=text]")
+    refute has_element?(view, "#email-source-text [data-builds]")
     assert has_element?(view, "#email-source-layout-group", "auth")
 
     assert has_element?(
@@ -138,14 +191,102 @@ defmodule PhoenixKitWeb.Live.Settings.EmailPreviewTest do
     assert has_element?(view, "#email-preview-subject", "Failed sign-in attempts")
   end
 
-  test "choosing a language patches the URL", %{conn: conn} do
+  test "offers the enabled site languages and renders a dialect in its language",
+       %{conn: conn} do
+    {:ok, _} = Languages.enable_system()
+    {:ok, _} = Languages.add_language("es-ES")
+    _ = Languages.enable_language("es-ES")
+
     {:ok, view, _html} = live(conn, at("register"))
+
+    assert has_element?(view, ~s(#email-preview-locale option[value="es-ES"]))
 
     view
     |> element("#email-preview-locale-form")
-    |> render_change(%{"locale" => "en"})
+    |> render_change(%{"locale" => "es-ES"})
 
-    assert_patch(view, at("register", "en"))
+    assert_patch(view, at("register", "es-ES"))
+
+    spanish =
+      RecipientLocale.in_locale("es", fn ->
+        CoreTemplates.register_defaults().subject
+      end)
+
+    refute spanish == "Confirm your account"
+    assert has_element?(view, "#email-preview-subject", spanish)
+  end
+
+  test "a module's emails are listed under the module's name", %{conn: conn} do
+    with_module(EmailModule)
+
+    {:ok, view, _html} = live(conn, at("fixture_text_only"))
+
+    assert has_element?(view, "#email-preview-list .menu-title", "Fixture Module")
+    assert has_element?(view, "#email-preview-subject", "Only text")
+    # sent with `layout: false` and no html: there is no HTML version
+    assert has_element?(view, "#email-preview-no-html")
+    refute has_element?(view, "#email-preview-html")
+    assert has_element?(view, "#email-source-layout", "Not used")
+  end
+
+  test "a module entry that raises, or carries junk, does not take the page down",
+       %{conn: conn} do
+    with_module(EmailModule)
+
+    {:ok, view, _html} = live(conn, at("fixture_broken"))
+
+    assert has_element?(view, "#email-preview-error", "boom")
+    refute has_element?(view, "#email-preview-subject")
+    assert has_element?(view, "#email-preview-item-fixture_broken.menu-active")
+  end
+
+  test "warns when an active database template answers the email", %{conn: conn} do
+    previous = Application.get_env(:phoenix_kit, :email_provider)
+    Application.put_env(:phoenix_kit, :email_provider, DbProvider)
+
+    on_exit(fn ->
+      if previous,
+        do: Application.put_env(:phoenix_kit, :email_provider, previous),
+        else: Application.delete_env(:phoenix_kit, :email_provider)
+    end)
+
+    {:ok, view, _html} = live(conn, at("register"))
+
+    assert has_element?(view, "#email-preview-db-notice")
+    assert has_element?(view, "#email-preview-subject", "From the database")
+    assert has_element?(view, "#email-source-subject", "Database template")
+    assert has_element?(view, ~s(iframe#email-preview-html[srcdoc*="DB BODY"]))
+  end
+
+  test "host HTML reaches the page only inside the iframe's srcdoc", %{conn: conn} do
+    with_template_root(%{
+      "register/html.html" => ~s|<p>x</p><script>alert(1)</script><img src=x onerror="alert(2)">|
+    })
+
+    {:ok, view, html} = live(conn, at("register"))
+
+    refute html =~ "<script>alert(1)</script>"
+    refute render(view) =~ "<script>alert(1)</script>"
+    assert has_element?(view, ~s|iframe#email-preview-html[srcdoc*="<script>alert(1)</script>"]|)
+  end
+
+  describe "access" do
+    test "is gated by the settings permission, like the Emails Transactional page" do
+      assert Auth.permission_key_for_admin_view(EmailPreview, :index) == "settings"
+
+      assert Auth.permission_key_for_admin_view(EmailPreview, :index) ==
+               Auth.permission_key_for_admin_view(
+                 PhoenixKitWeb.Live.Settings.EmailSending,
+                 :index
+               )
+    end
+
+    test "an Admin without the settings permission is refused", %{conn: conn} do
+      admin_role = Roles.get_role_by_name("Admin")
+      :ok = revoke(admin_role.uuid)
+
+      assert {:error, _redirect} = live(conn, @path)
+    end
   end
 
   test "an unknown email or language falls back to the defaults", %{conn: conn} do

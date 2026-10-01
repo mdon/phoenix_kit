@@ -548,6 +548,8 @@ defmodule PhoenixKit.Module do
       end
 
   Modules that send no email skip this callback — the default is `[]`.
+  A module that must still compile against an older core, where the callback
+  does not exist, defines it without `@impl` (with `@impl` that compile warns).
   """
   @callback email_templates() :: [PhoenixKit.Email.Catalog.entry()]
 
