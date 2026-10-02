@@ -1,5 +1,19 @@
 ## Unreleased
 
+### Added
+
+- **A library can choose annotated thumbnails for itself.** Libraries → each library has an
+  "Annotated thumbnails" select: site setting, on or off. Baking the annotation shapes into the grid
+  thumbnail, regenerating it when annotations change, and showing it in the grid all follow the
+  file's library, falling back to the site setting (Media Configuration) when the library has made no
+  choice, so nothing changes until one does. Turning it on or off for a library does not bake or drop
+  existing thumbnails: a file picks the change up the next time its annotations change, as with the
+  site setting. It lives in the library's JSON `settings`, so there is no migration:
+  `Libraries.setting/2`, `setting_among/2` and `put_setting/3` read and write a per-library setting
+  (the keys are listed in `Libraries` and refused otherwise, a value of the wrong type is refused, and
+  only the key changes), and `AnnotationThumbnail.enabled_for?/1`, `enabled_for_file?/1` and
+  `enabled_among/1` apply the rule; `AnnotationThumbnail.enabled?/0` is still the site default.
+
 ### Changed
 
 - **The Integrations lists say which service an Object Storage connection is.** Every Object

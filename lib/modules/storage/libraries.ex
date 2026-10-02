@@ -329,6 +329,122 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
     end
   end
 
+  # ---------------------------------------------------------------------------
+  # Per-library settings
+  #
+  # A library's `settings` is a JSON map, so a setting that belongs to one
+  # library needs no column. The keys are listed here and nowhere else: a new
+  # one is a line in `@settings`, and nothing outside this module spells the
+  # string. `nil` is "not set": the library follows the site-wide default of
+  # whatever the setting is.
+  #
+  # `purging` lives in the same map but is the purge job's own marker, not a
+  # setting: it is not listed, so `put_setting/3` refuses it.
+  # ---------------------------------------------------------------------------
+
+  @settings %{annotated_thumbnails: {"annotated_thumbnails", :boolean}}
+
+  @typedoc "A per-library setting."
+  @type setting :: :annotated_thumbnails
+
+  @doc """
+  A library's own value of `key`, or nil when it has none and follows the
+  site-wide default. Takes a library or a library uuid (nil is Media).
+  """
+  @spec setting(Library.t() | term(), setting()) :: term()
+  def setting(%Library{settings: settings}, key), do: stored(settings, key)
+  def setting(nil, key), do: setting(@media_uuid, key)
+
+  def setting(uuid, key) do
+    with {:ok, uuid} <- Ecto.UUID.cast(uuid),
+         %Library{} = library <- repo().get(Library, uuid) do
+      setting(library, key)
+    else
+      _ -> nil
+    end
+  end
+
+  @doc """
+  The own value of `key` of each library in `library_uuids`, in one query — for
+  a page that decides for many files at once. A library with none is missing
+  from the map; nil stands for Media.
+  """
+  @spec setting_among([term()], setting()) :: %{String.t() => term()}
+  def setting_among(library_uuids, key) do
+    uuids =
+      library_uuids
+      |> Enum.map(&(&1 || @media_uuid))
+      |> Enum.map(&to_string/1)
+      |> Enum.uniq()
+
+    if uuids == [] do
+      %{}
+    else
+      from(l in Library, where: l.uuid in ^uuids, select: {l.uuid, l.settings})
+      |> repo().all()
+      |> Enum.flat_map(fn {uuid, settings} ->
+        case stored(settings, key) do
+          nil -> []
+          value -> [{to_string(uuid), value}]
+        end
+      end)
+      |> Map.new()
+    end
+  end
+
+  @doc """
+  Sets a library's own value of `key`; nil removes it, so the library follows
+  the site-wide default again. Only the key changes (a concurrent change to
+  another one is not lost), and a value of the wrong type is refused.
+  """
+  @spec put_setting(Library.t(), setting(), term()) ::
+          {:ok, Library.t()} | {:error, :unknown_setting | :invalid_value | :not_found}
+  def put_setting(%Library{uuid: uuid}, key, value) do
+    with {name, type} when is_binary(name) <- Map.get(@settings, key, :unknown),
+         :ok <- check_type(type, value) do
+      {count, _} =
+        if is_nil(value) do
+          from(l in Library,
+            where: l.uuid == ^uuid,
+            update: [set: [settings: fragment("? - ?::text", l.settings, ^name)]]
+          )
+          |> repo().update_all([])
+        else
+          # A map, not an encoded string: the driver encodes a jsonb parameter
+          # itself, and a string would become a JSON string scalar.
+          change = %{name => value}
+
+          from(l in Library,
+            where: l.uuid == ^uuid,
+            update: [set: [settings: fragment("? || ?", l.settings, type(^change, :map))]]
+          )
+          |> repo().update_all([])
+        end
+
+      if count == 1, do: {:ok, get_library(uuid)}, else: {:error, :not_found}
+    else
+      :unknown -> {:error, :unknown_setting}
+      {:error, _reason} = error -> error
+    end
+  end
+
+  defp check_type(_type, nil), do: :ok
+  defp check_type(:boolean, value) when is_boolean(value), do: :ok
+  defp check_type(_type, _value), do: {:error, :invalid_value}
+
+  defp stored(settings, key) do
+    case Map.get(@settings, key) do
+      {name, :boolean} ->
+        case Map.get(settings || %{}, name) do
+          value when is_boolean(value) -> value
+          _ -> nil
+        end
+
+      nil ->
+        nil
+    end
+  end
+
   @doc "Whether `file` (anything with a `library_uuid`) is in a private library."
   @spec private_file?(map()) :: boolean()
   def private_file?(%{library_uuid: library_uuid}), do: private?(library_uuid)

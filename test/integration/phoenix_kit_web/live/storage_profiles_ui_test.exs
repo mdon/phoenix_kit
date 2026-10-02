@@ -136,6 +136,36 @@ defmodule PhoenixKitWeb.Live.StorageProfilesUITest do
       assert html =~ "Copies of each original"
     end
 
+    test "a library chooses annotated thumbnails on the Libraries tab", ctx do
+      {:ok, library} =
+        Libraries.create_system_library(%{
+          name: "Annotated #{System.unique_integer([:positive])}"
+        })
+
+      {:ok, view, _html} = live(ctx.conn, Routes.path("/admin/settings/media?tab=libraries"))
+
+      html = render(view)
+      assert html =~ "Annotated thumbnails: site setting"
+
+      view
+      |> form("#media-libraries-annotated-#{library.uuid}", %{"annotated" => "on"})
+      |> render_change()
+
+      assert Libraries.setting(library.uuid, :annotated_thumbnails) == true
+
+      view
+      |> form("#media-libraries-annotated-#{library.uuid}", %{"annotated" => "off"})
+      |> render_change()
+
+      assert Libraries.setting(library.uuid, :annotated_thumbnails) == false
+
+      view
+      |> form("#media-libraries-annotated-#{library.uuid}", %{"annotated" => "default"})
+      |> render_change()
+
+      assert Libraries.setting(library.uuid, :annotated_thumbnails) == nil
+    end
+
     test "the Default profile lists the buckets and cannot be deleted", ctx do
       view = settings(ctx.conn)
       default = Profiles.default_uuid()

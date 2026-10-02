@@ -29,7 +29,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
   """
   use PhoenixKitWeb, :live_component
 
-  alias PhoenixKit.Modules.Storage.{Libraries, Profiles, VariantSets}
+  alias PhoenixKit.Modules.Storage.{AnnotationThumbnail, Libraries, Profiles, VariantSets}
   alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Format
@@ -125,6 +125,25 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
     end
   end
 
+  # A library's own choice about annotated thumbnails: on, off, or none (it
+  # follows the site setting, Settings → Media → Configuration).
+  def handle_event("set_annotated", %{"uuid" => uuid, "annotated" => choice}, socket) do
+    value =
+      case choice do
+        "on" -> true
+        "off" -> false
+        _ -> nil
+      end
+
+    with %{} = library <- find(socket, uuid),
+         {:ok, _library} <- Libraries.put_setting(library, :annotated_thumbnails, value) do
+      {:noreply, socket |> load() |> flash(:info, gettext("Library setting saved"))}
+    else
+      nil -> {:noreply, socket}
+      {:error, _reason} -> {:noreply, flash(socket, :error, gettext("Could not save"))}
+    end
+  end
+
   def handle_event("save_user_libraries", %{"user_libraries" => params}, socket) do
     enabled? = params["enabled"] == "true"
     buckets? = params["own_buckets"] == "true"
@@ -196,6 +215,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
     |> assign(:window_hours, div(URLSigner.private_url_window_seconds(), 3600))
     |> assign(:profiles, Profiles.list_profiles())
     |> assign(:variant_sets, VariantSets.list_variant_sets())
+    |> assign(:annotated_default, AnnotationThumbnail.enabled?())
   end
 
   # A component's own `put_flash` reaches the page only when it also
@@ -220,6 +240,14 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
 
   # Where a user library keeps its files, for the admin's list. The bucket's
   # name and provider only: never its connection, keys or endpoint.
+  defp annotated_choice(library) do
+    case Libraries.setting(library, :annotated_thumbnails) do
+      true -> "on"
+      false -> "off"
+      nil -> "default"
+    end
+  end
+
   defp storage_label(nil), do: gettext("Site storage")
 
   defp storage_label(%{mode: :only, bucket: bucket}),
@@ -369,6 +397,35 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
                           selected={VariantSets.set_uuid_for(library) == to_string(set.uuid)}
                         >
                           {set.name}
+                        </option>
+                      </select>
+                    </form>
+                    <form
+                      id={"#{@id}-annotated-#{library.uuid}"}
+                      phx-change="set_annotated"
+                      phx-target={@myself}
+                      class="mt-1"
+                    >
+                      <input type="hidden" name="uuid" value={library.uuid} />
+                      <select
+                        name="annotated"
+                        class="select select-xs select-bordered"
+                        title={
+                          gettext(
+                            "Annotated thumbnails: bake annotation shapes into the grid thumbnail"
+                          )
+                        }
+                      >
+                        <option value="default" selected={annotated_choice(library) == "default"}>
+                          {if @annotated_default,
+                            do: gettext("Annotated thumbnails: site setting (on)"),
+                            else: gettext("Annotated thumbnails: site setting (off)")}
+                        </option>
+                        <option value="on" selected={annotated_choice(library) == "on"}>
+                          {gettext("Annotated thumbnails: on")}
+                        </option>
+                        <option value="off" selected={annotated_choice(library) == "off"}>
+                          {gettext("Annotated thumbnails: off")}
                         </option>
                       </select>
                     </form>

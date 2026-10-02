@@ -555,7 +555,7 @@ msgstr "Добавить заметку"
 msgid "Add a note above to start documenting information about this user."
 msgstr "Добавьте заметку выше, чтобы начать документировать информацию о пользователе."
 
-#: lib/modules/storage/web/libraries_component.ex:286
+#: lib/modules/storage/web/libraries_component.ex:314
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:60
 #: lib/phoenix_kit_web/live/settings/website_access.ex:406
 #, elixir-autogen, elixir-format
@@ -629,8 +629,8 @@ msgstr "Маркированный список"
 #: lib/modules/storage/web/bucket_form.html.heex:426
 #: lib/modules/storage/web/bucket_form.html.heex:451
 #: lib/modules/storage/web/dimension_form.html.heex:240
-#: lib/modules/storage/web/libraries_component.ex:277
-#: lib/modules/storage/web/libraries_component.ex:322
+#: lib/modules/storage/web/libraries_component.ex:305
+#: lib/modules/storage/web/libraries_component.ex:350
 #: lib/modules/storage/web/profiles_component.ex:279
 #: lib/phoenix_kit/mentions/live.ex:250
 #: lib/phoenix_kit_web/comments_gettext_manifest.ex:41
@@ -909,7 +909,7 @@ msgstr "Контакт DPO сохранён"
 #: lib/modules/storage/web/dimensions.html.heex:379
 #: lib/modules/storage/web/dimensions.html.heex:550
 #: lib/modules/storage/web/dimensions.html.heex:586
-#: lib/modules/storage/web/libraries_component.ex:398
+#: lib/modules/storage/web/libraries_component.ex:455
 #: lib/modules/storage/web/profiles_component.ex:361
 #: lib/modules/storage/web/settings.html.heex:276
 #: lib/phoenix_kit_web/components/core/bulk_select.ex:228
@@ -1147,8 +1147,8 @@ msgstr "Не удалось обновить настройку"
 msgid "Feature Modules"
 msgstr "Функциональные модули"
 
-#: lib/modules/storage/web/libraries_component.ex:287
-#: lib/modules/storage/web/libraries_component.ex:491
+#: lib/modules/storage/web/libraries_component.ex:315
+#: lib/modules/storage/web/libraries_component.ex:548
 #: lib/modules/storage/web/settings.html.heex:121
 #: lib/modules/storage/web/settings.html.heex:137
 #: lib/phoenix_kit/users/auth.ex:3241
@@ -1462,7 +1462,7 @@ msgstr "ОК"
 msgid "Only the Owner can edit Admin permissions"
 msgstr "Только Владелец может редактировать права Администратора"
 
-#: lib/modules/storage/web/libraries_component.ex:516
+#: lib/modules/storage/web/libraries_component.ex:573
 #: lib/phoenix_kit_web/components/core/preview_card.ex:305
 #: lib/phoenix_kit_web/components/core/preview_card.ex:339
 #: lib/phoenix_kit_web/live/components/library_settings.ex:838
@@ -1787,8 +1787,8 @@ msgstr "SWIFT/BIC"
 
 #: lib/modules/sitemap/web/settings.html.heex:495
 #: lib/modules/storage/web/dimensions.html.heex:97
-#: lib/modules/storage/web/libraries_component.ex:315
-#: lib/modules/storage/web/libraries_component.ex:476
+#: lib/modules/storage/web/libraries_component.ex:343
+#: lib/modules/storage/web/libraries_component.ex:533
 #: lib/modules/storage/web/profiles_component.ex:342
 #: lib/phoenix_kit_web/comments_gettext_manifest.ex:67
 #: lib/phoenix_kit_web/components/core/markdown_editor.ex:356
@@ -1931,7 +1931,7 @@ msgstr "Регион/Область"
 #: lib/modules/storage/web/profiles_component.ex:410
 #: lib/modules/storage/web/settings.html.heex:125
 #: lib/modules/storage/web/settings.html.heex:138
-#: lib/modules/storage/web/settings.html.heex:602
+#: lib/modules/storage/web/settings.html.heex:605
 #: lib/phoenix_kit/users/table_columns.ex:291
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:189
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:244
@@ -2365,8 +2365,8 @@ msgstr "Установить по умолчанию"
 
 #: lib/modules/storage/web/dimensions.html.heex:205
 #: lib/modules/storage/web/dimensions.html.heex:243
-#: lib/modules/storage/web/libraries_component.ex:289
-#: lib/modules/storage/web/libraries_component.ex:492
+#: lib/modules/storage/web/libraries_component.ex:317
+#: lib/modules/storage/web/libraries_component.ex:549
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1945
 #: lib/phoenix_kit_web/live/users/libraries.html.heex:106
 #, elixir-autogen, elixir-format
@@ -2551,12 +2551,12 @@ msgstr "Секрет приложения"
 msgid "Application name display"
 msgstr "Отображение названия приложения"
 
-#: lib/modules/storage/web/settings.html.heex:460
+#: lib/modules/storage/web/settings.html.heex:463
 #, elixir-autogen, elixir-format
 msgid "Apply Changes"
 msgstr "Применить изменения"
 
-#: lib/modules/storage/web/settings.html.heex:457
+#: lib/modules/storage/web/settings.html.heex:460
 #, elixir-autogen, elixir-format
 msgid "Applying..."
 msgstr "Применение..."
@@ -2643,7 +2643,7 @@ msgstr "Цвет CSS или градиент для фона страницы а
 msgid "Callback URL"
 msgstr "URL обратного вызова"
 
-#: lib/modules/storage/web/settings.html.heex:466
+#: lib/modules/storage/web/settings.html.heex:469
 #, elixir-autogen, elixir-format
 msgid "Changes will be saved immediately"
 msgstr "Изменения будут сохранены немедленно"
@@ -3018,8 +3018,8 @@ msgstr "Управляйте регистрацией пользователей
 #: lib/modules/storage/web/dimensions.html.heex:80
 #: lib/modules/storage/web/dimensions.html.heex:242
 #: lib/modules/storage/web/dimensions.html.heex:445
-#: lib/modules/storage/web/libraries_component.ex:285
-#: lib/modules/storage/web/libraries_component.ex:487
+#: lib/modules/storage/web/libraries_component.ex:313
+#: lib/modules/storage/web/libraries_component.ex:544
 #: lib/modules/storage/web/profiles_component.ex:299
 #: lib/modules/storage/web/settings.html.heex:134
 #: lib/phoenix_kit_web/components/media_browser.html.heex:427
@@ -3059,7 +3059,7 @@ msgstr "Новые пользователи будут созданы как н�
 msgid "No active sessions found."
 msgstr "Активные сессии не найдены."
 
-#: lib/modules/storage/web/settings.html.heex:464
+#: lib/modules/storage/web/settings.html.heex:467
 #, elixir-autogen, elixir-format
 msgid "No changes to apply"
 msgstr "Нет изменений для применения"
@@ -3292,7 +3292,7 @@ msgstr "Показывать поле имени пользователя при
 msgid "Site Address (URL)"
 msgstr "Адрес сайта (URL)"
 
-#: lib/modules/storage/web/settings.html.heex:511
+#: lib/modules/storage/web/settings.html.heex:514
 #, elixir-autogen, elixir-format
 msgid "Soon"
 msgstr "Скоро"
@@ -4004,7 +4004,7 @@ msgstr "Создайте OAuth-клиент"
 msgid "Create an OpenRouter account"
 msgstr "Создайте аккаунт OpenRouter"
 
-#: lib/modules/storage/web/settings.html.heex:442
+#: lib/modules/storage/web/settings.html.heex:445
 #, elixir-autogen, elixir-format
 msgid "Current limit: %{size} MB"
 msgstr "Текущий лимит: %{size} МБ"
@@ -4259,7 +4259,7 @@ msgstr "Предоставьте доступ к Google Docs и Google Drive"
 
 #: lib/modules/storage/web/health.ex:29
 #: lib/modules/storage/web/health.html.heex:59
-#: lib/modules/storage/web/settings.html.heex:529
+#: lib/modules/storage/web/settings.html.heex:532
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:357
 #, elixir-autogen, elixir-format
 msgid "Health"
@@ -4355,12 +4355,12 @@ msgstr "Режим обслуживания неактивен — это пре
 msgid "Manage your account settings and preferences"
 msgstr "Управляйте настройками и параметрами вашего аккаунта"
 
-#: lib/modules/storage/web/settings.html.heex:430
+#: lib/modules/storage/web/settings.html.heex:433
 #, elixir-autogen, elixir-format
 msgid "Max Upload Size (MB)"
 msgstr "Максимальный размер загрузки (МБ)"
 
-#: lib/modules/storage/web/settings.html.heex:432
+#: lib/modules/storage/web/settings.html.heex:435
 #, elixir-autogen, elixir-format
 msgid "Maximum file size allowed per upload"
 msgstr "Максимальный размер файла для одной загрузки"
@@ -4375,7 +4375,7 @@ msgstr "Медиа-бакеты"
 msgid "Media Configuration"
 msgstr "Конфигурация медиа"
 
-#: lib/modules/storage/web/settings.html.heex:510
+#: lib/modules/storage/web/settings.html.heex:513
 #, elixir-autogen, elixir-format
 msgid "Media Stats"
 msgstr "Статистика медиа"
@@ -4391,7 +4391,7 @@ msgstr "Участник добавлен в организацию"
 msgid "Member removed from organization"
 msgstr "Участник удалён из организации"
 
-#: lib/modules/storage/web/libraries_component.ex:490
+#: lib/modules/storage/web/libraries_component.ex:547
 #: lib/phoenix_kit_web/live/components/library_settings.ex:847
 #: lib/phoenix_kit_web/live/components/library_settings.ex:891
 #: lib/phoenix_kit_web/live/users/libraries.html.heex:104
@@ -4400,7 +4400,7 @@ msgstr "Участник удалён из организации"
 msgid "Members"
 msgstr "Участники"
 
-#: lib/modules/storage/web/settings.html.heex:622
+#: lib/modules/storage/web/settings.html.heex:625
 #: lib/phoenix_kit_web/components/core/integration_picker.ex:186
 #, elixir-autogen, elixir-format
 msgid "Missing"
@@ -4610,7 +4610,7 @@ msgstr "Удалить из организации"
 msgid "Remove this member from the organization?"
 msgstr "Удалить этого участника из организации?"
 
-#: lib/modules/storage/web/settings.html.heex:570
+#: lib/modules/storage/web/settings.html.heex:573
 #, elixir-autogen, elixir-format
 msgid "Repair Media Module"
 msgstr "Восстановить медиамодуль"
@@ -5589,7 +5589,7 @@ msgstr "Готово"
 msgid "Reorder"
 msgstr "Изменить порядок"
 
-#: lib/modules/storage/web/libraries_component.ex:328
+#: lib/modules/storage/web/libraries_component.ex:356
 #: lib/modules/storage/web/profiles_component.ex:343
 #: lib/phoenix_kit_web/live/components/library_settings.ex:796
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:56
@@ -5958,7 +5958,7 @@ msgstr "Все медиа"
 msgid "All file types supported"
 msgstr "Поддерживаются все типы файлов"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4743
+#: lib/phoenix_kit_web/components/media_browser.ex:4745
 #, elixir-autogen, elixir-format
 msgid "Already have %{count} duplicate file. No new files were added."
 msgid_plural "Already have %{count} duplicate files. No new files were added."
@@ -6095,7 +6095,7 @@ msgstr "Папка недоступна — показан корень"
 msgid "Folder not found"
 msgstr "Папка не найдена"
 
-#: lib/modules/storage/web/libraries_component.ex:288
+#: lib/modules/storage/web/libraries_component.ex:316
 #: lib/phoenix_kit_web/components/folder_explorer.ex:250
 #, elixir-autogen, elixir-format
 msgid "Folders"
@@ -6133,7 +6133,7 @@ msgstr "Ещё действия"
 msgid "Move"
 msgstr "Переместить"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:5182
+#: lib/phoenix_kit_web/components/media_browser.ex:5184
 #, elixir-autogen, elixir-format
 msgid "Move %{count} file to trash?"
 msgid_plural "Move %{count} files to trash?"
@@ -6186,7 +6186,7 @@ msgstr "Несвязанные файлы"
 msgid "Path"
 msgstr "Путь"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:5158
+#: lib/phoenix_kit_web/components/media_browser.ex:5160
 #, elixir-autogen, elixir-format
 msgid "Permanently delete %{count} file? This cannot be undone."
 msgid_plural "Permanently delete %{count} files? This cannot be undone."
@@ -6212,7 +6212,7 @@ msgstr "Назад"
 msgid "Previous (←)"
 msgstr "Предыдущий (←)"
 
-#: lib/modules/storage/web/libraries_component.ex:385
+#: lib/modules/storage/web/libraries_component.ex:442
 #: lib/phoenix_kit_web/components/folder_explorer.ex:681
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1460
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2173
@@ -6292,18 +6292,18 @@ msgstr "Загрузить медиа"
 msgid "Upload Media Files"
 msgstr "Загрузить медиафайлы"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4724
+#: lib/phoenix_kit_web/components/media_browser.ex:4726
 #: lib/phoenix_kit_web/live/components/media_selector_modal.ex:646
 #, elixir-autogen, elixir-format
 msgid "Upload failed: No storage buckets configured. Please configure at least one storage bucket before uploading files."
 msgstr "Загрузка не удалась: хранилища не настроены. Настройте хотя бы одно хранилище перед загрузкой файлов."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4710
+#: lib/phoenix_kit_web/components/media_browser.ex:4712
 #, elixir-autogen, elixir-format
 msgid "Upload processed"
 msgstr "Загрузка обработана"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4752
+#: lib/phoenix_kit_web/components/media_browser.ex:4754
 #, elixir-autogen, elixir-format
 msgid "Upload successful! %{count} new file processed"
 msgid_plural "Upload successful! %{count} new files processed"
@@ -6321,7 +6321,7 @@ msgstr "Загружено:"
 msgid "Your browser does not support the video tag."
 msgstr "Ваш браузер не поддерживает тег video."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4731
+#: lib/phoenix_kit_web/components/media_browser.ex:4733
 #, elixir-autogen, elixir-format
 msgid "%{count} failed"
 msgid_plural "%{count} failed"
@@ -6329,8 +6329,8 @@ msgstr[0] "%{count} не загружен"
 msgstr[1] "%{count} не загружено"
 msgstr[2] "%{count} не загружено"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:5141
-#: lib/phoenix_kit_web/components/media_browser.ex:5165
+#: lib/phoenix_kit_web/components/media_browser.ex:5143
+#: lib/phoenix_kit_web/components/media_browser.ex:5167
 #: lib/phoenix_kit_web/components/media_browser.html.heex:767
 #: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:319
 #, elixir-autogen, elixir-format
@@ -6340,7 +6340,7 @@ msgstr[0] "%{count} файл"
 msgstr[1] "%{count} файла"
 msgstr[2] "%{count} файлов"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4730
+#: lib/phoenix_kit_web/components/media_browser.ex:4732
 #, elixir-autogen, elixir-format
 msgid "%{count} file uploaded"
 msgid_plural "%{count} files uploaded"
@@ -6348,7 +6348,7 @@ msgstr[0] "загружен %{count} файл"
 msgstr[1] "загружено %{count} файла"
 msgstr[2] "загружено %{count} файлов"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4763
+#: lib/phoenix_kit_web/components/media_browser.ex:4765
 #, elixir-autogen, elixir-format
 msgid "%{count} file was already uploaded"
 msgid_plural "%{count} files were already uploaded"
@@ -6356,8 +6356,8 @@ msgstr[0] "%{count} файл уже был загружен"
 msgstr[1] "%{count} файла уже были загружены"
 msgstr[2] "%{count} файлов уже были загружены"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:5142
-#: lib/phoenix_kit_web/components/media_browser.ex:5166
+#: lib/phoenix_kit_web/components/media_browser.ex:5144
+#: lib/phoenix_kit_web/components/media_browser.ex:5168
 #, elixir-autogen, elixir-format
 msgid "%{count} folder"
 msgid_plural "%{count} folders"
@@ -6365,7 +6365,7 @@ msgstr[0] "%{count} папка"
 msgstr[1] "%{count} папки"
 msgstr[2] "%{count} папок"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4760
+#: lib/phoenix_kit_web/components/media_browser.ex:4762
 #, elixir-autogen, elixir-format
 msgid "%{count} new file added"
 msgid_plural "%{count} new files added"
@@ -6379,12 +6379,12 @@ msgstr[2] "добавлено %{count} новых файлов"
 msgid "FILE"
 msgstr "ФАЙЛ"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4734
+#: lib/phoenix_kit_web/components/media_browser.ex:4736
 #, elixir-autogen, elixir-format
 msgid "Partially successful: %{uploaded}, %{failed} due to missing storage buckets."
 msgstr "Частично успешно: %{uploaded}, %{failed} из-за отсутствия хранилищ."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4770
+#: lib/phoenix_kit_web/components/media_browser.ex:4772
 #, elixir-autogen, elixir-format
 msgid "Upload successful! %{added}. %{duplicates}."
 msgstr "Загрузка успешна! %{added}. %{duplicates}."
@@ -6642,12 +6642,12 @@ msgstr "Вложения отключены"
 msgid "Auth failed"
 msgstr "Ошибка авторизации"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:5103
+#: lib/phoenix_kit_web/components/media_browser.ex:5105
 #, elixir-autogen, elixir-format
 msgid "Cannot create folders in the all-files view"
 msgstr "Нельзя создать папку в режиме просмотра всех файлов"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:5100
+#: lib/phoenix_kit_web/components/media_browser.ex:5102
 #, elixir-autogen, elixir-format
 msgid "Cannot create folders in trash"
 msgstr "Нельзя создавать папки в корзине"
@@ -6856,7 +6856,7 @@ msgstr "Напишите заметку об этой аннотации..."
 msgid "e.g. Main, Personal, My Company Drive"
 msgstr "напр., Основной, Личный, Мой Google Диск"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:5111
+#: lib/phoenix_kit_web/components/media_browser.ex:5113
 #, elixir-autogen, elixir-format
 msgid "untitled"
 msgstr "без названия"
@@ -8381,7 +8381,7 @@ msgstr "Фоновое изображение"
 msgid "Bake Etcher annotation shapes (rectangles, marker strokes, etc.) into a file's grid thumbnail, regenerated in the background when annotations change. With this off the grid shows the plain thumbnail and no annotated variant is generated. ImageMagick is required when enabled."
 msgstr "Запекать фигуры аннотаций Etcher (прямоугольники, штрихи маркера и т. д.) в миниатюру файла в сетке, перегенерируя её в фоне при изменении аннотаций. Когда выключено, в сетке показывается обычная миниатюра, а аннотированный вариант не создаётся. При включении требуется ImageMagick."
 
-#: lib/modules/storage/web/settings.html.heex:538
+#: lib/modules/storage/web/settings.html.heex:541
 #, elixir-autogen, elixir-format
 msgid "Browse files no longer attached to any record (orphaned media) so you can review or delete them."
 msgstr "Просматривайте файлы, больше не привязанные ни к одной записи (потерянные медиа), чтобы просмотреть или удалить их."
@@ -8527,7 +8527,7 @@ msgstr "Не удалось обновить заголовок"
 msgid "Filter"
 msgstr "Фильтр"
 
-#: lib/modules/storage/web/settings.html.heex:547
+#: lib/modules/storage/web/settings.html.heex:550
 #, elixir-autogen, elixir-format
 msgid "Find Orphaned Files"
 msgstr "Найти несвязанные файлы"
@@ -8804,7 +8804,7 @@ msgstr "Бесплатный тариф включает ежемесячную 
 msgid "Unread"
 msgstr "Непрочитанные"
 
-#: lib/modules/storage/web/settings.html.heex:507
+#: lib/modules/storage/web/settings.html.heex:510
 #, elixir-autogen, elixir-format
 msgid "View storage usage and media statistics. Coming soon."
 msgstr "Просмотр использования хранилища и статистики медиа. Скоро."
@@ -9855,7 +9855,7 @@ msgstr "Поворот сохранён"
 msgid "Show details"
 msgstr "Показать детали"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:5175
+#: lib/phoenix_kit_web/components/media_browser.ex:5177
 #, elixir-autogen, elixir-format
 msgid "Move %{count} folder and all its contents to trash?"
 msgid_plural "Move %{count} folders and all their contents to trash?"
@@ -9863,7 +9863,7 @@ msgstr[0] "Переместить %{count} папку со всем содерж
 msgstr[1] "Переместить %{count} папки со всем их содержимым в корзину?"
 msgstr[2] "Переместить %{count} папок со всем их содержимым в корзину?"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:5168
+#: lib/phoenix_kit_web/components/media_browser.ex:5170
 #, elixir-autogen, elixir-format
 msgid "Move %{files} and %{folders} (including all folder contents) to trash?"
 msgstr "Переместить %{files} и %{folders} (со всем содержимым папок) в корзину?"
@@ -9874,7 +9874,7 @@ msgstr "Переместить %{files} и %{folders} (со всем содер�
 msgid "Move '%{name}' and all its contents to trash?"
 msgstr "Переместить '%{name}' со всем содержимым в корзину?"
 
-#: lib/phoenix_kit_web/components/media_browser.ex:5151
+#: lib/phoenix_kit_web/components/media_browser.ex:5153
 #, elixir-autogen, elixir-format
 msgid "Permanently delete %{count} folder and all its contents? This cannot be undone."
 msgid_plural "Permanently delete %{count} folders and all their contents? This cannot be undone."
@@ -9882,7 +9882,7 @@ msgstr[0] "Удалить навсегда %{count} папку со всем с�
 msgstr[1] "Удалить навсегда %{count} папки со всем их содержимым? Это действие нельзя отменить."
 msgstr[2] "Удалить навсегда %{count} папок со всем их содержимым? Это действие нельзя отменить."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:5144
+#: lib/phoenix_kit_web/components/media_browser.ex:5146
 #, elixir-autogen, elixir-format
 msgid "Permanently delete %{files} and %{folders} (including all folder contents)? This cannot be undone."
 msgstr "Удалить навсегда %{files} и %{folders} (со всем содержимым папок)? Это действие нельзя отменить."
@@ -10232,6 +10232,7 @@ msgstr "Не удалось повернуть изображение."
 
 #: lib/modules/storage/web/dimensions.ex:172
 #: lib/modules/storage/web/libraries_component.ex:124
+#: lib/modules/storage/web/libraries_component.ex:143
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:658
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:242
 #, elixir-autogen, elixir-format
@@ -14308,7 +14309,7 @@ msgstr "Редактировать изображение"
 msgid "Edited"
 msgstr "Изменено"
 
-#: lib/modules/storage/web/settings.html.heex:419
+#: lib/modules/storage/web/settings.html.heex:422
 #, elixir-autogen, elixir-format
 msgid "Every save overwrites the image for good. Nothing can be undone, and redacted areas are gone from storage."
 msgstr "Каждое сохранение перезаписывает изображение навсегда. Ничего нельзя отменить, а скрытые области удаляются из хранилища."
@@ -14334,12 +14335,12 @@ msgstr "Высота %"
 msgid "Hide areas"
 msgstr "Скрыть области"
 
-#: lib/modules/storage/web/settings.html.heex:384
+#: lib/modules/storage/web/settings.html.heex:387
 #, elixir-autogen, elixir-format
 msgid "Image Editing"
 msgstr "Редактирование изображений"
 
-#: lib/modules/storage/web/settings.html.heex:400
+#: lib/modules/storage/web/settings.html.heex:403
 #, elixir-autogen, elixir-format
 msgid "Keep the original (recommended)"
 msgstr "Сохранять оригинал (рекомендуется)"
@@ -14390,7 +14391,7 @@ msgstr "Пикселизировать"
 msgid "Remove area"
 msgstr "Удалить область"
 
-#: lib/modules/storage/web/settings.html.heex:417
+#: lib/modules/storage/web/settings.html.heex:420
 #, elixir-autogen, elixir-format
 msgid "Replace the original"
 msgstr "Заменять оригинал"
@@ -14465,7 +14466,7 @@ msgstr "До завершения вместо изображения показ
 msgid "The preview is approximate; colours and blur are exact once saved."
 msgstr "Предпросмотр приблизительный; цвета и размытие будут точными после сохранения."
 
-#: lib/modules/storage/web/settings.html.heex:402
+#: lib/modules/storage/web/settings.html.heex:405
 #, elixir-autogen, elixir-format
 msgid "The unedited image is kept privately, so an edit can be changed or undone. Owners can delete it themselves."
 msgstr "Неизменённое изображение хранится приватно, чтобы правку можно было изменить или отменить. Владельцы могут удалить его сами."
@@ -14555,7 +14556,7 @@ msgstr "До тех пор изображение везде заменено з
 msgid "Wait until the image has finished rendering."
 msgstr "Дождитесь окончания обработки изображения."
 
-#: lib/modules/storage/web/settings.html.heex:386
+#: lib/modules/storage/web/settings.html.heex:389
 #, elixir-autogen, elixir-format
 msgid "What saving an edited image (crop, turn, redaction…) does with the original."
 msgstr "Что делает с оригиналом сохранение отредактированного изображения (обрезка, поворот, скрытие…)."
@@ -15351,7 +15352,7 @@ msgid "Standard fields"
 msgstr "Стандартные поля"
 
 #: lib/modules/storage/web/dimensions.html.heex:57
-#: lib/modules/storage/web/libraries_component.ex:275
+#: lib/modules/storage/web/libraries_component.ex:303
 #: lib/modules/storage/web/profiles_component.ex:277
 #: lib/phoenix_kit_web/live/components/library_settings.ex:564
 #, elixir-autogen, elixir-format
@@ -15376,13 +15377,13 @@ msgstr "Библиотека «%{name}» создана"
 msgid "Library deleted"
 msgstr "Библиотека удалена"
 
-#: lib/modules/storage/web/libraries_component.ex:215
-#: lib/modules/storage/web/libraries_component.ex:270
+#: lib/modules/storage/web/libraries_component.ex:235
+#: lib/modules/storage/web/libraries_component.ex:298
 #, elixir-autogen, elixir-format
 msgid "Library name"
 msgstr "Название библиотеки"
 
-#: lib/modules/storage/web/libraries_component.ex:248
+#: lib/modules/storage/web/libraries_component.ex:276
 #: lib/phoenix_kit_web/live/components/library_settings.ex:546
 #, elixir-autogen, elixir-format
 msgid "New library"
@@ -15399,17 +15400,17 @@ msgstr "Удалить можно только пустую библиотеку
 msgid "Library not found"
 msgstr "Библиотека не найдена"
 
-#: lib/modules/storage/web/libraries_component.ex:253
+#: lib/modules/storage/web/libraries_component.ex:281
 #, elixir-autogen, elixir-format
 msgid "A library is a separate space in Media with its own folders. Everything uploaded so far is in the default library. The Media page shows a library switcher once there are two or more."
 msgstr "Библиотека — отдельное пространство в медиа со своими папками. Всё, что было загружено до сих пор, находится в библиотеке по умолчанию. На странице медиа переключатель библиотек появляется, когда их две или больше."
 
-#: lib/modules/storage/web/libraries_component.ex:396
+#: lib/modules/storage/web/libraries_component.ex:453
 #, elixir-autogen, elixir-format
 msgid "Delete this library?"
 msgstr "Удалить эту библиотеку?"
 
-#: lib/modules/storage/web/libraries_component.ex:239
+#: lib/modules/storage/web/libraries_component.ex:267
 #: lib/modules/storage/web/settings.ex:86
 #: lib/modules/storage/web/settings.html.heex:359
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:175
@@ -15425,12 +15426,12 @@ msgstr "Библиотеки"
 msgid "Library renamed to \"%{name}\""
 msgstr "Библиотека переименована в «%{name}»"
 
-#: lib/modules/storage/web/libraries_component.ex:392
+#: lib/modules/storage/web/libraries_component.ex:449
 #, elixir-autogen, elixir-format
 msgid "Only an empty library can be deleted."
 msgstr "Удалить можно только пустую библиотеку."
 
-#: lib/phoenix_kit_web/components/media_browser.ex:4671
+#: lib/phoenix_kit_web/components/media_browser.ex:4673
 #, elixir-autogen, elixir-format
 msgid "%{count} file is already in another library, so it was not added here."
 msgid_plural "%{count} files are already in another library, so they were not added here."
@@ -15458,7 +15459,7 @@ msgstr "Продолжить с Google"
 msgid "%{count} of %{limit} libraries"
 msgstr "%{count} из %{limit} библиотек"
 
-#: lib/modules/storage/web/libraries_component.ex:434
+#: lib/modules/storage/web/libraries_component.ex:491
 #, elixir-autogen, elixir-format
 msgid "Allow user libraries"
 msgstr "Разрешить пользовательские библиотеки"
@@ -15504,7 +15505,7 @@ msgstr "Библиотеки недоступны"
 msgid "Libraries keep your files apart from the site's media. Only you and the members you add can see them."
 msgstr "Библиотеки хранят ваши файлы отдельно от медиа сайта. Видеть их можете только Вы и добавленные Вами участники."
 
-#: lib/modules/storage/web/libraries_component.ex:455
+#: lib/modules/storage/web/libraries_component.ex:512
 #, elixir-autogen, elixir-format
 msgid "Libraries per user"
 msgstr "Библиотек на пользователя"
@@ -15570,7 +15571,7 @@ msgstr "Участников пока нет: эту библиотеку вид
 msgid "No user has that email"
 msgstr "Нет пользователя с таким адресом электронной почты"
 
-#: lib/modules/storage/web/libraries_component.ex:480
+#: lib/modules/storage/web/libraries_component.ex:537
 #, elixir-autogen, elixir-format
 msgid "No user libraries yet."
 msgstr "Пользовательских библиотек пока нет."
@@ -15585,20 +15586,20 @@ msgstr "Открыть библиотеки"
 msgid "Opened as admin"
 msgstr "Открыта администратором"
 
-#: lib/modules/storage/web/libraries_component.ex:514
+#: lib/modules/storage/web/libraries_component.ex:571
 #: lib/phoenix_kit_web/live/users/libraries.html.heex:96
 #, elixir-autogen, elixir-format
 msgid "Opening a user's library is recorded in the audit log."
 msgstr "Открытие библиотеки пользователя записывается в журнал аудита."
 
-#: lib/modules/storage/web/libraries_component.ex:488
+#: lib/modules/storage/web/libraries_component.ex:545
 #: lib/phoenix_kit_web/live/users/libraries.ex:207
 #: lib/phoenix_kit_web/live/users/libraries.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "Owner"
 msgstr "Владелец"
 
-#: lib/modules/storage/web/libraries_component.ex:466
+#: lib/modules/storage/web/libraries_component.ex:523
 #, elixir-autogen, elixir-format
 msgid "Private links last (hours)"
 msgstr "Срок действия приватных ссылок (часы)"
@@ -15648,28 +15649,28 @@ msgstr "Изображение"
 msgid "Thumbnail"
 msgstr "Миниатюра"
 
-#: lib/modules/storage/web/libraries_component.ex:501
+#: lib/modules/storage/web/libraries_component.ex:558
 #: lib/phoenix_kit_web/live/users/libraries.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "Trashed"
 msgstr "В корзине"
 
-#: lib/modules/storage/web/libraries_component.ex:411
+#: lib/modules/storage/web/libraries_component.ex:468
 #, elixir-autogen, elixir-format
 msgid "User libraries"
 msgstr "Пользовательские библиотеки"
 
-#: lib/modules/storage/web/libraries_component.ex:150
+#: lib/modules/storage/web/libraries_component.ex:169
 #, elixir-autogen, elixir-format
 msgid "User library settings could not be saved"
 msgstr "Не удалось сохранить настройки пользовательских библиотек"
 
-#: lib/modules/storage/web/libraries_component.ex:148
+#: lib/modules/storage/web/libraries_component.ex:167
 #, elixir-autogen, elixir-format
 msgid "User library settings saved"
 msgstr "Настройки пользовательских библиотек сохранены"
 
-#: lib/modules/storage/web/libraries_component.ex:414
+#: lib/modules/storage/web/libraries_component.ex:471
 #, elixir-autogen, elixir-format
 msgid "Users with the Storage permission can keep libraries of their own, private to them and the members they add. Their files are served only through links that expire."
 msgstr "Пользователи с разрешением «Хранилище» могут вести собственные библиотеки, доступные только им и добавленным участникам. Их файлы отдаются только по ссылкам с ограниченным сроком действия."
@@ -15859,7 +15860,7 @@ msgstr "Копии"
 msgid "Copies and sizes"
 msgstr "Копии и размеры"
 
-#: lib/modules/storage/web/settings.html.heex:490
+#: lib/modules/storage/web/settings.html.heex:493
 #, elixir-autogen, elixir-format
 msgid "Create and edit variant sets: the image and video sizes each library's uploads get."
 msgstr "Создание и изменение наборов вариантов: размеров изображений и видео, которые создаются для загрузок каждой библиотеки."
@@ -15939,7 +15940,7 @@ msgstr "Новый набор вариантов"
 msgid "No buckets yet: uploads to a library on this profile fail."
 msgstr "Бакетов пока нет: загрузки в библиотеку с этим профилем завершатся ошибкой."
 
-#: lib/modules/storage/web/settings.html.heex:520
+#: lib/modules/storage/web/settings.html.heex:523
 #, elixir-autogen, elixir-format
 msgid "Open the media health dashboard: the files not yet stored or sized as their library wants."
 msgstr "Откройте панель состояния медиа: файлы, которые ещё не хранятся или не имеют размеров согласно требованиям их библиотеки."
@@ -15990,13 +15991,13 @@ msgstr "Размеры и тайлы"
 msgid "Sizes changed. Existing files are resized in the background."
 msgstr "Размеры изменены. Существующие файлы масштабируются в фоновом режиме."
 
-#: lib/modules/storage/web/libraries_component.ex:290
-#: lib/modules/storage/web/libraries_component.ex:489
+#: lib/modules/storage/web/libraries_component.ex:318
+#: lib/modules/storage/web/libraries_component.ex:546
 #, elixir-autogen, elixir-format
 msgid "Storage"
 msgstr "Хранилище"
 
-#: lib/modules/storage/web/libraries_component.ex:351
+#: lib/modules/storage/web/libraries_component.ex:379
 #, elixir-autogen, elixir-format
 msgid "Storage profile"
 msgstr "Профиль хранения"
@@ -16087,7 +16088,7 @@ msgstr[2] "Используется %{count} библиотеками."
 msgid "Users may choose it for their own libraries"
 msgstr "Пользователи могут выбирать его для своих библиотек"
 
-#: lib/modules/storage/web/libraries_component.ex:364
+#: lib/modules/storage/web/libraries_component.ex:392
 #, elixir-autogen, elixir-format
 msgid "Variant set"
 msgstr "Набор вариантов"
@@ -16111,7 +16112,7 @@ msgstr "Набор вариантов сохранён"
 #: lib/modules/storage/web/dimensions.ex:27
 #: lib/modules/storage/web/dimensions.html.heex:4
 #: lib/modules/storage/web/settings.html.heex:350
-#: lib/modules/storage/web/settings.html.heex:499
+#: lib/modules/storage/web/settings.html.heex:502
 #, elixir-autogen, elixir-format
 msgid "Variant sets"
 msgstr "Наборы вариантов"
@@ -16179,7 +16180,7 @@ msgstr "Просторный вид"
 msgid "Compact view"
 msgstr "Компактный вид"
 
-#: lib/modules/storage/web/settings.html.heex:593
+#: lib/modules/storage/web/settings.html.heex:596
 #, elixir-autogen, elixir-format
 msgid "Check again"
 msgstr "Проверить снова"
@@ -16209,22 +16210,22 @@ msgstr "Число страниц и метаданные PDF"
 msgid "PDF preview images"
 msgstr "Изображения предпросмотра PDF"
 
-#: lib/modules/storage/web/settings.html.heex:586
+#: lib/modules/storage/web/settings.html.heex:589
 #, elixir-autogen, elixir-format
 msgid "Programs on this server that media processing runs."
 msgstr "Программы на этом сервере, которые запускает обработка медиа."
 
-#: lib/modules/storage/web/settings.html.heex:556
+#: lib/modules/storage/web/settings.html.heex:559
 #, elixir-autogen, elixir-format
 msgid "Put back what storage needs: a bucket, a writable bucket in the Default profile, a copy count its buckets can hold. Resets the default dimensions. Keeps your buckets, redundancy and files."
 msgstr "Восстанавливает то, что нужно хранилищу: бакет, доступный для записи бакет в профиле «По умолчанию» и число копий, которое вмещают его бакеты. Сбрасывает размеры по умолчанию. Бакеты, резервирование и файлы сохраняются."
 
-#: lib/modules/storage/web/settings.html.heex:564
+#: lib/modules/storage/web/settings.html.heex:567
 #, elixir-autogen, elixir-format
 msgid "This resets the default dimensions and fixes missing bucket setup. Buckets, redundancy and uploaded files are kept. Continue?"
 msgstr "Размеры по умолчанию будут сброшены, а недостающая настройка бакетов исправлена. Бакеты, резервирование и загруженные файлы сохранятся. Продолжить?"
 
-#: lib/modules/storage/web/settings.html.heex:600
+#: lib/modules/storage/web/settings.html.heex:603
 #, elixir-autogen, elixir-format
 msgid "Tool"
 msgstr "Инструмент"
@@ -16234,7 +16235,7 @@ msgstr "Инструмент"
 msgid "Tools"
 msgstr "Инструменты"
 
-#: lib/modules/storage/web/settings.html.heex:601
+#: lib/modules/storage/web/settings.html.heex:604
 #, elixir-autogen, elixir-format
 msgid "Used for"
 msgstr "Используется для"
@@ -16505,7 +16506,7 @@ msgstr[0] "%{count} из ваших библиотек хранит файлы �
 msgstr[1] "%{count} из ваших библиотек хранят файлы в бакетах, использующих это соединение, и перестанут работать. Удалить его?"
 msgstr[2] "%{count} из ваших библиотек хранят файлы в бакетах, использующих это соединение, и перестанут работать. Удалить его?"
 
-#: lib/modules/storage/web/libraries_component.ex:452
+#: lib/modules/storage/web/libraries_component.ex:509
 #, elixir-autogen, elixir-format
 msgid "Allow their own buckets"
 msgstr "Разрешить собственные бакеты"
@@ -16565,17 +16566,17 @@ msgstr "Ничего настраивать не нужно."
 msgid "Only here"
 msgstr "Только здесь"
 
-#: lib/modules/storage/web/libraries_component.ex:226
+#: lib/modules/storage/web/libraries_component.ex:254
 #, elixir-autogen, elixir-format
 msgid "Own %{provider} bucket"
 msgstr "Собственный бакет %{provider}"
 
-#: lib/modules/storage/web/libraries_component.ex:223
+#: lib/modules/storage/web/libraries_component.ex:251
 #, elixir-autogen, elixir-format
 msgid "Site storage"
 msgstr "Хранилище сайта"
 
-#: lib/modules/storage/web/libraries_component.ex:229
+#: lib/modules/storage/web/libraries_component.ex:257
 #, elixir-autogen, elixir-format
 msgid "Site storage + own %{provider} backup"
 msgstr "Хранилище сайта + собственная резервная копия %{provider}"
@@ -16616,7 +16617,7 @@ msgstr "Проверка неожиданно прервалась"
 msgid "This cannot be changed once the library is created. The bucket is tested when you create the library. Deleting the library deletes the files it stored in your bucket."
 msgstr "Это нельзя изменить после создания библиотеки. Бакет проверяется при создании библиотеки. При удалении библиотеки удаляются файлы, которые она сохранила в вашем бакете."
 
-#: lib/modules/storage/web/libraries_component.ex:439
+#: lib/modules/storage/web/libraries_component.ex:496
 #, elixir-autogen, elixir-format
 msgid "Users who also hold the Storage own-storage and Integrations permissions may keep a library on their own S3-compatible bucket. Their files then live outside the site's storage."
 msgstr "Пользователи, у которых есть также права на собственное хранилище (Storage) и на «Интеграции», могут держать библиотеку в собственном S3-совместимом бакете. Их файлы тогда находятся вне хранилища сайта."
@@ -17420,3 +17421,38 @@ msgstr "Какой профиль и набор вариантов исполь�
 #, elixir-autogen, elixir-format
 msgid "Which sizes are made automatically, and whether deep-zoom tiles are:"
 msgstr "Какие размеры создаются автоматически и создаются ли тайлы глубокого зума:"
+
+#: lib/modules/storage/web/libraries_component.ex:414
+#, elixir-autogen, elixir-format
+msgid "Annotated thumbnails: bake annotation shapes into the grid thumbnail"
+msgstr "Миниатюры с пометками: встраивать пометки в миниатюру сетки"
+
+#: lib/modules/storage/web/libraries_component.ex:428
+#, elixir-autogen, elixir-format
+msgid "Annotated thumbnails: off"
+msgstr "Миниатюры с пометками: выкл."
+
+#: lib/modules/storage/web/libraries_component.ex:425
+#, elixir-autogen, elixir-format
+msgid "Annotated thumbnails: on"
+msgstr "Миниатюры с пометками: вкл."
+
+#: lib/modules/storage/web/libraries_component.ex:422
+#, elixir-autogen, elixir-format
+msgid "Annotated thumbnails: site setting (off)"
+msgstr "Миниатюры с пометками: настройка сайта (выкл.)"
+
+#: lib/modules/storage/web/libraries_component.ex:421
+#, elixir-autogen, elixir-format
+msgid "Annotated thumbnails: site setting (on)"
+msgstr "Миниатюры с пометками: настройка сайта (вкл.)"
+
+#: lib/modules/storage/web/libraries_component.ex:140
+#, elixir-autogen, elixir-format
+msgid "Library setting saved"
+msgstr "Настройка библиотеки сохранена"
+
+#: lib/modules/storage/web/settings.html.heex:377
+#, elixir-autogen, elixir-format
+msgid "This is the site default; a library can choose otherwise on the Libraries tab."
+msgstr "Это значение сайта по умолчанию; библиотека может выбрать другое на вкладке «Библиотеки»."
