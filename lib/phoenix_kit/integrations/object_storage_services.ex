@@ -28,6 +28,8 @@ defmodule PhoenixKit.Integrations.ObjectStorageServices do
 
   use Gettext, backend: PhoenixKitWeb.Gettext
 
+  alias PhoenixKit.Modules.Storage.Endpoint
+
   @type values :: %{optional(String.t()) => term()}
 
   @services ~w(aws_s3 cloudflare_r2 backblaze_b2 tigris wasabi digitalocean_spaces other)
@@ -121,18 +123,27 @@ defmodule PhoenixKit.Integrations.ObjectStorageServices do
   @doc "The service an endpoint host belongs to (`other` for one nobody knows)."
   @spec infer(String.t()) :: String.t()
   def infer(endpoint) do
-    host = endpoint |> String.downcase() |> String.replace(~r{\A[a-z]+://}, "")
+    host = endpoint_host(endpoint)
 
     cond do
-      String.contains?(host, "amazonaws.com") -> "aws_s3"
-      String.contains?(host, "r2.cloudflarestorage.com") -> "cloudflare_r2"
-      String.contains?(host, "backblazeb2.com") -> "backblaze_b2"
-      String.contains?(host, "tigris.dev") or String.contains?(host, "storage.dev") -> "tigris"
-      String.contains?(host, "wasabisys.com") -> "wasabi"
-      String.contains?(host, "digitaloceanspaces.com") -> "digitalocean_spaces"
+      domain?(host, "amazonaws.com") or domain?(host, "amazonaws.com.cn") -> "aws_s3"
+      domain?(host, "r2.cloudflarestorage.com") -> "cloudflare_r2"
+      domain?(host, "backblazeb2.com") -> "backblaze_b2"
+      domain?(host, "tigris.dev") or host == "t3.storage.dev" -> "tigris"
+      domain?(host, "wasabisys.com") -> "wasabi"
+      domain?(host, "digitaloceanspaces.com") -> "digitalocean_spaces"
       true -> "other"
     end
   end
+
+  defp endpoint_host(endpoint) do
+    case Endpoint.parse(endpoint) do
+      %{host: host} -> String.downcase(host)
+      _ -> ""
+    end
+  end
+
+  defp domain?(host, domain), do: host == domain or String.ends_with?(host, "." <> domain)
 
   # ---------------------------------------------------------------------------
   # The form
@@ -140,8 +151,8 @@ defmodule PhoenixKit.Integrations.ObjectStorageServices do
 
   @doc """
   The fields to show for the values typed so far. The first is always the
-  service; it re-renders the form (`on_change`) when it changes, and the rest
-  follow from it.
+  service; the forms send their full values on change, and the rest follow
+  from it.
   """
   @spec fields(values()) :: [map()]
   def fields(values) do
@@ -162,8 +173,7 @@ defmodule PhoenixKit.Integrations.ObjectStorageServices do
       placeholder: nil,
       help: nil,
       prompt: gettext("Choose a service…"),
-      options: options,
-      on_change: "setup_changed"
+      options: options
     }
   end
 
@@ -498,6 +508,7 @@ defmodule PhoenixKit.Integrations.ObjectStorageServices do
   def saved(data, typed) do
     chosen = text(typed["service"])
     current = current(data)
+    data = recover_endpoint_fields(data, current)
 
     data =
       if chosen != "" and chosen != current,
@@ -509,6 +520,42 @@ defmodule PhoenixKit.Integrations.ObjectStorageServices do
     if current && text(data["service"]) == "",
       do: Map.put(data, "service", current),
       else: data
+  end
+
+  # Older connections stored only the endpoint. Recover the fields the new
+  # service form asks for before it rebuilds that endpoint on save.
+  defp recover_endpoint_fields(data, service) do
+    host = endpoint_host(data["endpoint"])
+
+    inferred =
+      case service do
+        "cloudflare_r2" ->
+          case Regex.run(~r/\A([^.]+)\.(?:(eu|fedramp)\.)?r2\.cloudflarestorage\.com\z/, host) do
+            [_, account, jurisdiction] ->
+              %{"account_id" => account, "jurisdiction" => jurisdiction}
+
+            [_, account] ->
+              %{"account_id" => account, "jurisdiction" => ""}
+
+            _ ->
+              %{}
+          end
+
+        service when service in ["backblaze_b2", "wasabi", "digitalocean_spaces"] ->
+          case String.split(host, ".") do
+            ["s3", region, "backblazeb2", "com"] -> %{"region" => region}
+            ["s3", region, "wasabisys", "com"] -> %{"region" => region}
+            [region, "digitaloceanspaces", "com"] -> %{"region" => region}
+            _ -> %{}
+          end
+
+        _ ->
+          %{}
+      end
+
+    Enum.reduce(inferred, data, fn {key, value}, acc ->
+      if text(acc[key]) == "", do: Map.put(acc, key, value), else: acc
+    end)
   end
 
   defp text(value) when is_binary(value), do: String.trim(value)

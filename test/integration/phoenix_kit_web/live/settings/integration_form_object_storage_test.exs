@@ -22,12 +22,14 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationFormObjectStorageTest do
   defp field?(html, key), do: html =~ ~s(name="#{key}" id="field-#{key}")
 
   defp choose(view, service) do
-    view |> element("#field-service") |> render_change(%{"service" => service})
+    view |> element("#integration-setup-form") |> render_change(%{"service" => service})
   end
 
   test "opens on the service choice alone", %{conn: conn} do
-    {:ok, _view, html} = live(conn, @new_path)
+    {:ok, view, html} = live(conn, @new_path)
 
+    assert has_element?(view, "#integration-setup-form[phx-change=setup_changed]")
+    refute has_element?(view, "#field-service[phx-change]")
     assert field?(html, "service")
     assert html =~ "Choose a service"
     refute field?(html, "access_key")
@@ -62,7 +64,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationFormObjectStorageTest do
 
     # The change event carries the whole form, as the browser sends it.
     view
-    |> element("#field-service")
+    |> element("#integration-setup-form")
     |> render_change(%{
       "service" => "aws_s3",
       "access_key" => "AKIATYPED",
@@ -73,6 +75,58 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationFormObjectStorageTest do
 
     assert html =~ "AKIATYPED"
     refute html =~ "eu-north-1"
+  end
+
+  test "editing a legacy R2 connection preserves its endpoint and saved secret", %{conn: conn} do
+    {:ok, %{uuid: uuid}} = Integrations.add_connection("object_storage", "legacy r2")
+    endpoint = "acct.eu.r2.cloudflarestorage.com"
+
+    {:ok, _} =
+      Integrations.save_setup(uuid, %{
+        "access_key" => "K",
+        "secret_key" => "S",
+        "endpoint" => endpoint
+      })
+
+    {:ok, view, html} = live(conn, Routes.path("/admin/settings/integrations/#{uuid}"))
+    assert html =~ ~s(value="acct")
+    assert html =~ ~r/<option[^>]*value="eu"[^>]*selected/
+
+    view |> form("#integration-setup-form") |> render_change()
+    refute render(view) =~ ~s(value="S")
+    view |> form("#integration-setup-form") |> render_submit()
+
+    assert {:ok, %{"endpoint" => ^endpoint, "secret_key" => "S"}} =
+             Integrations.get_credentials(uuid)
+  end
+
+  test "editing and clearing a value survives a re-render, and saved secrets are masked", %{
+    conn: conn
+  } do
+    {:ok, %{uuid: uuid}} = Integrations.add_connection("object_storage", "edited")
+
+    {:ok, _} =
+      Integrations.save_setup(uuid, %{
+        "service" => "other",
+        "access_key" => "K",
+        "secret_key" => "S",
+        "endpoint" => "minio.local:9000",
+        "region" => "us-east-1"
+      })
+
+    {:ok, view, _html} = live(conn, Routes.path("/admin/settings/integrations/#{uuid}"))
+
+    html =
+      view
+      |> form("#integration-setup-form", %{"region" => "", "secret_key" => "replacement-secret"})
+      |> render_change()
+
+    assert html =~ ~s(id="field-region" value="")
+    html = view |> form("#integration-setup-form") |> render_submit()
+    refute html =~ "replacement-secret"
+
+    assert {:ok, %{"region" => "", "secret_key" => "replacement-secret"}} =
+             Integrations.get_credentials(uuid)
   end
 
   test "creating a connection stores the endpoint the service works out", %{conn: conn} do

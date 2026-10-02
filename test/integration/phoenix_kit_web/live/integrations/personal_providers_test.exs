@@ -121,7 +121,11 @@ defmodule PhoenixKitWeb.Live.Integrations.PersonalProvidersTest do
       assert html =~ ~s(name="service" id="field-service")
       refute html =~ ~s(name="access_key")
 
-      html = view |> element("#field-service") |> render_change(%{"service" => "cloudflare_r2"})
+      html =
+        view
+        |> element("#personal-integration-setup-form")
+        |> render_change(%{"service" => "cloudflare_r2"})
+
       assert html =~ ~s(name="account_id" id="field-account_id")
       assert html =~ ~s(name="access_key")
       refute html =~ ~s(name="endpoint" id="field-endpoint")

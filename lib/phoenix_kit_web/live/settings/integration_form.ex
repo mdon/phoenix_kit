@@ -289,7 +289,17 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
     provider = socket.assigns.provider
     keys = Enum.map(provider.setup_fields, & &1.key)
 
-    typed = Providers.setup_changed(provider, socket.assigns.form_values, Map.take(params, keys))
+    # Seed only the service from saved data: secrets must never become typed
+    # values and be echoed into the page. This also preserves an inferred
+    # legacy service on the first change to another field.
+    previous =
+      Map.put_new(
+        socket.assigns.form_values,
+        "service",
+        Providers.setup_saved(provider, socket.assigns.data, %{})["service"]
+      )
+
+    typed = Providers.setup_changed(provider, previous, Map.take(params, keys))
 
     socket = assign(socket, :form_values, typed)
 
@@ -621,6 +631,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
           socket
           |> assign(:data, data)
           |> assign(:error, nil)
+          |> assign(:form_values, %{})
           |> apply_save_outcome(data)
 
         {:noreply, socket}

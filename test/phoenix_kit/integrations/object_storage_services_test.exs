@@ -9,7 +9,7 @@ defmodule PhoenixKit.Integrations.ObjectStorageServicesTest do
   describe "fields/1" do
     test "a new form shows the service choice and nothing else" do
       assert [
-               %{key: "service", type: :select, required: true, on_change: "setup_changed"} =
+               %{key: "service", type: :select, required: true} =
                  field
              ] =
                Services.fields(%{})
@@ -205,6 +205,42 @@ defmodule PhoenixKit.Integrations.ObjectStorageServicesTest do
       saved = Services.saved(data, %{"service" => "backblaze_b2"})
       refute Map.has_key?(saved, "region")
       refute Map.has_key?(saved, "endpoint")
+    end
+
+    test "legacy R2 endpoints recover the account and jurisdiction for an unchanged save" do
+      for jurisdiction <- ["", "eu", "fedramp"] do
+        infix = if jurisdiction == "", do: "", else: jurisdiction <> "."
+        endpoint = "acct.#{infix}r2.cloudflarestorage.com"
+        data = %{"endpoint" => endpoint, "access_key" => "k", "secret_key" => "s"}
+        saved = Services.saved(data, %{})
+
+        assert saved["account_id"] == "acct"
+        assert saved["jurisdiction"] == jurisdiction
+        assert Services.attrs(saved)["endpoint"] == endpoint
+      end
+    end
+
+    test "legacy regional endpoints supply a region when none was stored" do
+      for {service, endpoint, region} <- [
+            {"backblaze_b2", "s3.us-west-004.backblazeb2.com", "us-west-004"},
+            {"wasabi", "s3.eu-central-1.wasabisys.com", "eu-central-1"},
+            {"digitalocean_spaces", "fra1.digitaloceanspaces.com", "fra1"}
+          ] do
+        saved = Services.saved(%{"endpoint" => endpoint}, %{})
+        assert saved["region"] == region
+        assert saved["service"] == service
+        assert Services.attrs(saved)["endpoint"] == endpoint
+      end
+    end
+
+    test "service inference matches the endpoint host rather than a substring" do
+      for endpoint <- [
+            "amazonaws.com.example.org",
+            "minio.wasabisys.com.example.org",
+            "minio.local:9000/?host=backblazeb2.com"
+          ] do
+        assert Services.infer(endpoint) == "other"
+      end
     end
 
     test "a legacy connection is shown as the service its endpoint names" do

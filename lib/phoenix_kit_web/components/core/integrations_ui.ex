@@ -259,7 +259,7 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationsUI do
        yet — show `saved_value` as before.
   """
   attr :field, :map, required: true
-  attr :typed_value, :string, default: ""
+  attr :typed_value, :string, default: nil
   attr :saved_value, :string, default: ""
 
   def setup_field(assigns) do
@@ -366,8 +366,8 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationsUI do
 
   defp setup_field_value(%{typed_value: typed, saved_value: saved, field: field}) do
     cond do
-      typed != "" -> typed
-      field_type(field) == :password and saved != "" -> ""
+      field_type(field) == :password and typed in [nil, ""] and saved != "" -> ""
+      not is_nil(typed) -> typed
       true -> saved
     end
   end
@@ -379,11 +379,11 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationsUI do
     # `== true`: a provider may leave `required` nil, which every other reader
     # takes as false.
     field.required == true and
-      not (typed == "" and field_type(field) == :password and saved != "")
+      not (typed in [nil, ""] and field_type(field) == :password and saved != "")
   end
 
   defp setup_field_placeholder(%{typed_value: typed, saved_value: saved, field: field}) do
-    if typed == "" and field_type(field) == :password and saved != "" do
+    if typed in [nil, ""] and field_type(field) == :password and saved != "" do
       # Same string as `Authorization`'s `oauth_secret_placeholder/2` (S009) —
       # not a call to it, since this core component shouldn't depend on a
       # LiveView module. The shared string is what matters: one wording for

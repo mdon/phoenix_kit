@@ -169,7 +169,12 @@
            (secondary action, `type="button"` so it doesn't trigger
            submit). OAuth's Connect Account is a separate card below
            — different action shape (auth flow, not a save). --%>
-      <form phx-submit="save_form" autocomplete="off">
+      <form
+        id="integration-setup-form"
+        phx-submit="save_form"
+        phx-change={Providers.dynamic_setup?(@provider) && "setup_changed"}
+        autocomplete="off"
+      >
         <%!-- `py-4` on the card body matches the provider-info card
              above. Default `card-body` has 32px vertical padding —
              fine for OAuth (the first child is a "Step 1" header
@@ -240,7 +245,7 @@
             <.setup_field
               :for={field <- Providers.setup_fields(@provider, Map.merge(saved, @form_values))}
               field={field}
-              typed_value={to_string(Map.get(@form_values, field.key) || "")}
+              typed_value={Map.get(@form_values, field.key)}
               saved_value={to_string(saved[field.key] || "")}
             />
 

@@ -137,7 +137,17 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
     provider = socket.assigns.provider
     keys = Enum.map(provider.setup_fields, & &1.key)
 
-    typed = Providers.setup_changed(provider, socket.assigns.form_values, Map.take(params, keys))
+    # Seed only the service from saved data: secrets must never become typed
+    # values and be echoed into the page. This also preserves an inferred
+    # legacy service on the first change to another field.
+    previous =
+      Map.put_new(
+        socket.assigns.form_values,
+        "service",
+        Providers.setup_saved(provider, socket.assigns.data, %{})["service"]
+      )
+
+    typed = Providers.setup_changed(provider, previous, Map.take(params, keys))
 
     socket = assign(socket, :form_values, typed)
 
@@ -224,6 +234,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
       {:noreply,
        socket
        |> assign(:data, data)
+       |> assign(:form_values, %{})
        |> assign(:name, if(name == "", do: socket.assigns.name, else: name))
        |> put_flash(:info, gettext("Saved"))}
     else
@@ -589,7 +600,12 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
 
           <.provider_status_card provider={@provider} data={@data} name={@name} />
 
-          <form phx-submit={if @live_action == :new, do: "save_new", else: "save"} autocomplete="off">
+          <form
+            id="personal-integration-setup-form"
+            phx-submit={if @live_action == :new, do: "save_new", else: "save"}
+            phx-change={Providers.dynamic_setup?(@provider) && "setup_changed"}
+            autocomplete="off"
+          >
             <div class="card bg-base-100 shadow-sm">
               <div class="card-body py-4 space-y-4">
                 <%!-- Connection name — editable in both modes; the edit save
@@ -613,7 +629,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
                 <.setup_field
                   :for={field <- Providers.setup_fields(@provider, Map.merge(saved, @form_values))}
                   field={field}
-                  typed_value={to_string(Map.get(@form_values, field.key) || "")}
+                  typed_value={Map.get(@form_values, field.key)}
                   saved_value={to_string(saved[field.key] || "")}
                 />
 
