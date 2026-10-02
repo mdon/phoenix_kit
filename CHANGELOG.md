@@ -20,13 +20,23 @@
   provider's optional `:setup_module`, so any provider can shape its form the same way.
   `setup_field/1` gains `:combo` (free text with suggestions), grouped selects, a `prompt` and a
   field-level `on_change`.
-- **A bucket follows its connection's service.** Picking a connection on the bucket form sets the
-  bucket's provider (R2, B2, Tigris, otherwise S3) and fills the endpoint and region; the picker
-  names each connection's service.
+- **The storage bucket form starts with a type, and cloud buckets start from an integration.**
+  Settings → Media → Add Storage Bucket asks for a Name (the PhoenixKit bucket's own label — it
+  used to read "Bucket Name" and was mistaken for the bucket on the storage service) and a Type:
+  Local Filesystem, which asks for the storage path, or Cloud storage, which lists the Object Storage
+  integrations by name and service with an "Add a connection" link. Picking one sets the bucket's
+  provider (R2, B2, Tigris, otherwise S3), fills the endpoint and region and then asks for the
+  bucket's name on that service, labelled for it ("Bucket name on Backblaze B2"). Only Amazon has a
+  region to choose; only "Other" has an endpoint to type; the rest come from the integration.
+  Moving a bucket to another integration replaces what the first one filled in. The old Storage
+  Provider select is gone from new buckets; existing buckets show their service and keep working.
 
 ### Changed
 
-- The Tigris bucket endpoint placeholder is `t3.storage.dev`.
+- **A new Tigris bucket no longer asks for a region.** The list of Tigris cities was only ever the
+  request's signing region — Tigris is one global endpoint (`t3.storage.dev`) and places data by a
+  setting of the bucket in its own console — so it read as a placement choice and was not one. New
+  Tigris buckets sign with `auto`; existing ones keep the region they have.
 - **Settings → Integrations is split into tabs.** "Connections" and "Personal integrations" (which
   services users may connect on their own) are tabs of the page; the encryption key warning stays
   above them, so it is seen whichever one is open.

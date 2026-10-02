@@ -351,14 +351,20 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
     end
   end
 
-  # What a cloud bucket needs from the params before they reach the changeset:
+  # What the params need before they reach the changeset:
   #
+  #   * the Type select (`storage_type`: local or cloud) decides the provider —
+  #     local, or a provisional S3 until an integration says which service it is —
+  #     and changing it drops what the other type had filled in (a storage path is
+  #     not an endpoint);
   #   * picking a connection on a bucket that still carries its own keys clears
   #     those keys in the same change (the changeset allows one source only);
-  #   * a newly picked connection fills a blank region and endpoint from its own
-  #     settings (the bucket keeps its own copies: they are not secrets, and
-  #     every public URL reads them).
+  #   * a newly picked connection sets the provider of its service and brings its
+  #     region and endpoint (the bucket keeps its own copies: they are not
+  #     secrets, and every public URL reads them).
   defp normalize_params(params, socket) do
+    params = apply_storage_type(params, socket)
+
     case blank_to_nil(params["integration_uuid"]) do
       nil ->
         params
@@ -371,13 +377,32 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
     end
   end
 
+  @type_fields ~w(endpoint region bucket_name integration_uuid cdn_url)
+
+  defp apply_storage_type(%{"storage_type" => type} = params, socket) do
+    params = Map.delete(params, "storage_type")
+    changed? = type != storage_type(socket.assigns.current_provider)
+    params = if changed?, do: Map.drop(params, @type_fields), else: params
+
+    case type do
+      "local" -> Map.put(params, "provider", "local")
+      "cloud" when changed? -> Map.put(params, "provider", "s3")
+      "cloud" -> params
+      _unset -> Map.put(params, "provider", "")
+    end
+  end
+
+  defp apply_storage_type(params, _socket), do: params
+
   defp prefill_from_connection(params, uuid, socket) do
     with true <- uuid != socket.assigns.selected_connection_uuid,
          %{} = connection <- Enum.find(socket.assigns.connections, &(&1.uuid == uuid)) do
+      switching? = socket.assigns.selected_connection_uuid != nil
+
       params
       |> put_provider_of(connection)
-      |> put_new_present("region", connection.region)
-      |> put_new_present("endpoint", connection.endpoint)
+      |> fill("region", default_region(connection), switching?)
+      |> fill("endpoint", connection.endpoint, switching?)
     else
       _ -> params
     end
@@ -391,10 +416,19 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
   defp put_provider_of(params, %{service: service}),
     do: Map.put(params, "provider", Services.bucket_provider(service))
 
-  defp put_new_present(params, key, value) do
-    if blank_to_nil(params[key]) == nil and blank_to_nil(value) != nil,
-      do: Map.put(params, key, value),
-      else: params
+  # Tigris is one global endpoint: where data lives is a setting of the bucket in
+  # Tigris's console, and the signing region is "auto".
+  defp default_region(%{service: "tigris"}), do: "auto"
+  defp default_region(%{region: region}), do: region
+
+  # A connection's value goes onto the bucket when it has one. Moving to another
+  # connection clears what the old one had set rather than leaving it behind.
+  defp fill(params, key, value, switching?) do
+    cond do
+      blank_to_nil(value) != nil -> Map.put(params, key, value)
+      switching? -> Map.put(params, key, "")
+      true -> params
+    end
   end
 
   defp blank_to_nil(value) when is_binary(value),
@@ -444,6 +478,42 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
   end
 
   defp cloud_provider?(provider), do: provider in @cloud_providers
+
+  defp storage_type("local"), do: "local"
+  defp storage_type(provider) when provider in @cloud_providers, do: "cloud"
+  defp storage_type(_provider), do: nil
+
+  # The service of the integration picked, nil when none is (or it has none).
+  defp selected_service(_connections, nil), do: nil
+
+  defp selected_service(connections, uuid) do
+    case Enum.find(connections, &(&1.uuid == uuid)) do
+      %{service: service} -> service
+      nil -> nil
+    end
+  end
+
+  defp provider_label("local", _service), do: gettext("Local Filesystem")
+  defp provider_label(_provider, service) when is_binary(service), do: Services.name(service)
+  defp provider_label("s3", _service), do: "AWS S3"
+  defp provider_label("b2", _service), do: "Backblaze B2"
+  defp provider_label("r2", _service), do: "Cloudflare R2"
+  defp provider_label("tigris", _service), do: "Tigris"
+  defp provider_label(provider, _service), do: String.upcase(provider || "Unknown")
+
+  # What is asked after the integration: shown once one is picked, or for a bucket
+  # that still carries its own keys and so has none.
+  defp cloud_details?(assigns),
+    do: not is_nil(assigns.selected_connection_uuid) or legacy_bucket?(assigns.bucket)
+
+  # Only Amazon has a region to choose here; every other service's region is its
+  # integration's own (and Tigris has none to choose).
+  defp region_select?("s3", service), do: service in [nil, "aws_s3"]
+  defp region_select?(_provider, _service), do: false
+
+  # Only "other" — a self-hosted service, or a bucket with no integration — has
+  # an endpoint to type; the rest come from the integration.
+  defp endpoint_input?(service), do: service in [nil, "other"]
 
   # A cloud bucket needs a connection, unless it is an existing one that still
   # carries its own keys (legacy): that one keeps working as it is.

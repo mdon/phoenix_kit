@@ -73,11 +73,17 @@ defmodule PhoenixKitWeb.Live.BucketFormTest do
     test "has no key fields, but a connection picker and the fields that were missing", %{
       conn: conn
     } do
+      uuid = connection("acct", %{"service" => "cloudflare_r2"})
       {:ok, view, _html} = live(conn, @new_path)
 
       html = render_change(view, "validate", %{"bucket" => %{"provider" => "r2"}})
-
       assert html =~ ~s(name="bucket[integration_uuid]")
+
+      html =
+        render_change(view, "validate", %{
+          "bucket" => %{"provider" => "r2", "integration_uuid" => uuid}
+        })
+
       assert html =~ ~s(name="bucket[cdn_url]")
       assert html =~ ~s(name="bucket[max_size_mb]")
       refute html =~ ~s(name="bucket[access_key_id]")
@@ -146,8 +152,11 @@ defmodule PhoenixKitWeb.Live.BucketFormTest do
           "bucket" => %{"provider" => "s3", "integration_uuid" => uuid}
         })
 
-      assert html =~ ~s(<option selected="" value="tigris">)
+      assert html =~ ~s(name="bucket[provider]" value="tigris")
       assert html =~ "t3.storage.dev"
+      # Tigris has one global endpoint: no region to choose, signed as "auto".
+      refute html =~ "Tigris Region"
+      assert html =~ ~s(name="bucket[region]" value="auto")
     end
 
     test "a connection added elsewhere appears in the picker without a reload", %{conn: conn} do
@@ -159,6 +168,131 @@ defmodule PhoenixKitWeb.Live.BucketFormTest do
       connection("Brand new connection")
 
       assert render(view) =~ "Brand new connection"
+    end
+  end
+
+  describe "the type comes first" do
+    test "a new bucket asks local or cloud, and shows neither's fields until chosen", %{
+      conn: conn
+    } do
+      {:ok, _view, html} = live(conn, @new_path)
+
+      assert html =~ ~s(name="bucket[storage_type]")
+      assert html =~ "Cloud storage (S3-compatible)"
+      refute html =~ ~s(name="bucket[integration_uuid]")
+      refute html =~ "Storage Path"
+    end
+
+    test "local asks for a storage path", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @new_path)
+
+      html = render_change(view, "validate", %{"bucket" => %{"storage_type" => "local"}})
+
+      assert html =~ "Storage Path"
+      assert html =~ ~s(name="bucket[provider]" value="local")
+      refute html =~ ~s(name="bucket[integration_uuid]")
+    end
+
+    test "cloud lists the integrations with their service, and hides the bucket until one is picked",
+         %{conn: conn} do
+      uuid =
+        connection("Main", %{
+          "service" => "backblaze_b2",
+          "region" => "us-west-004",
+          "endpoint" => "s3.us-west-004.backblazeb2.com"
+        })
+
+      {:ok, view, _html} = live(conn, @new_path)
+
+      html = render_change(view, "validate", %{"bucket" => %{"storage_type" => "cloud"}})
+
+      assert html =~ "Main — Backblaze B2"
+      assert html =~ "Add a connection"
+      refute html =~ ~s(name="bucket[bucket_name]")
+
+      html =
+        render_change(view, "validate", %{
+          "bucket" => %{"storage_type" => "cloud", "provider" => "s3", "integration_uuid" => uuid}
+        })
+
+      assert html =~ "Bucket name on Backblaze B2"
+      assert html =~ ~s(name="bucket[provider]" value="b2")
+      assert html =~ "s3.us-west-004.backblazeb2.com"
+      refute html =~ ~s(id="bucket-region-select")
+    end
+
+    test "Amazon asks for a region, a self-hosted service for an endpoint", %{conn: conn} do
+      aws = connection("Amazon", %{"service" => "aws_s3", "region" => "eu-north-1"})
+      other = connection("Mine", %{"service" => "other", "endpoint" => "minio.local:9000"})
+      {:ok, view, _html} = live(conn, @new_path)
+      render_change(view, "validate", %{"bucket" => %{"storage_type" => "cloud"}})
+
+      html =
+        render_change(view, "validate", %{
+          "bucket" => %{"storage_type" => "cloud", "provider" => "s3", "integration_uuid" => aws}
+        })
+
+      assert html =~ ~s(id="bucket-region-select")
+      refute html =~ ~s(name="bucket[endpoint]" value="minio.local:9000")
+
+      html =
+        render_change(view, "validate", %{
+          "bucket" => %{
+            "storage_type" => "cloud",
+            "provider" => "s3",
+            "integration_uuid" => other
+          }
+        })
+
+      refute html =~ ~s(id="bucket-region-select")
+      assert html =~ ~s(placeholder="e.g., minio.example.com:9000")
+      assert html =~ "minio.local:9000"
+    end
+
+    test "switching to another integration replaces what the first one filled in", %{conn: conn} do
+      first =
+        connection("One", %{
+          "service" => "wasabi",
+          "region" => "eu-central-1",
+          "endpoint" => "s3.eu-central-1.wasabisys.com"
+        })
+
+      second = connection("Two", %{"service" => "aws_s3", "region" => "eu-north-1"})
+      {:ok, view, _html} = live(conn, @new_path)
+      render_change(view, "validate", %{"bucket" => %{"storage_type" => "cloud"}})
+
+      render_change(view, "validate", %{
+        "bucket" => %{"storage_type" => "cloud", "provider" => "s3", "integration_uuid" => first}
+      })
+
+      html =
+        render_change(view, "validate", %{
+          "bucket" => %{
+            "storage_type" => "cloud",
+            "provider" => "s3",
+            "integration_uuid" => second,
+            "region" => "eu-central-1",
+            "endpoint" => "s3.eu-central-1.wasabisys.com"
+          }
+        })
+
+      refute html =~ "wasabisys"
+      assert html =~ "eu-north-1"
+    end
+
+    test "changing the type drops what the other type had filled in", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @new_path)
+
+      render_change(view, "validate", %{
+        "bucket" => %{"storage_type" => "local", "endpoint" => "/var/files"}
+      })
+
+      html =
+        render_change(view, "validate", %{
+          "bucket" => %{"storage_type" => "cloud", "endpoint" => "/var/files"}
+        })
+
+      refute html =~ "/var/files"
     end
   end
 

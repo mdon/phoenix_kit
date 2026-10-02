@@ -28,7 +28,7 @@
           </h2>
 
           <fieldset class="fieldset">
-            <legend class="fieldset-legend font-semibold">{gettext("Bucket Name")} *</legend>
+            <legend class="fieldset-legend font-semibold">{gettext("Name")} *</legend>
             <.input
               type="text"
               name="bucket[name]"
@@ -38,50 +38,40 @@
               required
             />
             <p class="text-xs text-base-content/50 mt-1">
-              {gettext("A friendly name to identify this storage location")}
+              {gettext(
+                "A name for this storage location in PhoenixKit — not the bucket's name on the storage service."
+              )}
             </p>
           </fieldset>
 
+          <%!-- The provider is worked out from the type and, for cloud storage,
+               from the integration picked below; it travels as a hidden field
+               because the changeset is rebuilt from the form on every change. --%>
+          <input type="hidden" name="bucket[provider]" value={@current_provider} />
+
           <%= if @mode == :new do %>
             <fieldset class="fieldset">
-              <legend class="fieldset-legend font-semibold">
-                {gettext("Storage Provider")} *
-              </legend>
+              <legend class="fieldset-legend font-semibold">{gettext("Type")} *</legend>
               <.select
-                name="bucket[provider]"
+                name="bucket[storage_type]"
                 required
-                value={Ecto.Changeset.get_field(@changeset, :provider)}
-                class={input_class(@changeset, :provider)}
-                prompt={gettext("Select provider...")}
+                value={storage_type(@current_provider)}
+                prompt={gettext("Select type...")}
                 options={[
                   {gettext("Local Filesystem"), "local"},
-                  {"AWS S3", "s3"},
-                  {"Backblaze B2", "b2"},
-                  {"Cloudflare R2", "r2"},
-                  {"Tigris", "tigris"}
+                  {gettext("Cloud storage (S3-compatible)"), "cloud"}
                 ]}
               />
             </fieldset>
           <% else %>
-            <input type="hidden" name="bucket[provider]" value={@current_provider} />
             <fieldset class="fieldset">
-              <legend class="fieldset-legend font-semibold">{gettext("Storage Provider")}</legend>
+              <legend class="fieldset-legend font-semibold">{gettext("Type")}</legend>
               <div class="flex items-center gap-2">
                 <span class="badge badge-lg badge-outline">
-                  <%= case @current_provider do %>
-                    <% "local" -> %>
-                      {gettext("Local Filesystem")}
-                    <% "s3" -> %>
-                      AWS S3
-                    <% "b2" -> %>
-                      Backblaze B2
-                    <% "r2" -> %>
-                      Cloudflare R2
-                    <% "tigris" -> %>
-                      Tigris
-                    <% _ -> %>
-                      {String.upcase(@current_provider || "Unknown")}
-                  <% end %>
+                  {provider_label(
+                    @current_provider,
+                    selected_service(@connections, @selected_connection_uuid)
+                  )}
                 </span>
                 <span class="text-xs text-base-content/40">{gettext("Cannot be changed")}</span>
               </div>
@@ -116,153 +106,18 @@
         </div>
       <% end %>
 
-      <%!-- Cloud Provider Settings --%>
+      <%!-- Cloud storage: pick an integration, then say which bucket on it --%>
       <%= if cloud_provider?(@current_provider) do %>
-        <div class="card bg-base-100 shadow-sm">
-          <div class="p-8 space-y-4">
-            <h2 class="card-title text-lg">
-              <.icon name="hero-cloud" class="w-5 h-5" /> {gettext("Provider Configuration")}
-            </h2>
-
-            <%= if @current_provider == "s3" do %>
-              <.live_component
-                module={PhoenixKitWeb.Live.Components.SearchableSelect}
-                id="bucket-region-select"
-                name="bucket[region]"
-                value={Ecto.Changeset.get_field(@changeset, :region)}
-                label={"#{gettext("AWS Region")} *"}
-                placeholder="Search regions..."
-                required={true}
-                grouped_options={
-                  Enum.map(AwsRegions.group_by_continent(), fn {continent, regions} ->
-                    {continent, Enum.map(regions, fn r -> {"#{r.name} — #{r.code}", r.code} end)}
-                  end)
-                }
-              />
-            <% end %>
-            <%= if @current_provider == "b2" do %>
-              <.live_component
-                module={PhoenixKitWeb.Live.Components.SearchableSelect}
-                id="bucket-b2-region-select"
-                name="bucket[region]"
-                value={Ecto.Changeset.get_field(@changeset, :region)}
-                label={"#{gettext("Backblaze Region")} *"}
-                placeholder="Search Backblaze regions..."
-                required={true}
-                grouped_options={
-                  Enum.map(BackblazeRegions.group_by_continent(), fn {continent, regions} ->
-                    {continent, Enum.map(regions, fn r -> {"#{r.name} — #{r.code}", r.code} end)}
-                  end)
-                }
-              />
-            <% end %>
-            <%= if @current_provider == "tigris" do %>
-              <.live_component
-                module={PhoenixKitWeb.Live.Components.SearchableSelect}
-                id="bucket-tigris-region-select"
-                name="bucket[region]"
-                value={Ecto.Changeset.get_field(@changeset, :region)}
-                label={"#{gettext("Tigris Region")} *"}
-                placeholder="Search Tigris regions..."
-                required={true}
-                grouped_options={
-                  Enum.map(Enum.sort(TigrisRegions.group_by_continent()), fn {continent, regions} ->
-                    {continent, Enum.map(regions, fn r -> {"#{r.name} — #{r.code}", r.code} end)}
-                  end)
-                }
-              />
-            <% end %>
-
-            <fieldset class="fieldset">
-              <legend class="fieldset-legend font-semibold">
-                {case @current_provider do
-                  "s3" -> gettext("AWS Bucket Name")
-                  "b2" -> gettext("Backblaze Bucket Name")
-                  "r2" -> gettext("Cloudflare Bucket Name")
-                  "tigris" -> gettext("Tigris Bucket Name")
-                  _ -> gettext("Bucket Name")
-                end} *
-              </legend>
-              <.input
-                type="text"
-                name="bucket[bucket_name]"
-                value={Ecto.Changeset.get_field(@changeset, :bucket_name)}
-                class={input_class(@changeset, :bucket_name)}
-                placeholder="e.g., my-app-files"
-                required={@current_provider in ["b2", "r2", "tigris"]}
-              />
-            </fieldset>
-
-            <fieldset class="fieldset">
-              <legend class="fieldset-legend font-semibold">
-                {case @current_provider do
-                  "b2" -> gettext("Backblaze Endpoint")
-                  "r2" -> gettext("Cloudflare Endpoint")
-                  "tigris" -> gettext("Tigris Endpoint")
-                  _ -> gettext("Custom Endpoint")
-                end}
-                <%= if @current_provider in ["b2", "r2", "tigris"] do %>
-                  *
-                <% end %>
-              </legend>
-              <.input
-                type="text"
-                name="bucket[endpoint]"
-                value={Ecto.Changeset.get_field(@changeset, :endpoint)}
-                class={input_class(@changeset, :endpoint)}
-                placeholder={
-                  case @current_provider do
-                    "b2" -> "e.g., s3.us-west-002.backblazeb2.com"
-                    "r2" -> "e.g., {account_id}.r2.cloudflarestorage.com"
-                    "tigris" -> "e.g., t3.storage.dev"
-                    _ -> "e.g., minio.example.com:9000"
-                  end
-                }
-                required={@current_provider in ["b2", "r2", "tigris"]}
-              />
-              <%= if @current_provider == "s3" do %>
-                <p class="text-xs text-base-content/50 mt-1">
-                  {gettext(
-                    "Leave empty for AWS S3. Set it for an S3-compatible service such as MinIO, Wasabi or DigitalOcean Spaces."
-                  )}
-                </p>
-              <% end %>
-            </fieldset>
-
-            <fieldset class="fieldset">
-              <legend class="fieldset-legend font-semibold">{gettext("Public URL (CDN)")}</legend>
-              <.input
-                type="text"
-                name="bucket[cdn_url]"
-                value={Ecto.Changeset.get_field(@changeset, :cdn_url)}
-                class={input_class(@changeset, :cdn_url)}
-                placeholder="https://cdn.example.com"
-              />
-              <p class="text-xs text-base-content/50 mt-1">
-                <%= if @current_provider == "r2" do %>
-                  {gettext(
-                    "The bucket's r2.dev or custom domain. Without one, files are served through this server."
-                  )}
-                <% else %>
-                  {gettext(
-                    "Files are served from this address instead of the bucket's own URL. Optional."
-                  )}
-                <% end %>
-              </p>
-            </fieldset>
-          </div>
-        </div>
-
-        <%!-- Connection (keys live in Integrations) --%>
+        <% service = selected_service(@connections, @selected_connection_uuid) %>
         <div class="card bg-base-100 shadow-sm">
           <div class="card-body gap-4">
             <h2 class="card-title text-lg">
-              <.icon name="hero-key" class="w-5 h-5" /> {gettext("Access Credentials")}
+              <.icon name="hero-cloud" class="w-5 h-5" /> {gettext("Cloud storage")}
             </h2>
 
             <fieldset class="fieldset">
               <legend class="fieldset-legend font-semibold">
-                {gettext("Connection")}
+                {gettext("Storage integration")}
                 <%= unless legacy_bucket?(@bucket) do %>
                   *
                 <% end %>
@@ -270,7 +125,7 @@
               <.select
                 name="bucket[integration_uuid]"
                 value={@selected_connection_uuid}
-                prompt={gettext("Select a connection...")}
+                prompt={gettext("Select an integration...")}
                 options={
                   Enum.map(@connections, fn connection ->
                     label =
@@ -283,7 +138,7 @@
                 }
               />
               <p class="text-xs text-base-content/50 mt-1">
-                {gettext("The access keys come from an Object Storage connection.")}
+                {gettext("The keys and endpoint come from an Object Storage integration.")}
                 <%= if can_manage_integrations?(assigns) do %>
                   <a
                     href={
@@ -302,6 +157,9 @@
               <%= if @connections == [] do %>
                 <p class="text-xs text-warning mt-1">
                   {gettext("No Object Storage connection exists yet.")}
+                  <%= unless can_manage_integrations?(assigns) do %>
+                    {gettext("Ask an administrator to add one.")}
+                  <% end %>
                 </p>
               <% end %>
             </fieldset>
@@ -337,44 +195,156 @@
               </div>
             <% end %>
 
-            <%!-- Test Connection --%>
-            <div class="pt-2">
-              <button
-                type="button"
-                phx-click="test_connection"
-                class={"btn btn-outline btn-sm #{if @connection_status == :success, do: "btn-success", else: ""}"}
-                disabled={@testing_connection or connection_missing?(@changeset, @bucket)}
-              >
-                <%= if @testing_connection do %>
-                  <span class="loading loading-spinner loading-xs"></span>
-                  {gettext("Testing...")}
-                <% else %>
-                  <.icon name="hero-signal" class="w-4 h-4" />
-                  {gettext("Test Connection")}
-                <% end %>
-              </button>
+            <%= if cloud_details?(assigns) do %>
+              <%!-- The service says what else is asked: only Amazon (and a bucket
+                   with no integration yet) has a region to pick here, and only
+                   "other" an endpoint to type. The rest is the integration's own,
+                   kept in hidden fields because the changeset is rebuilt from the
+                   form on every change. --%>
+              <%= if service do %>
+                <p class="text-sm">
+                  <span class="badge badge-outline">{Services.name(service)}</span>
+                  <span
+                    :if={Ecto.Changeset.get_field(@changeset, :endpoint) not in [nil, ""]}
+                    class="text-xs text-base-content/50 ml-1"
+                  >
+                    {Ecto.Changeset.get_field(@changeset, :endpoint)}
+                  </span>
+                </p>
+              <% end %>
 
-              <%= if @connection_status == :success do %>
-                <span class="text-sm text-success ml-2">
-                  <.icon name="hero-check-circle" class="w-4 h-4 inline" />
-                  {gettext("The bucket can be read, written to and deleted from")}
-                </span>
+              <%= if region_select?(@current_provider, service) do %>
+                <.live_component
+                  module={PhoenixKitWeb.Live.Components.SearchableSelect}
+                  id="bucket-region-select"
+                  name="bucket[region]"
+                  value={Ecto.Changeset.get_field(@changeset, :region)}
+                  label={"#{gettext("Region")} *"}
+                  placeholder={gettext("Search regions...")}
+                  required={true}
+                  grouped_options={
+                    Enum.map(AwsRegions.group_by_continent(), fn {continent, regions} ->
+                      {continent,
+                       Enum.map(regions, fn r -> {"#{r.name} — #{r.code}", r.code} end)}
+                    end)
+                  }
+                />
+              <% else %>
+                <input
+                  type="hidden"
+                  name="bucket[region]"
+                  value={Ecto.Changeset.get_field(@changeset, :region)}
+                />
               <% end %>
-              <%= if @connection_status == :failed do %>
-                <div class="mt-2 text-sm text-error">
-                  <.icon name="hero-x-circle" class="w-4 h-4 inline" />
-                  {gettext("Connection failed")}
-                  <%= if @connection_error do %>
-                    : {@connection_error}
+
+              <fieldset class="fieldset">
+                <legend class="fieldset-legend font-semibold">
+                  {if service,
+                    do: gettext("Bucket name on %{service}", service: Services.name(service)),
+                    else: gettext("Bucket Name")} *
+                </legend>
+                <.input
+                  type="text"
+                  name="bucket[bucket_name]"
+                  value={Ecto.Changeset.get_field(@changeset, :bucket_name)}
+                  class={input_class(@changeset, :bucket_name)}
+                  placeholder="e.g., my-app-files"
+                  required
+                />
+                <p class="text-xs text-base-content/50 mt-1">
+                  {gettext(
+                    "The bucket's own name on the storage service, as its console shows it."
+                  )}
+                </p>
+              </fieldset>
+
+              <%= if endpoint_input?(service) do %>
+                <fieldset class="fieldset">
+                  <legend class="fieldset-legend font-semibold">{gettext("Endpoint")}</legend>
+                  <.input
+                    type="text"
+                    name="bucket[endpoint]"
+                    value={Ecto.Changeset.get_field(@changeset, :endpoint)}
+                    class={input_class(@changeset, :endpoint)}
+                    placeholder="e.g., minio.example.com:9000"
+                  />
+                  <p class="text-xs text-base-content/50 mt-1">
+                    {gettext(
+                      "Leave empty for AWS S3. Set it for an S3-compatible service such as MinIO, Wasabi or DigitalOcean Spaces."
+                    )}
+                  </p>
+                </fieldset>
+              <% else %>
+                <input
+                  type="hidden"
+                  name="bucket[endpoint]"
+                  value={Ecto.Changeset.get_field(@changeset, :endpoint)}
+                />
+              <% end %>
+
+              <fieldset class="fieldset">
+                <legend class="fieldset-legend font-semibold">
+                  {gettext("Public URL (CDN)")}
+                </legend>
+                <.input
+                  type="text"
+                  name="bucket[cdn_url]"
+                  value={Ecto.Changeset.get_field(@changeset, :cdn_url)}
+                  class={input_class(@changeset, :cdn_url)}
+                  placeholder="https://cdn.example.com"
+                />
+                <p class="text-xs text-base-content/50 mt-1">
+                  <%= if @current_provider == "r2" do %>
+                    {gettext(
+                      "The bucket's r2.dev or custom domain. Without one, files are served through this server."
+                    )}
+                  <% else %>
+                    {gettext(
+                      "Files are served from this address instead of the bucket's own URL. Optional."
+                    )}
                   <% end %>
-                </div>
-              <% end %>
-              <p class="text-xs text-base-content/50 mt-2">
-                {gettext(
-                  "The test saves and removes a small file. It is optional: a bucket can be saved without it."
-                )}
-              </p>
-            </div>
+                </p>
+              </fieldset>
+
+              <%!-- Test Connection --%>
+              <div class="pt-2">
+                <button
+                  type="button"
+                  phx-click="test_connection"
+                  class={"btn btn-outline btn-sm #{if @connection_status == :success, do: "btn-success", else: ""}"}
+                  disabled={@testing_connection or connection_missing?(@changeset, @bucket)}
+                >
+                  <%= if @testing_connection do %>
+                    <span class="loading loading-spinner loading-xs"></span>
+                    {gettext("Testing...")}
+                  <% else %>
+                    <.icon name="hero-signal" class="w-4 h-4" />
+                    {gettext("Test Connection")}
+                  <% end %>
+                </button>
+
+                <%= if @connection_status == :success do %>
+                  <span class="text-sm text-success ml-2">
+                    <.icon name="hero-check-circle" class="w-4 h-4 inline" />
+                    {gettext("The bucket can be read, written to and deleted from")}
+                  </span>
+                <% end %>
+                <%= if @connection_status == :failed do %>
+                  <div class="mt-2 text-sm text-error">
+                    <.icon name="hero-x-circle" class="w-4 h-4 inline" />
+                    {gettext("Connection failed")}
+                    <%= if @connection_error do %>
+                      : {@connection_error}
+                    <% end %>
+                  </div>
+                <% end %>
+                <p class="text-xs text-base-content/50 mt-2">
+                  {gettext(
+                    "The test saves and removes a small file. It is optional: a bucket can be saved without it."
+                  )}
+                </p>
+              </div>
+            <% end %>
           </div>
         </div>
       <% end %>
