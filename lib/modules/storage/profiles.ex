@@ -173,11 +173,22 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
     end
   end
 
-  @doc "How many libraries (trashed ones included) use `profile_uuid` explicitly."
+  @doc """
+  How many libraries (trashed ones included) use `profile_uuid`. For the Default
+  that is the libraries that name it and those that name no profile at all,
+  which use it too (`profile_uuid_for/1`).
+  """
   @spec libraries_using(term()) :: non_neg_integer()
   def libraries_using(profile_uuid) do
-    from(l in Library, where: l.storage_profile_uuid == ^profile_uuid, select: count())
-    |> repo().one()
+    query =
+      if default?(profile_uuid),
+        do:
+          from(l in Library,
+            where: is_nil(l.storage_profile_uuid) or l.storage_profile_uuid == ^profile_uuid
+          ),
+        else: from(l in Library, where: l.storage_profile_uuid == ^profile_uuid)
+
+    repo().one(from(l in query, select: count()))
   end
 
   @doc """

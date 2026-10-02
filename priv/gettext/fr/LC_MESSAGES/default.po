@@ -628,7 +628,7 @@ msgstr "Liste à puces"
 #: lib/modules/storage/web/dimension_form.html.heex:240
 #: lib/modules/storage/web/libraries_component.ex:277
 #: lib/modules/storage/web/libraries_component.ex:322
-#: lib/modules/storage/web/profiles_component.ex:223
+#: lib/modules/storage/web/profiles_component.ex:281
 #: lib/phoenix_kit/mentions/live.ex:250
 #: lib/phoenix_kit_web/comments_gettext_manifest.ex:41
 #: lib/phoenix_kit_web/components/annotation_composer.ex:661
@@ -907,7 +907,7 @@ msgstr "Contact du DPO enregistré"
 #: lib/modules/storage/web/dimensions.html.heex:550
 #: lib/modules/storage/web/dimensions.html.heex:586
 #: lib/modules/storage/web/libraries_component.ex:398
-#: lib/modules/storage/web/profiles_component.ex:305
+#: lib/modules/storage/web/profiles_component.ex:363
 #: lib/modules/storage/web/settings.html.heex:276
 #: lib/phoenix_kit_web/components/core/bulk_select.ex:228
 #: lib/phoenix_kit_web/components/image_editor.ex:1032
@@ -960,7 +960,7 @@ msgstr "Description"
 #: lib/modules/storage/web/dimensions.html.heex:307
 #: lib/modules/storage/web/dimensions.html.heex:437
 #: lib/modules/storage/web/dimensions.html.heex:514
-#: lib/modules/storage/web/profiles_component.ex:333
+#: lib/modules/storage/web/profiles_component.ex:437
 #: lib/modules/storage/web/settings.html.heex:126
 #: lib/modules/storage/web/settings.html.heex:204
 #: lib/phoenix_kit_web/components/core/badge.ex:191
@@ -1670,7 +1670,8 @@ msgstr "Refuser"
 msgid "Reject All"
 msgstr "Tout refuser"
 
-#: lib/modules/storage/web/profiles_component.ex:405
+#: lib/modules/storage/web/profiles_component.ex:488
+#: lib/modules/storage/web/profiles_component.ex:489
 #: lib/phoenix_kit_web/components/core/column_settings.ex:133
 #: lib/phoenix_kit_web/components/media_browser.html.heex:505
 #: lib/phoenix_kit_web/components/media_browser.html.heex:555
@@ -1709,7 +1710,7 @@ msgstr "Tout révoquer"
 msgid "Revoked %{label} from %{role_name}"
 msgstr "%{label} révoqué de %{role_name}"
 
-#: lib/modules/storage/web/profiles_component.ex:314
+#: lib/modules/storage/web/profiles_component.ex:389
 #: lib/phoenix_kit/users/table_columns.ex:285
 #: lib/phoenix_kit_web/components/core/role_switcher.ex:127
 #: lib/phoenix_kit_web/live/activity/index.html.heex:49
@@ -1785,7 +1786,7 @@ msgstr "SWIFT/BIC"
 #: lib/modules/storage/web/dimensions.html.heex:97
 #: lib/modules/storage/web/libraries_component.ex:315
 #: lib/modules/storage/web/libraries_component.ex:476
-#: lib/modules/storage/web/profiles_component.ex:286
+#: lib/modules/storage/web/profiles_component.ex:344
 #: lib/phoenix_kit_web/comments_gettext_manifest.ex:67
 #: lib/phoenix_kit_web/components/core/markdown_editor.ex:356
 #: lib/phoenix_kit_web/components/core/markdown_editor.ex:440
@@ -1923,7 +1924,7 @@ msgstr "État/province"
 #: lib/modules/storage/web/dimensions.html.heex:247
 #: lib/modules/storage/web/dimensions.html.heex:436
 #: lib/modules/storage/web/dimensions.html.heex:454
-#: lib/modules/storage/web/profiles_component.ex:318
+#: lib/modules/storage/web/profiles_component.ex:412
 #: lib/modules/storage/web/settings.html.heex:125
 #: lib/modules/storage/web/settings.html.heex:138
 #: lib/modules/storage/web/settings.html.heex:660
@@ -3027,7 +3028,7 @@ msgstr "Maximum %{count} copies selon %{buckets} bucket(s) actif(s)."
 #: lib/modules/storage/web/dimensions.html.heex:445
 #: lib/modules/storage/web/libraries_component.ex:285
 #: lib/modules/storage/web/libraries_component.ex:487
-#: lib/modules/storage/web/profiles_component.ex:243
+#: lib/modules/storage/web/profiles_component.ex:301
 #: lib/modules/storage/web/settings.html.heex:134
 #: lib/phoenix_kit_web/components/media_browser.html.heex:427
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1941
@@ -5613,7 +5614,7 @@ msgid "Reorder"
 msgstr "Réorganiser"
 
 #: lib/modules/storage/web/libraries_component.ex:328
-#: lib/modules/storage/web/profiles_component.ex:287
+#: lib/modules/storage/web/profiles_component.ex:345
 #: lib/phoenix_kit_web/live/components/library_settings.ex:796
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:56
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:221
@@ -15399,7 +15400,7 @@ msgstr "Champs standard"
 
 #: lib/modules/storage/web/dimensions.html.heex:57
 #: lib/modules/storage/web/libraries_component.ex:275
-#: lib/modules/storage/web/profiles_component.ex:221
+#: lib/modules/storage/web/profiles_component.ex:279
 #: lib/phoenix_kit_web/live/components/library_settings.ex:564
 #, elixir-autogen, elixir-format
 msgid "Create"
@@ -15851,17 +15852,12 @@ msgstr "%{name} est une taille standard présente dans chaque ensemble de varian
 msgid "A library uses this variant set; it cannot be deleted"
 msgstr "Une bibliothèque utilise cet ensemble de variantes ; il ne peut pas être supprimé"
 
-#: lib/modules/storage/web/profiles_component.ex:199
-#, elixir-autogen, elixir-format
-msgid "A storage profile says where a library's files are kept: which buckets, how many copies, and which copy is served. Every library without its own profile uses the Default. After a change, files are moved in the background; the Health page shows what is left."
-msgstr "Un profil de stockage indique où sont conservés les fichiers d'une bibliothèque : quels buckets, combien de copies et quelle copie est servie. Toute bibliothèque sans profil propre utilise le profil par défaut. Après une modification, les fichiers sont déplacés en arrière-plan ; la page Santé indique ce qu'il reste à faire."
-
 #: lib/modules/storage/web/health.html.heex:34
 #, elixir-autogen, elixir-format
 msgid "Active and in the trash"
 msgstr "Actifs et dans la corbeille"
 
-#: lib/modules/storage/web/profiles_component.ex:427
+#: lib/modules/storage/web/profiles_component.ex:520
 #, elixir-autogen, elixir-format
 msgid "Add bucket"
 msgstr "Ajouter un bucket"
@@ -15876,7 +15872,7 @@ msgstr "Redimensionner automatiquement les images et les vidéos aux tailles de 
 msgid "Backup"
 msgstr "Sauvegarde"
 
-#: lib/modules/storage/web/profiles_component.ex:313
+#: lib/modules/storage/web/profiles_component.ex:380
 #, elixir-autogen, elixir-format
 msgid "Bucket"
 msgstr "Bucket"
@@ -15906,25 +15902,10 @@ msgstr "Vérifier maintenant tous les fichiers de cet ensemble de variantes ? Le
 msgid "Copies"
 msgstr "Copies"
 
-#: lib/modules/storage/web/profiles_component.ex:276
-#, elixir-autogen, elixir-format
-msgid "Copies an upload needs"
-msgstr "Copies requises pour un téléversement"
-
 #: lib/modules/storage/web/health.ex:79
 #, elixir-autogen, elixir-format
 msgid "Copies and sizes"
 msgstr "Copies et tailles"
-
-#: lib/modules/storage/web/profiles_component.ex:265
-#, elixir-autogen, elixir-format
-msgid "Copies of a size or tile"
-msgstr "Copies d'une taille ou d'une tuile"
-
-#: lib/modules/storage/web/profiles_component.ex:254
-#, elixir-autogen, elixir-format
-msgid "Copies of an original"
-msgstr "Copies d'un original"
 
 #: lib/modules/storage/web/settings.html.heex:334
 #, elixir-autogen, elixir-format
@@ -15941,7 +15922,7 @@ msgstr "Créez et modifiez les ensembles de variantes : les tailles d'image et d
 msgid "Delete set"
 msgstr "Supprimer l'ensemble"
 
-#: lib/modules/storage/web/profiles_component.ex:303
+#: lib/modules/storage/web/profiles_component.ex:361
 #, elixir-autogen, elixir-format
 msgid "Delete this storage profile?"
 msgstr "Supprimer ce profil de stockage ?"
@@ -15950,11 +15931,6 @@ msgstr "Supprimer ce profil de stockage ?"
 #, elixir-autogen, elixir-format
 msgid "Delete this variant set and its sizes?"
 msgstr "Supprimer cet ensemble de variantes et ses tailles ?"
-
-#: lib/modules/storage/web/profiles_component.ex:171
-#, elixir-autogen, elixir-format
-msgid "Draining"
-msgstr "En cours de vidage"
 
 #: lib/modules/storage/web/health.html.heex:89
 #, elixir-autogen, elixir-format
@@ -16001,7 +15977,7 @@ msgstr "Générer les tailles automatiquement après un téléversement"
 msgid "Make zoomable tiles of images"
 msgstr "Générer des tuiles zoomables pour les images"
 
-#: lib/modules/storage/web/profiles_component.ex:195
+#: lib/modules/storage/web/profiles_component.ex:253
 #, elixir-autogen, elixir-format
 msgid "New profile"
 msgstr "Nouveau profil"
@@ -16011,7 +15987,7 @@ msgstr "Nouveau profil"
 msgid "New variant set"
 msgstr "Nouvel ensemble de variantes"
 
-#: lib/modules/storage/web/profiles_component.ex:325
+#: lib/modules/storage/web/profiles_component.ex:420
 #, elixir-autogen, elixir-format
 msgid "No buckets yet: uploads to a library on this profile fail."
 msgstr "Aucun bucket pour l'instant : les téléversements vers une bibliothèque utilisant ce profil échouent."
@@ -16026,20 +16002,10 @@ msgstr "Ouvrir le tableau de bord de santé des médias : les fichiers pas encor
 msgid "Originals"
 msgstr "Originaux"
 
-#: lib/modules/storage/web/profiles_component.ex:368
-#, elixir-autogen, elixir-format
-msgid "Pool"
-msgstr "Pool"
-
-#: lib/modules/storage/web/profiles_component.ex:216
+#: lib/modules/storage/web/profiles_component.ex:274
 #, elixir-autogen, elixir-format
 msgid "Profile name"
 msgstr "Nom du profil"
-
-#: lib/modules/storage/web/profiles_component.ex:170
-#, elixir-autogen, elixir-format
-msgid "Read-only"
-msgstr "Lecture seule"
 
 #: lib/modules/storage/web/health.html.heex:75
 #, elixir-autogen, elixir-format
@@ -16051,7 +16017,7 @@ msgstr "Réconcilier maintenant"
 msgid "Replica"
 msgstr "Réplique"
 
-#: lib/modules/storage/web/profiles_component.ex:317
+#: lib/modules/storage/web/profiles_component.ex:410
 #, elixir-autogen, elixir-format
 msgid "Serve order"
 msgstr "Ordre de service"
@@ -16103,7 +16069,7 @@ msgstr "Profil de stockage supprimé"
 msgid "Storage profile saved"
 msgstr "Profil de stockage enregistré"
 
-#: lib/modules/storage/web/profiles_component.ex:186
+#: lib/modules/storage/web/profiles_component.ex:244
 #: lib/modules/storage/web/settings.ex:100
 #, elixir-autogen, elixir-format
 msgid "Storage profiles"
@@ -16114,12 +16080,12 @@ msgstr "Profils de stockage"
 msgid "Stored and sized as their library wants"
 msgstr "Stockés et dimensionnés comme le prévoit leur bibliothèque"
 
-#: lib/modules/storage/web/profiles_component.ex:315
+#: lib/modules/storage/web/profiles_component.ex:391
 #, elixir-autogen, elixir-format
 msgid "Stores"
 msgstr "Stocke"
 
-#: lib/modules/storage/web/profiles_component.ex:400
+#: lib/modules/storage/web/profiles_component.ex:495
 #, elixir-autogen, elixir-format
 msgid "Take this bucket out of the profile? Its files are copied to the profile's other buckets first, then removed from it."
 msgstr "Retirer ce bucket du profil ? Ses fichiers sont d'abord copiés vers les autres buckets du profil, puis supprimés de celui-ci."
@@ -16165,7 +16131,7 @@ msgid "Up to date"
 msgstr "À jour"
 
 #: lib/modules/storage/web/dimensions.html.heex:111
-#: lib/modules/storage/web/profiles_component.ex:289
+#: lib/modules/storage/web/profiles_component.ex:347
 #, elixir-autogen, elixir-format
 msgid "Used by %{count} library."
 msgid_plural "Used by %{count} libraries."
@@ -16225,11 +16191,6 @@ msgstr "Tailles générées pour les téléversements de chaque bibliothèque"
 #, elixir-autogen, elixir-format
 msgid "Which sizes this library's uploads get"
 msgstr "Tailles générées pour les téléversements de cette bibliothèque"
-
-#: lib/modules/storage/web/profiles_component.ex:316
-#, elixir-autogen, elixir-format
-msgid "Write priority"
-msgstr "Priorité d'écriture"
 
 #: lib/modules/storage/web/dimensions.html.heex:260
 #: lib/modules/storage/web/dimensions.html.heex:467
@@ -17403,3 +17364,85 @@ msgstr "Aucun nom de bucket"
 #, elixir-autogen, elixir-format
 msgid "No path configured"
 msgstr "Aucun chemin configuré"
+
+#: lib/modules/storage/web/profiles_component.ex:212
+#, elixir-autogen, elixir-format
+msgid "%{count} buckets take new files and each original is stored on 1 of them, picked by upload order, otherwise at random: files are spread across the buckets, not mirrored. Set the copies to 2 to keep every file on 2 buckets."
+msgstr "%{count} buckets reçoivent les nouveaux fichiers et chaque original est stocké sur 1 d'entre eux, selon l'ordre d'envoi, sinon au hasard : les fichiers sont répartis entre les buckets, pas dupliqués. Mettez les copies à 2 pour garder chaque fichier sur 2 buckets."
+
+#: lib/modules/storage/web/profiles_component.ex:257
+#, elixir-autogen, elixir-format
+msgid "A storage profile says where a library's files are kept: which buckets, how many copies of each file, and which copy is served. A library without a profile of its own uses the Default. When the buckets, their roles or the copy counts change, files are copied or moved in the background; the Health page shows what is left."
+msgstr "Un profil de stockage indique où sont conservés les fichiers d'une bibliothèque : dans quels buckets, combien de copies de chaque fichier et quelle copie est servie. Une bibliothèque sans profil propre utilise le profil par défaut. Quand les buckets, leurs rôles ou le nombre de copies changent, les fichiers sont copiés ou déplacés en arrière-plan ; la page État montre ce qui reste."
+
+#: lib/modules/storage/web/profiles_component.ex:464
+#, elixir-autogen, elixir-format
+msgid "Any"
+msgstr "Indifférent"
+
+#: lib/modules/storage/web/profiles_component.ex:334
+#, elixir-autogen, elixir-format
+msgid "Copies needed to accept an upload"
+msgstr "Copies requises pour accepter un envoi"
+
+#: lib/modules/storage/web/profiles_component.ex:312
+#, elixir-autogen, elixir-format
+msgid "Copies of each original"
+msgstr "Copies de chaque original"
+
+#: lib/modules/storage/web/profiles_component.ex:323
+#, elixir-autogen, elixir-format
+msgid "Copies of each size and tile"
+msgstr "Copies de chaque taille et tuile"
+
+#: lib/modules/storage/web/profiles_component.ex:171
+#, elixir-autogen, elixir-format
+msgid "Draining (moving files out)"
+msgstr "Vidage (fichiers déplacés)"
+
+#: lib/modules/storage/web/profiles_component.ex:219
+#, elixir-autogen, elixir-format
+msgid "Each original is stored on %{copies} of the %{count} buckets that take new files."
+msgstr "Chaque original est stocké sur %{copies} des %{count} buckets qui reçoivent les nouveaux fichiers."
+
+#: lib/modules/storage/web/profiles_component.ex:200
+#, elixir-autogen, elixir-format
+msgid "Each original should have %{copies} copies, but only %{count} bucket can take new files, so each gets 1."
+msgid_plural "Each original should have %{copies} copies, but only %{count} buckets can take new files, so each gets %{count}."
+msgstr[0] "Chaque original devrait avoir %{copies} copies, mais seul %{count} bucket peut recevoir de nouveaux fichiers ; chacun en reçoit donc 1."
+msgstr[1] "Chaque original devrait avoir %{copies} copies, mais seuls %{count} buckets peuvent recevoir de nouveaux fichiers ; chacun en reçoit donc %{count}."
+
+#: lib/modules/storage/web/profiles_component.ex:395
+#, elixir-autogen, elixir-format
+msgid "Lower numbers get new files first. Leave it empty to share them: buckets with no number take turns at random."
+msgstr "Les numéros les plus bas reçoivent les nouveaux fichiers en premier. Laissez vide pour les répartir : les buckets sans numéro passent à tour de rôle, au hasard."
+
+#: lib/modules/storage/web/profiles_component.ex:196
+#, elixir-autogen, elixir-format
+msgid "No bucket can take new files now, so uploads fail."
+msgstr "Aucun bucket ne peut recevoir de nouveaux fichiers pour l'instant : les envois échouent."
+
+#: lib/modules/storage/web/profiles_component.ex:208
+#, elixir-autogen, elixir-format
+msgid "One bucket takes new files, so every original is stored there."
+msgstr "Un seul bucket reçoit les nouveaux fichiers : chaque original y est stocké."
+
+#: lib/modules/storage/web/profiles_component.ex:384
+#, elixir-autogen, elixir-format
+msgid "Primary: written and served. Replica: written when more copies are wanted than there are primaries; served only if no primary has the file. Backup: written, never served."
+msgstr "Principal : écrit et servi. Réplique : écrite quand on veut plus de copies que de principaux ; servie seulement si aucun principal n'a le fichier. Sauvegarde : écrite, jamais servie."
+
+#: lib/modules/storage/web/profiles_component.ex:170
+#, elixir-autogen, elixir-format
+msgid "Read-only (no new files)"
+msgstr "Lecture seule (pas de nouveaux fichiers)"
+
+#: lib/modules/storage/web/profiles_component.ex:400
+#, elixir-autogen, elixir-format
+msgid "Upload order"
+msgstr "Ordre d'envoi"
+
+#: lib/modules/storage/web/profiles_component.ex:405
+#, elixir-autogen, elixir-format
+msgid "When a file is on several buckets, the one with the lowest number serves it."
+msgstr "Quand un fichier est sur plusieurs buckets, celui au numéro le plus bas le sert."

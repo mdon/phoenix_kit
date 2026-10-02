@@ -33,6 +33,8 @@ defmodule PhoenixKitWeb.Live.StorageProfilesUITest do
     view
   end
 
+  defp view_html(conn), do: conn |> settings() |> render()
+
   describe "the Storage profiles tab" do
     test "creates a profile, adds a bucket, changes its row and deletes it", ctx do
       view = settings(ctx.conn)
@@ -75,6 +77,63 @@ defmodule PhoenixKitWeb.Live.StorageProfilesUITest do
       |> render_click()
 
       refute Profiles.get_profile(profile.uuid)
+    end
+
+    test "the Default counts the libraries that name no profile, which use it", ctx do
+      default = Profiles.default_uuid()
+      before = Profiles.libraries_using(default)
+
+      {:ok, library} =
+        Libraries.create_system_library(%{
+          name: "On default #{System.unique_integer([:positive])}"
+        })
+
+      assert is_nil(library.storage_profile_uuid)
+      assert Profiles.libraries_using(default) == before + 1
+      assert view_html(ctx.conn) =~ "Used by #{before + 1} librar"
+
+      {:ok, profile} =
+        Profiles.create_profile(%{name: "Own #{System.unique_integer([:positive])}"})
+
+      assert Profiles.libraries_using(profile.uuid) == 0
+
+      {:ok, _} = Profiles.set_library_profile(library, profile.uuid)
+      assert Profiles.libraries_using(default) == before
+      assert Profiles.libraries_using(profile.uuid) == 1
+    end
+
+    test "says what the copy counts mean with the buckets there are", ctx do
+      {:ok, _} =
+        Storage.create_bucket(%{
+          name: "second-#{System.unique_integer([:positive])}",
+          provider: "local",
+          endpoint: Path.join(System.tmp_dir!(), "pk_ui_bucket_2"),
+          enabled: true,
+          priority: 0
+        })
+
+      html = view_html(ctx.conn)
+      assert html =~ "each original is stored on 1 of them"
+      assert html =~ "not mirrored"
+
+      {:ok, _} = Profiles.update_profile(Profiles.default_profile(), %{"copies_originals" => "2"})
+      html = view_html(ctx.conn)
+      assert html =~ "Each original is stored on 2 of the"
+
+      {:ok, _} = Profiles.update_profile(Profiles.default_profile(), %{"copies_originals" => "5"})
+      html = view_html(ctx.conn)
+      assert html =~ "Each original should have 5 copies, but only"
+    end
+
+    test "the bucket rows sit on one grid, each control under its heading", ctx do
+      html = view_html(ctx.conn)
+
+      assert html =~ "Upload order"
+      assert html =~ ~s(placeholder="Any")
+      refute html =~ ~s(placeholder="Pool")
+      assert html =~ "Draining (moving files out)"
+      assert html =~ "Read-only (no new files)"
+      assert html =~ "Copies of each original"
     end
 
     test "the Default profile lists the buckets and cannot be deleted", ctx do

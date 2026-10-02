@@ -13,6 +13,21 @@
   Cloudflare R2, …) as a badge beside it. Under the bucket's name, the location is in words —
   `fotki-dev-test1 · t3.storage.dev` for a cloud bucket, the path for a local one — instead of
   `tigris:fotki-dev-test1https://t3.storage.dev`.
+- **The Storage profiles tab is clearer and lines up.** The bucket rows sit on one grid, so each
+  control is under its own heading and the dropdowns have fixed widths. "Pool" is "Upload order"
+  (empty reads "Any"), with a tooltip on it and on Role and Serve order; the statuses read "Active",
+  "Read-only (no new files)" and "Draining (moving files out)". The copy counts are "Copies of each
+  original", "Copies of each size and tile" and "Copies needed to accept an upload", and a line under
+  them says what they mean with the buckets the profile has now — two buckets at one copy spread
+  files across them rather than mirror them, and a count above the number of buckets is flagged. The
+  description no longer promises that every change moves files: renaming a profile or changing the
+  copies an upload needs does not.
+
+### Fixed
+
+- **A profile's "Used by" count left out the libraries that use it without naming it.** The Default
+  said "Used by 0 libraries" while the Media library, which names no profile and so uses the
+  Default, said it was on it. The Default's count now includes the libraries with no profile of their own.
 
 ## 2.45.0 - 2026-10-02
 

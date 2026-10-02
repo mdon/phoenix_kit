@@ -167,8 +167,64 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
   defp stores_label("derived"), do: gettext("Sizes and tiles")
 
   defp status_label("active"), do: gettext("Active")
-  defp status_label("read_only"), do: gettext("Read-only")
-  defp status_label("draining"), do: gettext("Draining")
+  defp status_label("read_only"), do: gettext("Read-only (no new files)")
+  defp status_label("draining"), do: gettext("Draining (moving files out)")
+
+  # The columns of the bucket rows. The header and every row share it, so each
+  # control sits under its own heading.
+  defp columns,
+    do: "grid grid-cols-[minmax(11rem,2fr)_7rem_10rem_6rem_6rem_13rem_2.5rem] items-center gap-3"
+
+  # The buckets that can take new originals right now (a bucket's size limit is
+  # not counted: it is not a setting of the profile).
+  defp writable_count(profile) do
+    Enum.count(profile.buckets, fn row ->
+      row.status == "active" and row.stores in ["all", "originals"] and row.bucket.enabled
+    end)
+  end
+
+  # One sentence on what the copy counts mean with the buckets the profile has
+  # now: the numbers alone read the same with one bucket and with five.
+  defp copies_hint(profile) do
+    buckets = writable_count(profile)
+    copies = profile.copies_originals
+
+    cond do
+      buckets == 0 ->
+        {:error, gettext("No bucket can take new files now, so uploads fail.")}
+
+      copies > buckets ->
+        {:warning,
+         ngettext(
+           "Each original should have %{copies} copies, but only %{count} bucket can take new files, so each gets 1.",
+           "Each original should have %{copies} copies, but only %{count} buckets can take new files, so each gets %{count}.",
+           buckets,
+           copies: copies
+         )}
+
+      buckets == 1 ->
+        {:info, gettext("One bucket takes new files, so every original is stored there.")}
+
+      copies == 1 ->
+        {:info,
+         gettext(
+           "%{count} buckets take new files and each original is stored on 1 of them, picked by upload order, otherwise at random: files are spread across the buckets, not mirrored. Set the copies to 2 to keep every file on 2 buckets.",
+           count: buckets
+         )}
+
+      true ->
+        {:info,
+         gettext(
+           "Each original is stored on %{copies} of the %{count} buckets that take new files.",
+           copies: copies,
+           count: buckets
+         )}
+    end
+  end
+
+  defp hint_class(:error), do: "text-error"
+  defp hint_class(:warning), do: "text-warning"
+  defp hint_class(:info), do: "text-base-content/60"
 
   defp not_in(profile, buckets) do
     used = MapSet.new(profile.buckets, &to_string(&1.bucket_uuid))
@@ -197,7 +253,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
           </div>
           <p class="text-sm text-base-content/70">
             {gettext(
-              "A storage profile says where a library's files are kept: which buckets, how many copies, and which copy is served. Every library without its own profile uses the Default. After a change, files are moved in the background; the Health page shows what is left."
+              "A storage profile says where a library's files are kept: which buckets, how many copies of each file, and which copy is served. A library without a profile of its own uses the Default. When the buckets, their roles or the copy counts change, files are copied or moved in the background; the Health page shows what is left."
             )}
           </p>
 
@@ -251,7 +307,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
               />
             </label>
             <label class="form-control">
-              <span class="label-text text-sm">{gettext("Copies of an original")}</span>
+              <span class="label-text text-sm">{gettext("Copies of each original")}</span>
               <input
                 type="number"
                 name="profile[copies_originals]"
@@ -262,7 +318,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
               />
             </label>
             <label class="form-control">
-              <span class="label-text text-sm">{gettext("Copies of a size or tile")}</span>
+              <span class="label-text text-sm">{gettext("Copies of each size and tile")}</span>
               <input
                 type="number"
                 name="profile[copies_variants]"
@@ -273,7 +329,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
               />
             </label>
             <label class="form-control">
-              <span class="label-text text-sm">{gettext("Copies an upload needs")}</span>
+              <span class="label-text text-sm">{gettext("Copies needed to accept an upload")}</span>
               <input
                 type="number"
                 name="profile[min_copies_on_write]"
@@ -306,108 +362,143 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
             </button>
           </form>
 
+          <p
+            :if={profile.buckets != []}
+            class={["text-sm mt-3", hint_class(elem(copies_hint(profile), 0))]}
+          >
+            {elem(copies_hint(profile), 1)}
+          </p>
+
           <div class="overflow-x-auto mt-4">
-            <table class="table table-zebra">
-              <thead>
-                <tr>
-                  <th>{gettext("Bucket")}</th>
-                  <th>{gettext("Role")}</th>
-                  <th>{gettext("Stores")}</th>
-                  <th>{gettext("Write priority")}</th>
-                  <th>{gettext("Serve order")}</th>
-                  <th>{gettext("Status")}</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr :if={profile.buckets == []}>
-                  <td colspan="7" class="text-sm text-base-content/60">
-                    {gettext("No buckets yet: uploads to a library on this profile fail.")}
-                  </td>
-                </tr>
-                <tr :for={row <- profile.buckets} id={"#{@id}-#{profile.uuid}-#{row.bucket_uuid}"}>
-                  <td>
-                    <span class="font-medium">{row.bucket.name}</span>
-                    <span class="badge badge-ghost badge-sm ml-1">{row.bucket.provider}</span>
-                    <span :if={not row.bucket.enabled} class="badge badge-error badge-sm ml-1">
-                      {gettext("Disabled")}
-                    </span>
-                  </td>
-                  <td colspan="5">
-                    <form
-                      id={"#{@id}-row-#{profile.uuid}-#{row.bucket_uuid}"}
-                      phx-change="save_row"
-                      phx-target={@myself}
-                      class="flex flex-wrap items-center gap-2"
-                    >
-                      <input type="hidden" name="uuid" value={profile.uuid} />
-                      <input type="hidden" name="bucket_uuid" value={row.bucket_uuid} />
-                      <select name="row[role]" class="select select-sm select-bordered">
-                        <option
-                          :for={role <- ProfileBucket.roles()}
-                          value={role}
-                          selected={row.role == role}
-                        >
-                          {role_label(role)}
-                        </option>
-                      </select>
-                      <select name="row[stores]" class="select select-sm select-bordered">
-                        <option
-                          :for={stores <- ProfileBucket.stores()}
-                          value={stores}
-                          selected={row.stores == stores}
-                        >
-                          {stores_label(stores)}
-                        </option>
-                      </select>
-                      <input
-                        type="number"
-                        name="row[write_priority]"
-                        min="1"
-                        value={row.write_priority}
-                        placeholder={gettext("Pool")}
-                        phx-debounce="600"
-                        class="input input-sm input-bordered w-24"
-                      />
-                      <input
-                        type="number"
-                        name="row[serve_order]"
-                        min="0"
-                        value={row.serve_order}
-                        phx-debounce="600"
-                        class="input input-sm input-bordered w-20"
-                      />
-                      <select name="row[status]" class="select select-sm select-bordered">
-                        <option
-                          :for={status <- ProfileBucket.statuses()}
-                          value={status}
-                          selected={row.status == status}
-                        >
-                          {status_label(status)}
-                        </option>
-                      </select>
-                    </form>
-                  </td>
-                  <td class="text-right">
-                    <button
-                      type="button"
-                      class="btn btn-xs btn-ghost text-error"
-                      phx-click="remove_bucket"
-                      phx-value-uuid={profile.uuid}
-                      phx-value-bucket_uuid={row.bucket_uuid}
-                      phx-target={@myself}
-                      data-confirm={
-                        gettext(
-                          "Take this bucket out of the profile? Its files are copied to the profile's other buckets first, then removed from it."
-                        )
-                      }
-                    >
-                      <.icon name="hero-x-mark" class="w-4 h-4" /> {gettext("Remove")}
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+            <div class="min-w-[58rem]">
+              <div class={[
+                columns(),
+                "px-2 pb-2 text-xs font-semibold uppercase text-base-content/60"
+              ]}>
+                <span>{gettext("Bucket")}</span>
+                <span
+                  class="tooltip tooltip-bottom normal-case text-left"
+                  data-tip={
+                    gettext(
+                      "Primary: written and served. Replica: written when more copies are wanted than there are primaries; served only if no primary has the file. Backup: written, never served."
+                    )
+                  }
+                >
+                  {gettext("Role")}
+                </span>
+                <span>{gettext("Stores")}</span>
+                <span
+                  class="tooltip tooltip-bottom normal-case text-left"
+                  data-tip={
+                    gettext(
+                      "Lower numbers get new files first. Leave it empty to share them: buckets with no number take turns at random."
+                    )
+                  }
+                >
+                  {gettext("Upload order")}
+                </span>
+                <span
+                  class="tooltip tooltip-bottom normal-case text-left"
+                  data-tip={
+                    gettext(
+                      "When a file is on several buckets, the one with the lowest number serves it."
+                    )
+                  }
+                >
+                  {gettext("Serve order")}
+                </span>
+                <span>{gettext("Status")}</span>
+                <span></span>
+              </div>
+
+              <p
+                :if={profile.buckets == []}
+                class="border-t border-base-200 py-3 px-2 text-sm text-base-content/60"
+              >
+                {gettext("No buckets yet: uploads to a library on this profile fail.")}
+              </p>
+
+              <form
+                :for={row <- profile.buckets}
+                id={"#{@id}-row-#{profile.uuid}-#{row.bucket_uuid}"}
+                phx-change="save_row"
+                phx-target={@myself}
+                class={[columns(), "border-t border-base-200 px-2 py-2"]}
+              >
+                <input type="hidden" name="uuid" value={profile.uuid} />
+                <input type="hidden" name="bucket_uuid" value={row.bucket_uuid} />
+
+                <div id={"#{@id}-#{profile.uuid}-#{row.bucket_uuid}"} class="min-w-0">
+                  <span class="font-medium break-words">{row.bucket.name}</span>
+                  <span class="badge badge-ghost badge-sm ml-1">{row.bucket.provider}</span>
+                  <span :if={not row.bucket.enabled} class="badge badge-error badge-sm ml-1">
+                    {gettext("Disabled")}
+                  </span>
+                </div>
+
+                <select name="row[role]" class="select select-sm select-bordered w-full">
+                  <option
+                    :for={role <- ProfileBucket.roles()}
+                    value={role}
+                    selected={row.role == role}
+                  >
+                    {role_label(role)}
+                  </option>
+                </select>
+                <select name="row[stores]" class="select select-sm select-bordered w-full">
+                  <option
+                    :for={stores <- ProfileBucket.stores()}
+                    value={stores}
+                    selected={row.stores == stores}
+                  >
+                    {stores_label(stores)}
+                  </option>
+                </select>
+                <input
+                  type="number"
+                  name="row[write_priority]"
+                  min="1"
+                  value={row.write_priority}
+                  placeholder={gettext("Any")}
+                  phx-debounce="600"
+                  class="input input-sm input-bordered w-full"
+                />
+                <input
+                  type="number"
+                  name="row[serve_order]"
+                  min="0"
+                  value={row.serve_order}
+                  phx-debounce="600"
+                  class="input input-sm input-bordered w-full"
+                />
+                <select name="row[status]" class="select select-sm select-bordered w-full">
+                  <option
+                    :for={status <- ProfileBucket.statuses()}
+                    value={status}
+                    selected={row.status == status}
+                  >
+                    {status_label(status)}
+                  </option>
+                </select>
+                <button
+                  type="button"
+                  class="btn btn-xs btn-ghost text-error"
+                  title={gettext("Remove")}
+                  aria-label={gettext("Remove")}
+                  phx-click="remove_bucket"
+                  phx-value-uuid={profile.uuid}
+                  phx-value-bucket_uuid={row.bucket_uuid}
+                  phx-target={@myself}
+                  data-confirm={
+                    gettext(
+                      "Take this bucket out of the profile? Its files are copied to the profile's other buckets first, then removed from it."
+                    )
+                  }
+                >
+                  <.icon name="hero-x-mark" class="w-4 h-4" />
+                </button>
+              </form>
+            </div>
           </div>
 
           <form
