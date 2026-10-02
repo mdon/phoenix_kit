@@ -1,3 +1,27 @@
+## Unreleased
+
+### Added
+
+- **The Storage profiles tab says when a bucket is idle and offers the count that uses it.** With
+  one Primary and a Replica or Backup at one copy, the other bucket holds nothing, so a line under the
+  copy counts names it ("Not used at this copy count: …") and a button — "Keep every original on 2
+  buckets" — sets the count after a confirmation that says existing files are copied in the
+  background. The count is offered only where it is unambiguous (one primary, one copy, a bucket
+  waiting); with several primaries a higher count would also put every file on every primary, so the
+  line only names the idle buckets. The server applies only the count it would itself recommend.
+  `Profiles.copies_advice/1` is the one reading of what a count means for a profile's buckets.
+- **Creating a bucket says when the Default now spreads files.** A new bucket joins the Default as a
+  primary; when that leaves it keeping fewer copies than it has primaries, the confirmation adds
+  "Each original is stored on 1 of the 2 primary buckets, so files are spread across them, not
+  mirrored", with where to change it.
+
+### Fixed
+
+- **The line under a profile's copy counts treated every bucket as equal.** With one Primary and one
+  Replica at one copy it said files were spread at random across both; in fact the copy goes to the
+  primary and the replica holds nothing unless a write to the primary fails. It now says so and, with
+  several primaries, counts only them.
+
 ## 2.46.0 - 2026-10-02
 
 ### Added

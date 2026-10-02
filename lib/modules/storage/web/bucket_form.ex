@@ -18,6 +18,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.Bucket
   alias PhoenixKit.Modules.Storage.BucketCredentials
+  alias PhoenixKit.Modules.Storage.Profiles
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
@@ -314,7 +315,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
       {:ok, _bucket} ->
         socket =
           socket
-          |> put_flash(:info, "Bucket created successfully")
+          |> put_flash(:info, created_message())
           |> push_navigate(to: Routes.path("/admin/settings/media"))
 
         {:noreply, socket}
@@ -455,6 +456,27 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
       end)
 
     assign(socket, :connections, connections)
+  end
+
+  # The new bucket joined the Default storage profile as a primary. When that
+  # leaves the Default spreading files across its primaries rather than
+  # mirroring them, say so now: adding the second bucket is when it begins.
+  defp created_message do
+    base = gettext("Bucket created successfully")
+
+    with %{} = default <- Profiles.default_profile(),
+         %{primaries: primaries, copies: copies} when primaries > copies <-
+           Profiles.copies_advice(default) do
+      base <>
+        ". " <>
+        gettext(
+          "Each original is stored on %{copies} of the %{count} primary buckets, so files are spread across them, not mirrored. Change the copies on the Storage profiles tab.",
+          copies: copies,
+          count: primaries
+        )
+    else
+      _ -> base
+    end
   end
 
   defp page_title(:new), do: gettext("Add Storage Bucket")

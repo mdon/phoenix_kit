@@ -115,6 +115,55 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
   def copies(%StorageProfile{copies_originals: n}, :original), do: n
   def copies(%StorageProfile{copies_variants: n}, :derived), do: n
 
+  @doc """
+  What a profile's copy count means for the buckets it has now, for the screens
+  that tell an admin and the one place that must agree with what they say.
+
+  An original is written to the first `copies_originals` writable buckets in
+  role order — primaries, then replicas, then backups — so the count says how
+  many of them get it:
+
+    * `writable` — the buckets that can take a new original (active in the
+      profile, storing originals, and enabled);
+    * `primaries` — how many of those are primaries;
+    * `copies` — the profile's count;
+    * `idle` — the names of the replicas and backups the count never reaches
+      (it does not exceed the primaries), which hold nothing unless a write to a
+      primary fails;
+    * `recommended` — the count that would put the one replica or backup to
+      use, or nil. Only offered where it is unambiguous: one primary, one copy,
+      and a bucket waiting. With several primaries a higher count would also put
+      every file on every primary, which is a different decision.
+
+  Takes a profile with its buckets loaded.
+  """
+  @spec copies_advice(StorageProfile.t()) :: %{
+          writable: non_neg_integer(),
+          primaries: non_neg_integer(),
+          copies: pos_integer(),
+          idle: [String.t()],
+          recommended: pos_integer() | nil
+        }
+  def copies_advice(%StorageProfile{} = profile) do
+    rows =
+      Enum.filter(profile.buckets, fn row ->
+        row.status == "active" and row.stores in ["all", "originals"] and row.bucket.enabled
+      end)
+
+    primaries = Enum.count(rows, &(&1.role == "primary"))
+    others = Enum.reject(rows, &(&1.role == "primary"))
+    copies = profile.copies_originals
+    idle = if copies <= primaries, do: Enum.map(others, & &1.bucket.name), else: []
+
+    %{
+      writable: length(rows),
+      primaries: primaries,
+      copies: copies,
+      idle: idle,
+      recommended: if(primaries == 1 and copies == 1 and others != [], do: 2)
+    }
+  end
+
   @doc "Creates a profile with no buckets."
   @spec create_profile(map()) :: {:ok, StorageProfile.t()} | {:error, Ecto.Changeset.t()}
   def create_profile(attrs) do

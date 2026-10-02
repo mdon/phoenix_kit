@@ -117,6 +117,29 @@ defmodule PhoenixKitWeb.Live.BucketFormTest do
                Storage.get_bucket_by_name("R2 media")
     end
 
+    test "creating a bucket that makes the Default spread files says so", %{conn: conn} do
+      uuid = connection("acct", %{"service" => "cloudflare_r2"})
+      {:ok, view, _html} = live(conn, @new_path)
+      render_change(view, "validate", %{"bucket" => %{"storage_type" => "cloud"}})
+
+      render_change(view, "validate", %{
+        "bucket" => %{
+          "storage_type" => "cloud",
+          "provider" => "s3",
+          "integration_uuid" => uuid,
+          "name" => "Second",
+          "bucket_name" => "media"
+        }
+      })
+
+      result = view |> form("#bucket-form") |> render_submit()
+      assert {:error, {:live_redirect, _}} = result
+
+      {:ok, _view, html} = follow_redirect(result, conn)
+      assert html =~ "Bucket created successfully"
+      assert html =~ "files are spread across them, not mirrored"
+    end
+
     test "picking a connection fills a blank region and endpoint from it", %{conn: conn} do
       uuid =
         connection("acct", %{

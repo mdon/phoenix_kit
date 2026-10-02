@@ -91,6 +91,21 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
     end
   end
 
+  # The recommended copy count, applied. Only the count `Profiles.copies_advice/1`
+  # recommends for the profile as it is now: the number arrives from the client.
+  def handle_event("apply_copies", %{"uuid" => uuid, "copies" => copies}, socket) do
+    with %StorageProfile{} = profile <- find(socket, uuid),
+         %{recommended: recommended} when is_integer(recommended) <-
+           Profiles.copies_advice(profile),
+         true <- to_string(recommended) == copies,
+         {:ok, _} <- Profiles.update_profile(profile, %{"copies_originals" => recommended}) do
+      {:noreply, socket |> load() |> flash(:info, gettext("Storage profile saved"))}
+    else
+      {:error, changeset} -> {:noreply, flash(socket, :error, error_message(changeset))}
+      _ -> {:noreply, socket}
+    end
+  end
+
   def handle_event("add_bucket", %{"uuid" => uuid, "bucket_uuid" => bucket_uuid}, socket) do
     with %StorageProfile{} = profile <- find(socket, uuid),
          true <- Enum.any?(socket.assigns.buckets, &(to_string(&1.uuid) == bucket_uuid)),
@@ -175,19 +190,11 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
   defp columns,
     do: "grid grid-cols-[minmax(11rem,2fr)_7rem_10rem_6rem_6rem_13rem_2.5rem] items-center gap-3"
 
-  # The buckets that can take new originals right now (a bucket's size limit is
-  # not counted: it is not a setting of the profile).
-  defp writable_count(profile) do
-    Enum.count(profile.buckets, fn row ->
-      row.status == "active" and row.stores in ["all", "originals"] and row.bucket.enabled
-    end)
-  end
-
   # One sentence on what the copy counts mean with the buckets the profile has
-  # now: the numbers alone read the same with one bucket and with five.
+  # now: the numbers alone read the same with one bucket and with five. The
+  # arithmetic is `Profiles.copies_advice/1`'s, which the bucket form shares.
   defp copies_hint(profile) do
-    buckets = writable_count(profile)
-    copies = profile.copies_originals
+    %{writable: buckets, primaries: primaries, copies: copies} = Profiles.copies_advice(profile)
 
     cond do
       buckets == 0 ->
@@ -205,11 +212,20 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
       buckets == 1 ->
         {:info, gettext("One bucket takes new files, so every original is stored there.")}
 
-      copies == 1 ->
+      # One copy goes to the first role that has a bucket: primaries, then
+      # replicas, then backups. Replicas and backups get a file only when a write
+      # to the primary fails, so they are not part of the spread.
+      copies == 1 and primaries == 1 ->
+        {:info,
+         gettext(
+           "Each original is stored on the primary bucket only. The other buckets take over only if a write to it fails, and hold nothing otherwise. Set the copies to 2 to keep every file on a second bucket."
+         )}
+
+      copies == 1 and primaries > 1 ->
         {:info,
          gettext(
            "%{count} buckets take new files and each original is stored on 1 of them, picked by upload order, otherwise at random: files are spread across the buckets, not mirrored. Set the copies to 2 to keep every file on 2 buckets.",
-           count: buckets
+           count: primaries
          )}
 
       true ->
@@ -368,6 +384,34 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
           >
             {elem(copies_hint(profile), 1)}
           </p>
+
+          <% advice = Profiles.copies_advice(profile) %>
+          <div
+            :if={advice.idle != []}
+            id={"#{@id}-advice-#{profile.uuid}"}
+            class="mt-2 flex flex-wrap items-center gap-3 rounded-box bg-base-200 px-3 py-2 text-sm"
+          >
+            <span>
+              {gettext("Not used at this copy count: %{names}.", names: Enum.join(advice.idle, ", "))}
+            </span>
+            <button
+              :if={advice.recommended}
+              type="button"
+              class="btn btn-sm btn-primary"
+              phx-click="apply_copies"
+              phx-value-uuid={profile.uuid}
+              phx-value-copies={advice.recommended}
+              phx-target={@myself}
+              data-confirm={
+                gettext(
+                  "Set Copies of each original to %{count}? Files already stored are copied to the extra bucket in the background; the Health page shows what is left.",
+                  count: advice.recommended
+                )
+              }
+            >
+              {gettext("Keep every original on %{count} buckets", count: advice.recommended)}
+            </button>
+          </div>
 
           <div class="overflow-x-auto mt-4">
             <div class="min-w-[58rem]">
