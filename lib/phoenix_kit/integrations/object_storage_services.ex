@@ -120,6 +120,19 @@ defmodule PhoenixKit.Integrations.ObjectStorageServices do
     end
   end
 
+  @doc """
+  The name of the service a connection is for (`Tigris`, `Cloudflare R2`, …),
+  nil for one with nothing saved yet. For the lists, where the provider's own
+  name ("Object Storage (S3-compatible)") is the same for all of them.
+  """
+  @spec label(values()) :: String.t() | nil
+  def label(data) do
+    case current(data) do
+      nil -> nil
+      service -> name(service)
+    end
+  end
+
   @doc "The service an endpoint host belongs to (`other` for one nobody knows)."
   @spec infer(String.t()) :: String.t()
   def infer(endpoint) do

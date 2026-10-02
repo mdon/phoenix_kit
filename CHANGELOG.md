@@ -1,3 +1,14 @@
+## Unreleased
+
+### Changed
+
+- **The Integrations lists say which service an Object Storage connection is.** Every Object
+  Storage connection read "Object Storage (S3-compatible)", so a Tigris connection could not be told
+  from an Amazon or a Backblaze one. The table (Settings → Integrations and My Integrations) now
+  shows the service — Tigris, Cloudflare R2, Backblaze B2, … — as a badge next to the provider, and
+  as a "Service" row in the card view. A provider with a `:setup_module` can add its own with an
+  optional `label/1` (`Providers.setup_label/2`).
+
 ## 2.45.0 - 2026-10-02
 
 ### Added

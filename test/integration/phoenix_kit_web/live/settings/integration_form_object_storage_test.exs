@@ -169,4 +169,21 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationFormObjectStorageTest do
     assert html =~ ~r/<option[^>]*value="backblaze_b2"[^>]*selected/
     assert html =~ ~s(value="us-west-002")
   end
+
+  test "the list says which service an Object Storage connection is", %{conn: conn} do
+    {:ok, %{uuid: uuid}} = Integrations.add_connection("object_storage", "list me")
+
+    {:ok, _} =
+      Integrations.save_setup(uuid, %{
+        "access_key" => "K",
+        "secret_key" => "S",
+        "service" => "tigris",
+        "endpoint" => "t3.storage.dev"
+      })
+
+    {:ok, _view, html} = live(conn, Routes.path("/admin/settings/integrations"))
+
+    assert html =~ "Object Storage (S3-compatible)"
+    assert html =~ ~r/badge[^>]*>\s*Tigris\s*</
+  end
 end

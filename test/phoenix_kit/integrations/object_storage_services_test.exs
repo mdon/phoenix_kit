@@ -249,6 +249,19 @@ defmodule PhoenixKit.Integrations.ObjectStorageServicesTest do
     end
   end
 
+  describe "label/1" do
+    test "names the service of a connection, inferring it for an old one" do
+      assert Services.label(%{"service" => "tigris"}) == "Tigris"
+      assert Services.label(%{"endpoint" => "s3.us-west-002.backblazeb2.com"}) == "Backblaze B2"
+      assert Services.label(%{}) == nil
+
+      assert Providers.setup_label(Providers.get("object_storage"), %{"service" => "wasabi"}) ==
+               "Wasabi"
+
+      assert Providers.setup_label(Providers.get("smtp"), %{"host" => "h"}) == nil
+    end
+  end
+
   describe "the provider" do
     test "still declares the four keys a connection is read by, with only the keys required" do
       provider = Providers.get("object_storage")

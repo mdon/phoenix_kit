@@ -1628,6 +1628,19 @@ defmodule PhoenixKit.Integrations.Providers do
   def setup_changed(_provider, previous, incoming), do: Map.merge(previous, incoming)
 
   @doc """
+  What kind of account a connection is, for a provider whose one entry covers
+  many (Object Storage: Tigris, Cloudflare R2, …) — shown next to the provider
+  name in the lists, since "Object Storage (S3-compatible)" alone does not say
+  which. nil when the provider has nothing to add.
+  """
+  @spec setup_label(provider() | nil, map()) :: String.t() | nil
+  def setup_label(%{setup_module: module}, data) when is_atom(module) and is_map(data) do
+    if function_exported?(module, :label, 1), do: module.label(data)
+  end
+
+  def setup_label(_provider, _data), do: nil
+
+  @doc """
   The saved values a form may show next to the typed ones (see
   `ObjectStorageServices.saved/2`).
   """

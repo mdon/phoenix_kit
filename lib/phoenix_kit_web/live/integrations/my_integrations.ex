@@ -195,6 +195,12 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrations do
                   }
                 ]
 
+                fields =
+                  case Providers.setup_label(conn.provider, conn.data) do
+                    nil -> fields
+                    label -> fields ++ [%{label: gettext("Service"), value: label}]
+                  end
+
                 fields = fields ++ [%{label: gettext("Name"), value: conn.name}]
 
                 if conn.data["external_account_id"],
@@ -220,6 +226,12 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrations do
               <div class="flex items-center gap-2">
                 <.icon name={conn.provider.icon} class="w-5 h-5" />
                 <span class="font-medium">{conn.provider.name}</span>
+                <span
+                  :if={Providers.setup_label(conn.provider, conn.data)}
+                  class="badge badge-ghost badge-xs"
+                >
+                  {Providers.setup_label(conn.provider, conn.data)}
+                </span>
                 <span class="badge badge-ghost badge-xs">{conn.name}</span>
               </div>
             </:card_header>
@@ -247,6 +259,12 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrations do
                   <div class="flex items-center gap-2">
                     <.icon name={conn.provider.icon} class="w-4 h-4 text-base-content/60" />
                     <span>{conn.provider.name}</span>
+                    <span
+                      :if={Providers.setup_label(conn.provider, conn.data)}
+                      class="badge badge-ghost badge-sm"
+                    >
+                      {Providers.setup_label(conn.provider, conn.data)}
+                    </span>
                   </div>
                 </.table_default_cell>
                 <.table_default_cell>
