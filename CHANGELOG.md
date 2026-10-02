@@ -1,4 +1,4 @@
-## Unreleased
+## 2.45.0 - 2026-10-02
 
 ### Added
 
@@ -49,6 +49,12 @@
   `PhoenixKitWeb.Live.Settings.UrlTabs` (`active/2`, `patch_links/2`) is the shared helper. The
   `switch_settings_tab` event is gone from these pages; the Media page's "Details" link on the
   missing-tools warning is a link to `?tab=external_libraries` now.
+
+### i18n
+
+- The strings the Object Storage service form and the storage bucket form added (37 in all) are
+  extracted and translated in de, es, et, fr, it, pl and ru; no entry is fuzzy.
+
 
 ## 2.44.0 - 2026-10-01
 
