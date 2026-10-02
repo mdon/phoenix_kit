@@ -288,6 +288,43 @@ With `layout: false` a text-only email is sent as plain text, an `html`
 part is sent exactly as written, and a `markdown` part is sent as the bare
 HTML it renders to.
 
+### Using the header and footer in your own document
+
+Code that builds its own document — a module's newsletter wrapper, say —
+can still show the site's header and footer.
+`PhoenixKit.Email.Layout.render_parts/2` renders those two parts on their
+own. It chooses them the same way the layout does: the group's file, then
+the shared one, then PhoenixKit's; the reader's language file first; an
+empty file counts as missing. It takes the layout's `:locale`, `:paths`,
+`:group` and `:branding` options:
+
+```elixir
+alias PhoenixKit.Email.Layout
+alias PhoenixKit.Templates.Substitution
+
+parts = Layout.render_parts(subject, locale: "de", group: "newsletter")
+
+variables =
+  Map.merge(parts.variables, %{
+    "header" => parts.header,
+    "footer" => parts.footer,
+    "content" => body_html
+  })
+
+Substitution.substitute(wrapper_html, variables, escape: true)
+```
+
+- `parts.header` and `parts.footer` are HTML. Place them with three braces
+  (`{{{header}}}`, `{{{footer}}}`).
+- `parts.variables` are the variables the parts were rendered with, from
+  the table above: `subject`, `site_name`, `site_url`, `logo_url`,
+  `accent_color`.
+- `parts.sources` says which file each part came from, or `:default` for
+  PhoenixKit's own.
+
+Every wrapped email gets its header and footer from this same function, so
+the two cannot differ.
+
 ## Branding: logo and accent colour
 
 Two variables carry the site's branding into every part — the layout, the
