@@ -568,7 +568,7 @@ defmodule PhoenixKit.Email.LayoutTest do
     @branding %{"logo_url" => "", "accent_color" => "#1d4ed8"}
 
     test "without host files: core's header and footer, and the variables they saw" do
-      parts = Layout.render_parts("Hi", branding: @branding)
+      parts = Layout.render_parts("Hi", paths: [], branding: @branding)
 
       site_name = Settings.get_project_title()
 
@@ -652,6 +652,7 @@ defmodule PhoenixKit.Email.LayoutTest do
     test "branding: the logo in core's header; invalid values read as none" do
       logo =
         Layout.render_parts("s",
+          paths: [],
           branding: %{"logo_url" => "https://a.test/logo.jpg", "accent_color" => "#1d4ed8"}
         )
 
@@ -660,6 +661,7 @@ defmodule PhoenixKit.Email.LayoutTest do
 
       bad =
         Layout.render_parts("s",
+          paths: [],
           branding: %{"logo_url" => "javascript:alert(1)", "accent_color" => "red;x:url(y)"}
         )
 
@@ -701,16 +703,28 @@ defmodule PhoenixKit.Email.LayoutTest do
       assert parts.variables["subject"] == ""
     end
 
-    test "an invalid group is ignored, with a warning", %{tmp_dir: root} do
+    test "an invalid group is ignored, with one warning per call", %{tmp_dir: root} do
       write(root, "_header", "html.html", "shared-header")
+      write(root, "_layout", "html.html", "[{{{header}}}|{{{content}}}]")
 
-      log =
+      # A group name no other test uses, so the count is this call's alone.
+      group = "../render-parts-#{System.unique_integer([:positive])}"
+
+      parts_log =
         capture_log(fn ->
-          assert Layout.render_parts("s", paths: [root], group: "../x").header ==
+          assert Layout.render_parts("s", paths: [root], group: group).header ==
                    "shared-header"
         end)
 
-      assert log =~ "not a valid group name"
+      render_log =
+        capture_log(fn ->
+          assert Layout.wrap("x", "s", paths: [root], group: group) == "[shared-header|x]"
+        end)
+
+      for log <- [parts_log, render_log] do
+        assert length(Regex.scan(~r/#{Regex.escape(inspect(group))} is not a valid group/, log)) ==
+                 1
+      end
     end
 
     test "render/3 places exactly these parts", %{tmp_dir: root} do

@@ -296,13 +296,16 @@ can still show the site's header and footer.
 own. It chooses them the same way the layout does: the group's file, then
 the shared one, then PhoenixKit's; the reader's language file first; an
 empty file counts as missing. It takes the layout's `:locale`, `:paths`,
-`:group` and `:branding` options:
+`:group` and `:branding` options. Without `:paths` it reads the same
+directories as every email (`config :phoenix_kit, template_paths:`, else the
+host app's `priv/phoenix_kit_templates`); pass `paths: []` for PhoenixKit's
+own parts only.
 
 ```elixir
 alias PhoenixKit.Email.Layout
 alias PhoenixKit.Templates.Substitution
 
-parts = Layout.render_parts(subject, locale: "de", group: "newsletter")
+parts = Layout.render_parts(subject, locale: "de", group: "newsletters")
 
 variables =
   Map.merge(parts.variables, %{
@@ -318,12 +321,16 @@ Substitution.substitute(wrapper_html, variables, escape: true)
   (`{{{header}}}`, `{{{footer}}}`).
 - `parts.variables` are the variables the parts were rendered with, from
   the table above: `subject`, `site_name`, `site_url`, `logo_url`,
-  `accent_color`.
-- `parts.sources` says which file each part came from, or `:default` for
-  PhoenixKit's own.
+  `accent_color`, plus any other key of a `:branding` map you pass, as
+  given. They are **raw text, not HTML**: nothing in them is escaped. Write
+  them with two braces (`{{site_name}}`) and substitute with
+  `escape: true`, as above. Only `header` and `footer` take three.
+- `parts.sources` says which file each part came from (`{:file, path}`),
+  or `:default` for PhoenixKit's own. Its `ignored` list names the files
+  passed over on the way, such as an empty `_header`.
 
-Every wrapped email gets its header and footer from this same function, so
-the two cannot differ.
+A wrapped email's header and footer are chosen by the same code, so the
+two cannot differ.
 
 ## Branding: logo and accent colour
 

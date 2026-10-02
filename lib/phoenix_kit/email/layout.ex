@@ -101,6 +101,7 @@ defmodule PhoenixKit.Email.Layout do
   """
 
   alias PhoenixKit.Email.Branding
+  alias PhoenixKit.Email.Content
   alias PhoenixKit.Settings
   alias PhoenixKit.Templates.Overrides
   alias PhoenixKit.Templates.Substitution
@@ -148,13 +149,20 @@ defmodule PhoenixKit.Email.Layout do
     * `variables` — the variables the parts were rendered with (see
       "Variables" above, without `content`/`header`/`footer`), for a caller
       whose own wrapper names `{{site_name}}`, `{{accent_color}}` and the like.
-    * `sources` — where each part came from, and the files passed over on
-      the way (`{:blank_file, path}` for an empty one).
+      These are **raw text, not HTML**: `subject`, `site_name`, `site_url`
+      and `logo_url` are not escaped. Place them with two braces and
+      substitute with `escape: true`; only `header` and `footer` take three.
+      Any other key of a caller's `:branding` map is carried through as given
+      (`render/3` places it in the layout the same way); `subject`,
+      `site_name` and `site_url` always win over a key of the same name.
+    * `sources` — where each part came from (`{:file, path}` or `:default`),
+      and under `ignored` the files passed over on the way
+      (`{:blank_file, path}` for an empty one).
   """
   @type parts :: %{
           header: String.t(),
           footer: String.t(),
-          variables: %{String.t() => String.t()},
+          variables: %{String.t() => term()},
           sources: %{
             header: source(),
             footer: source(),
@@ -363,14 +371,19 @@ defmodule PhoenixKit.Email.Layout do
   For a caller that builds its own document but wants the site's chrome in
   it — a newsletter's wrapper, say, placing `{{{header}}}` and `{{{footer}}}`
   around its own body. The parts are chosen exactly as `render/3` chooses
-  them, which is built on this function: per group, locale and override
-  root, an empty file counting as missing, core's own part last (see
-  "Groups" and "Core's defaults" above).
+  them — both use the same private resolution: per group, locale and
+  override root, an empty file counting as missing, core's own part last
+  (see "Groups" and "Core's defaults" above).
 
   Takes `render/3`'s `:locale`, `:paths`, `:group` and `:branding` options;
-  `subject` may be `nil`. Returns `t:parts/0`:
+  `subject` may be `nil`. One default differs: without `:paths` (or with
+  `paths: nil`) the host's override roots are read,
+  `PhoenixKit.Email.Content.override_paths/0` — the same roots
+  `PhoenixKit.Email.Content.resolve/5` reads — so a caller gets the host's
+  `_header`/`_footer` files without naming them. Pass `paths: []` for core's
+  parts only. Returns `t:parts/0`:
 
-      parts = Layout.render_parts(subject, locale: "de", group: "newsletter")
+      parts = Layout.render_parts(subject, locale: "de", group: "newsletters")
 
       variables =
         Map.merge(parts.variables, %{
@@ -381,10 +394,12 @@ defmodule PhoenixKit.Email.Layout do
 
       Substitution.substitute(wrapper, variables, escape: true)
 
-  `header` and `footer` are HTML: place them with three braces.
+  `header` and `footer` are HTML: place them with three braces. Everything
+  in `variables` is raw text: place it with two braces, under `escape: true`.
   """
   @spec render_parts(String.t() | nil, keyword()) :: parts()
   def render_parts(subject, opts \\ []) do
+    opts = Keyword.put(opts, :paths, Keyword.get(opts, :paths) || Content.override_paths())
     parts(subject, options(opts), opts)
   end
 
