@@ -1,4 +1,4 @@
-## Unreleased
+## 2.46.0 - 2026-10-02
 
 ### Added
 
@@ -51,6 +51,13 @@
 - **A profile's "Used by" count left out the libraries that use it without naming it.** The Default
   said "Used by 0 libraries" while the Media library, which names no profile and so uses the
   Default, said it was on it. The Default's count now includes the libraries with no profile of their own.
+
+### i18n
+
+- The strings the Media Buckets list, the Storage profiles tab, the Configuration tab and the
+  per-library annotated thumbnails added (31 in all, one with plural forms) are extracted and
+  translated in de, es, et, fr, it, pl and ru; no entry is fuzzy.
+
 
 ## 2.45.0 - 2026-10-02
 
