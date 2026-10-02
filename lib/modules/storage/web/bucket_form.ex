@@ -14,6 +14,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
 
   alias PhoenixKit.Integrations
   alias PhoenixKit.Integrations.Events, as: IntegrationEvents
+  alias PhoenixKit.Integrations.ObjectStorageServices, as: Services
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.Bucket
   alias PhoenixKit.Modules.Storage.BucketCredentials
@@ -374,12 +375,21 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
     with true <- uuid != socket.assigns.selected_connection_uuid,
          %{} = connection <- Enum.find(socket.assigns.connections, &(&1.uuid == uuid)) do
       params
+      |> put_provider_of(connection)
       |> put_new_present("region", connection.region)
       |> put_new_present("endpoint", connection.endpoint)
     else
       _ -> params
     end
   end
+
+  # The connection knows which service it is for (Cloudflare R2, Tigris, …), and
+  # the bucket's provider decides how files are addressed, so a newly picked
+  # connection brings its provider with it instead of leaving the two to disagree.
+  defp put_provider_of(params, %{service: nil}), do: params
+
+  defp put_provider_of(params, %{service: service}),
+    do: Map.put(params, "provider", Services.bucket_provider(service))
 
   defp put_new_present(params, key, value) do
     if blank_to_nil(params[key]) == nil and blank_to_nil(value) != nil,
@@ -405,6 +415,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
           name: name,
           region: data["region"],
           endpoint: data["endpoint"],
+          service: Services.current(data),
           configured: is_binary(data["access_key"]) and data["access_key"] != ""
         }
       end)

@@ -233,11 +233,15 @@
                  `saved_value` is safe to echo, masking it for `:password`
                  fields instead of round-tripping a decrypted secret into the
                  markup (D011). --%>
+            <%!-- A provider may shape its form from what is typed (object storage
+                 asks different things per service), so the field list is asked
+                 for rather than read off the provider. --%>
+            <% saved = Providers.setup_saved(@provider, @data, @form_values) %>
             <.setup_field
-              :for={field <- @provider.setup_fields}
+              :for={field <- Providers.setup_fields(@provider, Map.merge(saved, @form_values))}
               field={field}
               typed_value={to_string(Map.get(@form_values, field.key) || "")}
-              saved_value={to_string(@data[field.key] || "")}
+              saved_value={to_string(saved[field.key] || "")}
             />
 
             <%!-- Action row at the bottom of the same card body.

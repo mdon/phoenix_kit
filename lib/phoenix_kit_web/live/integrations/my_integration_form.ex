@@ -131,6 +131,24 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
     end
   end
 
+  # A field that re-shapes the form (the object-storage service) changed: keep
+  # what is typed so far and render the fields the new choice asks for.
+  def handle_event("setup_changed", params, socket) do
+    provider = socket.assigns.provider
+    keys = Enum.map(provider.setup_fields, & &1.key)
+
+    typed = Providers.setup_changed(provider, socket.assigns.form_values, Map.take(params, keys))
+
+    socket = assign(socket, :form_values, typed)
+
+    socket =
+      if socket.assigns.live_action == :new and is_binary(params["name"]),
+        do: assign(socket, :new_name, params["name"]),
+        else: socket
+
+    {:noreply, socket}
+  end
+
   def handle_event("back_to_providers", _params, socket) do
     {:noreply,
      assign(socket, selected_provider: nil, provider: nil, new_name: "", form_values: %{})}
@@ -524,27 +542,9 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
 
   defp reload(socket), do: socket
 
-  # Only the provider's declared setup-field keys are persisted — form params
-  # can't sneak arbitrary keys into the JSONB.
-  #
-  # Blanks are dropped for `:password` fields ONLY, so an untouched (and never
-  # re-rendered) secret can't be blanked by submitting the form. Every other
-  # field persists its blank: the website form has always done exactly this, and
-  # dropping blanks everywhere meant a cleared optional field — an SMTP CA
-  # bundle, a timeout — silently kept its old value with the form showing empty.
-  defp setup_attrs(params, %{setup_fields: fields}) when is_list(fields) do
-    Enum.reduce(fields, %{}, fn field, acc ->
-      value = String.trim(to_string(params[field.key] || ""))
-
-      if Map.get(field, :type) == :password and value == "" do
-        acc
-      else
-        Map.put(acc, field.key, value)
-      end
-    end)
-  end
-
-  defp setup_attrs(_params, _provider), do: %{}
+  # Only the provider's declared setup-field keys are persisted, and a blank
+  # is dropped for `:password` fields only (see `Providers.setup_attrs/2`).
+  defp setup_attrs(params, provider), do: Providers.setup_attrs(provider, params)
 
   @impl true
   def render(assigns) do
@@ -609,11 +609,12 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
                   />
                 </div>
 
+                <% saved = Providers.setup_saved(@provider, @data, @form_values) %>
                 <.setup_field
-                  :for={field <- @provider.setup_fields}
+                  :for={field <- Providers.setup_fields(@provider, Map.merge(saved, @form_values))}
                   field={field}
                   typed_value={to_string(Map.get(@form_values, field.key) || "")}
-                  saved_value={to_string(@data[field.key] || "")}
+                  saved_value={to_string(saved[field.key] || "")}
                 />
 
                 <div class="flex flex-wrap gap-2 items-center pt-2">

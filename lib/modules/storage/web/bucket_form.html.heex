@@ -214,7 +214,7 @@
                   case @current_provider do
                     "b2" -> "e.g., s3.us-west-002.backblazeb2.com"
                     "r2" -> "e.g., {account_id}.r2.cloudflarestorage.com"
-                    "tigris" -> "e.g., fly.storage.tigris.dev"
+                    "tigris" -> "e.g., t3.storage.dev"
                     _ -> "e.g., minio.example.com:9000"
                   end
                 }
@@ -271,7 +271,16 @@
                 name="bucket[integration_uuid]"
                 value={@selected_connection_uuid}
                 prompt={gettext("Select a connection...")}
-                options={Enum.map(@connections, &{&1.name, &1.uuid})}
+                options={
+                  Enum.map(@connections, fn connection ->
+                    label =
+                      if connection.service,
+                        do: "#{connection.name} — #{Services.name(connection.service)}",
+                        else: connection.name
+
+                    {label, connection.uuid}
+                  end)
+                }
               />
               <p class="text-xs text-base-content/50 mt-1">
                 {gettext("The access keys come from an Object Storage connection.")}

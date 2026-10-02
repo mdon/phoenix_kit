@@ -110,6 +110,24 @@ defmodule PhoenixKitWeb.Live.Integrations.PersonalProvidersTest do
     end
   end
 
+  describe "the personal Object Storage form" do
+    test "opens on the service choice and follows it, like the site-wide one", %{conn: conn} do
+      {:ok, _} = Providers.put_personal_enabled(["object_storage"])
+
+      {:ok, view, _html} =
+        live(personal_user(conn), Routes.path("/profile/settings/integrations/new"))
+
+      html = render_click(view, "select_provider", %{"provider" => "object_storage"})
+      assert html =~ ~s(name="service" id="field-service")
+      refute html =~ ~s(name="access_key")
+
+      html = view |> element("#field-service") |> render_change(%{"service" => "cloudflare_r2"})
+      assert html =~ ~s(name="account_id" id="field-account_id")
+      assert html =~ ~s(name="access_key")
+      refute html =~ ~s(name="endpoint" id="field-endpoint")
+    end
+  end
+
   describe "Settings → Integrations" do
     test "lists every provider that may be personal, ticked as offered", %{conn: conn} do
       {:ok, view, _html} = live(admin(conn), Routes.path("/admin/settings/integrations"))

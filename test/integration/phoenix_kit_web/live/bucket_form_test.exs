@@ -130,6 +130,26 @@ defmodule PhoenixKitWeb.Live.BucketFormTest do
       assert html =~ "s3.eu-central-003.backblazeb2.com"
     end
 
+    test "picking a connection brings its provider, and the picker names its service", %{
+      conn: conn
+    } do
+      uuid =
+        connection("tig", %{"service" => "tigris", "endpoint" => "t3.storage.dev"})
+
+      {:ok, view, _html} = live(conn, @new_path)
+
+      html = render_change(view, "validate", %{"bucket" => %{"provider" => "s3"}})
+      assert html =~ "tig — Tigris"
+
+      html =
+        render_change(view, "validate", %{
+          "bucket" => %{"provider" => "s3", "integration_uuid" => uuid}
+        })
+
+      assert html =~ ~s(<option selected="" value="tigris">)
+      assert html =~ "t3.storage.dev"
+    end
+
     test "a connection added elsewhere appears in the picker without a reload", %{conn: conn} do
       {:ok, view, _html} = live(conn, @new_path)
       render_change(view, "validate", %{"bucket" => %{"provider" => "s3"}})

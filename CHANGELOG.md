@@ -1,7 +1,32 @@
 ## Unreleased
 
+### Added
+
+- **The Object Storage integration opens on a choice of service and asks only what that service
+  needs.** "S3-compatible" is a protocol, not a place: the form (site-wide and personal alike)
+  now starts with a Service select — Amazon S3, Cloudflare R2, Backblaze B2, Tigris, Wasabi,
+  DigitalOcean Spaces, or Other S3-compatible — and shows that service's own fields:
+  a grouped region list for Amazon (from `aws_regions`), a region with suggestions for
+  Backblaze, Wasabi and Spaces, the account id and optional jurisdiction for R2 (a pasted
+  `<id>.r2.cloudflarestorage.com` is read for you), nothing but the keys for Tigris, and an
+  endpoint for anything else. Field labels and help follow the service ("Application Key ID" for
+  Backblaze, where in the console to find each key). The endpoint is built for you
+  (`s3.<region>.backblazeb2.com`, `<account>.r2.cloudflarestorage.com`, `t3.storage.dev`, …);
+  what is stored is still `access_key`, `secret_key`, `region` and `endpoint`, plus `service`,
+  `account_id` and `jurisdiction` so an edit shows the choice again. A connection saved before this
+  opens on the service its endpoint names, so nothing needs migrating. The logic is
+  `PhoenixKit.Integrations.ObjectStorageServices`, reached through the new
+  `Providers.setup_fields/2`, `setup_attrs/2`, `setup_changed/3` and `setup_saved/3` and a
+  provider's optional `:setup_module`, so any provider can shape its form the same way.
+  `setup_field/1` gains `:combo` (free text with suggestions), grouped selects, a `prompt` and a
+  field-level `on_change`.
+- **A bucket follows its connection's service.** Picking a connection on the bucket form sets the
+  bucket's provider (R2, B2, Tigris, otherwise S3) and fills the endpoint and region; the picker
+  names each connection's service.
+
 ### Changed
 
+- The Tigris bucket endpoint placeholder is `t3.storage.dev`.
 - **Settings → Integrations is split into tabs.** "Connections" and "Personal integrations" (which
   services users may connect on their own) are tabs of the page; the encryption key warning stays
   above them, so it is seen whichever one is open.

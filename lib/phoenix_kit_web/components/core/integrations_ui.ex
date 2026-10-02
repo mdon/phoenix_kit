@@ -282,13 +282,22 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationsUI do
            modules through `integration_providers/0`, and a field map missing
            :type / :options / :placeholder must fall back to a text input, not
            take the whole form down with a KeyError. --%>
+      <%!-- `on_change` (a field's own `phx-change`) is how a field re-shapes
+           the form — the object-storage service choice — without every other
+           input pushing an event per keystroke. `prompt` is a leading empty
+           option, so a required choice starts unmade instead of on the first
+           entry; `groups` renders `<optgroup>`s. --%>
       <select
         :if={field_type(@field) == :select}
         name={@field.key}
         id={"field-#{@field.key}"}
         class="select w-full"
         required={@field.required}
+        phx-change={Map.get(@field, :on_change)}
       >
+        <option :if={Map.get(@field, :prompt)} value="" selected={@value == ""}>
+          {@field.prompt}
+        </option>
         <option
           :for={option <- Map.get(@field, :options) || []}
           value={option.value}
@@ -296,7 +305,32 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationsUI do
         >
           {option.label}
         </option>
+        <optgroup :for={{label, options} <- Map.get(@field, :groups) || []} label={label}>
+          <option :for={option <- options} value={option.value} selected={option.value == @value}>
+            {option.label}
+          </option>
+        </optgroup>
       </select>
+
+      <%!-- Free text with suggestions, for a list that may be out of date. --%>
+      <input
+        :if={field_type(@field) == :combo}
+        type="text"
+        name={@field.key}
+        id={"field-#{@field.key}"}
+        value={@value}
+        list={"field-#{@field.key}-options"}
+        class="input w-full"
+        placeholder={@placeholder}
+        required={@required}
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <datalist :if={field_type(@field) == :combo} id={"field-#{@field.key}-options"}>
+        <option :for={option <- Map.get(@field, :options) || []} value={option.value}>
+          {option.label}
+        </option>
+      </datalist>
 
       <textarea
         :if={field_type(@field) == :textarea}
@@ -310,7 +344,7 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationsUI do
       >{@value}</textarea>
 
       <input
-        :if={field_type(@field) not in [:select, :textarea]}
+        :if={field_type(@field) not in [:select, :textarea, :combo]}
         type={if field_type(@field) == :number, do: "number", else: "text"}
         name={@field.key}
         id={"field-#{@field.key}"}

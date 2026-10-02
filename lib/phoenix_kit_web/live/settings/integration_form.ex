@@ -281,6 +281,26 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
     end
   end
 
+  # A field that re-shapes the form (the object-storage service) changed: keep
+  # what is typed so far and render the fields the new choice asks for. Only
+  # the declared keys are taken, and the name is kept so the re-render does not
+  # blank it.
+  def handle_event("setup_changed", params, socket) do
+    provider = socket.assigns.provider
+    keys = Enum.map(provider.setup_fields, & &1.key)
+
+    typed = Providers.setup_changed(provider, socket.assigns.form_values, Map.take(params, keys))
+
+    socket = assign(socket, :form_values, typed)
+
+    socket =
+      if socket.assigns.name == nil and is_binary(params["name"]),
+        do: assign(socket, :new_name, params["name"]),
+        else: socket
+
+    {:noreply, socket}
+  end
+
   def handle_event("dismiss", _params, socket) do
     {:noreply, assign(socket, success: nil, error: nil, warning: nil)}
   end
@@ -644,27 +664,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
   end
 
   defp extract_setup_attrs(provider_key, params) do
-    case Providers.get(provider_key) do
-      nil ->
-        %{}
-
-      provider ->
-        Enum.reduce(provider.setup_fields, %{}, fn field, acc ->
-          value = String.trim(params[field.key] || "")
-
-          # Soft `:type` access for the same reason `setup_field/1` renders
-          # softly: a provider contributed by an external module through
-          # `integration_providers/0` may omit it, and a form that renders fine
-          # then raises KeyError on save is the worst of both.
-          #
-          # For password fields, skip empty values to keep the existing credential
-          if Map.get(field, :type) == :password and value == "" do
-            acc
-          else
-            Map.put(acc, field.key, value)
-          end
-        end)
-    end
+    Providers.setup_attrs(Providers.get(provider_key), params)
   end
 
   defp reload_data(socket) do

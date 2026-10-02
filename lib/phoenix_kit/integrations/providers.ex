@@ -45,6 +45,12 @@ defmodule PhoenixKit.Integrations.Providers do
           optional(:base_url) => String.t(),
           optional(:validation) => map(),
           optional(:instructions) => [map()],
+          # A module that shapes the setup form from what has been typed so far
+          # (`setup_fields/2`, `setup_attrs/2`, `setup_changed/3`,
+          # `setup_saved/3` below call it). `setup_fields` stays the provider's
+          # static declaration — which keys exist and which are required —
+          # while the module decides which of them a form shows.
+          optional(:setup_module) => module(),
           # Which integration surfaces may hold a connection for this provider.
           # `:system` = the website-wide setup; `:personal` = a user's own
           # setup. Absent ⇒ `[:system]` (a provider opts INTO personal use
@@ -974,7 +980,19 @@ defmodule PhoenixKit.Integrations.Providers do
       # Checked against the storage API itself (ListBuckets) — see
       # PhoenixKit.Integrations.Validators.
       validation: %{strategy: :object_storage},
+      # The form opens on a choice of service and asks only what that service
+      # needs; the fields below are what a connection stores.
+      setup_module: PhoenixKit.Integrations.ObjectStorageServices,
       setup_fields: [
+        %{
+          key: "service",
+          label: gettext("Service"),
+          type: :select,
+          required: false,
+          placeholder: nil,
+          help: nil,
+          options: nil
+        },
         %{
           key: "access_key",
           label: gettext("Access Key ID"),
@@ -1015,6 +1033,26 @@ defmodule PhoenixKit.Integrations.Providers do
             gettext(
               "Required for Cloudflare R2, Backblaze B2, Tigris, and self-hosted S3-compatible storage. Leave blank for AWS S3."
             ),
+          options: nil
+        },
+        # Remembered so an edit shows what was chosen; the endpoint is built
+        # from them (see `ObjectStorageServices`).
+        %{
+          key: "account_id",
+          label: gettext("Account ID"),
+          type: :text,
+          required: false,
+          placeholder: nil,
+          help: nil,
+          options: nil
+        },
+        %{
+          key: "jurisdiction",
+          label: gettext("Jurisdiction"),
+          type: :text,
+          required: false,
+          placeholder: nil,
+          help: nil,
           options: nil
         }
       ],
@@ -1528,6 +1566,76 @@ defmodule PhoenixKit.Integrations.Providers do
       end
     end)
   end
+
+  # ---------------------------------------------------------------------------
+  # Setup form
+  #
+  # The two integration forms (admin and personal) render and save through
+  # these, so a provider that shapes its form (`:setup_module`) does so in both
+  # and the persisted-keys rule lives in one place.
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  The setup fields a form shows. `values` are the saved and typed values merged
+  (typed over saved); a provider without a `:setup_module` always shows its
+  declared `setup_fields`.
+  """
+  @spec setup_fields(provider(), map()) :: [map()]
+  def setup_fields(provider, values \\ %{})
+
+  def setup_fields(%{setup_module: module}, values) when is_atom(module),
+    do: module.fields(values)
+
+  def setup_fields(%{setup_fields: fields}, _values) when is_list(fields), do: fields
+  def setup_fields(_provider, _values), do: []
+
+  @doc "Whether the form's fields depend on what has been typed."
+  @spec dynamic_setup?(provider() | nil) :: boolean()
+  def dynamic_setup?(%{setup_module: module}) when is_atom(module), do: true
+  def dynamic_setup?(_provider), do: false
+
+  @doc """
+  The attributes to save for a submitted form. Only keys the provider declares
+  are kept, so form params cannot add keys to the stored data. Blanks are
+  dropped for `:password` fields only: an untouched secret (never re-rendered)
+  must not be blanked by submitting the form, while a cleared optional field
+  must clear.
+  """
+  @spec setup_attrs(provider() | nil, map()) :: map()
+  def setup_attrs(%{setup_module: module}, params) when is_atom(module),
+    do: module.attrs(params)
+
+  def setup_attrs(%{setup_fields: fields}, params) when is_list(fields) do
+    Enum.reduce(fields, %{}, fn field, acc ->
+      value = params[field.key] |> to_string() |> String.trim()
+
+      if Map.get(field, :type) == :password and value == "",
+        do: acc,
+        else: Map.put(acc, field.key, value)
+    end)
+  end
+
+  def setup_attrs(_provider, _params), do: %{}
+
+  @doc """
+  The typed values once `incoming` (the form as just sent, declared keys only)
+  arrives over `previous`. Providers without a `:setup_module` just merge.
+  """
+  @spec setup_changed(provider() | nil, map(), map()) :: map()
+  def setup_changed(%{setup_module: module}, previous, incoming) when is_atom(module),
+    do: module.changed(previous, incoming)
+
+  def setup_changed(_provider, previous, incoming), do: Map.merge(previous, incoming)
+
+  @doc """
+  The saved values a form may show next to the typed ones (see
+  `ObjectStorageServices.saved/2`).
+  """
+  @spec setup_saved(provider() | nil, map(), map()) :: map()
+  def setup_saved(%{setup_module: module}, data, typed) when is_atom(module),
+    do: module.saved(data, typed)
+
+  def setup_saved(_provider, data, _typed), do: data
 
   @doc """
   Clears the cached provider list and used-by map.
