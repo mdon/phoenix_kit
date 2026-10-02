@@ -390,7 +390,38 @@ defmodule PhoenixKitWeb.Live.BucketFormTest do
       {:ok, _view, html} = live(conn, Routes.path("/admin/settings/media"))
 
       refute html =~ "unknown configuration"
-      assert html =~ "tigris:photos"
+      assert html =~ "photos · fly.storage.tigris.dev"
+      assert html =~ ~r/badge[^>]*>\s*Tigris\s*</
+    end
+
+    test "a cloud bucket reads Cloud and the service of its integration, a local one Local",
+         %{conn: conn} do
+      uuid =
+        connection("spaces", %{
+          "service" => "digitalocean_spaces",
+          "endpoint" => "fra1.digitaloceanspaces.com"
+        })
+
+      {:ok, _} =
+        Storage.create_bucket(%{
+          name: "On Spaces",
+          provider: "s3",
+          bucket_name: "media",
+          endpoint: "fra1.digitaloceanspaces.com",
+          integration_uuid: uuid
+        })
+
+      {:ok, _} =
+        Storage.create_bucket(%{name: "On disk", provider: "local", endpoint: "/var/pk/files"})
+
+      {:ok, _view, html} = live(conn, Routes.path("/admin/settings/media"))
+
+      assert html =~ "media · fra1.digitaloceanspaces.com"
+      assert html =~ ~r/badge[^>]*>\s*DigitalOcean Spaces\s*</
+      assert html =~ ~r/badge[^>]*>\s*Cloud\s*</
+      assert html =~ ~r/badge[^>]*>\s*Local\s*</
+      assert html =~ "/var/pk/files"
+      refute html =~ "s3:media"
     end
   end
 

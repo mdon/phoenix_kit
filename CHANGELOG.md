@@ -8,6 +8,11 @@
   shows the service — Tigris, Cloudflare R2, Backblaze B2, … — as a badge next to the provider, and
   as a "Service" row in the card view. A provider with a `:setup_module` can add its own with an
   optional `label/1` (`Providers.setup_label/2`).
+- **The Media Buckets list shows a Type and reads cleanly.** The Provider column is a Type column:
+  Local or Cloud, with the service a cloud bucket is on (the one its integration is for — Tigris,
+  Cloudflare R2, …) as a badge beside it. Under the bucket's name, the location is in words —
+  `fotki-dev-test1 · t3.storage.dev` for a cloud bucket, the path for a local one — instead of
+  `tigris:fotki-dev-test1https://t3.storage.dev`.
 
 ## 2.45.0 - 2026-10-02
 
