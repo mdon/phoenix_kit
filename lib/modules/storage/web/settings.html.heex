@@ -321,100 +321,45 @@
           </h2>
 
           <.form
-            for={%{"form_redundancy" => @form_redundancy}}
+            for={%{}}
             id="storage-media-config-form"
             phx-change="update_storage_form"
             class="grid grid-cols-1 md:grid-cols-2 gap-6"
           >
-            <%!-- Redundancy Settings --%>
-            <div class="fieldset">
-              <div class="mb-2">
-                <span class="fieldset-legend font-semibold">{gettext("Redundancy Copies")}</span>
-                <span class="block text-xs text-base-content/60">
-                  {gettext(
-                    "Copies of each file in the Default storage profile. A library on another profile uses that profile's copies (Storage profiles tab)."
-                  )}
-                </span>
-              </div>
-              <%= if @active_buckets_count == 0 do %>
-                <div class="alert alert-warning">
-                  <.icon name="hero-exclamation-triangle" class="w-4 h-4" />
-                  <span class="text-sm">
-                    {gettext(
-                      "No active buckets available. Enable buckets to configure redundancy."
-                    )}
-                  </span>
-                </div>
-              <% else %>
-                <%= if @form_redundancy > @max_redundancy do %>
-                  <div class="alert alert-warning">
-                    <.icon name="hero-exclamation-triangle" class="w-4 h-4" />
-                    <span class="text-sm">
-                      {gettext(
-                        "Current setting (%{count} copies) exceeds available buckets (%{max}).",
-                        count: @form_redundancy,
-                        max: @max_redundancy
-                      )} {gettext("Reduce redundancy or enable more buckets.")}
-                    </span>
-                  </div>
-                <% end %>
-                <.input
-                  type="number"
-                  name="form_redundancy"
-                  value={@form_redundancy}
-                  min="1"
-                  max={@max_redundancy}
-                  class={@form_redundancy > @max_redundancy && "input-warning"}
-                />
-                <p class="text-xs text-base-content/70 mt-1">
-                  {gettext("Enter number of copies")} (1-{@max_redundancy}).
-                  <%= if @max_redundancy == 1 do %>
-                    {gettext(
-                      "Only 1 active bucket available. Add more buckets to enable redundancy."
-                    )}
-                  <% else %>
-                    {gettext("Maximum %{count} copies based on %{buckets} active bucket(s).",
-                      count: @max_redundancy,
-                      buckets: @active_buckets_count
-                    )}
-                  <% end %>
-                </p>
-              <% end %>
-            </div>
-
-            <%!-- Auto-Variant Generation --%>
-            <div class="fieldset">
-              <.checkbox
-                name="form_auto_generate_variants"
-                checked={@form_auto_generate_variants}
-                phx-click="toggle_form_variants"
-                label={gettext("Auto-Generate Variants")}
-              >
-                <:description>
-                  {gettext(
-                    "Automatically resize images and videos to the sizes of the Default variant set. A library on another variant set follows that set."
-                  )}
-                </:description>
-              </.checkbox>
-            </div>
-
-            <%!-- Deep Zoom Tile Generation --%>
-            <div class="fieldset">
-              <.checkbox
-                name="form_tile_generation_enabled"
-                checked={@form_tile_generation_enabled}
-                phx-click="toggle_form_tile_generation"
-                label={gettext("Deep Zoom Tile Generation")}
-              >
-                <:description>
-                  {gettext(
-                    "Lazily generate DZI tile pyramids when users zoom deeply into images. With this off the MediaBrowser still swaps between medium/large variants while zooming, but never generates tiles or hits the lazy tile endpoint. ImageMagick is required when enabled."
-                  )}
-                  {gettext(
-                    "This is the Default variant set's setting; a library on another variant set follows that set."
-                  )}
-                </:description>
-              </.checkbox>
+            <%!-- Copies, sizes and tiles are set where they apply, not here. --%>
+            <div class="md:col-span-2 rounded-box bg-base-200 p-4 text-sm">
+              <p class="font-semibold">
+                {gettext("Copies, sizes and tiles are set per library")}
+              </p>
+              <ul class="mt-1 list-disc pl-5 text-base-content/70">
+                <li>
+                  {gettext("How many copies of each file are kept, and where:")}
+                  <.link
+                    patch={PhoenixKit.Utils.Routes.path("/admin/settings/media?tab=profiles")}
+                    class="link link-primary"
+                  >
+                    {gettext("Storage profiles")}
+                  </.link>
+                </li>
+                <li>
+                  {gettext("Which sizes are made automatically, and whether deep-zoom tiles are:")}
+                  <.link
+                    navigate={PhoenixKit.Utils.Routes.path("/admin/settings/media/dimensions")}
+                    class="link link-primary"
+                  >
+                    {gettext("Variant sets")}
+                  </.link>
+                </li>
+                <li>
+                  {gettext("Which profile and variant set a library uses:")}
+                  <.link
+                    patch={PhoenixKit.Utils.Routes.path("/admin/settings/media?tab=libraries")}
+                    class="link link-primary"
+                  >
+                    {gettext("Libraries")}
+                  </.link>
+                </li>
+              </ul>
             </div>
 
             <%!-- Annotated Thumbnails --%>
@@ -501,10 +446,7 @@
 
           <%!-- Apply Button --%>
           <% storage_form_clean =
-            @form_redundancy == @redundancy_copies and
-              @form_auto_generate_variants == @auto_generate_variants and
-              @form_tile_generation_enabled == @tile_generation_enabled and
-              @form_annotated_thumbnails_enabled == @annotated_thumbnails_enabled and
+            @form_annotated_thumbnails_enabled == @annotated_thumbnails_enabled and
               @form_image_edit_mode == @image_edit_mode and
               @form_max_upload_size_mb == @max_upload_size_mb %>
           <div class="fieldset mt-4">

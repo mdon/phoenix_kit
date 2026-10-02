@@ -38,27 +38,19 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
     bucket_file_counts = get_bucket_file_counts(buckets)
 
     # Load storage settings from database (using basic function to avoid cache issues)
-    redundancy_copies = to_string(Storage.redundancy_copies())
-    auto_generate_variants = to_string(Storage.get_auto_generate_variants())
     max_upload_size_mb = Settings.get_setting("storage_max_upload_size_mb", "500")
-    tile_generation_enabled = to_string(Storage.tile_generation_enabled?())
+
+    # What the missing-tools notice needs: whether the Default variant set makes
+    # tiles. Redundancy, sizes and tiles are edited on the Storage profiles tab
+    # and the variant sets page, not here.
+    tile_generation_enabled = Storage.tile_generation_enabled?()
 
     annotated_thumbnails_enabled =
       Settings.get_setting("storage_annotated_thumbnails_enabled", "false")
 
     image_edit_mode = ImageEditing.mode()
 
-    # Calculate maximum redundancy based on available buckets
-    active_buckets = Enum.count(buckets, & &1.enabled)
-    max_redundancy = if active_buckets > 0, do: active_buckets, else: 1
-
-    # Keep user's current redundancy setting unchanged
-    current_redundancy = String.to_integer(redundancy_copies)
-
     # Store form values for batch updates
-    form_redundancy = current_redundancy
-    form_auto_generate_variants = auto_generate_variants == "true"
-    form_tile_generation_enabled = tile_generation_enabled == "true"
     form_annotated_thumbnails_enabled = annotated_thumbnails_enabled == "true"
     current_max_upload_size_mb = String.to_integer(max_upload_size_mb)
 
@@ -70,15 +62,8 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
       |> assign(:buckets, buckets)
       |> assign(:bucket_connections, bucket_connections())
       |> assign(:bucket_file_counts, bucket_file_counts)
-      |> assign(:redundancy_copies, current_redundancy)
-      |> assign(:auto_generate_variants, auto_generate_variants == "true")
-      |> assign(:tile_generation_enabled, tile_generation_enabled == "true")
+      |> assign(:tile_generation_enabled, tile_generation_enabled)
       |> assign(:annotated_thumbnails_enabled, annotated_thumbnails_enabled == "true")
-      |> assign(:active_buckets_count, active_buckets)
-      |> assign(:max_redundancy, max_redundancy)
-      |> assign(:form_redundancy, form_redundancy)
-      |> assign(:form_auto_generate_variants, form_auto_generate_variants)
-      |> assign(:form_tile_generation_enabled, form_tile_generation_enabled)
       |> assign(:form_annotated_thumbnails_enabled, form_annotated_thumbnails_enabled)
       |> assign(:max_upload_size_mb, current_max_upload_size_mb)
       |> assign(:form_max_upload_size_mb, current_max_upload_size_mb)
@@ -114,104 +99,12 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
     {:noreply, assign(socket, :external_tools, Dependencies.external_tools())}
   end
 
-  def handle_event("update_redundancy", %{"redundancy_copies" => copies}, socket) do
-    requested_copies = String.to_integer(copies)
-    max_redundancy = socket.assigns.max_redundancy
-
-    if requested_copies > max_redundancy do
-      socket =
-        socket
-        |> put_flash(
-          :error,
-          gettext(
-            "Cannot set redundancy to %{count} copies. Only %{max} active bucket(s) available.",
-            count: requested_copies,
-            max: max_redundancy
-          )
-        )
-
-      {:noreply, socket}
-    else
-      case Storage.set_redundancy_copies(requested_copies) do
-        {:ok, _setting} ->
-          # Settings.update_setting already handles cache invalidation
-          socket =
-            socket
-            |> assign(:redundancy_copies, requested_copies)
-            |> put_flash(
-              :info,
-              ngettext(
-                "Redundancy settings updated to %{count} copy",
-                "Redundancy settings updated to %{count} copies",
-                requested_copies
-              )
-            )
-
-          {:noreply, socket}
-
-        {:error, _changeset} ->
-          socket = put_flash(socket, :error, gettext("Failed to update redundancy settings"))
-          {:noreply, socket}
-      end
-    end
-  end
-
-  def handle_event("update_form_redundancy", %{"form_redundancy" => copies}, socket) do
-    # Handle both string and integer inputs
-    form_redundancy =
-      cond do
-        is_integer(copies) -> copies
-        is_binary(copies) -> String.to_integer(copies)
-        # fallback
-        true -> 1
-      end
-
-    socket =
-      socket
-      |> assign(:form_redundancy, form_redundancy)
-
-    {:noreply, socket}
-  end
-
-  def handle_event("update_form_variants", %{"form_auto_generate_variants" => value}, socket) do
-    form_auto_generate_variants = value == "true"
-
-    socket =
-      socket
-      |> assign(:form_auto_generate_variants, form_auto_generate_variants)
-
-    {:noreply, socket}
-  end
-
-  def handle_event("toggle_form_tile_generation", _params, socket) do
-    new_value = not socket.assigns.form_tile_generation_enabled
-    {:noreply, assign(socket, :form_tile_generation_enabled, new_value)}
-  end
-
   def handle_event("toggle_form_annotated_thumbnails", _params, socket) do
     new_value = not socket.assigns.form_annotated_thumbnails_enabled
     {:noreply, assign(socket, :form_annotated_thumbnails_enabled, new_value)}
   end
 
-  def handle_event("toggle_form_variants", _params, socket) do
-    new_value = not socket.assigns.form_auto_generate_variants
-
-    socket =
-      socket
-      |> assign(:form_auto_generate_variants, new_value)
-
-    {:noreply, socket}
-  end
-
   def handle_event("update_storage_form", params, socket) do
-    form_redundancy =
-      case params["form_redundancy"] do
-        nil -> socket.assigns.form_redundancy
-        val when is_integer(val) -> val
-        val when is_binary(val) -> parse_integer(val, socket.assigns.form_redundancy)
-        _ -> socket.assigns.form_redundancy
-      end
-
     form_max_upload_size_mb =
       case params["form_max_upload_size_mb"] do
         nil ->
@@ -234,7 +127,6 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
 
     socket =
       socket
-      |> assign(:form_redundancy, form_redundancy)
       |> assign(:form_max_upload_size_mb, form_max_upload_size_mb)
       |> assign(:form_image_edit_mode, form_image_edit_mode)
 
@@ -242,127 +134,35 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
   end
 
   def handle_event("apply_storage_settings", _params, socket) do
-    # Get current form values
-    new_redundancy = socket.assigns.form_redundancy
-    new_variants = if socket.assigns.form_auto_generate_variants, do: "true", else: "false"
+    Settings.update_setting(
+      "storage_annotated_thumbnails_enabled",
+      if(socket.assigns.form_annotated_thumbnails_enabled, do: "true", else: "false")
+    )
 
-    new_tile_generation =
-      if socket.assigns.form_tile_generation_enabled, do: "true", else: "false"
+    Settings.update_setting(
+      "storage_max_upload_size_mb",
+      to_string(socket.assigns.form_max_upload_size_mb)
+    )
 
-    new_annotated_thumbnails =
-      if socket.assigns.form_annotated_thumbnails_enabled, do: "true", else: "false"
+    Settings.update_setting(ImageEditing.mode_setting(), socket.assigns.form_image_edit_mode)
 
-    new_max_upload_size_mb = socket.assigns.form_max_upload_size_mb
+    # Read back what was saved, so the form shows what is stored
+    saved_annotated_thumbnails =
+      Settings.get_setting("storage_annotated_thumbnails_enabled", "false")
 
-    # Validate redundancy doesn't exceed available buckets
-    max_redundancy = socket.assigns.max_redundancy
+    saved_max_upload = Settings.get_setting("storage_max_upload_size_mb", "500")
 
-    if new_redundancy != socket.assigns.redundancy_copies and new_redundancy > max_redundancy do
-      socket =
-        socket
-        |> put_flash(
-          :error,
-          gettext(
-            "Cannot set redundancy to %{count} copies. Only %{max} active bucket(s) available.",
-            count: new_redundancy,
-            max: max_redundancy
-          )
-        )
+    socket =
+      socket
+      |> assign(:annotated_thumbnails_enabled, saved_annotated_thumbnails == "true")
+      |> assign(:form_annotated_thumbnails_enabled, saved_annotated_thumbnails == "true")
+      |> assign(:max_upload_size_mb, String.to_integer(saved_max_upload))
+      |> assign(:form_max_upload_size_mb, String.to_integer(saved_max_upload))
+      |> assign(:image_edit_mode, ImageEditing.mode())
+      |> assign(:form_image_edit_mode, ImageEditing.mode())
+      |> put_flash(:info, gettext("Storage settings updated successfully"))
 
-      {:noreply, socket}
-    else
-      # Update all settings
-      # Only a changed count is saved: saving it rewrites the Default
-      # storage profile (and every file of it is checked again).
-      redundancy_result =
-        if new_redundancy == socket.assigns.redundancy_copies,
-          do: {:ok, :unchanged},
-          else: Storage.set_redundancy_copies(new_redundancy)
-
-      variants_result = Storage.set_auto_generate_variants(new_variants == "true")
-
-      Storage.set_tile_generation(new_tile_generation == "true")
-
-      Settings.update_setting(
-        "storage_annotated_thumbnails_enabled",
-        new_annotated_thumbnails
-      )
-
-      Settings.update_setting(
-        "storage_max_upload_size_mb",
-        to_string(new_max_upload_size_mb)
-      )
-
-      Settings.update_setting(ImageEditing.mode_setting(), socket.assigns.form_image_edit_mode)
-
-      case {redundancy_result, variants_result} do
-        {{:ok, _}, {:ok, _}} ->
-          # Verify the settings were saved correctly by reading them back
-          saved_redundancy = to_string(Storage.redundancy_copies())
-          saved_variants = to_string(Storage.get_auto_generate_variants())
-          saved_tile_generation = to_string(Storage.tile_generation_enabled?())
-
-          saved_annotated_thumbnails =
-            Settings.get_setting("storage_annotated_thumbnails_enabled", "false")
-
-          saved_max_upload = Settings.get_setting("storage_max_upload_size_mb", "500")
-
-          socket =
-            socket
-            |> assign(:redundancy_copies, String.to_integer(saved_redundancy))
-            |> assign(:auto_generate_variants, saved_variants == "true")
-            |> assign(:tile_generation_enabled, saved_tile_generation == "true")
-            |> assign(:annotated_thumbnails_enabled, saved_annotated_thumbnails == "true")
-            |> assign(:form_redundancy, String.to_integer(saved_redundancy))
-            |> assign(:form_auto_generate_variants, saved_variants == "true")
-            |> assign(:form_tile_generation_enabled, saved_tile_generation == "true")
-            |> assign(:form_annotated_thumbnails_enabled, saved_annotated_thumbnails == "true")
-            |> assign(:max_upload_size_mb, String.to_integer(saved_max_upload))
-            |> assign(:form_max_upload_size_mb, String.to_integer(saved_max_upload))
-            |> assign(:image_edit_mode, ImageEditing.mode())
-            |> assign(:form_image_edit_mode, ImageEditing.mode())
-            |> put_flash(:info, gettext("Storage settings updated successfully"))
-
-          {:noreply, socket}
-
-        {{:error, _}, {:ok, _}} ->
-          socket = put_flash(socket, :error, gettext("Failed to update redundancy settings"))
-          {:noreply, socket}
-
-        {{:ok, _}, {:error, _}} ->
-          socket = put_flash(socket, :error, gettext("Failed to update variant settings"))
-          {:noreply, socket}
-
-        {{:error, _}, {:error, _}} ->
-          socket = put_flash(socket, :error, gettext("Failed to update storage settings"))
-          {:noreply, socket}
-      end
-    end
-  end
-
-  def handle_event("toggle_variants", _params, socket) do
-    new_value = if socket.assigns.auto_generate_variants, do: "false", else: "true"
-
-    case Storage.set_auto_generate_variants(new_value == "true") do
-      {:ok, _setting} ->
-        # Settings.update_setting already handles cache invalidation
-        socket =
-          socket
-          |> assign(:auto_generate_variants, new_value == "true")
-          |> put_flash(
-            :info,
-            if(new_value == "true",
-              do: gettext("Auto-variant generation enabled"),
-              else: gettext("Auto-variant generation disabled")
-            )
-          )
-
-        {:noreply, socket}
-
-      {:error, _changeset} ->
-        socket = put_flash(socket, :error, gettext("Failed to update variant settings"))
-        {:noreply, socket}
-    end
+    {:noreply, socket}
   end
 
   def handle_event("toggle_bucket", %{"id" => bucket_uuid}, socket) do
@@ -659,29 +459,10 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
     buckets = Storage.list_buckets()
     bucket_file_counts = get_bucket_file_counts(buckets)
 
-    # Reload storage settings
-    redundancy_copies = to_string(Storage.redundancy_copies())
-    auto_generate_variants = to_string(Storage.get_auto_generate_variants())
-    max_upload_size_mb = Settings.get_setting("storage_max_upload_size_mb", "500")
-
-    # Recalculate max redundancy
-    active_buckets_count = Enum.count(buckets, & &1.enabled)
-    max_redundancy = if active_buckets_count > 0, do: active_buckets_count, else: 1
-    current_redundancy = String.to_integer(redundancy_copies)
-    current_max_upload_size_mb = String.to_integer(max_upload_size_mb)
-
     socket
     |> assign(:buckets, buckets)
     |> assign(:bucket_connections, bucket_connections())
     |> assign(:bucket_file_counts, bucket_file_counts)
-    |> assign(:redundancy_copies, current_redundancy)
-    |> assign(:auto_generate_variants, auto_generate_variants == "true")
-    |> assign(:active_buckets_count, active_buckets_count)
-    |> assign(:max_redundancy, max_redundancy)
-    |> assign(:form_redundancy, current_redundancy)
-    |> assign(:form_auto_generate_variants, auto_generate_variants == "true")
-    |> assign(:max_upload_size_mb, current_max_upload_size_mb)
-    |> assign(:form_max_upload_size_mb, current_max_upload_size_mb)
   end
 
   defp parse_integer(val, fallback) do

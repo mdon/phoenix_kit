@@ -22,6 +22,15 @@
   files across them rather than mirror them, and a count above the number of buckets is flagged. The
   description no longer promises that every change moves files: renaming a profile or changing the
   copies an upload needs does not.
+- **Media Configuration no longer has a second editor for redundancy, sizes and tiles.** "Redundancy
+  Copies", "Auto-Generate Variants" and "Deep Zoom Tile Generation" were leftovers from before
+  profiles and variant sets: they edited the Default storage profile's copy count and the Default
+  variant set's flags, which every library on another profile or set ignored, under names and with
+  limits that disagreed with the real editors. Copies are set on the Storage profiles tab, and
+  sizes and tiles on the variant set; the tab now says so, with links, and keeps what is genuinely
+  site-wide: annotated thumbnails, image editing and the upload size limit. Nothing stored changes,
+  and `Storage.set_redundancy_copies/1`, `Storage.set_auto_generate_variants/1` and
+  `Storage.set_tile_generation/1` are as they were.
 
 ### Fixed
 
