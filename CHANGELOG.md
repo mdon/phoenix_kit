@@ -25,6 +25,10 @@
   functions take `actor_uuid:` in their options (`create_profile/2`, `put_bucket/4`,
   `set_library_profile/3`, `Storage.update_bucket/3`, …); without one an entry says the system did
   it.
+- **Each History row can be opened in place** ("Show every field"), so a media manager who may not
+  open the Activity page (`media.manage` does not imply `dashboard`) still reads every field that
+  changed, not only the first three. Run titles never contain a user's library name: a user's
+  library is "a user's library" on the Jobs page, the Libraries tab and in the History.
 - `PhoenixKitWeb.Components.Core.ActivityList`: a list of activity entries for any screen that
   shows a slice of the log; the Activity page shares its `summarize_details/1`.
 - **The Runs tab warns when a queue is not working**: a run's batch has been available for ten

@@ -80,6 +80,15 @@ defmodule PhoenixKitWeb.Components.Core.ActivityList do
             <td class="text-sm">{subject(entry)}</td>
             <td class="text-xs text-base-content/70">
               {summarize_details(entry.metadata) || "—"}
+              <details :if={fields(entry.metadata) != []} id={@id && "#{@id}-#{entry.uuid}-fields"}>
+                <summary class="cursor-pointer text-primary">{gettext("Show every field")}</summary>
+                <dl class="mt-1 space-y-0.5">
+                  <div :for={{label, value} <- fields(entry.metadata)} class="flex gap-2">
+                    <dt class="font-medium shrink-0">{label}</dt>
+                    <dd class="break-all">{value}</dd>
+                  </div>
+                </dl>
+              </details>
             </td>
             <td>
               <.link
@@ -96,6 +105,34 @@ defmodule PhoenixKitWeb.Components.Core.ActivityList do
       </table>
     </div>
     """
+  end
+
+  # Every field an entry recorded, one line each: what changed (from → to) first, then
+  # the rest of what it names. It is the whole entry, so a viewer who cannot open the
+  # Activity page (which `media.manage` does not imply) loses nothing to the one-line
+  # summary's cut-off.
+  @hidden_keys ~w(method actor_role)
+
+  defp fields(metadata) do
+    {changes, rest} = Activity.split_changes(metadata || %{})
+
+    changed =
+      changes
+      |> Enum.sort()
+      |> Enum.map(fn {field, change} ->
+        {Activity.humanize_metadata_key(field), Activity.humanize_metadata_value(change)}
+      end)
+
+    named =
+      rest
+      |> Map.drop(@hidden_keys)
+      |> Enum.reject(fn {_key, value} -> value in [nil, ""] end)
+      |> Enum.sort()
+      |> Enum.map(fn {key, value} ->
+        {Activity.humanize_metadata_key(key), Activity.humanize_metadata_value(value)}
+      end)
+
+    changed ++ named
   end
 
   defp subject(entry) do

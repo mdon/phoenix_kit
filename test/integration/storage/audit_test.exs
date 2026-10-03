@@ -558,6 +558,39 @@ defmodule PhoenixKit.Modules.Storage.AuditTest do
     end
   end
 
+  describe "a user's library in a job's title" do
+    setup %{n: n} do
+      {:ok, _} = Settings.update_boolean_setting("storage_user_libraries_enabled", true)
+      {:ok, role} = Roles.create_role(%{name: "Title librarians #{n}"})
+      {:ok, _} = Permissions.grant_permission(role.uuid, "storage")
+      {:ok, _} = Permissions.grant_permission(role.uuid, "storage.create_library")
+      %{role: role}
+    end
+
+    test "the run titles name a site library, but never a user's", %{role: role, n: n} do
+      alias PhoenixKit.Modules.Storage.Jobs.{PurgeLibrary, Reconcile}
+
+      {:ok, owner} =
+        Auth.register_user(%{
+          "email" => "title-owner-#{n}@example.com",
+          "password" => "ValidPassword123!"
+        })
+
+      {:ok, _} = Roles.assign_role(owner, role.name)
+      scope = Scope.for_user(Repo.get!(Auth.User, owner.uuid))
+      {:ok, private} = Libraries.create_user_library(scope, %{"name" => "Secret holiday #{n}"})
+      {:ok, site} = Libraries.create_system_library(%{name: "Brand assets #{n}"})
+
+      for kind <- [Reconcile, PurgeLibrary] do
+        assert kind.title(%{}, {"library", to_string(site.uuid)}) =~ "Brand assets #{n}"
+
+        title = kind.title(%{}, {"library", to_string(private.uuid)})
+        refute title =~ "Secret holiday"
+        assert title =~ "user's library"
+      end
+    end
+  end
+
   defp bucket!(ctx) do
     root = Path.join(System.tmp_dir!(), "pk_audit_#{ctx.n}_#{System.unique_integer([:positive])}")
     on_exit(fn -> File.rm_rf(root) end)

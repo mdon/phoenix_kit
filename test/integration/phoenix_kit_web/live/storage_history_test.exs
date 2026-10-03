@@ -143,6 +143,35 @@ defmodule PhoenixKitWeb.Live.StorageHistoryTest do
     refute has_element?(view, "#media-history-list a[title='View details']")
   end
 
+  test "every field of an entry can be read in place, with no access to the Activity page", ctx do
+    admin = Roles.get_role_by_name("Admin")
+    :ok = Permissions.revoke_permission(admin.uuid, "dashboard")
+    {:ok, profile} = Profiles.create_profile(%{name: "Many fields"}, ctx.actor)
+
+    {:ok, _} =
+      Profiles.update_profile(
+        profile,
+        %{
+          name: "Many fields v2",
+          copies_originals: 2,
+          copies_variants: 2,
+          min_copies_on_write: 2
+        },
+        ctx.actor
+      )
+
+    view = history(ctx.conn)
+
+    # the one-line summary stops at three fields; the disclosure holds all four
+    assert has_element?(view, "#media-history-list details summary", "Show every field")
+
+    for field <- ["Name", "Copies originals", "Copies variants", "Min copies on write"] do
+      assert has_element?(view, "#media-history-list details dt", field)
+    end
+
+    refute has_element?(view, "#media-history-list a[title='View details']")
+  end
+
   test "forged pagination and filters cannot crash or overflow the query", ctx do
     view = history(ctx.conn)
     target = find_live_child_target(view)

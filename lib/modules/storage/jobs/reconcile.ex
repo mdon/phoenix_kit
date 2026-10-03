@@ -53,7 +53,10 @@ defmodule PhoenixKit.Modules.Storage.Jobs.Reconcile do
   @impl true
   def title(_args, {"library", uuid}) do
     case Libraries.get_library(uuid) do
-      %{name: name} -> "Bring \"#{name}\" up to date with its storage settings"
+      %{kind: "system", name: name} -> "Bring \"#{name}\" up to date with its storage settings"
+      # A user's library is theirs and private: its name is not written into a title that
+      # the Jobs page, the Libraries tab and the History tab show to site managers.
+      %{kind: "user"} -> "Bring a user's library up to date with its storage settings"
       nil -> "Bring a library up to date with its storage settings"
     end
   end
