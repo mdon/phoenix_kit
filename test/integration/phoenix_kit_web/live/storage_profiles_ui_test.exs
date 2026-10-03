@@ -62,7 +62,21 @@ defmodule PhoenixKitWeb.Live.StorageProfilesUITest do
       })
       |> render_change()
 
+      # Changing a row saves nothing: its Save button comes alive and says so.
+      assert [%{role: "primary", status: "active"}] = Profiles.get_profile(profile.uuid).buckets
+      html = render(view)
+      assert html =~ "Unsaved changes"
+
+      view
+      |> form("#media-profiles-row-#{profile.uuid}-#{ctx.bucket.uuid}", %{
+        "row" => %{"role" => "backup", "status" => "read_only"}
+      })
+      |> render_submit()
+
       assert [%{role: "backup", status: "read_only"}] = Profiles.get_profile(profile.uuid).buckets
+      html = render(view)
+      refute html =~ "Unsaved changes"
+      assert html =~ "Saved"
 
       view
       |> form("#media-profiles-form-#{profile.uuid}", %{
@@ -167,6 +181,22 @@ defmodule PhoenixKitWeb.Live.StorageProfilesUITest do
       refute render(view) =~ "Not used at this copy count"
     end
 
+    test "the profile's own form saves on its Save button, with a sign of it", ctx do
+      view = settings(ctx.conn)
+      default = Profiles.default_uuid()
+      form = "#media-profiles-form-#{default}"
+
+      before = Profiles.default_profile().copies_variants
+
+      view |> form(form, %{"profile" => %{"copies_variants" => "3"}}) |> render_change()
+      assert Profiles.default_profile().copies_variants == before
+      assert render(view) =~ "Unsaved changes"
+
+      view |> form(form, %{"profile" => %{"copies_variants" => "3"}}) |> render_submit()
+      assert Profiles.default_profile().copies_variants == 3
+      refute render(view) =~ "Unsaved changes"
+    end
+
     test "offers nothing when every bucket is already used", ctx do
       html = view_html(ctx.conn)
       refute html =~ "Not used at this copy count"
@@ -191,27 +221,17 @@ defmodule PhoenixKitWeb.Live.StorageProfilesUITest do
         })
 
       {:ok, view, _html} = live(ctx.conn, Routes.path("/admin/settings/media?tab=libraries"))
+      assert render(view) =~ "Annotated thumbnails: site setting"
 
-      html = render(view)
-      assert html =~ "Annotated thumbnails: site setting"
+      form = "#media-libraries-storage-#{library.uuid}"
 
-      view
-      |> form("#media-libraries-annotated-#{library.uuid}", %{"annotated" => "on"})
-      |> render_change()
+      for {choice, expected} <- [{"on", true}, {"off", false}, {"default", nil}] do
+        view |> form(form, %{"annotated" => choice}) |> render_submit()
+        assert Libraries.setting(library.uuid, :annotated_thumbnails) == expected
+      end
 
-      assert Libraries.setting(library.uuid, :annotated_thumbnails) == true
-
-      view
-      |> form("#media-libraries-annotated-#{library.uuid}", %{"annotated" => "off"})
-      |> render_change()
-
-      assert Libraries.setting(library.uuid, :annotated_thumbnails) == false
-
-      view
-      |> form("#media-libraries-annotated-#{library.uuid}", %{"annotated" => "default"})
-      |> render_change()
-
-      assert Libraries.setting(library.uuid, :annotated_thumbnails) == nil
+      # A setting alone is not a storage change: no files are moved for it.
+      assert render(view) =~ "Library setting saved"
     end
 
     test "the Default profile lists the buckets and cannot be deleted", ctx do
@@ -279,9 +299,23 @@ defmodule PhoenixKitWeb.Live.StorageProfilesUITest do
       })
       |> render_change()
 
+      # A dropdown moves nothing by itself: the files of a library are moved and
+      # resized when Save is pressed.
+      assert render(view) =~ "Unsaved changes"
+      assert Libraries.get_library(library.uuid).storage_profile_uuid == nil
+
+      view
+      |> form("#media-libraries-storage-#{library.uuid}", %{
+        "storage" => %{"profile" => profile.uuid, "set" => set.uuid}
+      })
+      |> render_submit()
+
+      html = render(view)
       library = Libraries.get_library(library.uuid)
       assert library.storage_profile_uuid == profile.uuid
       assert library.variant_set_uuid == set.uuid
+      assert html =~ "Library storage saved"
+      refute html =~ "Unsaved changes"
     end
   end
 end

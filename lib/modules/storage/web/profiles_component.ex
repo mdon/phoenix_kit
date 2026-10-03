@@ -24,10 +24,12 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
   alias PhoenixKit.Modules.Storage.{ProfileBucket, Profiles, StorageProfile}
 
   import PhoenixKitWeb.Components.Core.Input, only: [translate_error: 1]
+  import PhoenixKitWeb.Components.Core.SaveButton, only: [save_button: 1]
 
   @impl true
   def mount(socket) do
-    {:ok, assign(socket, profiles: nil, creating: false)}
+    {:ok,
+     assign(socket, profiles: nil, creating: false, dirty: MapSet.new(), saved: MapSet.new())}
   end
 
   @impl true
@@ -45,7 +47,18 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
     |> assign(:in_use, Map.new(profiles, &{&1.uuid, Profiles.libraries_using(&1.uuid)}))
   end
 
+  # A form changed (`phx-change`): its Save button comes alive and says so. The
+  # key names the form — `profile_key/1`, `row_key/2` — and arrives from the
+  # client, so it is only ever a member of a set.
   @impl true
+  def handle_event("dirty", %{"key" => key}, socket) when is_binary(key) do
+    {:noreply,
+     assign(socket,
+       dirty: MapSet.put(socket.assigns.dirty, key),
+       saved: MapSet.delete(socket.assigns.saved, key)
+     )}
+  end
+
   def handle_event("new", _params, socket), do: {:noreply, assign(socket, :creating, true)}
   def handle_event("cancel", _params, socket), do: {:noreply, assign(socket, :creating, false)}
 
@@ -66,7 +79,11 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
   def handle_event("save_profile", %{"uuid" => uuid, "profile" => params}, socket) do
     with %StorageProfile{} = profile <- find(socket, uuid),
          {:ok, _} <- Profiles.update_profile(profile, params) do
-      {:noreply, socket |> load() |> flash(:info, gettext("Storage profile saved"))}
+      {:noreply,
+       socket
+       |> load()
+       |> mark_saved(profile_key(uuid))
+       |> flash(:info, gettext("Storage profile saved"))}
     else
       nil -> {:noreply, socket}
       {:error, changeset} -> {:noreply, flash(socket, :error, error_message(changeset))}
@@ -124,7 +141,11 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
     with %StorageProfile{} = profile <- find(socket, uuid),
          true <- Enum.any?(profile.buckets, &(to_string(&1.bucket_uuid) == bucket_uuid)),
          {:ok, _} <- Profiles.put_bucket(profile, bucket_uuid, attrs) do
-      {:noreply, load(socket)}
+      {:noreply,
+       socket
+       |> load()
+       |> mark_saved(row_key(uuid, bucket_uuid))
+       |> flash(:info, gettext("Bucket settings saved"))}
     else
       {:error, changeset} ->
         {:noreply, socket |> load() |> flash(:error, error_message(changeset))}
@@ -152,6 +173,16 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
       nil ->
         {:noreply, socket}
     end
+  end
+
+  defp profile_key(profile_uuid), do: "profile:#{profile_uuid}"
+  defp row_key(profile_uuid, bucket_uuid), do: "row:#{profile_uuid}:#{bucket_uuid}"
+
+  defp mark_saved(socket, key) do
+    assign(socket,
+      dirty: MapSet.delete(socket.assigns.dirty, key),
+      saved: MapSet.put(socket.assigns.saved, key)
+    )
   end
 
   # Only a profile this tab listed: the uuid arrives from the client.
@@ -188,7 +219,8 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
   # The columns of the bucket rows. The header and every row share it, so each
   # control sits under its own heading.
   defp columns,
-    do: "grid grid-cols-[minmax(11rem,2fr)_7rem_10rem_6rem_6rem_13rem_2.5rem] items-center gap-3"
+    do:
+      "grid grid-cols-[minmax(10rem,2fr)_7rem_10rem_6rem_6rem_13rem_10rem_2.5rem] items-center gap-3"
 
   # One sentence on what the copy counts mean with the buckets the profile has
   # now: the numbers alone read the same with one bucket and with five. The
@@ -306,11 +338,13 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
         <div class="card-body">
           <form
             id={"#{@id}-form-#{profile.uuid}"}
+            phx-change="dirty"
             phx-submit="save_profile"
             phx-target={@myself}
             class="flex flex-wrap items-end gap-4"
           >
             <input type="hidden" name="uuid" value={profile.uuid} />
+            <input type="hidden" name="key" value={profile_key(profile.uuid)} />
             <label class="form-control">
               <span class="label-text text-sm">{gettext("Name")}</span>
               <input
@@ -355,7 +389,10 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
                 class="input input-sm input-bordered w-24"
               />
             </label>
-            <button type="submit" class="btn btn-sm btn-primary">{gettext("Save")}</button>
+            <.save_button
+              dirty={MapSet.member?(@dirty, profile_key(profile.uuid))}
+              saved={MapSet.member?(@saved, profile_key(profile.uuid))}
+            />
             <span :if={profile.is_default} class="badge badge-ghost">{gettext("Default")}</span>
             <span class="text-sm text-base-content/60">
               {ngettext(
@@ -414,7 +451,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
           </div>
 
           <div class="overflow-x-auto mt-4">
-            <div class="min-w-[58rem]">
+            <div class="min-w-[70rem]">
               <div class={[
                 columns(),
                 "px-2 pb-2 text-xs font-semibold uppercase text-base-content/60"
@@ -453,6 +490,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
                 </span>
                 <span>{gettext("Status")}</span>
                 <span></span>
+                <span></span>
               </div>
 
               <p
@@ -465,12 +503,14 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
               <form
                 :for={row <- profile.buckets}
                 id={"#{@id}-row-#{profile.uuid}-#{row.bucket_uuid}"}
-                phx-change="save_row"
+                phx-change="dirty"
+                phx-submit="save_row"
                 phx-target={@myself}
                 class={[columns(), "border-t border-base-200 px-2 py-2"]}
               >
                 <input type="hidden" name="uuid" value={profile.uuid} />
                 <input type="hidden" name="bucket_uuid" value={row.bucket_uuid} />
+                <input type="hidden" name="key" value={row_key(profile.uuid, row.bucket_uuid)} />
 
                 <div id={"#{@id}-#{profile.uuid}-#{row.bucket_uuid}"} class="min-w-0">
                   <span class="font-medium break-words">{row.bucket.name}</span>
@@ -504,7 +544,6 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
                   min="1"
                   value={row.write_priority}
                   placeholder={gettext("Any")}
-                  phx-debounce="600"
                   class="input input-sm input-bordered w-full"
                 />
                 <input
@@ -512,7 +551,6 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
                   name="row[serve_order]"
                   min="0"
                   value={row.serve_order}
-                  phx-debounce="600"
                   class="input input-sm input-bordered w-full"
                 />
                 <select name="row[status]" class="select select-sm select-bordered w-full">
@@ -524,18 +562,22 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
                     {status_label(status)}
                   </option>
                 </select>
+                <.save_button
+                  dirty={MapSet.member?(@dirty, row_key(profile.uuid, row.bucket_uuid))}
+                  saved={MapSet.member?(@saved, row_key(profile.uuid, row.bucket_uuid))}
+                />
                 <button
                   type="button"
                   class="btn btn-xs btn-ghost text-error"
-                  title={gettext("Remove")}
-                  aria-label={gettext("Remove")}
+                  title={gettext("Remove from profile")}
+                  aria-label={gettext("Remove from profile")}
                   phx-click="remove_bucket"
                   phx-value-uuid={profile.uuid}
                   phx-value-bucket_uuid={row.bucket_uuid}
                   phx-target={@myself}
                   data-confirm={
                     gettext(
-                      "Take this bucket out of the profile? Its files are copied to the profile's other buckets first, then removed from it."
+                      "Take this bucket out of the profile? Its files are copied to the profile's other buckets first, then deleted from this bucket. The bucket itself stays, and this profile no longer sends it files."
                     )
                   }
                 >

@@ -36,10 +36,18 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
   alias PhoenixKit.Utils.Routes
 
   import PhoenixKitWeb.Components.Core.Input, only: [translate_error: 1]
+  import PhoenixKitWeb.Components.Core.SaveButton, only: [save_button: 1]
 
   @impl true
   def mount(socket) do
-    {:ok, assign(socket, creating: false, renaming: nil, rows: nil)}
+    {:ok,
+     assign(socket,
+       creating: false,
+       renaming: nil,
+       rows: nil,
+       dirty: MapSet.new(),
+       saved: MapSet.new()
+     )}
   end
 
   @impl true
@@ -107,37 +115,39 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
     end
   end
 
-  def handle_event("set_storage", %{"uuid" => uuid, "storage" => params}, socket) do
-    with %{} = library <- find(socket, uuid),
-         {:ok, _library} <- set_storage(library, params) do
-      {:noreply,
-       socket
-       |> load()
-       |> flash(
-         :info,
-         gettext(
-           "Library storage saved. Its files are moved and resized in the background; the Health page shows what is left."
-         )
-       )}
-    else
-      nil -> {:noreply, socket}
-      {:error, _reason} -> {:noreply, flash(socket, :error, gettext("Could not save"))}
-    end
+  # A library's form changed: its Save button comes alive and says so. Nothing is
+  # saved until it is pressed — a different profile or variant set moves and
+  # resizes the library's files, which a stray click on a dropdown must not start.
+  def handle_event("dirty", %{"key" => key}, socket) when is_binary(key) do
+    {:noreply,
+     assign(socket,
+       dirty: MapSet.put(socket.assigns.dirty, key),
+       saved: MapSet.delete(socket.assigns.saved, key)
+     )}
   end
 
-  # A library's own choice about annotated thumbnails: on, off, or none (it
-  # follows the site setting, Settings → Media → Configuration).
-  def handle_event("set_annotated", %{"uuid" => uuid, "annotated" => choice}, socket) do
+  # The library's storage (profile, variant set) and its own settings
+  # (annotated thumbnails: on, off, or none — it follows the site setting,
+  # Settings → Media → Configuration), saved together.
+  def handle_event("save_library", %{"uuid" => uuid} = params, socket) do
+    storage = Map.get(params, "storage", %{})
+
     value =
-      case choice do
+      case params["annotated"] do
         "on" -> true
         "off" -> false
         _ -> nil
       end
 
     with %{} = library <- find(socket, uuid),
+         storage_changed? = storage_changed?(library, storage),
+         {:ok, library} <- set_storage(library, storage),
          {:ok, _library} <- Libraries.put_setting(library, :annotated_thumbnails, value) do
-      {:noreply, socket |> load() |> flash(:info, gettext("Library setting saved"))}
+      {:noreply,
+       socket
+       |> load()
+       |> mark_saved(library_key(uuid))
+       |> flash(:info, saved_message(storage_changed?))}
     else
       nil -> {:noreply, socket}
       {:error, _reason} -> {:noreply, flash(socket, :error, gettext("Could not save"))}
@@ -171,6 +181,32 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
   end
 
   # Both or neither.
+  defp library_key(uuid), do: "library:#{uuid}"
+
+  defp mark_saved(socket, key) do
+    assign(socket,
+      dirty: MapSet.delete(socket.assigns.dirty, key),
+      saved: MapSet.put(socket.assigns.saved, key)
+    )
+  end
+
+  defp storage_changed?(library, params) do
+    new_profile = params["profile"]
+    new_set = params["set"]
+
+    (is_binary(new_profile) and new_profile != "" and
+       new_profile != Profiles.profile_uuid_for(library)) or
+      (is_binary(new_set) and new_set != "" and new_set != VariantSets.set_uuid_for(library))
+  end
+
+  defp saved_message(true) do
+    gettext(
+      "Library storage saved. Its files are moved and resized in the background; the Health page shows what is left."
+    )
+  end
+
+  defp saved_message(false), do: gettext("Library setting saved")
+
   defp set_storage(library, params) do
     PhoenixKit.RepoHelper.repo().transaction(fn ->
       with {:ok, library} <- maybe_set_profile(library, params["profile"]),
@@ -368,45 +404,41 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
                   <td>
                     <form
                       id={"#{@id}-storage-#{library.uuid}"}
-                      phx-change="set_storage"
+                      phx-change="dirty"
+                      phx-submit="save_library"
                       phx-target={@myself}
-                      class="flex flex-wrap gap-1"
+                      class="flex flex-col gap-1"
                     >
                       <input type="hidden" name="uuid" value={library.uuid} />
-                      <select
-                        name="storage[profile]"
-                        class="select select-xs select-bordered"
-                        title={gettext("Storage profile")}
-                      >
-                        <option
-                          :for={profile <- @profiles}
-                          value={profile.uuid}
-                          selected={Profiles.profile_uuid_for(library) == to_string(profile.uuid)}
+                      <input type="hidden" name="key" value={library_key(library.uuid)} />
+                      <div class="flex flex-wrap gap-1">
+                        <select
+                          name="storage[profile]"
+                          class="select select-xs select-bordered"
+                          title={gettext("Storage profile")}
                         >
-                          {profile.name}
-                        </option>
-                      </select>
-                      <select
-                        name="storage[set]"
-                        class="select select-xs select-bordered"
-                        title={gettext("Variant set")}
-                      >
-                        <option
-                          :for={set <- @variant_sets}
-                          value={set.uuid}
-                          selected={VariantSets.set_uuid_for(library) == to_string(set.uuid)}
+                          <option
+                            :for={profile <- @profiles}
+                            value={profile.uuid}
+                            selected={Profiles.profile_uuid_for(library) == to_string(profile.uuid)}
+                          >
+                            {profile.name}
+                          </option>
+                        </select>
+                        <select
+                          name="storage[set]"
+                          class="select select-xs select-bordered"
+                          title={gettext("Variant set")}
                         >
-                          {set.name}
-                        </option>
-                      </select>
-                    </form>
-                    <form
-                      id={"#{@id}-annotated-#{library.uuid}"}
-                      phx-change="set_annotated"
-                      phx-target={@myself}
-                      class="mt-1"
-                    >
-                      <input type="hidden" name="uuid" value={library.uuid} />
+                          <option
+                            :for={set <- @variant_sets}
+                            value={set.uuid}
+                            selected={VariantSets.set_uuid_for(library) == to_string(set.uuid)}
+                          >
+                            {set.name}
+                          </option>
+                        </select>
+                      </div>
                       <select
                         name="annotated"
                         class="select select-xs select-bordered"
@@ -428,6 +460,10 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
                           {gettext("Annotated thumbnails: off")}
                         </option>
                       </select>
+                      <.save_button
+                        dirty={MapSet.member?(@dirty, library_key(library.uuid))}
+                        saved={MapSet.member?(@saved, library_key(library.uuid))}
+                      />
                     </form>
                   </td>
                   <td class="text-right whitespace-nowrap">

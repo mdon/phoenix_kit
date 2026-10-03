@@ -1,5 +1,19 @@
 ## Unreleased
 
+### Changed
+
+- **The bucket rows of a storage profile, and a library's storage, are saved with a Save button.**
+  Changing a row of the Storage profiles tab (role, stores, upload order, serve order, status) saved
+  the instant a control changed or a number stopped moving, with no sign that anything had; the
+  profile's own name and copy counts saved only on their button or on Enter. Libraries → a
+  library's profile, variant set and annotated thumbnails saved on every dropdown change, and a
+  different profile or variant set moves and resizes the library's files. Each of these is a form with
+  one Save button now: disabled until something changes, then "Unsaved changes", then "Saved" (and the
+  usual confirmation at the top). `Core.SaveButton` is the component, opt-in like `date_nav`.
+- **Removing a bucket from a profile says what it does.** The "x" is "Remove from profile", and the
+  confirmation says the files are copied to the profile's other buckets and then deleted from this
+  bucket, that the bucket itself stays, and that the profile stops sending it files.
+
 ### Added
 
 - **The Storage profiles tab says when a bucket is idle and offers the count that uses it.** With
