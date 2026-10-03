@@ -97,7 +97,18 @@ defmodule PhoenixKitWeb.Live.StorageHistoryTest do
 
     refute render(view) =~ "Quiet commit"
     send(view.pid, :refresh_library_sync)
-    assert render(view) =~ "Quiet commit"
+
+    # The refresh reaches the tab as a `send_update/2` the page sends to itself, so it
+    # lands a moment after the page has handled the message: wait for it, not for luck.
+    assert eventually(fn -> render(view) =~ "Quiet commit" end)
+  end
+
+  defp eventually(fun, attempts \\ 40) do
+    cond do
+      fun.() -> true
+      attempts == 0 -> false
+      true -> Process.sleep(25) && eventually(fun, attempts - 1)
+    end
   end
 
   test "saving global storage settings through the page records the signed-in actor", ctx do

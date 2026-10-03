@@ -659,7 +659,9 @@ defmodule PhoenixKit.Modules.Storage.UserStorageReviewTest do
       assert %Run{kind: "storage.purge_library", state: "queued", title: title} =
                run = Repo.one!(from r in Run, where: r.kind == "storage.purge_library")
 
-      assert title =~ "Delete library"
+      # a user's library is private: its name is not in the title
+      assert title == "Delete a user's library and its files"
+      refute title =~ library.name
 
       # ... which tries again each time the objects remain, and then fails
       # visibly (the daily prune starts it again) — it is never silently dropped.
