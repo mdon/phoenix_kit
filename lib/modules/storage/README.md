@@ -427,7 +427,23 @@ choice, variant sets and sizes) is written to the Activity log by
 naming a key or secret, and never for a user's own library, profile or bucket.
 The context functions take `actor_uuid:` (the LiveViews pass
 `PhoenixKitWeb.Actor.opts(socket)`). Settings → Media → **History** lists these
-with the storage job runs' entries. A file is stale when
+with the storage job runs' entries and the existing permanent `setting.changed`
+entries for global `storage_*` settings. The list identifies the resource and
+shows the actor and changed values; full Activity links require `dashboard`.
+
+Audited context mutations lock and reload the current resource, and commit the
+configuration and audit entry together through `Audit.transaction/1`. A failed
+audit insert rolls the mutation back. Announcements and compatibility-setting
+sync run after the transaction owned by Audit commits. For a transaction opened
+by a caller, storage audit announcements are suppressed (Ecto has no after-commit
+hook); History refreshes every 30 seconds while visible. Call
+`Audit.transaction/1` at the outer boundary for immediate announcements. Cache
+and compatibility-setting callbacks are best effort; inside caller-owned repo
+transactions they retain their existing immediate behavior.
+
+### Reconcile behavior
+
+A file is stale when
 its placement stamp differs from its profile, or — for an active file only
 — its variant stamp differs from its set; trashed and unfinished files keep
 their size stamp until they are active again.

@@ -440,6 +440,10 @@ defmodule PhoenixKit.Modules.Storage do
 
   """
   def create_bucket(attrs \\ %{}, opts \\ []) do
+    Audit.transaction(fn -> do_create_bucket(attrs, opts) end)
+  end
+
+  defp do_create_bucket(attrs, opts) do
     # A new bucket joins the Default storage profile, as every new bucket
     # joined the one pool before profiles (V205).
     repo().transaction(fn ->
@@ -517,6 +521,10 @@ defmodule PhoenixKit.Modules.Storage do
 
   """
   def update_bucket(%Bucket{} = bucket, attrs, opts \\ []) do
+    Audit.change(bucket, &do_update_bucket(&1, attrs, opts))
+  end
+
+  defp do_update_bucket(bucket, attrs, opts) do
     changeset = bucket_update_changeset(bucket, attrs)
 
     repo().transaction(fn ->
@@ -591,6 +599,10 @@ defmodule PhoenixKit.Modules.Storage do
 
   """
   def delete_bucket(%Bucket{} = bucket, opts \\ []) do
+    Audit.change(bucket, &do_delete_bucket(&1, opts))
+  end
+
+  defp do_delete_bucket(bucket, opts) do
     # A bucket that still holds files is refused (V204: the location FK is
     # RESTRICT); before, deleting it dropped every location row it had and
     # left its objects behind. An empty bucket leaves the storage profiles
@@ -623,7 +635,9 @@ defmodule PhoenixKit.Modules.Storage do
 
   # The manager keeps the enabled buckets in a cache; a bucket that was
   # added, edited or removed must apply at once, not when it expires.
-  defp bucket_changed({:ok, _bucket}), do: Manager.invalidate_bucket_cache()
+  defp bucket_changed({:ok, _bucket}),
+    do: Audit.after_commit(&Manager.invalidate_bucket_cache/0)
+
   defp bucket_changed(_result), do: :ok
 
   @doc """
@@ -810,6 +824,10 @@ defmodule PhoenixKit.Modules.Storage do
   variant sets are left alone.
   """
   def reset_dimensions_to_defaults(opts \\ []) do
+    Audit.transaction(fn -> do_reset_dimensions_to_defaults(opts) end)
+  end
+
+  defp do_reset_dimensions_to_defaults(opts) do
     repo().transaction(fn ->
       # Delete the Default set's dimensions; its files are checked against
       # the sizes put back (a size whose spec changed is remade, one that is
@@ -1149,6 +1167,10 @@ defmodule PhoenixKit.Modules.Storage do
         variant_set_uuid \\ VariantSets.default_uuid(),
         opts \\ []
       ) do
+    Audit.transaction(fn -> do_create_dimension(attrs, variant_set_uuid, opts) end)
+  end
+
+  defp do_create_dimension(attrs, variant_set_uuid, opts) do
     %Dimension{variant_set_uuid: variant_set_uuid}
     |> Dimension.changeset(attrs)
     |> repo().insert()
@@ -1165,7 +1187,8 @@ defmodule PhoenixKit.Modules.Storage do
     :format,
     :applies_to,
     :enabled,
-    :maintain_aspect_ratio
+    :maintain_aspect_ratio,
+    :alternative_formats
   ]
 
   @doc """
@@ -1181,6 +1204,10 @@ defmodule PhoenixKit.Modules.Storage do
 
   """
   def update_dimension(%Dimension{} = dimension, attrs, opts \\ []) do
+    Audit.change(dimension, &do_update_dimension(&1, attrs, opts))
+  end
+
+  defp do_update_dimension(dimension, attrs, opts) do
     changeset = Dimension.changeset(dimension, attrs)
 
     # Reordering the list changes no pixels.
@@ -1216,6 +1243,10 @@ defmodule PhoenixKit.Modules.Storage do
 
   """
   def delete_dimension(%Dimension{} = dimension, opts \\ []) do
+    Audit.change(dimension, &do_delete_dimension(&1, opts))
+  end
+
+  defp do_delete_dimension(dimension, opts) do
     if Dimension.standard_slot?(dimension) do
       {:error, :standard_slot}
     else

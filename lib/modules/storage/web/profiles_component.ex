@@ -170,17 +170,21 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
   def handle_event("remove_bucket", %{"uuid" => uuid, "bucket_uuid" => bucket_uuid}, socket) do
     case find(socket, uuid) do
       %StorageProfile{} = profile ->
-        :ok = Profiles.remove_bucket(profile, bucket_uuid, actor(socket))
+        case Profiles.remove_bucket(profile, bucket_uuid, actor(socket)) do
+          :ok ->
+            {:noreply,
+             socket
+             |> load()
+             |> flash(
+               :info,
+               gettext(
+                 "Bucket taken out of the profile. Its files are copied to the profile's other buckets, then removed from it."
+               )
+             )}
 
-        {:noreply,
-         socket
-         |> load()
-         |> flash(
-           :info,
-           gettext(
-             "Bucket taken out of the profile. Its files are copied to the profile's other buckets, then removed from it."
-           )
-         )}
+          {:error, reason} ->
+            {:noreply, flash(socket, :error, error_message(reason))}
+        end
 
       nil ->
         {:noreply, socket}

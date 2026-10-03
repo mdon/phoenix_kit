@@ -7,10 +7,13 @@ defmodule PhoenixKitWeb.Live.StorageHistoryTest do
 
   use PhoenixKitWeb.ConnCase, async: false
 
+  alias PhoenixKit.Activity.Entry
   alias PhoenixKit.Jobs
   alias PhoenixKit.Modules.Storage.Audit
   alias PhoenixKit.Modules.Storage.Jobs.Reconcile
   alias PhoenixKit.Modules.Storage.{Libraries, Profiles}
+  alias PhoenixKit.Settings
+  alias PhoenixKit.Users.{Permissions, Roles}
   alias PhoenixKit.Utils.Routes
 
   setup %{conn: conn} do
@@ -40,6 +43,14 @@ defmodule PhoenixKitWeb.Live.StorageHistoryTest do
     assert html =~ ctx.user.email
     assert html =~ "Copies originals"
     assert html =~ "1 → 2"
+
+    entry =
+      Repo.one!(
+        from e in Entry,
+          where: e.action == "storage.profile.updated" and e.resource_uuid == ^profile.uuid
+      )
+
+    assert has_element?(view, "#media-history-list-#{entry.uuid}", "Cold storage")
   end
 
   test "is empty of other modules' entries", ctx do
@@ -55,6 +66,104 @@ defmodule PhoenixKitWeb.Live.StorageHistoryTest do
 
     refute html =~ "post.created"
     assert html =~ "storage.library.created"
+  end
+
+  test "includes global storage settings with their actor, but excludes unrelated settings",
+       ctx do
+    view = history(ctx.conn)
+
+    {:ok, _} =
+      Settings.update_boolean_setting("storage_annotated_thumbnails_enabled", true,
+        actor_uuid: ctx.user.uuid
+      )
+
+    {:ok, _} =
+      Settings.update_setting("history_unrelated_setting", "changed", actor_uuid: ctx.user.uuid)
+
+    assert render(view) =~ "storage_annotated_thumbnails_enabled"
+    refute render(view) =~ "history_unrelated_setting"
+    view |> form("#media-history-filter", %{"filter" => "changes"}) |> render_change()
+    assert render(view) =~ "storage_annotated_thumbnails_enabled"
+    assert render(view) =~ ctx.user.email
+    view |> form("#media-history-filter", %{"filter" => "runs"}) |> render_change()
+    refute render(view) =~ "storage_annotated_thumbnails_enabled"
+  end
+
+  test "periodic refresh picks up entries committed by a caller-owned transaction", ctx do
+    view = history(ctx.conn)
+
+    {:ok, _} =
+      Repo.transaction(fn -> Profiles.create_profile(%{name: "Quiet commit"}, ctx.actor) end)
+
+    refute render(view) =~ "Quiet commit"
+    send(view.pid, :refresh_library_sync)
+    assert render(view) =~ "Quiet commit"
+  end
+
+  test "saving global storage settings through the page records the signed-in actor", ctx do
+    {:ok, view, _} = live(ctx.conn, Routes.path("/admin/settings/media"))
+    render_change(view, "update_storage_form", %{"form_max_upload_size_mb" => "1234"})
+    render_click(view, "apply_storage_settings")
+
+    entry =
+      Repo.one!(
+        from e in Entry,
+          where: e.action == "setting.changed",
+          where: fragment("?->>'key' = 'storage_max_upload_size_mb'", e.metadata),
+          order_by: [desc: e.uuid],
+          limit: 1
+      )
+
+    assert entry.actor_uuid == ctx.user.uuid
+    assert entry.metadata["source"] == "settings"
+    render_patch(view, Routes.path("/admin/settings/media?tab=history"))
+    assert has_element?(view, "#media-history-list-#{entry.uuid}", "storage_max_upload_size_mb")
+  end
+
+  test "a historical actor is identified as a user rather than the system", ctx do
+    actor = Ecto.UUID.generate()
+
+    {:ok, entry} =
+      Audit.log("storage.profile.created", "storage_profile", Ecto.UUID.generate(),
+        actor_uuid: actor
+      )
+
+    view = history(ctx.conn)
+    row = "#media-history-list-#{entry.uuid}"
+    assert has_element?(view, row, "User #{String.slice(actor, 0, 8)}")
+    refute has_element?(view, row, "System")
+  end
+
+  test "media managers without dashboard access receive no forbidden Activity links", ctx do
+    admin = Roles.get_role_by_name("Admin")
+    :ok = Permissions.revoke_permission(admin.uuid, "dashboard")
+    {:ok, profile} = Profiles.create_profile(%{name: "Restricted details"}, ctx.actor)
+    view = history(ctx.conn)
+    assert render(view) =~ profile.name
+    refute has_element?(view, "#media-history-list a[title='View details']")
+  end
+
+  test "forged pagination and filters cannot crash or overflow the query", ctx do
+    view = history(ctx.conn)
+    target = find_live_child_target(view)
+
+    for page <- [1, %{}, "999999999999999999999999999999999999999999", "-1", "1x"] do
+      render_click(with_target(view, target), "page", %{"page" => page})
+      assert has_element?(view, "#media-history-list")
+    end
+
+    render_change(with_target(view, target), "filter", %{"filter" => "forged"})
+    assert has_element?(view, "#media-history-list")
+  end
+
+  defp find_live_child_target(view) do
+    view
+    |> render()
+    |> Floki.parse_document!()
+    |> Floki.find("#media-history-filter")
+    |> Floki.attribute("phx-target")
+    |> hd()
+    |> String.to_integer()
   end
 
   test "the filter separates settings changes from job runs", ctx do
@@ -99,6 +208,21 @@ defmodule PhoenixKitWeb.Live.StorageHistoryTest do
     assert render(view) =~ "Page 2 of 2"
   end
 
+  test "refresh clamps a page whose entries have been removed", ctx do
+    for n <- 1..30,
+        do:
+          Audit.log("job.started", "job_run", Ecto.UUID.generate(), [], %{"title" => "Run #{n}"})
+
+    view = history(ctx.conn)
+    view |> form("#media-history-filter", %{"filter" => "runs"}) |> render_change()
+    view |> element("#media-history button", "Next") |> render_click()
+    assert render(view) =~ "Page 2 of 2"
+    Repo.delete_all(from e in Entry, where: e.resource_type == "job_run")
+    send(view.pid, :refresh_library_sync)
+    assert has_element?(view, "#media-history-list", "Nothing recorded yet.")
+    refute render(view) =~ "Page 2"
+  end
+
   test "follows the log while the tab is open", ctx do
     view = history(ctx.conn)
     refute render(view) =~ "Brand new profile"
@@ -129,7 +253,16 @@ defmodule PhoenixKitWeb.Live.StorageHistoryTest do
     html = render(view)
 
     assert html =~ "storage.profile.created"
-    assert html =~ "Made in the UI" or html =~ ctx.user.email
+
+    entry =
+      Repo.one!(
+        from e in Entry,
+          where: e.action == "storage.profile.created",
+          where: fragment("?->>'name' = ?", e.metadata, "Made in the UI")
+      )
+
+    assert entry.actor_uuid == ctx.user.uuid
+    assert html =~ "Made in the UI"
   end
 
   test "each row opens its entry on the Activity page", ctx do
@@ -138,7 +271,7 @@ defmodule PhoenixKitWeb.Live.StorageHistoryTest do
 
     entry =
       Repo.one!(
-        from e in PhoenixKit.Activity.Entry,
+        from e in Entry,
           where:
             e.action == "storage.profile.updated" and e.resource_uuid == ^to_string(profile.uuid)
       )

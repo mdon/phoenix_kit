@@ -9,6 +9,7 @@ defmodule PhoenixKitWeb.Components.Core.ActivityList do
 
   Entries need their `:actor` preloaded (`Activity.list/1` does by default). Each row
   links to the entry's page (`/admin/activity/:uuid`), which shows it in full.
+  Pass `detail_links: false` when the viewer cannot access the Activity page.
   """
 
   use Phoenix.Component
@@ -23,6 +24,7 @@ defmodule PhoenixKitWeb.Components.Core.ActivityList do
   attr :entries, :list, required: true
   attr :empty, :string, default: nil
   attr :id, :string, default: nil
+  attr :detail_links, :boolean, default: true
 
   def activity_list(assigns) do
     ~H"""
@@ -33,13 +35,14 @@ defmodule PhoenixKitWeb.Components.Core.ActivityList do
             <th>{gettext("When")}</th>
             <th>{gettext("Who")}</th>
             <th>{gettext("What")}</th>
+            <th>{gettext("Subject")}</th>
             <th>{gettext("Details")}</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
           <tr :if={@entries == []}>
-            <td colspan="5" class="text-center text-base-content/50 py-8">
+            <td colspan="6" class="text-center text-base-content/50 py-8">
               {@empty || gettext("Nothing recorded yet.")}
             </td>
           </tr>
@@ -54,7 +57,13 @@ defmodule PhoenixKitWeb.Components.Core.ActivityList do
               <%= if entry.actor do %>
                 <span class="font-medium">{entry.actor.email}</span>
               <% else %>
-                <span class="text-base-content/50">{gettext("System")}</span>
+                <span class="text-base-content/50">
+                  <%= if entry.actor_uuid do %>
+                    {gettext("User")} {String.slice(entry.actor_uuid, 0, 8)}
+                  <% else %>
+                    {gettext("System")}
+                  <% end %>
+                </span>
               <% end %>
               <span
                 :if={entry.mode in ~w(auto cron script)}
@@ -68,11 +77,13 @@ defmodule PhoenixKitWeb.Components.Core.ActivityList do
                 {entry.action}
               </span>
             </td>
+            <td class="text-sm">{subject(entry)}</td>
             <td class="text-xs text-base-content/70">
               {summarize_details(entry.metadata) || "—"}
             </td>
             <td>
               <.link
+                :if={@detail_links}
                 navigate={Routes.path("/admin/activity/#{entry.uuid}")}
                 class="btn btn-ghost btn-xs btn-square"
                 title={gettext("View details")}
@@ -85,6 +96,24 @@ defmodule PhoenixKitWeb.Components.Core.ActivityList do
       </table>
     </div>
     """
+  end
+
+  defp subject(entry) do
+    metadata = entry.metadata || %{}
+
+    case metadata do
+      %{"profile" => profile, "bucket" => bucket} ->
+        Enum.map_join([profile, bucket], " / ", &Activity.humanize_metadata_value/1)
+
+      %{"variant_set" => set, "size" => size} ->
+        Enum.map_join([set, size], " / ", &Activity.humanize_metadata_value/1)
+
+      _ ->
+        (metadata["name"] || metadata["library"] || metadata["profile"] ||
+           metadata["variant_set"] || metadata["title"] || metadata["key"] ||
+           entry.resource_uuid || "—")
+        |> Activity.humanize_metadata_value()
+    end
   end
 
   # The Details column is where a reader first meets the event, and it should

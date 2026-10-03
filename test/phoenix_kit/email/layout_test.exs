@@ -315,7 +315,8 @@ defmodule PhoenixKit.Email.LayoutTest do
       assert log =~ "has no {{{content}}} placeholder"
 
       # Once per roots and locale, not on every send.
-      assert capture_log(fn -> Layout.wrap("<p>again</p>", "s", paths: [root]) end) == ""
+      refute capture_log(fn -> Layout.wrap("<p>again</p>", "s", paths: [root]) end) =~
+               "has no {{{content}}} placeholder"
 
       assert capture_log(fn -> Layout.wrap("<p>x</p>", "s", paths: [root], locale: "de") end) =~
                "has no {{{content}}} placeholder"

@@ -149,15 +149,21 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
   def handle_event("apply_storage_settings", _params, socket) do
     Settings.update_setting(
       "storage_annotated_thumbnails_enabled",
-      if(socket.assigns.form_annotated_thumbnails_enabled, do: "true", else: "false")
+      if(socket.assigns.form_annotated_thumbnails_enabled, do: "true", else: "false"),
+      Actor.opts(socket) ++ [source: "settings"]
     )
 
     Settings.update_setting(
       "storage_max_upload_size_mb",
-      to_string(socket.assigns.form_max_upload_size_mb)
+      to_string(socket.assigns.form_max_upload_size_mb),
+      Actor.opts(socket) ++ [source: "settings"]
     )
 
-    Settings.update_setting(ImageEditing.mode_setting(), socket.assigns.form_image_edit_mode)
+    Settings.update_setting(
+      ImageEditing.mode_setting(),
+      socket.assigns.form_image_edit_mode,
+      Actor.opts(socket) ++ [source: "settings"]
+    )
 
     # Read back what was saved, so the form shows what is stored
     saved_annotated_thumbnails =
@@ -330,8 +336,13 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
   def handle_info({:job_run, _action, _run}, socket), do: {:noreply, socket}
 
   # A storage entry reached the Activity log: the History tab shows it, if it is open.
-  def handle_info({:activity_logged, %{module: "storage"}}, socket) do
-    if socket.assigns.active_tab == "history" do
+  def handle_info({:activity_logged, entry}, socket) do
+    storage? =
+      entry.module == "storage" or
+        (entry.action == "setting.changed" and
+           String.starts_with?(entry.metadata["key"] || "", "storage_"))
+
+    if storage? and socket.assigns.active_tab == "history" do
       send_update(PhoenixKitWeb.Live.Modules.Storage.HistoryComponent,
         id: "media-history",
         reload: true
@@ -340,8 +351,6 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
 
     {:noreply, socket}
   end
-
-  def handle_info({:activity_logged, _entry}, socket), do: {:noreply, socket}
 
   # Eligibility changes with time, and a settings change need not create a run
   # (e.g. every stale file is waiting for an edit or retry). PubSub alone cannot
@@ -353,6 +362,13 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
       send_update(PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent,
         id: "media-libraries",
         reload_sync: true
+      )
+    end
+
+    if socket.assigns.active_tab == "history" do
+      send_update(PhoenixKitWeb.Live.Modules.Storage.HistoryComponent,
+        id: "media-history",
+        reload: true
       )
     end
 

@@ -1,28 +1,40 @@
 defmodule PhoenixKitWeb.Live.Modules.Storage.HistoryComponent do
   @moduledoc """
   The History tab of Settings → Media: the Activity log, filtered to the storage
-  module, newest first — who changed which bucket, profile, library or size
+  module and global storage-setting entries, newest first — who changed which
+  bucket, profile, library or size
   (`PhoenixKit.Modules.Storage.Audit`) and what the storage job runs did
   (`PhoenixKit.Jobs`). The full feed stays at `/admin/activity`; each row links to its
-  entry there.
+  entry there when the viewer has dashboard access.
 
   Loaded when the tab is opened, not with the page, and refreshed as storage entries
-  arrive. Configuration entries are permanent; run entries follow
-  `activity_retention_days`.
+  arrive, and periodically while visible. Configuration entries are permanent;
+  run entries follow `activity_retention_days`.
   """
   use PhoenixKitWeb, :live_component
 
+  import Ecto.Query
   import PhoenixKitWeb.Components.Core.ActivityList, only: [activity_list: 1]
 
   alias PhoenixKit.Activity
+  alias PhoenixKit.Activity.Entry
   alias PhoenixKit.Modules.Storage.Audit
+  alias PhoenixKit.Users.Auth.Scope
 
   @per_page 25
   @filters ~w(all changes runs)
 
   @impl true
   def mount(socket) do
-    {:ok, assign(socket, active: false, loaded?: false, filter: "all", page: 1, result: nil)}
+    {:ok,
+     assign(socket,
+       active: false,
+       loaded?: false,
+       filter: "all",
+       page: 1,
+       result: nil,
+       scope: nil
+     )}
   end
 
   @impl true
@@ -45,32 +57,70 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.HistoryComponent do
   end
 
   def handle_event("page", %{"page" => page}, socket) do
-    case Integer.parse(page) do
-      {page, ""} when page > 0 -> {:noreply, socket |> assign(:page, page) |> load()}
-      _ -> {:noreply, socket}
+    case parse_page(page) do
+      page when is_integer(page) and page > 0 ->
+        last = if socket.assigns.result, do: max(1, socket.assigns.result.total_pages), else: 1
+        {:noreply, socket |> assign(:page, min(page, last)) |> load()}
+
+      _ ->
+        {:noreply, socket}
     end
   end
+
+  def handle_event("filter", _params, socket), do: {:noreply, socket}
+
+  defp parse_page(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {page, ""} -> page
+      _ -> nil
+    end
+  end
+
+  defp parse_page(_value), do: nil
 
   defp load(socket) do
     result =
       Activity.list(
-        [
-          module: Audit.module_key(),
-          page: socket.assigns.page,
-          per_page: @per_page,
-          preload: [:actor]
-        ] ++ filter_opts(socket.assigns.filter)
+        query: history_query(socket.assigns.filter),
+        page: socket.assigns.page,
+        per_page: @per_page,
+        preload: [:actor]
       )
 
     socket
     |> assign(:loaded?, true)
     |> assign(:result, result)
+    |> clamp_page()
   end
 
-  # Configuration changes are the `storage.*` actions; runs are the job run entries.
-  defp filter_opts("changes"), do: [action: "storage.*"]
-  defp filter_opts("runs"), do: [resource_type: "job_run"]
-  defp filter_opts(_all), do: []
+  # Pruning can remove the last page while it is open.
+  defp clamp_page(socket) do
+    last = max(1, socket.assigns.result.total_pages)
+    if socket.assigns.page > last, do: socket |> assign(:page, last) |> load(), else: socket
+  end
+
+  # Global storage settings already have permanent setting.changed entries; reuse
+  # them rather than writing a second entry for the same change.
+  defp history_query(filter) do
+    query =
+      from(e in Entry,
+        where:
+          e.module == ^Audit.module_key() or
+            (e.action == "setting.changed" and
+               fragment("left(?->>'key', 8) = 'storage_'", e.metadata))
+      )
+
+    case filter do
+      "changes" ->
+        from(e in query, where: like(e.action, "storage.%") or e.action == "setting.changed")
+
+      "runs" ->
+        from(e in query, where: e.resource_type == "job_run")
+
+      _ ->
+        query
+    end
+  end
 
   @impl true
   def render(assigns) do
@@ -107,6 +157,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.HistoryComponent do
             :if={@result}
             id={"#{@id}-list"}
             entries={@result.entries}
+            detail_links={not is_nil(@scope) and Scope.has_module_access?(@scope, "dashboard")}
             empty={gettext("Nothing recorded yet.")}
           />
 

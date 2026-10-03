@@ -310,6 +310,7 @@
       <.live_component
         module={PhoenixKitWeb.Live.Modules.Storage.HistoryComponent}
         id="media-history"
+        scope={assigns[:phoenix_kit_current_scope]}
         active={@active_tab == "history"}
       />
     </div>

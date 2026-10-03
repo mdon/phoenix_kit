@@ -156,15 +156,19 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Dimensions do
   end
 
   def handle_event("check_set", _params, socket) do
-    :ok = VariantSets.bump_revision(socket.assigns.set.uuid)
+    case VariantSets.check_files(socket.assigns.set, Actor.opts(socket)) do
+      :ok ->
+        {:noreply,
+         socket
+         |> reload()
+         |> put_flash(
+           :info,
+           gettext("Every file of this variant set will be checked, and missing sizes made.")
+         )}
 
-    {:noreply,
-     socket
-     |> reload()
-     |> put_flash(
-       :info,
-       gettext("Every file of this variant set will be checked, and missing sizes made.")
-     )}
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, gettext("Could not save"))}
+    end
   end
 
   defp first_error(%Ecto.Changeset{errors: [{field, {message, _}} | _]}),

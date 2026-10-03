@@ -30,11 +30,18 @@ defmodule PhoenixKit.Modules.Storage.Audit do
   `bucket_fields/0`, never a key or a secret.
   """
 
+  import Ecto.Query
+  require Logger
+
   alias PhoenixKit.Activity
+  alias PhoenixKit.Modules.Storage.Endpoint
 
   @module_key "storage"
 
-  @bucket_fields ~w(name provider region endpoint bucket_name enabled priority integration_uuid)a
+  @bucket_fields ~w(name provider region endpoint bucket_name enabled priority integration_uuid cdn_url access_type max_size_mb)a
+  @entries_key {__MODULE__, :entries}
+  @callbacks_key {__MODULE__, :callbacks}
+  @external_key {__MODULE__, :external_transaction}
 
   @doc "The Activity module key every storage entry (configuration and runs) is filed under."
   @spec module_key() :: String.t()
@@ -45,7 +52,98 @@ defmodule PhoenixKit.Modules.Storage.Audit do
   def bucket_fields, do: @bucket_fields
 
   @doc """
-  Writes one configuration entry. Never raises (`PhoenixKit.Activity.log/3` does not).
+  Runs a configuration mutation and its audit inserts in one transaction, then
+  announces the entries after commit. Nested audited mutations share the entries.
+  A failed mutation or audit insert rolls everything back.
+
+  Inside a caller's own repo transaction, entries commit with that transaction
+  but are not announced: this module cannot know when the caller commits. The
+  History tab's periodic refresh picks them up. Call this wrapper at the outer
+  boundary when immediate announcements are wanted.
+  """
+  @spec transaction((-> result)) :: result | {:error, term()} when result: var
+  def transaction(fun) do
+    if Process.get(@entries_key), do: fun.(), else: transact(fun)
+  end
+
+  defp transact(fun) do
+    nested? = repo().in_transaction?()
+
+    result =
+      repo().transaction(fn ->
+        Process.put(@entries_key, [])
+        Process.put(@callbacks_key, [])
+        Process.put(@external_key, nested?)
+
+        try do
+          case fun.() do
+            {:error, reason} ->
+              repo().rollback(reason)
+
+            value ->
+              {value, Enum.reverse(Process.get(@entries_key)),
+               Enum.reverse(Process.get(@callbacks_key))}
+          end
+        after
+          Process.delete(@entries_key)
+          Process.delete(@callbacks_key)
+          Process.delete(@external_key)
+        end
+      end)
+
+    case result do
+      {:ok, {value, entries, callbacks}} ->
+        Enum.each(callbacks, &run_callback/1)
+        unless nested?, do: Enum.each(entries, &Activity.broadcast/1)
+        value
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Defers a cache invalidation or compatibility-settings sync until this module's
+  outer transaction commits. Callbacks are best effort. Inside a caller-owned
+  repo transaction it retains the callback's existing immediate behavior; callers
+  needing commit ordering must use `transaction/1` as their outer boundary.
+  """
+  @spec after_commit((-> term())) :: :ok
+  def after_commit(fun) do
+    if Process.get(@callbacks_key) && not Process.get(@external_key) do
+      Process.put(@callbacks_key, [fun | Process.get(@callbacks_key)])
+    else
+      run_callback(fun)
+    end
+
+    :ok
+  end
+
+  defp run_callback(fun) do
+    fun.()
+  rescue
+    error ->
+      Logger.warning("Storage audit post-commit callback failed: #{Exception.message(error)}")
+  catch
+    :exit, reason ->
+      Logger.warning("Storage audit post-commit callback exited: #{inspect(reason)}")
+  end
+
+  @doc "Locks and reloads an audited resource so diffs describe its actual preceding state."
+  @spec change(struct(), (struct() -> result)) :: result | {:error, term()} when result: var
+  def change(%{__struct__: schema, uuid: uuid}, fun) do
+    transaction(fn ->
+      case repo().one(from(r in schema, where: r.uuid == ^uuid, lock: "FOR NO KEY UPDATE")) do
+        nil -> {:error, :not_found}
+        current -> fun.(current)
+      end
+    end)
+  end
+
+  @doc """
+  Writes one configuration entry. Insert failures roll back an enclosing audited
+  mutation; a standalone call returns the error. Entries are announced only after
+  the transaction owned by this module commits.
 
   `opts` are the context call's: `:actor_uuid`, and `:mode` (default `"manual"` with an
   actor, `"auto"` without). `audit: false` writes nothing (`:skipped`) — for a change
@@ -56,22 +154,44 @@ defmodule PhoenixKit.Modules.Storage.Audit do
           {:ok, PhoenixKit.Activity.Entry.t()} | {:error, term()} | :skipped
   def log(action, resource_type, resource_uuid, opts, metadata \\ %{}) do
     if Keyword.get(opts, :audit, true),
-      do: write(action, resource_type, resource_uuid, opts, metadata),
+      do: transaction(fn -> write(action, resource_type, resource_uuid, opts, metadata) end),
       else: :skipped
+  rescue
+    error -> failed(error)
+  catch
+    :exit, reason -> failed(reason)
   end
 
   defp write(action, resource_type, resource_uuid, opts, metadata) do
     actor = Keyword.get(opts, :actor_uuid)
 
-    Activity.log(@module_key, action,
+    %{
+      module: @module_key,
+      action: action,
       actor_uuid: actor,
       mode: Keyword.get(opts, :mode, if(actor, do: "manual", else: "auto")),
       resource_type: resource_type,
       resource_uuid: resource_uuid && to_string(resource_uuid),
       metadata: metadata,
       permanent: true
-    )
+    }
+    |> Activity.entry_changeset()
+    |> repo().insert(mode: :savepoint)
+    |> case do
+      {:ok, entry} ->
+        Process.put(@entries_key, [entry | Process.get(@entries_key)])
+        {:ok, entry}
+
+      {:error, reason} ->
+        repo().rollback(reason)
+    end
   end
+
+  defp failed(reason) do
+    if Process.get(@entries_key), do: repo().rollback(reason), else: {:error, reason}
+  end
+
+  defp repo, do: PhoenixKit.RepoHelper.repo()
 
   @doc """
   The `"changes"` map of an update: for each of `fields` that the changeset changes,
@@ -83,8 +203,8 @@ defmodule PhoenixKit.Modules.Storage.Audit do
     for field <- fields, Map.has_key?(changeset.changes, field), into: %{} do
       {Atom.to_string(field),
        %{
-         "from" => loggable(Map.get(changeset.data, field)),
-         "to" => loggable(Map.fetch!(changeset.changes, field))
+         "from" => loggable(field, Map.get(changeset.data, field)),
+         "to" => loggable(field, Map.fetch!(changeset.changes, field))
        }}
     end
   end
@@ -97,7 +217,10 @@ defmodule PhoenixKit.Modules.Storage.Audit do
   def diff(before, later, fields) do
     for field <- fields, Map.get(before, field) != Map.get(later, field), into: %{} do
       {Atom.to_string(field),
-       %{"from" => loggable(Map.get(before, field)), "to" => loggable(Map.get(later, field))}}
+       %{
+         "from" => loggable(field, Map.get(before, field)),
+         "to" => loggable(field, Map.get(later, field))
+       }}
     end
   end
 
@@ -113,7 +236,13 @@ defmodule PhoenixKit.Modules.Storage.Audit do
     :ok
   end
 
-  # An atom, a struct or a uuid cannot all go into a JSONB metadata column as they are.
+  defp loggable(:endpoint, value), do: Endpoint.audit_value(value)
+  defp loggable(:cdn_url, value), do: Endpoint.audit_value(value, local_path: false)
+
+  defp loggable(_field, value), do: loggable(value)
+
+  # Keep lists as JSON arrays rather than inspected Elixir source.
+  defp loggable(value) when is_list(value), do: Enum.map(value, &loggable/1)
   defp loggable(nil), do: nil
   defp loggable(value) when is_boolean(value) or is_number(value) or is_binary(value), do: value
   defp loggable(value) when is_atom(value), do: Atom.to_string(value)

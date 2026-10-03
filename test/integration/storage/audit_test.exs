@@ -8,8 +8,19 @@ defmodule PhoenixKit.Modules.Storage.AuditTest do
   use PhoenixKit.DataCase, async: false
 
   alias PhoenixKit.Activity.Entry
+  alias PhoenixKit.Integrations
   alias PhoenixKit.Modules.Storage
-  alias PhoenixKit.Modules.Storage.{Audit, Libraries, Profiles, VariantSets}
+
+  alias PhoenixKit.Modules.Storage.{
+    Audit,
+    Endpoint,
+    Libraries,
+    Profiles,
+    StorageProfile,
+    VariantSets
+  }
+
+  alias PhoenixKit.PubSub.Manager
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.{Auth, Permissions, Roles}
   alias PhoenixKit.Users.Auth.Scope
@@ -35,6 +46,175 @@ defmodule PhoenixKit.Modules.Storage.AuditTest do
   end
 
   defp newest(action), do: action |> entries() |> List.last()
+
+  test "a stale profile records the actual preceding value", ctx do
+    {:ok, profile} = Profiles.create_profile(%{name: "Concurrent #{ctx.n}"}, ctx.actor)
+    {:ok, _} = Profiles.update_profile(profile, %{copies_originals: 2}, ctx.actor)
+    {:ok, _} = Profiles.update_profile(profile, %{copies_originals: 3}, ctx.actor)
+
+    assert newest("storage.profile.updated").metadata["changes"]["copies_originals"] ==
+             %{"from" => 2, "to" => 3}
+  end
+
+  test "a stale library records its actual preceding profile", ctx do
+    {:ok, library} = Libraries.create_system_library(%{name: "Moving #{ctx.n}"}, ctx.actor)
+    {:ok, one} = Profiles.create_profile(%{name: "First #{ctx.n}"}, ctx.actor)
+    {:ok, two} = Profiles.create_profile(%{name: "Second #{ctx.n}"}, ctx.actor)
+    {:ok, _} = Profiles.set_library_profile(library, one.uuid, ctx.actor)
+    {:ok, _} = Profiles.set_library_profile(library, two.uuid, ctx.actor)
+
+    assert newest("storage.library.profile_changed").metadata["changes"]["profile"] ==
+             %{"from" => one.name, "to" => two.name}
+  end
+
+  test "a stale library cannot create a duplicate no-op setting entry", ctx do
+    {:ok, library} = Libraries.create_system_library(%{name: "Unchanged #{ctx.n}"}, ctx.actor)
+    {:ok, _} = Libraries.put_setting(library, :annotated_thumbnails, true, ctx.actor)
+    count = length(entries("storage.library.setting_changed"))
+    {:ok, _} = Libraries.put_setting(library, :annotated_thumbnails, true, ctx.actor)
+    assert length(entries("storage.library.setting_changed")) == count
+  end
+
+  test "a rolled-back change is never announced", ctx do
+    {:ok, profile} = Profiles.create_profile(%{name: "Rollback #{ctx.n}"}, ctx.actor)
+    Manager.subscribe(PhoenixKit.Activity.pubsub_topic())
+
+    assert {:error, :undone} =
+             Repo.transaction(fn ->
+               {:ok, _} = Profiles.update_profile(profile, %{copies_originals: 2}, ctx.actor)
+               Repo.rollback(:undone)
+             end)
+
+    refute_receive {:activity_logged, %{action: "storage.profile.updated"}}
+    assert Profiles.get_profile(profile.uuid).copies_originals == 1
+  end
+
+  test "a failed audit insert cannot leave a committed configuration change", ctx do
+    {:ok, profile} = Profiles.create_profile(%{name: "Atomic #{ctx.n}"}, ctx.actor)
+
+    assert {:error, _} =
+             Profiles.update_profile(profile, %{copies_originals: 2}, actor_uuid: "invalid-uuid")
+
+    assert Profiles.get_profile(profile.uuid).copies_originals == 1
+  end
+
+  test "one outer audited transaction rolls back all mutations and pending announcements", ctx do
+    Manager.subscribe(PhoenixKit.Activity.pubsub_topic())
+    name = "Group #{ctx.n}"
+
+    assert {:error, :undone} =
+             Audit.transaction(fn ->
+               {:ok, _} = Profiles.create_profile(%{name: name}, ctx.actor)
+               {:ok, _} = VariantSets.create_variant_set(%{name: name}, ctx.actor)
+               Audit.after_commit(fn -> send(self(), :committed) end)
+               {:error, :undone}
+             end)
+
+    refute Repo.exists?(from p in StorageProfile, where: p.name == ^name)
+
+    refute_receive {:activity_logged, %{metadata: %{"name" => ^name}}}
+    refute_receive :committed
+
+    # The collector must also be cleaned up after a rollback.
+    {:ok, profile} = Profiles.create_profile(%{name: name}, ctx.actor)
+    assert_receive {:activity_logged, %{resource_uuid: uuid}}
+    assert uuid == profile.uuid
+  end
+
+  test "callbacks and announcements run only after the owned transaction commits", ctx do
+    Manager.subscribe(PhoenixKit.Activity.pubsub_topic())
+
+    {:ok, profile} =
+      Audit.transaction(fn ->
+        result = Profiles.create_profile(%{name: "Committed #{ctx.n}"}, ctx.actor)
+        refute_receive {:activity_logged, _}
+        Audit.after_commit(fn -> send(self(), {:committed, Repo.in_transaction?()}) end)
+        result
+      end)
+
+    assert_receive {:committed, false}
+    assert_receive {:activity_logged, %{resource_uuid: uuid}}
+    assert uuid == profile.uuid
+    assert newest("storage.profile.created").resource_uuid == uuid
+  end
+
+  test "checking one set records its request and advances only that set", ctx do
+    {:ok, set} = VariantSets.create_variant_set(%{name: "Check #{ctx.n}"}, ctx.actor)
+    {:ok, other} = VariantSets.create_variant_set(%{name: "Other #{ctx.n}"}, ctx.actor)
+    assert :ok = VariantSets.check_files(set, ctx.actor)
+    assert VariantSets.get_variant_set(set.uuid).revision == set.revision + 1
+    assert VariantSets.get_variant_set(other.uuid).revision == other.revision
+    entry = newest("storage.variant_set.remade")
+    assert entry.actor_uuid == ctx.user.uuid
+    assert entry.resource_uuid == set.uuid
+    assert entry.metadata == %{"name" => set.name, "scope" => "one set"}
+  end
+
+  test "alternative size formats are recorded as JSON arrays", ctx do
+    {:ok, set} = VariantSets.create_variant_set(%{name: "Formats #{ctx.n}"}, ctx.actor)
+
+    {:ok, size} =
+      Storage.create_dimension(
+        %{name: "banner", width: 100, height: 100, format: "jpg", applies_to: "image"},
+        set.uuid
+      )
+
+    {:ok, _} = Storage.update_dimension(size, %{alternative_formats: ["webp"]}, ctx.actor)
+
+    assert newest("storage.variant_set.size_updated").metadata["changes"]["alternative_formats"] ==
+             %{"from" => [], "to" => ["webp"]}
+  end
+
+  test "URL redaction covers query and fragment secrets while preserving local paths" do
+    assert Endpoint.audit_value("https://user:pass@cdn.example.com/files?token=secret#private") ==
+             "https://cdn.example.com/files"
+
+    assert Endpoint.audit_value("user:pass@cdn.example.com/files?token=secret") ==
+             "cdn.example.com/files"
+
+    assert Endpoint.audit_value(" https://user:pass@cdn.example.com/files?token=secret ") ==
+             "https://cdn.example.com/files"
+
+    assert Endpoint.audit_value("/cdn/files?token=secret#private", local_path: false) ==
+             "/cdn/files"
+
+    assert Endpoint.audit_value("/var/storage/files") == "/var/storage/files"
+    assert Endpoint.audit_value(nil) == nil
+  end
+
+  test "bucket access, capacity and CDN changes are audited", ctx do
+    {:ok, bucket} = bucket!(ctx)
+
+    {:ok, _} =
+      Storage.update_bucket(
+        bucket,
+        %{access_type: "private", max_size_mb: 100, cdn_url: "https://cdn.example.com"},
+        ctx.actor
+      )
+
+    changes = newest("storage.bucket.updated").metadata["changes"]
+    assert changes["access_type"]["to"] == "private"
+    assert changes["max_size_mb"]["to"] == 100
+    assert changes["cdn_url"]["to"] == "https://cdn.example.com"
+  end
+
+  test "bucket URL credentials are withheld from permanent metadata", ctx do
+    {:ok, bucket} =
+      Storage.create_bucket(%{
+        name: "URL secret #{ctx.n}",
+        provider: "s3",
+        access_key_id: "identifier",
+        secret_access_key: "key",
+        bucket_name: "test"
+      })
+
+    {:ok, _} =
+      Storage.update_bucket(bucket, %{endpoint: "https://name:password@storage.example.com"},
+        actor_uuid: ctx.user.uuid
+      )
+
+    refute inspect(newest("storage.bucket.updated").metadata) =~ "password"
+  end
 
   test "the module key is the storage module's own" do
     assert Audit.module_key() == Storage.module_key()
@@ -348,6 +528,32 @@ defmodule PhoenixKit.Modules.Storage.AuditTest do
 
       {:ok, _} = VariantSets.set_library_variant_set(library, nil, actor_uuid: owner.uuid)
 
+      assert Repo.aggregate(from(e in Entry, where: e.module == "storage"), :count) == before
+    end
+
+    test "a user's bucket and storage profile are absent from the site's audit", ctx do
+      before = Repo.aggregate(from(e in Entry, where: e.module == "storage"), :count)
+
+      {:ok, %{uuid: connection}} =
+        Integrations.add_connection("object_storage", "Private #{ctx.n}", nil,
+          owner: {:user, ctx.user.uuid}
+        )
+
+      {:ok, bucket} =
+        Storage.create_owned_bucket(ctx.user.uuid, %{
+          "name" => "Private #{ctx.n}",
+          "provider" => "s3",
+          "bucket_name" => "private",
+          "integration_uuid" => connection,
+          "endpoint" => "https://8.8.8.8"
+        })
+
+      {:ok, profile} = Profiles.create_user_profile(ctx.user.uuid, bucket, :only)
+      {:ok, profile} = Profiles.update_profile(profile, %{name: "Private renamed"}, ctx.actor)
+      {:ok, bucket} = Storage.update_bucket(bucket, %{name: "Private renamed"}, ctx.actor)
+      :ok = Profiles.remove_bucket(profile, bucket.uuid, ctx.actor)
+      {:ok, _} = Storage.delete_bucket(bucket, ctx.actor)
+      {:ok, _} = Profiles.delete_profile(profile, ctx.actor)
       assert Repo.aggregate(from(e in Entry, where: e.module == "storage"), :count) == before
     end
   end

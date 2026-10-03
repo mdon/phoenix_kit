@@ -208,6 +208,10 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   @spec create_system_library(map(), keyword()) ::
           {:ok, Library.t()} | {:error, Ecto.Changeset.t()}
   def create_system_library(attrs, opts \\ []) do
+    Audit.transaction(fn -> do_create_system_library(attrs, opts) end)
+  end
+
+  defp do_create_system_library(attrs, opts) do
     attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
     attrs = Map.put_new_lazy(attrs, "key_prefix", &generate_key_prefix/0)
 
@@ -253,13 +257,17 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   defp insert_system_library(attrs) do
     %Library{}
     |> Library.create_system_changeset(attrs)
-    |> repo().insert()
+    |> repo().insert(mode: :savepoint)
   end
 
   @doc "Renames a library."
   @spec rename_library(Library.t(), String.t(), keyword()) ::
           {:ok, Library.t()} | {:error, Ecto.Changeset.t()}
   def rename_library(%Library{} = library, name, opts \\ []) do
+    Audit.change(library, &do_rename_library(&1, name, opts))
+  end
+
+  defp do_rename_library(library, name, opts) do
     library
     |> Library.rename_changeset(%{name: name})
     |> repo().update()
@@ -287,7 +295,13 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   def delete_library(library, opts \\ [])
   def delete_library(%Library{is_default: true}, _opts), do: {:error, :default}
 
-  def delete_library(%Library{uuid: uuid} = library, opts) do
+  def delete_library(%Library{} = library, opts) do
+    Audit.change(library, &do_delete_library(&1, opts))
+  end
+
+  defp do_delete_library(%Library{is_default: true}, _opts), do: {:error, :default}
+
+  defp do_delete_library(%Library{uuid: uuid} = library, opts) do
     holds? =
       repo().exists?(from(f in StorageFile, where: f.library_uuid == ^uuid)) or
         repo().exists?(from(f in Folder, where: f.library_uuid == ^uuid))
@@ -434,7 +448,11 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   """
   @spec put_setting(Library.t(), setting(), term(), keyword()) ::
           {:ok, Library.t()} | {:error, :unknown_setting | :invalid_value | :not_found}
-  def put_setting(%Library{uuid: uuid} = library, key, value, opts \\ []) do
+  def put_setting(%Library{} = library, key, value, opts \\ []) do
+    Audit.change(library, &do_put_setting(&1, key, value, opts))
+  end
+
+  defp do_put_setting(%Library{uuid: uuid} = library, key, value, opts) do
     with {name, type} when is_binary(name) <- Map.get(@settings, key, :unknown),
          :ok <- check_type(type, value) do
       {count, _} =

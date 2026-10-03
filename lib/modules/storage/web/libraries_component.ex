@@ -34,6 +34,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
 
   alias PhoenixKit.Modules.Storage.{
     AnnotationThumbnail,
+    Audit,
     Libraries,
     LibraryState,
     Profiles,
@@ -202,10 +203,15 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
         _ -> div(URLSigner.private_url_window_seconds(), 3600)
       end
 
-    with {:ok, _} <- Settings.update_boolean_setting("storage_user_libraries_enabled", enabled?),
-         {:ok, _} <- Settings.update_boolean_setting("storage_user_buckets_enabled", buckets?),
-         {:ok, _} <- Settings.update_setting("storage_user_library_limit", to_string(limit)),
-         {:ok, _} <- Settings.update_setting("storage_private_url_window_hours", to_string(hours)) do
+    opts = actor(socket) ++ [source: "settings"]
+
+    with {:ok, _} <-
+           Settings.update_boolean_setting("storage_user_libraries_enabled", enabled?, opts),
+         {:ok, _} <-
+           Settings.update_boolean_setting("storage_user_buckets_enabled", buckets?, opts),
+         {:ok, _} <- Settings.update_setting("storage_user_library_limit", to_string(limit), opts),
+         {:ok, _} <-
+           Settings.update_setting("storage_private_url_window_hours", to_string(hours), opts) do
       {:noreply, socket |> load() |> flash(:info, gettext("User library settings saved"))}
     else
       _ -> {:noreply, flash(socket, :error, gettext("User library settings could not be saved"))}
@@ -240,12 +246,12 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
   defp saved_message(false), do: gettext("Library setting saved")
 
   defp set_storage(library, params, actor) do
-    PhoenixKit.RepoHelper.repo().transaction(fn ->
+    Audit.transaction(fn ->
       with {:ok, library} <- maybe_set_profile(library, params["profile"], actor),
            {:ok, library} <- maybe_set_variant_set(library, params["set"], actor) do
-        library
+        {:ok, library}
       else
-        {:error, reason} -> PhoenixKit.RepoHelper.repo().rollback(reason)
+        {:error, reason} -> {:error, reason}
       end
     end)
   end

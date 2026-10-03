@@ -46,6 +46,16 @@
 
 ### Fixed
 
+- Storage configuration changes and their audit entries commit together; failed audit inserts
+  roll back the change, and rolled-back changes produce no storage audit announcement. Diffs use
+  locked, current rows, so stale forms cannot record incorrect old values or duplicate no-ops.
+- Storage audit redacts credentials and query tokens in endpoint/CDN URLs and includes bucket
+  access, capacity and CDN changes, alternative size formats, and checks requested for one set.
+- Media History identifies the affected resource, includes global storage settings with the
+  signed-in actor, refreshes after missed announcements, and handles invalid or removed pages.
+  Historical users retain their UUID label; Activity links require dashboard access.
+- Object Storage service labels load their setup module before checking its optional label
+  callback, so the Integrations list shows the service on its first visit after boot.
 - Storage reconcile triggers preserve restart requests for active libraries even when their
   files are temporarily ineligible, and return start failures so the trigger job can retry.
 - The stalled-queue warning ignores paused runs and superseded dispatches, and matches the
