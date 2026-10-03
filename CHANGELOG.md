@@ -1,4 +1,4 @@
-## Unreleased
+## 2.48.0 - 2026-10-03
 
 ### Added
 
@@ -65,7 +65,7 @@
 
 ### i18n
 
-- The Jobs page's new strings in all seven locales.
+- The Jobs page's new strings (the Runs tab, its controls, history and notices) in all seven locales.
 
 ## 2.47.0 - 2026-10-03
 
