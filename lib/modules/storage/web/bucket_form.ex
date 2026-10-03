@@ -23,6 +23,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Actor
+  alias PhoenixKitWeb.Live.Modules.Storage.BucketUsage
 
   @cloud_providers ~w(s3 b2 r2 tigris)
 
@@ -41,6 +42,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
       |> assign(:testing_connection, false)
       |> assign(:connections, [])
       |> assign(:selected_connection_uuid, nil)
+      |> assign(:usage, [])
 
     {:ok, socket}
   end
@@ -66,6 +68,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
        |> assign(:bucket_uuid, bucket_uuid)
        |> assign(:page_title, page_title(mode))
        |> assign(:bucket, bucket)
+       |> assign(:usage, bucket_usage(bucket))
        |> assign(:changeset, changeset)
        |> assign(:current_provider, get_current_provider(changeset, bucket))
        |> assign(:selected_connection_uuid, bucket && bucket.integration_uuid)
@@ -342,6 +345,10 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
 
         {:noreply, socket}
 
+      {:error, {:in_use, usage}} ->
+        {:noreply,
+         put_flash(socket, :error, BucketUsage.refusal_message(:disable, bucket, usage))}
+
       {:error, changeset} ->
         socket =
           socket
@@ -351,6 +358,12 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
         {:noreply, socket}
     end
   end
+
+  # The profiles that use the bucket being edited (none for a new one).
+  defp bucket_usage(nil), do: []
+
+  defp bucket_usage(%Bucket{uuid: uuid}),
+    do: Map.get(Profiles.bucket_usage([uuid]), to_string(uuid), [])
 
   # What the params need before they reach the changeset:
   #

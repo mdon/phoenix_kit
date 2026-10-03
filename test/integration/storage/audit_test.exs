@@ -433,6 +433,10 @@ defmodule PhoenixKit.Modules.Storage.AuditTest do
 
       assert name == bucket.name
 
+      # A bucket joins the Default when it is created; disabling and deleting
+      # one needs it out of every profile first.
+      :ok = Profiles.remove_bucket(Profiles.default_profile(), bucket.uuid)
+
       {:ok, bucket} =
         Storage.update_bucket(
           bucket,

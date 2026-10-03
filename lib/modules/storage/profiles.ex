@@ -481,22 +481,104 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
   def write_priority(_priority), do: nil
 
   @doc """
-  Takes `bucket_uuid` out of every profile, bumping each one's revision.
-  Called when an empty bucket is deleted.
+  Which profiles use each of `bucket_uuids`, and how many libraries stand
+  behind each one: `%{bucket_uuid => [usage]}`, a bucket no profile uses
+  absent from the map. Every profile row counts, whatever its role or status
+  (`draining` and `read_only` still hold or serve objects), and a user's own
+  profile counts too — a site bucket may be one half of their backup.
+
+  A `usage` is `%{profile_uuid, name, is_default, owner_uuid, role, status,
+  libraries}`, the Default first. `libraries` counts the libraries on the
+  profile, trashed ones included, and for the Default those that name no
+  profile. Callers that show it must not name a user's profile or library
+  (`owner_uuid` is set on the first; count the second).
+
+  This is what refuses deleting or disabling a bucket (`Storage.delete_bucket/2`,
+  `Storage.update_bucket/3`) and what the Buckets list shows.
   """
-  @spec remove_bucket_everywhere(term()) :: :ok
-  def remove_bucket_everywhere(bucket_uuid) do
-    {:ok, :ok} =
-      transact(fn ->
-        {_count, profile_uuids} =
-          from(r in ProfileBucket, where: r.bucket_uuid == ^bucket_uuid, select: r.profile_uuid)
-          |> repo().delete_all()
+  @spec bucket_usage([term()]) :: %{optional(String.t()) => [map()]}
+  def bucket_usage([]), do: %{}
 
-        Enum.each(Enum.uniq(profile_uuids), &bump_revision/1)
-        {:ok, :ok}
-      end)
+  def bucket_usage(bucket_uuids) when is_list(bucket_uuids) do
+    rows =
+      from(r in ProfileBucket,
+        join: p in StorageProfile,
+        on: p.uuid == r.profile_uuid,
+        where: r.bucket_uuid in ^bucket_uuids,
+        order_by: [desc: p.is_default, asc: fragment("lower(?)", p.name), asc: p.uuid],
+        select: %{
+          bucket_uuid: r.bucket_uuid,
+          profile_uuid: p.uuid,
+          name: p.name,
+          is_default: p.is_default,
+          owner_uuid: p.owner_uuid,
+          role: r.role,
+          status: r.status
+        }
+      )
+      |> repo().all()
 
-    :ok
+    counts = rows |> Enum.map(& &1.profile_uuid) |> Enum.uniq() |> library_counts()
+
+    rows
+    |> Enum.map(fn row ->
+      row
+      |> Map.update!(:bucket_uuid, &to_string/1)
+      |> Map.update!(:profile_uuid, &to_string/1)
+      |> Map.put(:libraries, Map.get(counts, to_string(row.profile_uuid), 0))
+    end)
+    |> Enum.group_by(& &1.bucket_uuid)
+  end
+
+  # Libraries per profile, as `libraries_using/1` counts them, in one pass.
+  defp library_counts([]), do: %{}
+
+  defp library_counts(profile_uuids) do
+    explicit =
+      from(l in Library,
+        where: l.storage_profile_uuid in ^profile_uuids,
+        group_by: l.storage_profile_uuid,
+        select: {l.storage_profile_uuid, count()}
+      )
+      |> repo().all()
+      |> Map.new(fn {uuid, count} -> {to_string(uuid), count} end)
+
+    if Enum.any?(profile_uuids, &default?/1) do
+      unnamed =
+        repo().one(from(l in Library, where: is_nil(l.storage_profile_uuid), select: count()))
+
+      Map.update(explicit, @default_uuid, unnamed, &(&1 + unnamed))
+    else
+      explicit
+    end
+  end
+
+  @doc """
+  The names of the site libraries on `profile_uuid` (the Default's include
+  those that name no profile), and how many user libraries are on it besides.
+  A user's library is private to its owner, so it is counted, never named.
+  """
+  @spec library_names_using(term()) :: %{names: [String.t()], user_libraries: non_neg_integer()}
+  def library_names_using(profile_uuid) do
+    base =
+      if default?(profile_uuid),
+        do:
+          from(l in Library,
+            where: is_nil(l.storage_profile_uuid) or l.storage_profile_uuid == ^profile_uuid
+          ),
+        else: from(l in Library, where: l.storage_profile_uuid == ^profile_uuid)
+
+    names =
+      from(l in base,
+        where: l.kind != "user",
+        order_by: fragment("lower(?)", l.name),
+        select: l.name
+      )
+      |> repo().all()
+
+    users = repo().one(from(l in base, where: l.kind == "user", select: count()))
+
+    %{names: names, user_libraries: users}
   end
 
   @doc """

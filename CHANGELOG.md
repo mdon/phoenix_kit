@@ -1,3 +1,33 @@
+## Unreleased
+
+### Added
+
+- **The Buckets list shows which storage profiles use each bucket.** A "Used by" column names the
+  profiles (with the bucket's role and status there, and how many libraries stand behind each) or
+  says "Not used"; a user's personal profile is counted, never named. The bucket's edit page
+  carries the same notice. (`Profiles.bucket_usage/1`, `Profiles.library_names_using/1`.)
+
+### Changed
+
+- **A bucket a storage profile lists cannot be deleted or disabled.** `Storage.delete_bucket/2`
+  and `Storage.update_bucket/3` (turning `enabled` off) return `{:error, {:in_use, usage}}` while
+  any profile has a row for the bucket, whatever the row's role or status (a user's own profile
+  counts too), and the settings page and the bucket form say which profiles. Free the bucket
+  first on the Storage profiles tab, then delete or disable it. Enabling is always allowed, and a
+  user's own bucket is unchanged. Deleting an empty bucket no longer takes it out of every profile
+  on the way — that could leave a library with nowhere to write. The delete confirmation no
+  longer says it removes location records (it has refused a bucket holding files since V204).
+- The refusal to delete a storage profile that libraries use names the site libraries in the way
+  (a user's library is only counted), and tells the Default apart from a profile in use.
+
+### Removed
+
+- `Profiles.remove_bucket_everywhere/1` (only the bucket delete called it).
+
+### i18n
+
+- The new strings in all seven locales.
+
 ## 2.49.0 - 2026-10-03
 
 ### Added

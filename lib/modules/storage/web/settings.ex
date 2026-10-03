@@ -19,12 +19,14 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
   alias PhoenixKit.Modules.Storage.BucketCredentials
   alias PhoenixKit.Modules.Storage.Endpoint
   alias PhoenixKit.Modules.Storage.ImageEditing
+  alias PhoenixKit.Modules.Storage.Profiles
   alias PhoenixKit.PubSub.Manager, as: PubSubManager
   alias PhoenixKit.Settings
   alias PhoenixKit.System.Dependencies
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Actor
+  alias PhoenixKitWeb.Live.Modules.Storage.BucketUsage
   alias PhoenixKitWeb.Live.Settings.UrlTabs
 
   @sync_refresh_interval 30_000
@@ -67,6 +69,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
       |> assign(:buckets, buckets)
       |> assign(:bucket_connections, bucket_connections())
       |> assign(:bucket_file_counts, bucket_file_counts)
+      |> assign(:bucket_usage, %{})
       |> assign(:tile_generation_enabled, tile_generation_enabled)
       |> assign(:annotated_thumbnails_enabled, annotated_thumbnails_enabled == "true")
       |> assign(:form_annotated_thumbnails_enabled, form_annotated_thumbnails_enabled)
@@ -87,9 +90,22 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
   end
 
   # The tab lives in the URL (`?tab=libraries`); see `UrlTabs`.
+  # The Buckets tab reads which profiles use each bucket, which the Storage
+  # profiles tab (or another admin) changes: it is read whenever the tab opens.
   def handle_params(params, _url, socket) do
-    {:noreply, assign(socket, :active_tab, UrlTabs.active(params, tabs()))}
+    active_tab = UrlTabs.active(params, tabs())
+    socket = assign(socket, :active_tab, active_tab)
+
+    {:noreply, if(active_tab == "buckets", do: load_bucket_usage(socket), else: socket)}
   end
+
+  defp load_bucket_usage(socket),
+    do:
+      assign(
+        socket,
+        :bucket_usage,
+        Profiles.bucket_usage(Enum.map(socket.assigns.buckets, & &1.uuid))
+      )
 
   defp tabs do
     [
@@ -202,6 +218,10 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
             socket = reload_settings_data(socket)
             {:noreply, put_flash(socket, :info, message)}
 
+          {:error, {:in_use, usage}} ->
+            {:noreply,
+             put_flash(socket, :error, BucketUsage.refusal_message(:disable, bucket, usage))}
+
           {:error, _changeset} ->
             {:noreply, put_flash(socket, :error, gettext("Failed to update bucket"))}
         end
@@ -254,7 +274,9 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
   end
 
   def handle_event("delete_bucket", %{"id" => bucket_uuid}, socket) do
-    case bucket_uuid |> Storage.get_site_bucket() |> delete_site_bucket(Actor.opts(socket)) do
+    bucket = Storage.get_site_bucket(bucket_uuid)
+
+    case delete_site_bucket(bucket, Actor.opts(socket)) do
       {:ok, _bucket} ->
         # Reload buckets and recalculate max redundancy
         buckets = Storage.list_buckets()
@@ -267,12 +289,16 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
           |> assign(:bucket_connections, bucket_connections())
           |> assign(:active_buckets_count, active_buckets_count)
           |> assign(:max_redundancy, max_redundancy)
+          |> load_bucket_usage()
           |> put_flash(:info, gettext("Bucket deleted successfully"))
 
         {:noreply, socket}
 
       {:error, :not_found} ->
         {:noreply, put_flash(socket, :error, gettext("Bucket not found"))}
+
+      {:error, {:in_use, usage}} ->
+        {:noreply, put_flash(socket, :error, BucketUsage.refusal_message(:delete, bucket, usage))}
 
       {:error, changeset} ->
         message =
@@ -533,6 +559,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
     |> assign(:buckets, buckets)
     |> assign(:bucket_connections, bucket_connections())
     |> assign(:bucket_file_counts, bucket_file_counts)
+    |> load_bucket_usage()
   end
 
   defp parse_integer(val, fallback) do

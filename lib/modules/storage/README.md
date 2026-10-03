@@ -337,6 +337,22 @@ touches profiles behaves as before. A profile has:
   `status` (`active`; `read_only` serves but gets no new files; `draining`
   has its files moved to the profile's other buckets).
 
+**A bucket a profile lists is protected.** `Storage.delete_bucket/2` and
+`Storage.update_bucket/3` (disabling) refuse it with
+`{:error, {:in_use, usage}}` while any profile has a row for it, whatever the
+row's role or status, and a user's own profile counts; nothing is taken out of
+a profile on the way (the delete used to strip an empty bucket from every
+profile, which could leave a library with nowhere to write). The bucket-row FK
+is `RESTRICT`, so a row added in between is refused by the database too. The
+admin frees the bucket first (Storage profiles tab: `draining` to move its
+files, then remove it), and only then disables or deletes it. Enabling is
+always allowed, and a user's own bucket is not guarded on disable (it goes with
+its library). `Profiles.bucket_usage/1` says which profiles use which buckets
+and how many libraries stand behind each (the Buckets tab's "Used by" column);
+`Profiles.delete_profile/2` refuses a profile a library uses, and
+`Profiles.library_names_using/1` names the site libraries in the way (a user's
+library is counted, never named).
+
 **Writes** (`Manager.store_file/2` with `:profile` and `:kind`, reached
 through `Storage.store_by_profile/4`): the profile's buckets that are
 enabled, `active`, store that kind and are under their `max_size_mb`,

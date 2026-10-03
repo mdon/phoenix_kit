@@ -104,13 +104,14 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
       nil ->
         {:noreply, socket}
 
-      {:error, _reason} ->
-        {:noreply,
-         flash(
-           socket,
-           :error,
-           gettext("The Default profile, and a profile a library uses, cannot be deleted.")
-         )}
+      {:error, :default} ->
+        {:noreply, flash(socket, :error, gettext("The Default profile cannot be deleted."))}
+
+      {:error, :in_use} ->
+        {:noreply, flash(socket, :error, in_use_message(find(socket, uuid)))}
+
+      {:error, _changeset} ->
+        {:noreply, flash(socket, :error, gettext("The storage profile could not be deleted."))}
     end
   end
 
@@ -204,6 +205,24 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
   # Only a profile this tab listed: the uuid arrives from the client.
   # Who is acting, for the history (`Storage.Audit`).
   defp actor(socket), do: PhoenixKitWeb.Actor.opts(socket.assigns.scope)
+
+  # Names the site libraries that stand in the way; a user's library is private
+  # to its owner, so those are only counted.
+  defp in_use_message(%StorageProfile{} = profile) do
+    %{names: names, user_libraries: users} = Profiles.library_names_using(profile.uuid)
+
+    libraries =
+      names ++
+        if users > 0,
+          do: [ngettext("%{count} personal library", "%{count} personal libraries", users)],
+          else: []
+
+    gettext(
+      "\"%{profile}\" cannot be deleted: it is used by %{libraries}. Move them to another storage profile first (Libraries tab).",
+      profile: profile.name,
+      libraries: Enum.join(libraries, ", ")
+    )
+  end
 
   defp find(socket, uuid), do: Enum.find(socket.assigns.profiles, &(to_string(&1.uuid) == uuid))
 

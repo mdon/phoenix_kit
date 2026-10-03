@@ -511,6 +511,12 @@ defmodule PhoenixKit.Modules.Storage do
   @doc """
   Updates a bucket.
 
+  Disabling one of the site's buckets is refused with
+  `{:error, {:in_use, usage}}` while any storage profile lists it
+  (`Profiles.bucket_usage/1` describes `usage`): a disabled bucket is neither
+  written nor read, which would strand the libraries on those profiles. Take it
+  out of the profiles first. Enabling is always allowed.
+
   ## Examples
 
       iex> update_bucket(bucket, %{name: "New Name"})
@@ -519,7 +525,12 @@ defmodule PhoenixKit.Modules.Storage do
       iex> update_bucket(bucket, %{name: nil})
       {:error, %Ecto.Changeset{}}
 
+      iex> update_bucket(bucket_in_a_profile, %{enabled: false})
+      {:error, {:in_use, [%{name: "Default", ...}]}}
+
   """
+  @spec update_bucket(Bucket.t(), map(), keyword()) ::
+          {:ok, Bucket.t()} | {:error, Ecto.Changeset.t() | :not_found | {:in_use, [map()]}}
   def update_bucket(%Bucket{} = bucket, attrs, opts \\ []) do
     Audit.change(bucket, &do_update_bucket(&1, attrs, opts))
   end
@@ -527,6 +538,28 @@ defmodule PhoenixKit.Modules.Storage do
   defp do_update_bucket(bucket, attrs, opts) do
     changeset = bucket_update_changeset(bucket, attrs)
 
+    with :ok <- refuse_disable_while_in_profiles(bucket, changeset) do
+      update_bucket_row(changeset, opts)
+    end
+  end
+
+  # A disabled bucket is neither written nor read, whatever its profiles say,
+  # so disabling one a profile lists would strand the libraries on it. Refused
+  # until the admin has taken it out of every profile. Only the site's buckets:
+  # a user's own bucket belongs to their library and goes with it. Enabling is
+  # always allowed.
+  defp refuse_disable_while_in_profiles(
+         %Bucket{enabled: true, owner_uuid: nil} = bucket,
+         changeset
+       ) do
+    if Map.get(changeset.changes, :enabled) == false,
+      do: refuse_while_in_profiles(bucket),
+      else: :ok
+  end
+
+  defp refuse_disable_while_in_profiles(_bucket, _changeset), do: :ok
+
+  defp update_bucket_row(changeset, opts) do
     repo().transaction(fn ->
       case repo().update(changeset) do
         {:ok, updated} ->
@@ -589,48 +622,74 @@ defmodule PhoenixKit.Modules.Storage do
   @doc """
   Deletes a bucket.
 
+  Refused with `{:error, {:in_use, usage}}` while any storage profile lists it
+  (`Profiles.bucket_usage/1` describes `usage`), and with a changeset error on
+  `:file_locations` while it still holds files. Nothing is removed from a
+  profile on the way: the bucket has to be freed first.
+
   ## Examples
 
       iex> delete_bucket(bucket)
       {:ok, %Bucket{}}
 
-      iex> delete_bucket(bucket)
+      iex> delete_bucket(bucket_in_a_profile)
+      {:error, {:in_use, [%{name: "Default", ...}]}}
+
+      iex> delete_bucket(bucket_with_files)
       {:error, %Ecto.Changeset{}}
 
   """
+  @spec delete_bucket(Bucket.t(), keyword()) ::
+          {:ok, Bucket.t()} | {:error, Ecto.Changeset.t() | :not_found | {:in_use, [map()]}}
   def delete_bucket(%Bucket{} = bucket, opts \\ []) do
     Audit.change(bucket, &do_delete_bucket(&1, opts))
   end
 
   defp do_delete_bucket(bucket, opts) do
-    # A bucket that still holds files is refused (V204: the location FK is
-    # RESTRICT); before, deleting it dropped every location row it had and
-    # left its objects behind. An empty bucket leaves the storage profiles
-    # that use it first (their bucket FK is RESTRICT too); a refused delete
-    # rolls that back.
-    repo().transaction(fn ->
-      :ok = Profiles.remove_bucket_everywhere(bucket.uuid)
+    # A bucket a storage profile still lists is refused, and so is one that
+    # still holds files (V204: the location FK is RESTRICT); before, deleting
+    # it dropped every location row it had and left its objects behind, and an
+    # empty one was silently taken out of every profile, which could leave a
+    # library with nowhere to write. The admin frees it from its profiles
+    # first, on purpose and on the record. The profile-row FK is RESTRICT too,
+    # so a profile that takes the bucket in between is refused by the database.
+    with :ok <- refuse_while_in_profiles(bucket) do
+      repo().transaction(fn ->
+        bucket
+        |> Ecto.Changeset.change()
+        |> Ecto.Changeset.no_assoc_constraint(:file_locations,
+          name: :phoenix_kit_file_locations_bucket_id_fkey,
+          message: "still holds files"
+        )
+        |> Ecto.Changeset.foreign_key_constraint(:uuid,
+          name: :phoenix_kit_storage_profile_buckets_bucket_fkey,
+          message: "is used by a storage profile"
+        )
+        |> repo().delete()
+        |> case do
+          {:ok, deleted} -> deleted
+          {:error, changeset} -> repo().rollback(changeset)
+        end
+      end)
+      |> tap(&bucket_changed/1)
+      |> tap(fn
+        {:ok, deleted} ->
+          audit_bucket("storage.bucket.deleted", deleted, opts, %{"name" => deleted.name})
 
-      bucket
-      |> Ecto.Changeset.change()
-      |> Ecto.Changeset.no_assoc_constraint(:file_locations,
-        name: :phoenix_kit_file_locations_bucket_id_fkey,
-        message: "still holds files"
-      )
-      |> repo().delete()
-      |> case do
-        {:ok, deleted} -> deleted
-        {:error, changeset} -> repo().rollback(changeset)
-      end
-    end)
-    |> tap(&bucket_changed/1)
-    |> tap(fn
-      {:ok, deleted} ->
-        audit_bucket("storage.bucket.deleted", deleted, opts, %{"name" => deleted.name})
+        _error ->
+          :ok
+      end)
+    end
+  end
 
-      _error ->
-        :ok
-    end)
+  # `{:error, {:in_use, usage}}` while any storage profile has a row for the
+  # bucket (`Profiles.bucket_usage/1` says which, and how many libraries stand
+  # behind each).
+  defp refuse_while_in_profiles(%Bucket{uuid: uuid}) do
+    case Map.get(Profiles.bucket_usage([uuid]), to_string(uuid), []) do
+      [] -> :ok
+      usage -> {:error, {:in_use, usage}}
+    end
   end
 
   # The manager keeps the enabled buckets in a cache; a bucket that was

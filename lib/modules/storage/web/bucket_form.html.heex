@@ -414,6 +414,22 @@
               </:description>
             </.checkbox>
           </div>
+
+          <div :if={@usage != []} class="alert alert-info alert-soft text-sm" role="note">
+            <.icon name="hero-lock-closed" class="w-5 h-5 shrink-0" />
+            <div>
+              <p class="font-semibold">{gettext("This bucket is in use")}</p>
+              <p>
+                {gettext(
+                  "It is used by %{used_by}. It cannot be disabled or deleted until it is taken out of those storage profiles.",
+                  used_by: BucketUsage.used_by_text(@usage)
+                )}
+              </p>
+              <.pk_link navigate="/admin/settings/media?tab=profiles" class="link link-primary">
+                {gettext("Open the storage profiles")}
+              </.pk_link>
+            </div>
+          </div>
         </div>
       </div>
 
