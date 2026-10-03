@@ -2,6 +2,10 @@
 
 ### Added
 
+- **`PhoenixKit.Email.Layout.render_parts/2`**: the site's email header and footer on their own, for
+  a module that builds its own document (#893). Chosen by the same code as the layout (group, then
+  shared, then core; the reader's language; a blank file counts as missing), and without `:paths`
+  it reads the host's template directories like every email. See the email templates guide.
 - **Job runs: long background work an admin can watch and control** (V207, `PhoenixKit.Jobs`). A run
   is a durable record of one piece of work — its state, progress, who started, paused or cancelled
   it, and its history — that Oban executes batch by batch. `Jobs.start/pause/resume/cancel/retry`
@@ -29,6 +33,9 @@
 
 ### Fixed
 
+- **A feature module's email text came out in the sender's language, not the recipient's** (#892).
+  `RecipientLocale.in_locale/2` now also installs the recipient's base language as the process
+  locale for the duration, which is what a module's own Gettext backend reads.
 - **Recovery of job runs is decided under the run's row lock.** The sweeper lists candidates; the
   engine (`Engine.recover/4`) reloads each and decides from the run as it is then, so a slow sweep
   can no longer undo a newer dispatch, steal a live claim or charge the rescue budget twice. A
