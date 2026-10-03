@@ -7,7 +7,17 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V206 - User-owned storage ⚡ LATEST
+  ### V207 - Job runs ⚡ LATEST
+
+  `phoenix_kit_job_runs`: a durable record of one logical piece of long
+  background work — a backfill, a reconcile of one library — that Oban runs
+  batch by batch and an admin can watch, pause, resume, cancel and retry. State,
+  progress and cursor, who started and who stopped it, and the execution
+  protocol (generation, claim, rescue budget). At most one active run per kind
+  and scope; no foreign keys, so a run outlives what it was about.
+  `dev_docs/plans/2026-10-03-job-runs.md`.
+
+  ### V206 - User-owned storage
 
   `owner_uuid` (nullable, no foreign key) on buckets and storage profiles: a
   user's own S3-compatible bucket and the profile that uses it. NULL is the
@@ -900,7 +910,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 206
+  @current_version 207
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

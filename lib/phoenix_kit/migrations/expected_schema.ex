@@ -511,7 +511,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "bbb8557a14ef744498a227c7199af91b0f0aceff58dcae3a1ea83bf416ddf795"
+  @chain_hash "bee7917c09cb95b48337bc44ec3ee8df9d4bc00c0ef0a825687ff74fcdfc7112"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -74976,6 +74976,745 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              name_template: nil,
              foreign_columns: nil,
              foreign_table: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "table:phoenix_kit_job_runs",
+        owner: :core,
+        check: {:catalog, %{name: "phoenix_kit_job_runs", kind: :table}},
+        create: "CREATE TABLE IF NOT EXISTS __SCHEMA__.phoenix_kit_job_runs ()",
+        since: 207,
+        class: :table,
+        revisions: [{207, %{}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.uuid",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_job_runs", column: "uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"uuid\" uuid DEFAULT __SCHEMA__.uuid_generate_v7() NOT NULL",
+        since: 207,
+        class: :column,
+        revisions: [
+          {207, %{default: "__SCHEMA__.uuid_generate_v7()", type: "uuid", pos: 1, not_null: true}}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.kind",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_job_runs", column: "kind", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"kind\" character varying(100)",
+        since: 207,
+        class: :column,
+        revisions: [
+          {207, %{default: nil, type: "character varying(100)", pos: 2, not_null: true}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.module",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_job_runs", column: "module", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"module\" character varying(100)",
+        since: 207,
+        class: :column,
+        revisions: [
+          {207, %{default: nil, type: "character varying(100)", pos: 3, not_null: true}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.scope_type",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_job_runs", column: "scope_type", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"scope_type\" character varying(50)",
+        since: 207,
+        class: :column,
+        revisions: [
+          {207, %{default: nil, type: "character varying(50)", pos: 4, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.scope_uuid",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_job_runs", column: "scope_uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"scope_uuid\" uuid",
+        since: 207,
+        class: :column,
+        revisions: [{207, %{default: nil, type: "uuid", pos: 5, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.title",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_job_runs", column: "title", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"title\" character varying(255)",
+        since: 207,
+        class: :column,
+        revisions: [
+          {207, %{default: nil, type: "character varying(255)", pos: 6, not_null: true}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.state",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_job_runs", column: "state", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"state\" character varying(20) DEFAULT 'queued'::character varying NOT NULL",
+        since: 207,
+        class: :column,
+        revisions: [
+          {207,
+           %{
+             default: "'queued'::character varying",
+             type: "character varying(20)",
+             pos: 7,
+             not_null: true
+           }}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.done",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_job_runs", column: "done", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"done\" bigint DEFAULT 0 NOT NULL",
+        since: 207,
+        class: :column,
+        revisions: [{207, %{default: "0", type: "bigint", pos: 8, not_null: true}}],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.failed_count",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_job_runs", column: "failed_count", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"failed_count\" bigint DEFAULT 0 NOT NULL",
+        since: 207,
+        class: :column,
+        revisions: [{207, %{default: "0", type: "bigint", pos: 9, not_null: true}}],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.total",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_job_runs", column: "total", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"total\" bigint",
+        since: 207,
+        class: :column,
+        revisions: [{207, %{default: nil, type: "bigint", pos: 10, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.cursor",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_job_runs", column: "cursor", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"cursor\" jsonb DEFAULT '{}'::jsonb NOT NULL",
+        since: 207,
+        class: :column,
+        revisions: [{207, %{default: "'{}'::jsonb", type: "jsonb", pos: 11, not_null: true}}],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.args",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_job_runs", column: "args", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"args\" jsonb DEFAULT '{}'::jsonb NOT NULL",
+        since: 207,
+        class: :column,
+        revisions: [{207, %{default: "'{}'::jsonb", type: "jsonb", pos: 12, not_null: true}}],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.result",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_job_runs", column: "result", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"result\" jsonb",
+        since: 207,
+        class: :column,
+        revisions: [{207, %{default: nil, type: "jsonb", pos: 13, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.error",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_job_runs", column: "error", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"error\" text",
+        since: 207,
+        class: :column,
+        revisions: [{207, %{default: nil, type: "text", pos: 14, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.mode",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_job_runs", column: "mode", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"mode\" character varying(20) DEFAULT 'manual'::character varying NOT NULL",
+        since: 207,
+        class: :column,
+        revisions: [
+          {207,
+           %{
+             default: "'manual'::character varying",
+             type: "character varying(20)",
+             pos: 15,
+             not_null: true
+           }}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.started_by_uuid",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_job_runs", column: "started_by_uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"started_by_uuid\" uuid",
+        since: 207,
+        class: :column,
+        revisions: [{207, %{default: nil, type: "uuid", pos: 16, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.paused_by_uuid",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_job_runs", column: "paused_by_uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"paused_by_uuid\" uuid",
+        since: 207,
+        class: :column,
+        revisions: [{207, %{default: nil, type: "uuid", pos: 17, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.cancelled_by_uuid",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_job_runs", column: "cancelled_by_uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"cancelled_by_uuid\" uuid",
+        since: 207,
+        class: :column,
+        revisions: [{207, %{default: nil, type: "uuid", pos: 18, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.generation",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_job_runs", column: "generation", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"generation\" integer DEFAULT 0 NOT NULL",
+        since: 207,
+        class: :column,
+        revisions: [{207, %{default: "0", type: "integer", pos: 19, not_null: true}}],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.claim_token",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_job_runs", column: "claim_token", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"claim_token\" uuid",
+        since: 207,
+        class: :column,
+        revisions: [{207, %{default: nil, type: "uuid", pos: 20, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.claimed_at",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_job_runs", column: "claimed_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"claimed_at\" timestamp(0) without time zone",
+        since: 207,
+        class: :column,
+        revisions: [
+          {207, %{default: nil, type: "timestamp(0) without time zone", pos: 21, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.oban_job_id",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_job_runs", column: "oban_job_id", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"oban_job_id\" bigint",
+        since: 207,
+        class: :column,
+        revisions: [{207, %{default: nil, type: "bigint", pos: 22, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.restart_seq",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_job_runs", column: "restart_seq", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"restart_seq\" integer DEFAULT 0 NOT NULL",
+        since: 207,
+        class: :column,
+        revisions: [{207, %{default: "0", type: "integer", pos: 23, not_null: true}}],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.restart_ack",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_job_runs", column: "restart_ack", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"restart_ack\" integer DEFAULT 0 NOT NULL",
+        since: 207,
+        class: :column,
+        revisions: [{207, %{default: "0", type: "integer", pos: 24, not_null: true}}],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.rescues",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_job_runs", column: "rescues", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"rescues\" integer DEFAULT 0 NOT NULL",
+        since: 207,
+        class: :column,
+        revisions: [{207, %{default: "0", type: "integer", pos: 25, not_null: true}}],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.last_rescued_at",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_job_runs", column: "last_rescued_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"last_rescued_at\" timestamp(0) without time zone",
+        since: 207,
+        class: :column,
+        revisions: [
+          {207, %{default: nil, type: "timestamp(0) without time zone", pos: 26, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.heartbeat_at",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_job_runs", column: "heartbeat_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"heartbeat_at\" timestamp(0) without time zone",
+        since: 207,
+        class: :column,
+        revisions: [
+          {207, %{default: nil, type: "timestamp(0) without time zone", pos: 27, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.started_at",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_job_runs", column: "started_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"started_at\" timestamp(0) without time zone",
+        since: 207,
+        class: :column,
+        revisions: [
+          {207, %{default: nil, type: "timestamp(0) without time zone", pos: 28, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.paused_at",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_job_runs", column: "paused_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"paused_at\" timestamp(0) without time zone",
+        since: 207,
+        class: :column,
+        revisions: [
+          {207, %{default: nil, type: "timestamp(0) without time zone", pos: 29, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.cancelled_at",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_job_runs", column: "cancelled_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"cancelled_at\" timestamp(0) without time zone",
+        since: 207,
+        class: :column,
+        revisions: [
+          {207, %{default: nil, type: "timestamp(0) without time zone", pos: 30, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.finished_at",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_job_runs", column: "finished_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"finished_at\" timestamp(0) without time zone",
+        since: 207,
+        class: :column,
+        revisions: [
+          {207, %{default: nil, type: "timestamp(0) without time zone", pos: 31, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.inserted_at",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_job_runs", column: "inserted_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"inserted_at\" timestamp(0) without time zone DEFAULT now() NOT NULL",
+        since: 207,
+        class: :column,
+        revisions: [
+          {207,
+           %{default: "now()", type: "timestamp(0) without time zone", pos: 32, not_null: true}}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.updated_at",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_job_runs", column: "updated_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"updated_at\" timestamp(0) without time zone DEFAULT now() NOT NULL",
+        since: 207,
+        class: :column,
+        revisions: [
+          {207,
+           %{default: "now()", type: "timestamp(0) without time zone", pos: 33, not_null: true}}
+        ],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "constraint:phoenix_kit_job_runs.phoenix_kit_job_runs_pkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{name: "phoenix_kit_job_runs_pkey", table: "phoenix_kit_job_runs", kind: :constraint}},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_job_runs_pkey'\n      AND t.relname = 'phoenix_kit_job_runs'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD CONSTRAINT phoenix_kit_job_runs_pkey PRIMARY KEY (uuid);\n  END IF;\nEND\n$$",
+        since: 207,
+        class: :constraint,
+        revisions: [
+          {207,
+           %{
+             type: "p",
+             columns: ["uuid"],
+             definition: "PRIMARY KEY (uuid)",
+             on_delete: nil,
+             on_update: nil,
+             name_template: nil,
+             foreign_columns: nil,
+             foreign_table: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "constraint:phoenix_kit_job_runs.phoenix_kit_job_runs_mode_check",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_job_runs_mode_check",
+             table: "phoenix_kit_job_runs",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_job_runs_mode_check'\n      AND t.relname = 'phoenix_kit_job_runs'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD CONSTRAINT phoenix_kit_job_runs_mode_check CHECK (((mode)::text = ANY ((ARRAY['manual'::character varying, 'auto'::character varying, 'cron'::character varying, 'script'::character varying])::text[])));\n  END IF;\nEND\n$$",
+        since: 207,
+        class: :constraint,
+        revisions: [
+          {207,
+           %{
+             type: "c",
+             columns: ["mode"],
+             definition:
+               "CHECK (((mode)::text = ANY ((ARRAY['manual'::character varying, 'auto'::character varying, 'cron'::character varying, 'script'::character varying])::text[])))",
+             on_delete: nil,
+             on_update: nil,
+             name_template: nil,
+             foreign_columns: nil,
+             foreign_table: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "constraint:phoenix_kit_job_runs.phoenix_kit_job_runs_scope_check",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_job_runs_scope_check",
+             table: "phoenix_kit_job_runs",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_job_runs_scope_check'\n      AND t.relname = 'phoenix_kit_job_runs'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD CONSTRAINT phoenix_kit_job_runs_scope_check CHECK ((((scope_type IS NULL) AND (scope_uuid IS NULL)) OR ((scope_type IS NOT NULL) AND (scope_uuid IS NOT NULL))));\n  END IF;\nEND\n$$",
+        since: 207,
+        class: :constraint,
+        revisions: [
+          {207,
+           %{
+             type: "c",
+             columns: ["scope_type", "scope_uuid"],
+             definition:
+               "CHECK ((((scope_type IS NULL) AND (scope_uuid IS NULL)) OR ((scope_type IS NOT NULL) AND (scope_uuid IS NOT NULL))))",
+             on_delete: nil,
+             on_update: nil,
+             name_template: nil,
+             foreign_columns: nil,
+             foreign_table: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "constraint:phoenix_kit_job_runs.phoenix_kit_job_runs_state_check",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_job_runs_state_check",
+             table: "phoenix_kit_job_runs",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_job_runs_state_check'\n      AND t.relname = 'phoenix_kit_job_runs'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD CONSTRAINT phoenix_kit_job_runs_state_check CHECK (((state)::text = ANY ((ARRAY['queued'::character varying, 'running'::character varying, 'pausing'::character varying, 'paused'::character varying, 'cancelling'::character varying, 'completed'::character varying, 'failed'::character varying, 'cancelled'::character varying])::text[])));\n  END IF;\nEND\n$$",
+        since: 207,
+        class: :constraint,
+        revisions: [
+          {207,
+           %{
+             type: "c",
+             columns: ["state"],
+             definition:
+               "CHECK (((state)::text = ANY ((ARRAY['queued'::character varying, 'running'::character varying, 'pausing'::character varying, 'paused'::character varying, 'cancelling'::character varying, 'completed'::character varying, 'failed'::character varying, 'cancelled'::character varying])::text[])))",
+             on_delete: nil,
+             on_update: nil,
+             name_template: nil,
+             foreign_columns: nil,
+             foreign_table: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_job_runs_active_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_job_runs_active_index",
+             table: "phoenix_kit_job_runs",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_job_runs_active_index ON __SCHEMA__.phoenix_kit_job_runs USING btree (kind, COALESCE(scope_type, ''::character varying), COALESCE(scope_uuid, '00000000-0000-0000-0000-000000000000'::uuid)) WHERE ((state)::text = ANY ((ARRAY['queued'::character varying, 'running'::character varying, 'pausing'::character varying, 'paused'::character varying, 'cancelling'::character varying])::text[]))",
+        since: 207,
+        class: :index,
+        revisions: [
+          {207,
+           %{
+             table: "phoenix_kit_job_runs",
+             keys: [
+               "kind",
+               "COALESCE(scope_type, ''::character varying)",
+               "COALESCE(scope_uuid, '00000000-0000-0000-0000-000000000000'::uuid)"
+             ],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_job_runs_active_index ON __SCHEMA__.phoenix_kit_job_runs USING btree (kind, COALESCE(scope_type, ''::character varying), COALESCE(scope_uuid, '00000000-0000-0000-0000-000000000000'::uuid)) WHERE ((state)::text = ANY ((ARRAY['queued'::character varying, 'running'::character varying, 'pausing'::character varying, 'paused'::character varying, 'cancelling'::character varying])::text[]))",
+             name_template: nil,
+             opclasses: ["text_ops", "text_ops", "uuid_ops"],
+             predicate:
+               "((state)::text = ANY ((ARRAY['queued'::character varying, 'running'::character varying, 'pausing'::character varying, 'paused'::character varying, 'cancelling'::character varying])::text[]))"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_job_runs_finished_at_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_job_runs_finished_at_index",
+             table: "phoenix_kit_job_runs",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_job_runs_finished_at_index ON __SCHEMA__.phoenix_kit_job_runs USING btree (finished_at) WHERE (finished_at IS NOT NULL)",
+        since: 207,
+        class: :index,
+        revisions: [
+          {207,
+           %{
+             table: "phoenix_kit_job_runs",
+             keys: ["finished_at"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_job_runs_finished_at_index ON __SCHEMA__.phoenix_kit_job_runs USING btree (finished_at) WHERE (finished_at IS NOT NULL)",
+             name_template: nil,
+             opclasses: ["timestamp_ops"],
+             predicate: "(finished_at IS NOT NULL)"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_job_runs_module_kind_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_job_runs_module_kind_index",
+             table: "phoenix_kit_job_runs",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_job_runs_module_kind_index ON __SCHEMA__.phoenix_kit_job_runs USING btree (module, kind)",
+        since: 207,
+        class: :index,
+        revisions: [
+          {207,
+           %{
+             table: "phoenix_kit_job_runs",
+             keys: ["module", "kind"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_job_runs_module_kind_index ON __SCHEMA__.phoenix_kit_job_runs USING btree (module, kind)",
+             name_template: nil,
+             opclasses: ["text_ops", "text_ops"],
+             predicate: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_job_runs_scope_uuid_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_job_runs_scope_uuid_index",
+             table: "phoenix_kit_job_runs",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_job_runs_scope_uuid_index ON __SCHEMA__.phoenix_kit_job_runs USING btree (scope_uuid) WHERE (scope_uuid IS NOT NULL)",
+        since: 207,
+        class: :index,
+        revisions: [
+          {207,
+           %{
+             table: "phoenix_kit_job_runs",
+             keys: ["scope_uuid"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_job_runs_scope_uuid_index ON __SCHEMA__.phoenix_kit_job_runs USING btree (scope_uuid) WHERE (scope_uuid IS NOT NULL)",
+             name_template: nil,
+             opclasses: ["uuid_ops"],
+             predicate: "(scope_uuid IS NOT NULL)"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_job_runs_state_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_job_runs_state_index",
+             table: "phoenix_kit_job_runs",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_job_runs_state_index ON __SCHEMA__.phoenix_kit_job_runs USING btree (state, inserted_at DESC)",
+        since: 207,
+        class: :index,
+        revisions: [
+          {207,
+           %{
+             table: "phoenix_kit_job_runs",
+             keys: ["state", "inserted_at"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_job_runs_state_index ON __SCHEMA__.phoenix_kit_job_runs USING btree (state, inserted_at DESC)",
+             name_template: nil,
+             opclasses: ["text_ops", "timestamp_ops"],
+             predicate: nil
            }}
         ],
         presence: :required,
