@@ -12,6 +12,9 @@ defmodule PhoenixKit.Jobs.RecoveryTest do
   alias PhoenixKit.Jobs.{Engine, Events, Run, RunWorker, SweepWorker}
   alias PhoenixKit.Test.JobKinds.{Counter, Short}
 
+  @owner_a "00000000-0000-4000-8000-00000000000a"
+  @owner_b "00000000-0000-4000-8000-00000000000b"
+
   defp oban(opts \\ [], id \\ :oban_main) do
     base = [name: Oban, repo: PhoenixKit.Test.Repo, testing: :manual, queues: [], plugins: []]
     start_supervised!(Supervisor.child_spec({Oban, Keyword.merge(base, opts)}, id: id))
@@ -333,10 +336,40 @@ defmodule PhoenixKit.Jobs.RecoveryTest do
       assert DateTime.diff(new.scheduled_at, DateTime.utc_now()) in 290..305
     end
 
+    test "the same invocation reclaims its wait; another is refused until the lease runs out" do
+      run = start!(Counter, dispatch: false, args: %{steps: 3})
+      {:ok, _claimed, token} = Engine.claim_inline(run.uuid, @owner_a)
+
+      {:ok, waiting} =
+        Engine.checkpoint(run.uuid, token, {:more, %{done: 1}, schedule_in: 600}, dispatch: false)
+
+      assert {:error, :claimed} = Engine.claim_inline(run.uuid, @owner_b)
+      assert %{owner_token: @owner_a} = reload(waiting)
+
+      past = DateTime.utc_now() |> DateTime.add(-3 * 3600, :second) |> DateTime.truncate(:second)
+
+      from(r in Run, where: r.uuid == ^run.uuid)
+      |> Repo.update_all(set: [wake_at: past, heartbeat_at: past])
+
+      assert {:ok, %{owner_token: @owner_b, interruptions: 0}, _} =
+               Engine.claim_inline(run.uuid, @owner_b)
+    end
+
+    test "the owner reclaims its own wait at once" do
+      run = start!(Counter, dispatch: false, args: %{steps: 3})
+      {:ok, _claimed, token} = Engine.claim_inline(run.uuid, @owner_a)
+
+      {:ok, _} =
+        Engine.checkpoint(run.uuid, token, {:more, %{done: 1}, schedule_in: 600}, dispatch: false)
+
+      assert {:ok, %{owner_token: @owner_a, wake_at: nil}, _} =
+               Engine.claim_inline(run.uuid, @owner_a)
+    end
+
     test "a pause during the wait takes effect at once and ends the ownership" do
       waiting = waiting_inline(600)
 
-      assert {:ok, %{state: "paused", claim_owner: nil, wake_at: nil}} =
+      assert {:ok, %{state: "paused", claim_owner: nil, owner_token: nil, wake_at: nil}} =
                Engine.transition(waiting.uuid, {:pause, nil})
     end
 

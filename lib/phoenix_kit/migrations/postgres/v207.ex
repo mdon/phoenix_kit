@@ -21,7 +21,8 @@ defmodule PhoenixKit.Migrations.Postgres.V207 do
       batch, `inline` for a script — the sweeper judges the two differently; a script keeps it
       between its batches too), `wake_at` (when the next batch should start, after a delay),
       `interruptions` (batches that were interrupted and run again: the counts of such a run
-      are approximate), `oban_job_id` (the
+      are approximate), `owner_token` (which script invocation owns the run between its
+      batches — another invocation is refused while that owner's lease stands), `oban_job_id` (the
       current dispatch), `restart_seq` / `restart_ack` (a trigger that arrived,
       and the last one a batch has seen), `rescues` and `last_rescued_at` (the
       sweeper's durable budget) and `heartbeat_at`.
@@ -112,6 +113,7 @@ defmodule PhoenixKit.Migrations.Postgres.V207 do
         claim_owner character varying(10),
         wake_at timestamp(0) without time zone,
         interruptions integer DEFAULT 0 NOT NULL,
+        owner_token uuid,
         CONSTRAINT phoenix_kit_job_runs_pkey PRIMARY KEY (uuid),
         CONSTRAINT phoenix_kit_job_runs_state_check CHECK (state IN (#{states})),
         CONSTRAINT phoenix_kit_job_runs_mode_check CHECK (mode IN (#{modes})),

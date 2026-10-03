@@ -58,7 +58,7 @@ defmodule PhoenixKit.Migrations.Postgres.V207Test do
           ~w(uuid kind module scope_type scope_uuid title state done failed_count total cursor args
              result error mode started_by_uuid paused_by_uuid cancelled_by_uuid generation
              claim_token claimed_at oban_job_id restart_seq restart_ack rescues last_rescued_at
-             heartbeat_at started_at paused_at cancelled_at finished_at inserted_at updated_at claim_owner wake_at interruptions) do
+             heartbeat_at started_at paused_at cancelled_at finished_at inserted_at updated_at claim_owner wake_at interruptions owner_token) do
       assert column in columns, column
     end
   end

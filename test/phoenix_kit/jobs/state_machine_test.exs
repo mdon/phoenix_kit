@@ -315,6 +315,18 @@ defmodule PhoenixKit.Jobs.StateMachineTest do
                changes(t(waiting, {:cancel, nil}))
     end
 
+    test "the owner identity goes with the ownership, and is kept through the wait" do
+      owned = claimed(claim_owner: "inline", owner_token: "owner-1")
+      kept = changes(t(owned, {:checkpoint, @token, {:more, %{}, schedule_in: 5}}))
+      refute Map.has_key?(kept, :owner_token)
+
+      assert %{owner_token: nil} = changes(t(owned, {:checkpoint, @token, {:done, %{}, %{}}}))
+
+      waiting = run(state: "running", claim_owner: "inline", owner_token: "owner-1")
+      assert %{owner_token: nil} = changes(t(waiting, {:pause, nil}))
+      assert %{owner_token: nil} = changes(t(waiting, {:cancel, nil}))
+    end
+
     test "a pause is immediate: nothing is draining" do
       waiting = run(state: "running", claim_owner: "inline", wake_at: @now)
       assert {:ok, %{state: "paused"}, [{:log, "job.paused", _}]} = t(waiting, {:pause, nil})
@@ -376,6 +388,13 @@ defmodule PhoenixKit.Jobs.StateMachineTest do
   end
 
   describe "rescue" do
+    test "keeps the next-batch time, so a second rescue still waits" do
+      due = DateTime.add(@now, 90, :second)
+
+      kept = changes(t(run(state: "running", wake_at: due), {:rescue, 3}))
+      refute Map.has_key?(kept, :wake_at), "the marker is left on the run"
+    end
+
     test "carries what is left of the delay into the dispatch" do
       due = DateTime.add(@now, 90, :second)
 

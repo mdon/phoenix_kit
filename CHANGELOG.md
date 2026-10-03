@@ -46,6 +46,9 @@
 - **A script that asks its next batch to wait keeps its run through the wait** (`wake_at`, and the
   script stays the run's owner between batches): the sweeper no longer reads the wait as a lost
   dispatch, and a rescue carries what is left of a delay into its dispatch.
+- **A script's wait belongs to the script that asked for it**: `Jobs.run_inline/3` carries an owner
+  identity (`owner_token`) between its batches, another invocation is refused while it stands, and
+  a rescue keeps a delayed run's due time.
 - **Without an Oban instance the sweeper, the stats and the Jobs page no longer guess**: a run that
   never had a dispatch keeps its rescue budget, nothing falls back to the default schema's table, and
   the Queue tab says Oban is not running on that node.

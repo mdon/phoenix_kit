@@ -290,12 +290,13 @@ defmodule PhoenixKit.Jobs do
     opts = opts |> Keyword.put_new(:mode, "script") |> Keyword.put(:dispatch, false)
 
     with {:ok, run, _how} <- Engine.start(kind, normalize_scope(run_scope), opts) do
-      inline(kind, run, opts)
+      # One identity for the whole loop: the run is this invocation's between batches.
+      inline(kind, run, Keyword.put(opts, :owner, Ecto.UUID.generate()))
     end
   end
 
   defp inline(kind, %Run{uuid: uuid}, opts) do
-    case Engine.claim_inline(uuid) do
+    case Engine.claim_inline(uuid, opts[:owner]) do
       {:ok, claimed, token} ->
         outcome = RunWorker.batch_outcome(kind, claimed, true)
 

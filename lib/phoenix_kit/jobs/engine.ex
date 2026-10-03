@@ -296,19 +296,26 @@ defmodule PhoenixKit.Jobs.Engine do
   script's claim whose lease ran out (`Run.lease_expired?/2`), which a new script
   may take over. The claim is marked `inline`: the sweeper has no Oban job to ask
   about it, and judges it only by its lease.
+
+  `owner` identifies the invocation (`run_inline/3` makes one and passes it to every
+  batch of its loop). It is kept on the run between the batches, while the script
+  waits out a delay, and **a different owner is refused (`:claimed`) while that
+  owner's lease stands** — the wait belongs to the invocation that asked for it.
+  A new invocation may take the run over once the lease has run out.
   """
-  @spec claim_inline(String.t()) ::
+  @spec claim_inline(String.t(), String.t()) ::
           {:ok, Run.t(), String.t()}
           | {:error, :claimed | :inactive | :not_found | :in_transaction}
-  def claim_inline(run_uuid) do
+  def claim_inline(run_uuid, owner \\ Ecto.UUID.generate()) do
     token = Ecto.UUID.generate()
 
     result =
       transact(fn ->
         with %Run{} = run <- lock(run_uuid) || {:error, :not_found},
+             :ok <- not_waited_on_by_another(run, owner),
              {free, interrupted} = free_of_dead_script(run),
              {:ok, changes, _} <- StateMachine.transition(free, {:claim, token}, now()),
-             changes = inline_claim_changes(changes, run, interrupted),
+             changes = inline_claim_changes(changes, run, interrupted, owner),
              {:ok, updated} <- repo().update(Ecto.Changeset.change(run, changes)) do
           updated
         else
@@ -325,8 +332,22 @@ defmodule PhoenixKit.Jobs.Engine do
     end
   end
 
-  defp inline_claim_changes(changes, %Run{} = run, interrupted) do
-    changes = Map.merge(changes, %{generation: run.generation + 1, claim_owner: "inline"})
+  # A script waiting out a delay between its batches holds no batch claim, but the
+  # run is still its own: another invocation does not get to discard the wait.
+  defp not_waited_on_by_another(%Run{} = run, owner) do
+    if Run.inline_waiting?(run) and run.owner_token != owner and
+         not Run.lease_expired?(run, now()),
+       do: {:error, :claimed},
+       else: :ok
+  end
+
+  defp inline_claim_changes(changes, %Run{} = run, interrupted, owner) do
+    changes =
+      Map.merge(changes, %{
+        generation: run.generation + 1,
+        claim_owner: "inline",
+        owner_token: owner
+      })
 
     if interrupted,
       do: Map.put(changes, :interruptions, run.interruptions + 1),

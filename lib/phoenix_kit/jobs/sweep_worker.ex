@@ -152,7 +152,12 @@ defmodule PhoenixKit.Jobs.SweepWorker do
   # the rescue carries the rest of the delay into the dispatch.
   defp decide(%Run{state: state, claim_owner: "inline"} = run, now)
        when state in ["queued", "running"] do
-    if Run.lease_expired?(run, now), do: {:rescued, {:rescue, @rescue_limit}}, else: :leave
+    cond do
+      not Run.lease_expired?(run, now) -> :leave
+      # An expired owner is not charged a rescue for a dispatch nothing here can make.
+      not ObanStore.available?() -> :leave
+      true -> {:rescued, {:rescue, @rescue_limit}}
+    end
   end
 
   defp decide(%Run{state: state} = run, _now) when state in ["queued", "running"] do

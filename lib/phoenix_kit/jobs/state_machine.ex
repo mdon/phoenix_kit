@@ -98,6 +98,7 @@ defmodule PhoenixKit.Jobs.StateMachine do
     base = %{
       claim_token: token,
       claim_owner: "queue",
+      owner_token: nil,
       claimed_at: now,
       heartbeat_at: now,
       wake_at: nil,
@@ -140,6 +141,7 @@ defmodule PhoenixKit.Jobs.StateMachine do
        paused_by_uuid: nil,
        paused_at: nil,
        claim_owner: nil,
+       owner_token: nil,
        wake_at: nil,
        error: nil
      }, [{:dispatch, 0}, {:log, "job.resumed", %{}}]}
@@ -214,7 +216,7 @@ defmodule PhoenixKit.Jobs.StateMachine do
       fail_run(run, message, now)
     else
       {:ok,
-       Map.merge(release(), %{
+       Map.merge(Map.delete(release(), :wake_at), %{
          rescues: rescues + 1,
          last_rescued_at: now,
          generation: run.generation + 1
@@ -334,8 +336,14 @@ defmodule PhoenixKit.Jobs.StateMachine do
 
   defp paused(actor, now) do
     {:ok,
-     %{state: "paused", paused_by_uuid: actor, paused_at: now, claim_owner: nil, wake_at: nil},
-     [{:log, "job.paused", %{}}]}
+     %{
+       state: "paused",
+       paused_by_uuid: actor,
+       paused_at: now,
+       claim_owner: nil,
+       owner_token: nil,
+       wake_at: nil
+     }, [{:log, "job.paused", %{}}]}
   end
 
   defp pausing(actor, now) do
@@ -350,6 +358,7 @@ defmodule PhoenixKit.Jobs.StateMachine do
       cancelled_at: now,
       finished_at: now,
       claim_owner: nil,
+      owner_token: nil,
       wake_at: nil
     }
   end
@@ -359,7 +368,8 @@ defmodule PhoenixKit.Jobs.StateMachine do
 
   defp failed(message, now), do: %{state: "failed", error: message, finished_at: now}
 
-  defp release, do: %{claim_token: nil, claim_owner: nil, claimed_at: nil, wake_at: nil}
+  defp release,
+    do: %{claim_token: nil, claim_owner: nil, owner_token: nil, claimed_at: nil, wake_at: nil}
 
   # After a batch that leaves more to do. A script keeps its ownership of the run
   # between its batches (it waits out the delay itself, and nothing is dispatched

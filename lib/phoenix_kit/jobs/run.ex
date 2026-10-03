@@ -68,6 +68,7 @@ defmodule PhoenixKit.Jobs.Run do
     field :claim_owner, :string
     field :wake_at, :utc_datetime
     field :interruptions, :integer, default: 0
+    field :owner_token, Ecto.UUID
     field :oban_job_id, :integer
     field :restart_seq, :integer, default: 0
     field :restart_ack, :integer, default: 0
