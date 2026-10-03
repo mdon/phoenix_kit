@@ -25,7 +25,7 @@ defmodule PhoenixKitWeb.Live.Modules do
   # and Notifications are core capabilities (not real install/uninstall
   # toggles — see their moduledocs) and are configured entirely from their
   # own Settings pages, so they're deliberately excluded from this list.
-  @internal_module_keys ["languages", "crawlers", "sitemap", "jobs"]
+  @internal_module_keys ["languages", "crawlers", "sitemap"]
 
   def mount(_params, _session, socket) do
     if connected?(socket), do: Events.subscribe_to_modules()

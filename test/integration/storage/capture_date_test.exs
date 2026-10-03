@@ -10,9 +10,12 @@ defmodule PhoenixKit.Modules.Storage.CaptureDateIntegrationTest do
 
   use PhoenixKit.DataCase, async: false
 
+  alias PhoenixKit.Jobs
+  alias PhoenixKit.Jobs.{Engine, Kinds, Run}
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.CaptureDate
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
+  alias PhoenixKit.Modules.Storage.Jobs.CaptureDateBackfill
   alias PhoenixKit.Modules.Storage.ProcessFileJob
   alias PhoenixKit.Modules.Storage.Workers.CaptureDateBackfillJob
   alias PhoenixKit.Test.ExifFixture
@@ -211,22 +214,80 @@ defmodule PhoenixKit.Modules.Storage.CaptureDateIntegrationTest do
       assert %{taken_at_source: "exif", taken_on: ~D[2018-07-31]} = reload(file)
     end
 
-    test "only one pass is queued at a time" do
-      assert {:ok, %Oban.Job{conflict?: false}} = CaptureDateBackfillJob.enqueue()
-      assert {:ok, %Oban.Job{conflict?: true}} = CaptureDateBackfillJob.enqueue()
+    test "only one pass is active at a time: a second start gets the first run back" do
+      assert {:ok, run, :started} = CaptureDateBackfillJob.enqueue()
+      assert {:ok, again, :existing} = CaptureDateBackfillJob.enqueue()
+      assert again.uuid == run.uuid
+      assert run.mode == "auto"
     end
 
-    test "a batch that reaches the end does not enqueue a successor", ctx do
+    test "a job queued by an earlier release starts the run and ends", ctx do
       store_jpeg!(ctx, "holiday.jpg", @exif)
 
+      assert CaptureDateBackfillJob.perform(%Oban.Job{args: %{"after" => "x"}}) == :ok
       assert CaptureDateBackfillJob.perform(%Oban.Job{args: %{}}) == :ok
 
-      assert Repo.aggregate(
-               from(j in "oban_jobs",
-                 where: j.worker == "PhoenixKit.Modules.Storage.Workers.CaptureDateBackfillJob"
-               ),
-               :count
-             ) == 0
+      assert [run] = Jobs.list_runs(kind: "storage.capture_date_backfill")
+      assert run.state in ["queued", "running"]
+    end
+  end
+
+  describe "as a job run (storage.capture_date_backfill)" do
+    test "dates every file, with progress and the whole pass's outcomes", ctx do
+      store_jpeg!(ctx, "a.jpg", @exif)
+      store_jpeg!(ctx, "20180701_b.jpg")
+      store_jpeg!(ctx, "c.jpg")
+
+      assert {:ok,
+              %{state: "completed", done: 3, failed_count: 0, total: 3, mode: "script"} = run} =
+               Jobs.run_inline(CaptureDateBackfill, :site)
+
+      assert run.result == %{"outcomes" => %{"ok" => 3}}
+      assert CaptureDateBackfillJob.pending_count() == 0
+      assert run.title =~ "taken"
+    end
+
+    test "walks a pass of more than one batch, and carries the cursor and the outcomes across",
+         ctx do
+      for n <- 1..52, do: store_jpeg!(ctx, "f#{n}.jpg")
+
+      parent = self()
+
+      assert {:ok, %{state: "completed", done: 52, total: 52} = run} =
+               Jobs.run_inline(CaptureDateBackfill, :site,
+                 on_progress: &send(parent, {:progress, &1})
+               )
+
+      assert run.result == %{"outcomes" => %{"ok" => 52}}
+      # one full batch of 50, then the 2 left
+      assert_received {:progress, %{done: 50, cursor: %{"after" => _}, total: 52}}
+      assert CaptureDateBackfillJob.pending_count() == 0
+    end
+
+    test "queued, it runs batch after batch through Oban and can be paused between them", ctx do
+      for n <- 1..52, do: store_jpeg!(ctx, "g#{n}.jpg")
+      {:ok, run, :started} = CaptureDateBackfillJob.enqueue()
+
+      # storing the files queued their processing jobs; only the run is under test
+      Repo.delete_all(from j in Oban.Job, where: j.worker != "PhoenixKit.Jobs.RunWorker")
+
+      # one batch, then pause: the successor is dispatched, and does nothing
+      assert %{success: 1} = Oban.drain_queue(queue: :file_processing, with_recursion: false)
+      assert %{state: "running", done: 50} = Repo.get!(Run, run.uuid)
+
+      {:ok, _} = Engine.transition(run.uuid, {:pause, nil})
+      Oban.drain_queue(queue: :file_processing, with_recursion: true)
+      assert %{state: "paused", done: 50} = Repo.get!(Run, run.uuid)
+
+      # resumed, it finishes from its cursor: the 50 are not done twice
+      {:ok, _} = Engine.transition(run.uuid, {:resume, nil})
+      Oban.drain_queue(queue: :file_processing, with_recursion: true)
+      assert %{state: "completed", done: 52} = Repo.get!(Run, run.uuid)
+    end
+
+    test "needs media.manage as well as jobs.manage" do
+      assert CaptureDateBackfill.permission() == "media.manage"
+      assert CaptureDateBackfill in Kinds.all()
     end
   end
 

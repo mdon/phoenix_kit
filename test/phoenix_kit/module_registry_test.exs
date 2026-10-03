@@ -3,6 +3,7 @@ defmodule PhoenixKit.ModuleRegistryTest do
 
   alias PhoenixKit.Integrations.Providers
   alias PhoenixKit.ModuleRegistry
+  alias PhoenixKit.Users.Permissions
 
   # The registry is started in test_helper.exs with all internal modules loaded.
 
@@ -22,8 +23,7 @@ defmodule PhoenixKit.ModuleRegistryTest do
         PhoenixKit.Modules.Languages,
         PhoenixKit.Modules.Crawlers,
         PhoenixKit.Modules.Sitemap,
-        PhoenixKit.Modules.Storage,
-        PhoenixKit.Jobs
+        PhoenixKit.Modules.Storage
       ]
 
       for mod <- expected do
@@ -42,7 +42,14 @@ defmodule PhoenixKit.ModuleRegistryTest do
 
     test "contains known internal modules" do
       modules = ModuleRegistry.all_modules()
-      assert PhoenixKit.Jobs in modules
+      assert PhoenixKit.Modules.Storage in modules
+    end
+
+    test "Jobs is core, not a module: always on, with no toggle to find in the registry" do
+      refute PhoenixKit.Jobs in ModuleRegistry.all_modules()
+      assert ModuleRegistry.get_by_key("jobs") == nil
+      assert PhoenixKit.Jobs.enabled?()
+      assert "jobs" in Permissions.core_section_keys()
     end
 
     test "does not contain duplicates" do
@@ -141,7 +148,7 @@ defmodule PhoenixKit.ModuleRegistryTest do
 
   describe "get_by_key/1" do
     test "finds module by key string" do
-      assert ModuleRegistry.get_by_key("jobs") == PhoenixKit.Jobs
+      assert ModuleRegistry.get_by_key("storage") == PhoenixKit.Modules.Storage
     end
 
     test "returns nil for unknown key" do
@@ -202,7 +209,7 @@ defmodule PhoenixKit.ModuleRegistryTest do
       tabs = ModuleRegistry.all_admin_tabs()
       tab_ids = Enum.map(tabs, & &1.id)
 
-      assert :admin_jobs in tab_ids
+      assert :admin_notifications in tab_ids
     end
   end
 
@@ -221,7 +228,7 @@ defmodule PhoenixKit.ModuleRegistryTest do
     test "returns a list of permission metadata maps" do
       metadata = ModuleRegistry.all_permission_metadata()
       assert is_list(metadata)
-      assert length(metadata) >= 6
+      assert length(metadata) >= 5
 
       for meta <- metadata do
         assert is_map(meta)
@@ -234,7 +241,9 @@ defmodule PhoenixKit.ModuleRegistryTest do
 
     test "contains known permission keys" do
       keys = Enum.map(ModuleRegistry.all_permission_metadata(), & &1.key)
-      assert "jobs" in keys
+      assert "sitemap" in keys
+      # Jobs is a core section, not a module's feature key
+      refute "jobs" in keys
     end
   end
 
@@ -242,13 +251,13 @@ defmodule PhoenixKit.ModuleRegistryTest do
     test "returns sorted list of feature keys" do
       keys = ModuleRegistry.all_feature_keys()
       assert is_list(keys)
-      assert length(keys) >= 6
+      assert length(keys) >= 5
       assert keys == Enum.sort(keys)
     end
 
     test "contains expected keys" do
       keys = ModuleRegistry.all_feature_keys()
-      assert "jobs" in keys
+      assert "sitemap" in keys
     end
 
     test "does not contain core keys" do
@@ -265,7 +274,7 @@ defmodule PhoenixKit.ModuleRegistryTest do
     test "returns a map of key => {module, :enabled?}" do
       checks = ModuleRegistry.feature_enabled_checks()
       assert is_map(checks)
-      assert map_size(checks) >= 6
+      assert map_size(checks) >= 5
 
       for {key, {mod, fun}} <- checks do
         assert is_binary(key)
@@ -276,7 +285,7 @@ defmodule PhoenixKit.ModuleRegistryTest do
 
     test "maps known keys to correct modules" do
       checks = ModuleRegistry.feature_enabled_checks()
-      assert checks["jobs"] == {PhoenixKit.Jobs, :enabled?}
+      assert checks["storage"] == {PhoenixKit.Modules.Storage, :enabled?}
     end
   end
 
@@ -284,7 +293,7 @@ defmodule PhoenixKit.ModuleRegistryTest do
     test "returns a map of key => label" do
       labels = ModuleRegistry.permission_labels()
       assert is_map(labels)
-      assert labels["jobs"] == "Jobs"
+      assert labels["sitemap"] == "Sitemap"
     end
   end
 
@@ -292,8 +301,8 @@ defmodule PhoenixKit.ModuleRegistryTest do
     test "returns a map of key => icon" do
       icons = ModuleRegistry.permission_icons()
       assert is_map(icons)
-      assert is_binary(icons["jobs"])
-      assert String.starts_with?(icons["jobs"], "hero-")
+      assert is_binary(icons["sitemap"])
+      assert String.starts_with?(icons["sitemap"], "hero-")
     end
   end
 
@@ -301,8 +310,8 @@ defmodule PhoenixKit.ModuleRegistryTest do
     test "returns a map of key => description" do
       descriptions = ModuleRegistry.permission_descriptions()
       assert is_map(descriptions)
-      assert is_binary(descriptions["jobs"])
-      assert String.length(descriptions["jobs"]) > 0
+      assert is_binary(descriptions["sitemap"])
+      assert String.length(descriptions["sitemap"]) > 0
     end
   end
 

@@ -34,7 +34,7 @@ defmodule PhoenixKit.Users.Permissions do
   ## Constants & Metadata
 
       Permissions.all_module_keys()        # 25 built-in + any custom keys
-      Permissions.core_section_keys()      # 5 core keys
+      Permissions.core_section_keys()      # 6 core keys
       Permissions.feature_module_keys()    # 20 feature keys
       Permissions.enabled_module_keys()    # Core + enabled features + custom keys
       Permissions.valid_module_key?("ai")  # true
@@ -104,7 +104,7 @@ defmodule PhoenixKit.Users.Permissions do
   alias PhoenixKit.Users.ScopeNotifier
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
-  @core_section_keys ~w(dashboard users media settings modules)
+  @core_section_keys ~w(dashboard users media settings modules jobs)
 
   # Sub-permissions of CORE sections. A feature module declares its own in
   # `permission_metadata/0`; a core section has no module, so they live here and
@@ -128,6 +128,19 @@ defmodule PhoenixKit.Users.Permissions do
         key: "media.manage",
         label: "Manage storage",
         description: "Buckets, sizes and health, and the site-wide trash and orphan actions"
+      }
+    ],
+    # `jobs` is view: the Jobs page lists runs and their history. `jobs.manage`
+    # starts, pauses, resumes, cancels and retries them. Unlike the media subs it
+    # is NOT backfilled to the roles that hold `jobs`: the page was read-only, so
+    # holding it never meant control, and granting control would add authority
+    # (`dev_docs/plans/2026-10-03-job-runs.md`, §14 R3). Admin gets it at boot with
+    # every new key; Owner has everything.
+    "jobs" => [
+      %{
+        key: "jobs.manage",
+        label: "Manage jobs",
+        description: "Start, pause, resume, cancel and retry background jobs"
       }
     ]
   }
@@ -665,6 +678,7 @@ defmodule PhoenixKit.Users.Permissions do
     "media" => "Media",
     "settings" => "Settings",
     "modules" => "Modules",
+    "jobs" => "Jobs",
     # `db` was extracted into `phoenix_kit_db` but core still
     # references the key (e.g. `auth.ex` `/admin/db` route).
     # `phoenix_kit_db` registers `"db" => "DB"` via its
@@ -686,6 +700,7 @@ defmodule PhoenixKit.Users.Permissions do
     "media" => "hero-photo",
     "settings" => "hero-cog-6-tooth",
     "modules" => "hero-squares-2x2",
+    "jobs" => "hero-queue-list",
     # Mirrors `phoenix_kit_db`'s registered icon. See `@core_labels`
     # above for the rationale.
     "db" => "hero-server-stack",
@@ -700,6 +715,7 @@ defmodule PhoenixKit.Users.Permissions do
     "media" => "File uploads, image processing, and storage buckets",
     "settings" => "General, organization, and user preference settings",
     "modules" => "Enable, disable, and configure feature modules",
+    "jobs" => "Background jobs: what is running, its progress and history, and control over it",
     # Mirrors `phoenix_kit_db`'s registered description. See
     # `@core_labels` above for the rationale.
     "db" => "Database explorer and schema inspection",

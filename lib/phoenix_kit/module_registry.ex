@@ -791,9 +791,23 @@ defmodule PhoenixKit.ModuleRegistry do
       PhoenixKit.Modules.Crawlers,
       PhoenixKit.Modules.Sitemap,
       PhoenixKit.Modules.Storage,
-      PhoenixKit.Jobs,
       PhoenixKit.Notifications
     ]
+  end
+
+  @doc """
+  The kinds of job run (`PhoenixKit.Jobs.Kind`) the enabled modules declare
+  with `PhoenixKit.Module.job_kinds/0`. A kind that is not a loaded module is
+  left out, with one warning.
+  """
+  @spec all_job_kinds() :: [module()]
+  def all_job_kinds do
+    enabled_modules()
+    |> Enum.flat_map(fn mod -> mod |> safe_call(:job_kinds, []) |> List.wrap() end)
+    |> Enum.filter(
+      &(is_atom(&1) and Code.ensure_loaded?(&1) and function_exported?(&1, :kind, 0))
+    )
+    |> Enum.uniq()
   end
 
   @doc """

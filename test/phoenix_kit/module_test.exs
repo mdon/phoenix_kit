@@ -8,7 +8,6 @@ defmodule PhoenixKit.ModuleTest do
     PhoenixKit.Modules.Crawlers,
     PhoenixKit.Modules.Sitemap,
     PhoenixKit.Modules.Storage,
-    PhoenixKit.Jobs,
     PhoenixKit.Notifications
   ]
 

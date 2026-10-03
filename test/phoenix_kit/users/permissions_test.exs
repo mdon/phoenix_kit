@@ -42,7 +42,9 @@ defmodule PhoenixKit.Users.PermissionsTest do
       assert "media" in keys
       assert "settings" in keys
       assert "modules" in keys
-      assert length(keys) == 5
+      # Jobs is core, not a module with a toggle
+      assert "jobs" in keys
+      assert length(keys) == 6
     end
   end
 
@@ -50,7 +52,14 @@ defmodule PhoenixKit.Users.PermissionsTest do
     test "returns expected feature keys" do
       keys = Permissions.feature_module_keys()
       assert is_list(keys)
-      assert "jobs" in keys
+      assert "storage" in keys
+      refute "jobs" in keys
+    end
+
+    test "jobs.manage is a sub-permission of the core jobs section, implying jobs" do
+      assert "jobs.manage" in Permissions.sub_permission_keys()
+      assert Permissions.feature_enabled?("jobs.manage")
+      assert Permissions.valid_module_key?("jobs.manage")
     end
 
     test "does not include core keys" do

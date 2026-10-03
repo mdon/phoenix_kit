@@ -107,3 +107,11 @@ config :phoenix_kit, PhoenixKitWeb.Endpoint,
     formats: [html: PhoenixKitWeb.ErrorHTML],
     layout: false
   ]
+
+# Job kinds that exist only for the suite (`test/support/job_test_kinds.ex`).
+config :phoenix_kit,
+  job_kinds: [
+    PhoenixKit.Test.JobKinds.Counter,
+    PhoenixKit.Test.JobKinds.Restarting,
+    PhoenixKit.Test.JobKinds.Guarded
+  ]

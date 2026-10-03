@@ -155,6 +155,19 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
         group: :admin_main,
         gettext_backend: PhoenixKitWeb.Gettext
       },
+      # Jobs: always on (it was a module with a toggle; background work now runs through it)
+      %Tab{
+        id: :admin_jobs,
+        label: gettext_noop("Jobs"),
+        icon: "hero-queue-list",
+        path: "jobs",
+        priority: 260,
+        level: :admin,
+        permission: "jobs",
+        match: :prefix,
+        group: :admin_main,
+        gettext_backend: PhoenixKitWeb.Gettext
+      },
       # Media
       %Tab{
         id: :admin_media,

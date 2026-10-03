@@ -23,7 +23,6 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
 
   import Ecto.Query
 
-  alias PhoenixKit.Jobs, as: JobsModule
   alias PhoenixKit.ScheduledJobs.ScheduledJob
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Json
@@ -34,38 +33,30 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
   @refresh_interval 30_000
 
   def mount(_params, _session, socket) do
-    # Check if module is enabled
-    if JobsModule.enabled?() do
-      project_title = Settings.get_project_title()
+    project_title = Settings.get_project_title()
 
-      if connected?(socket) do
-        Process.send_after(self(), :refresh, @refresh_interval)
-      end
-
-      # :filter_queue, :filter_state, :filter_worker, and :current_page are
-      # assigned from the query string by UrlState before mount/3 runs —
-      # re-assigning them here would overwrite a shared link's state with the
-      # defaults.
-      socket =
-        socket
-        |> assign(:page_title, "Jobs")
-        |> assign(:project_title, project_title)
-        |> assign(:url_path, Routes.path("/admin/jobs"))
-        |> assign(:hidden_workers, load_hidden_workers())
-        |> assign(:per_page, @per_page)
-        |> assign(:selected_job, nil)
-        |> assign(:selected_scheduled_job, nil)
-        |> assign(:active_tab, "oban")
-        |> load_stats()
-        |> load_scheduled_jobs()
-
-      {:ok, socket}
-    else
-      {:ok,
-       socket
-       |> put_flash(:error, "Jobs module is not enabled. Enable it from the Modules page.")
-       |> redirect(to: Routes.path("/admin/modules"))}
+    if connected?(socket) do
+      Process.send_after(self(), :refresh, @refresh_interval)
     end
+
+    # :filter_queue, :filter_state, :filter_worker, and :current_page are
+    # assigned from the query string by UrlState before mount/3 runs —
+    # re-assigning them here would overwrite a shared link's state with the
+    # defaults.
+    socket =
+      socket
+      |> assign(:page_title, "Jobs")
+      |> assign(:project_title, project_title)
+      |> assign(:url_path, Routes.path("/admin/jobs"))
+      |> assign(:hidden_workers, load_hidden_workers())
+      |> assign(:per_page, @per_page)
+      |> assign(:selected_job, nil)
+      |> assign(:selected_scheduled_job, nil)
+      |> assign(:active_tab, "oban")
+      |> load_stats()
+      |> load_scheduled_jobs()
+
+    {:ok, socket}
   end
 
   # The list is loaded here rather than in mount/3: UrlState calls this after

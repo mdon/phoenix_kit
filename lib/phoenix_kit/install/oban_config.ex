@@ -256,6 +256,8 @@ if Code.ensure_loaded?(Igniter) do
              {"0 4 * * *", PhoenixKit.Notifications.PruneWorker},
              {"30 4 * * *", PhoenixKit.Users.Referrals.PruneWorker},
              {"45 4 * * *", PhoenixKit.Users.LoginAttemptsPruneWorker},
+             {"*/5 * * * *", PhoenixKit.Jobs.SweepWorker},
+             {"15 4 * * *", PhoenixKit.Jobs.PruneWorker},
              {"0 * * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "hourly"}},
              {"0 */12 * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "12h"}},
              {"0 6 * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "daily"}},
@@ -1152,7 +1154,12 @@ if Code.ensure_loaded?(Igniter) do
       # Shipped in 2.31.0. Without the backfill an existing host never
       # prunes failed sign-in buckets and the table grows for the life
       # of the install.
-      {"45 4 * * *", "PhoenixKit.Users.LoginAttemptsPruneWorker"}
+      {"45 4 * * *", "PhoenixKit.Users.LoginAttemptsPruneWorker"},
+      # Job runs (2.48.0). Without the sweeper an existing host never rescues a run
+      # whose batch died, and without the prune the table grows for the life of
+      # the install.
+      {"*/5 * * * *", "PhoenixKit.Jobs.SweepWorker"},
+      {"15 4 * * *", "PhoenixKit.Jobs.PruneWorker"}
     ]
 
     @doc """

@@ -3771,6 +3771,9 @@ defmodule PhoenixKit.Modules.Storage do
   def module_key, do: "storage"
 
   @impl PhoenixKit.Module
+  def job_kinds, do: [PhoenixKit.Modules.Storage.Jobs.CaptureDateBackfill]
+
+  @impl PhoenixKit.Module
   def module_name, do: "Storage"
 
   @impl PhoenixKit.Module
