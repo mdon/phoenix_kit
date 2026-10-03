@@ -375,7 +375,7 @@ msgstr "Система ролей"
 msgid "Authentication"
 msgstr "Аутентификация"
 
-#: lib/modules/storage/web/profiles_component.ex:215
+#: lib/modules/storage/web/profiles_component.ex:230
 #: lib/phoenix_kit_web/components/core/badge.ex:105
 #: lib/phoenix_kit_web/components/core/badge.ex:131
 #: lib/phoenix_kit_web/components/core/badge.ex:191
@@ -486,7 +486,7 @@ msgstr "Принять все"
 
 #: lib/phoenix_kit/integrations/integrations.ex:1204
 #: lib/phoenix_kit/integrations/validators.ex:829
-#: lib/phoenix_kit_web/live/activity/index.ex:68
+#: lib/phoenix_kit_web/live/activity/index.ex:70
 #: lib/phoenix_kit_web/live/activity/show.ex:63
 #, elixir-autogen, elixir-format
 msgid "Access denied"
@@ -555,7 +555,7 @@ msgstr "Добавить заметку"
 msgid "Add a note above to start documenting information about this user."
 msgstr "Добавьте заметку выше, чтобы начать документировать информацию о пользователе."
 
-#: lib/modules/storage/web/libraries_component.ex:413
+#: lib/modules/storage/web/libraries_component.ex:417
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:60
 #: lib/phoenix_kit_web/live/settings/website_access.ex:406
 #, elixir-autogen, elixir-format
@@ -629,9 +629,9 @@ msgstr "Маркированный список"
 #: lib/modules/storage/web/bucket_form.html.heex:426
 #: lib/modules/storage/web/bucket_form.html.heex:451
 #: lib/modules/storage/web/dimension_form.html.heex:240
-#: lib/modules/storage/web/libraries_component.ex:404
-#: lib/modules/storage/web/libraries_component.ex:450
-#: lib/modules/storage/web/profiles_component.ex:327
+#: lib/modules/storage/web/libraries_component.ex:408
+#: lib/modules/storage/web/libraries_component.ex:454
+#: lib/modules/storage/web/profiles_component.ex:342
 #: lib/phoenix_kit/mentions/live.ex:250
 #: lib/phoenix_kit_web/comments_gettext_manifest.ex:41
 #: lib/phoenix_kit_web/components/annotation_composer.ex:661
@@ -912,8 +912,8 @@ msgstr "Контакт DPO сохранён"
 #: lib/modules/storage/web/dimensions.html.heex:379
 #: lib/modules/storage/web/dimensions.html.heex:550
 #: lib/modules/storage/web/dimensions.html.heex:586
-#: lib/modules/storage/web/libraries_component.ex:563
-#: lib/modules/storage/web/profiles_component.ex:414
+#: lib/modules/storage/web/libraries_component.ex:567
+#: lib/modules/storage/web/profiles_component.ex:429
 #: lib/modules/storage/web/settings.html.heex:276
 #: lib/phoenix_kit_web/components/core/bulk_select.ex:228
 #: lib/phoenix_kit_web/components/image_editor.ex:1032
@@ -966,7 +966,7 @@ msgstr "Описание"
 #: lib/modules/storage/web/dimensions.html.heex:307
 #: lib/modules/storage/web/dimensions.html.heex:437
 #: lib/modules/storage/web/dimensions.html.heex:514
-#: lib/modules/storage/web/profiles_component.ex:519
+#: lib/modules/storage/web/profiles_component.ex:534
 #: lib/modules/storage/web/settings.html.heex:126
 #: lib/modules/storage/web/settings.html.heex:204
 #: lib/phoenix_kit_web/components/core/badge.ex:191
@@ -1149,8 +1149,8 @@ msgstr "Не удалось обновить настройку"
 msgid "Feature Modules"
 msgstr "Функциональные модули"
 
-#: lib/modules/storage/web/libraries_component.ex:414
-#: lib/modules/storage/web/libraries_component.ex:656
+#: lib/modules/storage/web/libraries_component.ex:418
+#: lib/modules/storage/web/libraries_component.ex:660
 #: lib/modules/storage/web/settings.html.heex:121
 #: lib/modules/storage/web/settings.html.heex:137
 #: lib/phoenix_kit/users/auth.ex:3241
@@ -1465,7 +1465,7 @@ msgstr "ОК"
 msgid "Only the Owner can edit Admin permissions"
 msgstr "Только Владелец может редактировать права Администратора"
 
-#: lib/modules/storage/web/libraries_component.ex:681
+#: lib/modules/storage/web/libraries_component.ex:685
 #: lib/phoenix_kit_web/components/core/preview_card.ex:305
 #: lib/phoenix_kit_web/components/core/preview_card.ex:339
 #: lib/phoenix_kit_web/live/components/library_settings.ex:838
@@ -1585,7 +1585,7 @@ msgstr "Сначала включите модуль Публикации"
 msgid "Postal Code"
 msgstr "Почтовый индекс"
 
-#: lib/modules/storage/web/profiles_component.ex:207
+#: lib/modules/storage/web/profiles_component.ex:222
 #: lib/phoenix_kit_web/components/language_switcher.ex:432
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:359
 #, elixir-autogen, elixir-format
@@ -1714,7 +1714,7 @@ msgstr "Отозвать всё"
 msgid "Revoked %{label} from %{role_name}"
 msgstr "Отозвано %{label} у %{role_name}"
 
-#: lib/modules/storage/web/profiles_component.ex:468
+#: lib/modules/storage/web/profiles_component.ex:483
 #: lib/phoenix_kit/users/table_columns.ex:285
 #: lib/phoenix_kit_web/components/core/role_switcher.ex:127
 #: lib/phoenix_kit_web/live/activity/index.html.heex:49
@@ -1788,8 +1788,8 @@ msgstr "SWIFT/BIC"
 
 #: lib/modules/sitemap/web/settings.html.heex:495
 #: lib/modules/storage/web/dimensions.html.heex:97
-#: lib/modules/storage/web/libraries_component.ex:443
-#: lib/modules/storage/web/libraries_component.ex:641
+#: lib/modules/storage/web/libraries_component.ex:447
+#: lib/modules/storage/web/libraries_component.ex:645
 #: lib/phoenix_kit_web/comments_gettext_manifest.ex:67
 #: lib/phoenix_kit_web/components/core/markdown_editor.ex:356
 #: lib/phoenix_kit_web/components/core/markdown_editor.ex:440
@@ -1930,10 +1930,10 @@ msgstr "Регион/Область"
 #: lib/modules/storage/web/dimensions.html.heex:247
 #: lib/modules/storage/web/dimensions.html.heex:436
 #: lib/modules/storage/web/dimensions.html.heex:454
-#: lib/modules/storage/web/profiles_component.ex:491
+#: lib/modules/storage/web/profiles_component.ex:506
 #: lib/modules/storage/web/settings.html.heex:125
 #: lib/modules/storage/web/settings.html.heex:138
-#: lib/modules/storage/web/settings.html.heex:606
+#: lib/modules/storage/web/settings.html.heex:615
 #: lib/phoenix_kit/users/table_columns.ex:291
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:189
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:244
@@ -2368,8 +2368,8 @@ msgstr "Установить по умолчанию"
 
 #: lib/modules/storage/web/dimensions.html.heex:205
 #: lib/modules/storage/web/dimensions.html.heex:243
-#: lib/modules/storage/web/libraries_component.ex:416
-#: lib/modules/storage/web/libraries_component.ex:657
+#: lib/modules/storage/web/libraries_component.ex:420
+#: lib/modules/storage/web/libraries_component.ex:661
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1945
 #: lib/phoenix_kit_web/live/users/libraries.html.heex:106
 #, elixir-autogen, elixir-format
@@ -2378,6 +2378,7 @@ msgstr "Размер"
 
 ## Statistics cards
 #: lib/phoenix_kit/theme_config.ex:136
+#: lib/phoenix_kit_web/components/core/activity_list.ex:57
 #: lib/phoenix_kit_web/components/core/badge.ex:160
 #: lib/phoenix_kit_web/live/activity/index.html.heex:29
 #: lib/phoenix_kit_web/live/activity/index.html.heex:372
@@ -2489,14 +2490,14 @@ msgstr "Добавить пользовательское поле"
 msgid "Add First Field"
 msgstr "Добавить первое поле"
 
-#: lib/modules/storage/web/dimension_form.ex:187
+#: lib/modules/storage/web/dimension_form.ex:188
 #: lib/modules/storage/web/dimensions.html.heex:168
 #: lib/modules/storage/web/dimensions.html.heex:187
 #, elixir-autogen, elixir-format
 msgid "Add Image Dimension"
 msgstr "Добавить размер изображения"
 
-#: lib/modules/storage/web/dimension_form.ex:188
+#: lib/modules/storage/web/dimension_form.ex:189
 #: lib/modules/storage/web/dimensions.html.heex:174
 #: lib/modules/storage/web/dimensions.html.heex:397
 #, elixir-autogen, elixir-format
@@ -2554,12 +2555,12 @@ msgstr "Секрет приложения"
 msgid "Application name display"
 msgstr "Отображение названия приложения"
 
-#: lib/modules/storage/web/settings.html.heex:464
+#: lib/modules/storage/web/settings.html.heex:473
 #, elixir-autogen, elixir-format
 msgid "Apply Changes"
 msgstr "Применить изменения"
 
-#: lib/modules/storage/web/settings.html.heex:461
+#: lib/modules/storage/web/settings.html.heex:470
 #, elixir-autogen, elixir-format
 msgid "Applying..."
 msgstr "Применение..."
@@ -2646,7 +2647,7 @@ msgstr "Цвет CSS или градиент для фона страницы а
 msgid "Callback URL"
 msgstr "URL обратного вызова"
 
-#: lib/modules/storage/web/settings.html.heex:470
+#: lib/modules/storage/web/settings.html.heex:479
 #, elixir-autogen, elixir-format
 msgid "Changes will be saved immediately"
 msgstr "Изменения будут сохранены немедленно"
@@ -3021,9 +3022,9 @@ msgstr "Управляйте регистрацией пользователей
 #: lib/modules/storage/web/dimensions.html.heex:80
 #: lib/modules/storage/web/dimensions.html.heex:242
 #: lib/modules/storage/web/dimensions.html.heex:445
-#: lib/modules/storage/web/libraries_component.ex:412
-#: lib/modules/storage/web/libraries_component.ex:652
-#: lib/modules/storage/web/profiles_component.ex:349
+#: lib/modules/storage/web/libraries_component.ex:416
+#: lib/modules/storage/web/libraries_component.ex:656
+#: lib/modules/storage/web/profiles_component.ex:364
 #: lib/modules/storage/web/settings.html.heex:134
 #: lib/phoenix_kit_web/components/media_browser.html.heex:427
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1941
@@ -3062,7 +3063,7 @@ msgstr "Новые пользователи будут созданы как н�
 msgid "No active sessions found."
 msgstr "Активные сессии не найдены."
 
-#: lib/modules/storage/web/settings.html.heex:468
+#: lib/modules/storage/web/settings.html.heex:477
 #, elixir-autogen, elixir-format
 msgid "No changes to apply"
 msgstr "Нет изменений для применения"
@@ -3295,7 +3296,7 @@ msgstr "Показывать поле имени пользователя при
 msgid "Site Address (URL)"
 msgstr "Адрес сайта (URL)"
 
-#: lib/modules/storage/web/settings.html.heex:515
+#: lib/modules/storage/web/settings.html.heex:524
 #, elixir-autogen, elixir-format
 msgid "Soon"
 msgstr "Скоро"
@@ -4007,7 +4008,7 @@ msgstr "Создайте OAuth-клиент"
 msgid "Create an OpenRouter account"
 msgstr "Создайте аккаунт OpenRouter"
 
-#: lib/modules/storage/web/settings.html.heex:446
+#: lib/modules/storage/web/settings.html.heex:455
 #, elixir-autogen, elixir-format
 msgid "Current limit: %{size} MB"
 msgstr "Текущий лимит: %{size} МБ"
@@ -4262,7 +4263,7 @@ msgstr "Предоставьте доступ к Google Docs и Google Drive"
 
 #: lib/modules/storage/web/health.ex:30
 #: lib/modules/storage/web/health.html.heex:59
-#: lib/modules/storage/web/settings.html.heex:533
+#: lib/modules/storage/web/settings.html.heex:542
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:370
 #, elixir-autogen, elixir-format
 msgid "Health"
@@ -4358,12 +4359,12 @@ msgstr "Режим обслуживания неактивен — это пре
 msgid "Manage your account settings and preferences"
 msgstr "Управляйте настройками и параметрами вашего аккаунта"
 
-#: lib/modules/storage/web/settings.html.heex:434
+#: lib/modules/storage/web/settings.html.heex:443
 #, elixir-autogen, elixir-format
 msgid "Max Upload Size (MB)"
 msgstr "Максимальный размер загрузки (МБ)"
 
-#: lib/modules/storage/web/settings.html.heex:436
+#: lib/modules/storage/web/settings.html.heex:445
 #, elixir-autogen, elixir-format
 msgid "Maximum file size allowed per upload"
 msgstr "Максимальный размер файла для одной загрузки"
@@ -4373,12 +4374,12 @@ msgstr "Максимальный размер файла для одной за�
 msgid "Media Buckets"
 msgstr "Медиа-бакеты"
 
-#: lib/modules/storage/web/settings.html.heex:321
+#: lib/modules/storage/web/settings.html.heex:330
 #, elixir-autogen, elixir-format
 msgid "Media Configuration"
 msgstr "Конфигурация медиа"
 
-#: lib/modules/storage/web/settings.html.heex:514
+#: lib/modules/storage/web/settings.html.heex:523
 #, elixir-autogen, elixir-format
 msgid "Media Stats"
 msgstr "Статистика медиа"
@@ -4394,7 +4395,7 @@ msgstr "Участник добавлен в организацию"
 msgid "Member removed from organization"
 msgstr "Участник удалён из организации"
 
-#: lib/modules/storage/web/libraries_component.ex:655
+#: lib/modules/storage/web/libraries_component.ex:659
 #: lib/phoenix_kit_web/live/components/library_settings.ex:847
 #: lib/phoenix_kit_web/live/components/library_settings.ex:891
 #: lib/phoenix_kit_web/live/users/libraries.html.heex:104
@@ -4403,7 +4404,7 @@ msgstr "Участник удалён из организации"
 msgid "Members"
 msgstr "Участники"
 
-#: lib/modules/storage/web/settings.html.heex:626
+#: lib/modules/storage/web/settings.html.heex:635
 #: lib/phoenix_kit_web/components/core/integration_picker.ex:186
 #, elixir-autogen, elixir-format
 msgid "Missing"
@@ -4613,7 +4614,7 @@ msgstr "Удалить из организации"
 msgid "Remove this member from the organization?"
 msgstr "Удалить этого участника из организации?"
 
-#: lib/modules/storage/web/settings.html.heex:574
+#: lib/modules/storage/web/settings.html.heex:583
 #, elixir-autogen, elixir-format
 msgid "Repair Media Module"
 msgstr "Восстановить медиамодуль"
@@ -5399,7 +5400,7 @@ msgstr "требует, чтобы модуль"
 #: lib/modules/storage/web/dimension_form.html.heex:8
 #: lib/modules/storage/web/dimensions.html.heex:8
 #: lib/modules/storage/web/health.html.heex:8
-#: lib/modules/storage/web/settings.ex:60
+#: lib/modules/storage/web/settings.ex:64
 #: lib/modules/storage/web/settings.html.heex:4
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:174
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:347
@@ -5562,8 +5563,8 @@ msgstr "Готово"
 msgid "Reorder"
 msgstr "Изменить порядок"
 
-#: lib/modules/storage/web/libraries_component.ex:456
-#: lib/modules/storage/web/profiles_component.ex:396
+#: lib/modules/storage/web/libraries_component.ex:460
+#: lib/modules/storage/web/profiles_component.ex:411
 #: lib/phoenix_kit_web/live/components/library_settings.ex:796
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:56
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:221
@@ -5757,7 +5758,7 @@ msgstr "Включить в статическую карту сайта"
 
 #: lib/modules/sitemap/web/settings.ex:90
 #: lib/modules/sitemap/web/settings.html.heex:510
-#: lib/modules/storage/web/settings.ex:90
+#: lib/modules/storage/web/settings.ex:98
 #, elixir-autogen
 msgid "Configuration"
 msgstr "Конфигурация"
@@ -6068,7 +6069,7 @@ msgstr "Папка недоступна — показан корень"
 msgid "Folder not found"
 msgstr "Папка не найдена"
 
-#: lib/modules/storage/web/libraries_component.ex:415
+#: lib/modules/storage/web/libraries_component.ex:419
 #: lib/phoenix_kit_web/components/folder_explorer.ex:250
 #, elixir-autogen, elixir-format
 msgid "Folders"
@@ -6122,6 +6123,7 @@ msgstr[2] "Переместить %{count} файлов в корзину?"
 msgid "New folder"
 msgstr "Новая папка"
 
+#: lib/modules/storage/web/history_component.ex:135
 #: lib/phoenix_kit_web/components/core/preview_card.ex:210
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2484
 #: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:148
@@ -6186,7 +6188,7 @@ msgstr "Назад"
 msgid "Previous (←)"
 msgstr "Предыдущий (←)"
 
-#: lib/modules/storage/web/libraries_component.ex:550
+#: lib/modules/storage/web/libraries_component.ex:554
 #: lib/phoenix_kit_web/components/folder_explorer.ex:681
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1460
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2173
@@ -6887,6 +6889,7 @@ msgstr "Медиафайлы не найдены"
 msgid "Preview"
 msgstr "Предпросмотр"
 
+#: lib/modules/storage/web/history_component.ex:122
 #: lib/phoenix_kit_web/components/core/preview_card.ex:201
 #: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:137
 #, elixir-autogen, elixir-format
@@ -7296,7 +7299,7 @@ msgstr[1] "%{count} события"
 msgstr[2] "%{count} событий"
 
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:148
-#: lib/phoenix_kit_web/live/activity/index.ex:50
+#: lib/phoenix_kit_web/live/activity/index.ex:52
 #: lib/phoenix_kit_web/live/activity/index.html.heex:5
 #: lib/phoenix_kit_web/live/activity/index.html.heex:305
 #, elixir-autogen, elixir-format
@@ -7362,8 +7365,9 @@ msgstr "Очистить фильтры"
 msgid "Date & Time"
 msgstr "Дата и время"
 
-#: lib/modules/storage/web/libraries_component.ex:765
-#: lib/modules/storage/web/settings.ex:450
+#: lib/modules/storage/web/libraries_component.ex:769
+#: lib/modules/storage/web/settings.ex:489
+#: lib/phoenix_kit_web/components/core/activity_list.ex:36
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:569
 #: lib/phoenix_kit_web/live/activity/index.html.heex:310
 #, elixir-autogen, elixir-format
@@ -7429,6 +7433,7 @@ msgstr "Цель (на кого повлияло)"
 msgid "Value"
 msgstr "Значение"
 
+#: lib/phoenix_kit_web/components/core/activity_list.ex:78
 #: lib/phoenix_kit_web/live/activity/index.html.heex:449
 #, elixir-autogen, elixir-format
 msgid "View details"
@@ -7647,7 +7652,7 @@ msgstr "Сотрудники"
 msgid "Staff module for PhoenixKit — departments, teams, and people."
 msgstr "Модуль сотрудников для PhoenixKit — отделы, команды и люди."
 
-#: lib/modules/storage/web/libraries_component.ex:418
+#: lib/modules/storage/web/libraries_component.ex:422
 #: lib/phoenix_kit_web/live/modules.ex:143
 #, elixir-autogen, elixir-format
 msgid "Sync"
@@ -8329,7 +8334,7 @@ msgstr "Добавить описание"
 msgid "All types"
 msgstr "Все типы"
 
-#: lib/modules/storage/web/settings.html.heex:372
+#: lib/modules/storage/web/settings.html.heex:381
 #, elixir-autogen, elixir-format
 msgid "Annotated Thumbnails"
 msgstr "Аннотированные миниатюры"
@@ -8357,12 +8362,12 @@ msgstr "Назад"
 msgid "Background image"
 msgstr "Фоновое изображение"
 
-#: lib/modules/storage/web/settings.html.heex:375
+#: lib/modules/storage/web/settings.html.heex:384
 #, elixir-autogen, elixir-format
 msgid "Bake Etcher annotation shapes (rectangles, marker strokes, etc.) into a file's grid thumbnail, regenerated in the background when annotations change. With this off the grid shows the plain thumbnail and no annotated variant is generated. ImageMagick is required when enabled."
 msgstr "Запекать фигуры аннотаций Etcher (прямоугольники, штрихи маркера и т. д.) в миниатюру файла в сетке, перегенерируя её в фоне при изменении аннотаций. Когда выключено, в сетке показывается обычная миниатюра, а аннотированный вариант не создаётся. При включении требуется ImageMagick."
 
-#: lib/modules/storage/web/settings.html.heex:542
+#: lib/modules/storage/web/settings.html.heex:551
 #, elixir-autogen, elixir-format
 msgid "Browse files no longer attached to any record (orphaned media) so you can review or delete them."
 msgstr "Просматривайте файлы, больше не привязанные ни к одной записи (потерянные медиа), чтобы просмотреть или удалить их."
@@ -8508,7 +8513,7 @@ msgstr "Не удалось обновить заголовок"
 msgid "Filter"
 msgstr "Фильтр"
 
-#: lib/modules/storage/web/settings.html.heex:551
+#: lib/modules/storage/web/settings.html.heex:560
 #, elixir-autogen, elixir-format
 msgid "Find Orphaned Files"
 msgstr "Найти несвязанные файлы"
@@ -8785,7 +8790,7 @@ msgstr "Бесплатный тариф включает ежемесячную 
 msgid "Unread"
 msgstr "Непрочитанные"
 
-#: lib/modules/storage/web/settings.html.heex:511
+#: lib/modules/storage/web/settings.html.heex:520
 #, elixir-autogen, elixir-format
 msgid "View storage usage and media statistics. Coming soon."
 msgstr "Просмотр использования хранилища и статистики медиа. Скоро."
@@ -9233,79 +9238,79 @@ msgstr "сохранено:"
 msgid "New User Defaults"
 msgstr "Значения по умолчанию для новых пользователей"
 
-#: lib/modules/storage/web/settings.ex:254
+#: lib/modules/storage/web/settings.ex:263
 #, elixir-autogen, elixir-format
 msgid "Bucket deleted successfully"
 msgstr "Бакет успешно удалён"
 
-#: lib/modules/storage/web/settings.ex:184
+#: lib/modules/storage/web/settings.ex:193
 #, elixir-autogen, elixir-format
 msgid "Bucket disabled successfully"
 msgstr "Бакет успешно отключён"
 
-#: lib/modules/storage/web/settings.ex:183
+#: lib/modules/storage/web/settings.ex:192
 #, elixir-autogen, elixir-format
 msgid "Bucket enabled successfully"
 msgstr "Бакет успешно включён"
 
 #: lib/modules/storage/web/bucket_form.ex:56
-#: lib/modules/storage/web/settings.ex:174
-#: lib/modules/storage/web/settings.ex:259
+#: lib/modules/storage/web/settings.ex:183
+#: lib/modules/storage/web/settings.ex:268
 #, elixir-autogen, elixir-format
 msgid "Bucket not found"
 msgstr "Хранилище не найдено"
 
-#: lib/modules/storage/web/settings.ex:268
+#: lib/modules/storage/web/settings.ex:277
 #, elixir-autogen, elixir-format
 msgid "Failed to delete bucket"
 msgstr "Не удалось удалить бакет"
 
-#: lib/modules/storage/web/settings.ex:295
+#: lib/modules/storage/web/settings.ex:304
 #, elixir-autogen, elixir-format
 msgid "Failed to repair: %{reason}"
 msgstr "Не удалось восстановить: %{reason}"
 
-#: lib/modules/storage/web/settings.ex:190
+#: lib/modules/storage/web/settings.ex:199
 #, elixir-autogen, elixir-format
 msgid "Failed to update bucket"
 msgstr "Не удалось обновить бакет"
 
-#: lib/modules/storage/web/settings.ex:285
+#: lib/modules/storage/web/settings.ex:294
 #, elixir-autogen, elixir-format
 msgid "Storage module repaired: %{summary}"
 msgstr "Модуль хранилища восстановлен: %{summary}"
 
-#: lib/modules/storage/web/settings.ex:166
+#: lib/modules/storage/web/settings.ex:175
 #, elixir-autogen, elixir-format
 msgid "Storage settings updated successfully"
 msgstr "Настройки хранилища успешно обновлены"
 
-#: lib/modules/storage/web/dimensions.ex:66
+#: lib/modules/storage/web/dimensions.ex:67
 #, elixir-autogen, elixir-format
 msgid "Dimension deleted successfully"
 msgstr "Размер успешно удалён"
 
-#: lib/modules/storage/web/dimensions.ex:88
+#: lib/modules/storage/web/dimensions.ex:89
 #, elixir-autogen, elixir-format
 msgid "Dimension status updated"
 msgstr "Статус размера обновлён"
 
-#: lib/modules/storage/web/dimensions.ex:101
+#: lib/modules/storage/web/dimensions.ex:102
 #, elixir-autogen, elixir-format
 msgid "Dimensions reset to defaults successfully"
 msgstr "Размеры сброшены к значениям по умолчанию"
 
-#: lib/modules/storage/web/dimensions.ex:79
+#: lib/modules/storage/web/dimensions.ex:80
 #, elixir-autogen, elixir-format
 msgid "Failed to delete dimension"
 msgstr "Не удалось удалить размер"
 
-#: lib/modules/storage/web/dimensions.ex:108
+#: lib/modules/storage/web/dimensions.ex:109
 #, elixir-autogen, elixir-format
 msgid "Failed to reset dimensions: %{reason}"
 msgstr "Не удалось сбросить размеры: %{reason}"
 
-#: lib/modules/storage/web/dimensions.ex:91
+#: lib/modules/storage/web/dimensions.ex:92
 #, elixir-autogen, elixir-format
 msgid "Failed to update dimension"
 msgstr "Не удалось обновить размер"
@@ -9909,17 +9914,17 @@ msgstr "Добавить бакет хранилища"
 msgid "Edit Storage Bucket"
 msgstr "Изменить бакет хранилища"
 
-#: lib/modules/storage/web/dimension_form.ex:189
+#: lib/modules/storage/web/dimension_form.ex:190
 #, elixir-autogen, elixir-format
 msgid "Add Storage Dimension"
 msgstr "Добавить размер хранилища"
 
-#: lib/modules/storage/web/dimension_form.ex:158
+#: lib/modules/storage/web/dimension_form.ex:159
 #, elixir-autogen, elixir-format
 msgid "Edit Storage Dimension"
 msgstr "Изменить размер хранилища"
 
-#: lib/modules/storage/web/dimension_form.ex:159
+#: lib/modules/storage/web/dimension_form.ex:160
 #, elixir-autogen, elixir-format
 msgid "Update Dimension"
 msgstr "Обновить размер"
@@ -10211,8 +10216,8 @@ msgstr "Не удалось связаться с SMTP-сервером"
 msgid "Could not rotate the image."
 msgstr "Не удалось повернуть изображение."
 
-#: lib/modules/storage/web/dimensions.ex:172
-#: lib/modules/storage/web/libraries_component.ex:184
+#: lib/modules/storage/web/dimensions.ex:173
+#: lib/modules/storage/web/libraries_component.ex:185
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:658
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:242
 #, elixir-autogen, elixir-format
@@ -13086,6 +13091,7 @@ msgstr "Посетители, запрашивающие публичный ад
 msgid "Website access"
 msgstr "Доступ к сайту"
 
+#: lib/phoenix_kit_web/components/core/activity_list.ex:33
 #: lib/phoenix_kit_web/live/settings/website_access.ex:403
 #, elixir-autogen, elixir-format
 msgid "When"
@@ -13874,7 +13880,7 @@ msgstr "результатов"
 msgid "sessions"
 msgstr "сеансов"
 
-#: lib/modules/storage/web/settings.ex:87
+#: lib/modules/storage/web/settings.ex:95
 #, elixir-autogen, elixir-format
 msgid "Buckets"
 msgstr "Бакеты"
@@ -14290,7 +14296,7 @@ msgstr "Редактировать изображение"
 msgid "Edited"
 msgstr "Изменено"
 
-#: lib/modules/storage/web/settings.html.heex:423
+#: lib/modules/storage/web/settings.html.heex:432
 #, elixir-autogen, elixir-format
 msgid "Every save overwrites the image for good. Nothing can be undone, and redacted areas are gone from storage."
 msgstr "Каждое сохранение перезаписывает изображение навсегда. Ничего нельзя отменить, а скрытые области удаляются из хранилища."
@@ -14316,12 +14322,12 @@ msgstr "Высота %"
 msgid "Hide areas"
 msgstr "Скрыть области"
 
-#: lib/modules/storage/web/settings.html.heex:388
+#: lib/modules/storage/web/settings.html.heex:397
 #, elixir-autogen, elixir-format
 msgid "Image Editing"
 msgstr "Редактирование изображений"
 
-#: lib/modules/storage/web/settings.html.heex:404
+#: lib/modules/storage/web/settings.html.heex:413
 #, elixir-autogen, elixir-format
 msgid "Keep the original (recommended)"
 msgstr "Сохранять оригинал (рекомендуется)"
@@ -14372,7 +14378,7 @@ msgstr "Пикселизировать"
 msgid "Remove area"
 msgstr "Удалить область"
 
-#: lib/modules/storage/web/settings.html.heex:421
+#: lib/modules/storage/web/settings.html.heex:430
 #, elixir-autogen, elixir-format
 msgid "Replace the original"
 msgstr "Заменять оригинал"
@@ -14447,7 +14453,7 @@ msgstr "До завершения вместо изображения показ
 msgid "The preview is approximate; colours and blur are exact once saved."
 msgstr "Предпросмотр приблизительный; цвета и размытие будут точными после сохранения."
 
-#: lib/modules/storage/web/settings.html.heex:406
+#: lib/modules/storage/web/settings.html.heex:415
 #, elixir-autogen, elixir-format
 msgid "The unedited image is kept privately, so an edit can be changed or undone. Owners can delete it themselves."
 msgstr "Неизменённое изображение хранится приватно, чтобы правку можно было изменить или отменить. Владельцы могут удалить его сами."
@@ -14537,7 +14543,7 @@ msgstr "До тех пор изображение везде заменено з
 msgid "Wait until the image has finished rendering."
 msgstr "Дождитесь окончания обработки изображения."
 
-#: lib/modules/storage/web/settings.html.heex:390
+#: lib/modules/storage/web/settings.html.heex:399
 #, elixir-autogen, elixir-format
 msgid "What saving an edited image (crop, turn, redaction…) does with the original."
 msgstr "Что делает с оригиналом сохранение отредактированного изображения (обрезка, поворот, скрытие…)."
@@ -15250,7 +15256,7 @@ msgstr "До"
 msgid "What changed"
 msgstr "Что изменилось"
 
-#: lib/phoenix_kit_web/live/activity/index.ex:313
+#: lib/phoenix_kit_web/components/core/activity_list.ex:131
 #: lib/phoenix_kit_web/live/activity/show.html.heex:175
 #, elixir-autogen, elixir-format
 msgid "changed"
@@ -15333,8 +15339,8 @@ msgid "Standard fields"
 msgstr "Стандартные поля"
 
 #: lib/modules/storage/web/dimensions.html.heex:57
-#: lib/modules/storage/web/libraries_component.ex:402
-#: lib/modules/storage/web/profiles_component.ex:325
+#: lib/modules/storage/web/libraries_component.ex:406
+#: lib/modules/storage/web/profiles_component.ex:340
 #: lib/phoenix_kit_web/live/components/library_settings.ex:564
 #, elixir-autogen, elixir-format
 msgid "Create"
@@ -15358,13 +15364,13 @@ msgstr "Библиотека «%{name}» создана"
 msgid "Library deleted"
 msgstr "Библиотека удалена"
 
-#: lib/modules/storage/web/libraries_component.ex:334
-#: lib/modules/storage/web/libraries_component.ex:397
+#: lib/modules/storage/web/libraries_component.ex:338
+#: lib/modules/storage/web/libraries_component.ex:401
 #, elixir-autogen, elixir-format
 msgid "Library name"
 msgstr "Название библиотеки"
 
-#: lib/modules/storage/web/libraries_component.ex:375
+#: lib/modules/storage/web/libraries_component.ex:379
 #: lib/phoenix_kit_web/live/components/library_settings.ex:546
 #, elixir-autogen, elixir-format
 msgid "New library"
@@ -15381,19 +15387,19 @@ msgstr "Удалить можно только пустую библиотеку
 msgid "Library not found"
 msgstr "Библиотека не найдена"
 
-#: lib/modules/storage/web/libraries_component.ex:380
+#: lib/modules/storage/web/libraries_component.ex:384
 #, elixir-autogen, elixir-format
 msgid "A library is a separate space in Media with its own folders. Everything uploaded so far is in the default library. The Media page shows a library switcher once there are two or more."
 msgstr "Библиотека — отдельное пространство в медиа со своими папками. Всё, что было загружено до сих пор, находится в библиотеке по умолчанию. На странице медиа переключатель библиотек появляется, когда их две или больше."
 
-#: lib/modules/storage/web/libraries_component.ex:561
+#: lib/modules/storage/web/libraries_component.ex:565
 #, elixir-autogen, elixir-format
 msgid "Delete this library?"
 msgstr "Удалить эту библиотеку?"
 
-#: lib/modules/storage/web/libraries_component.ex:366
-#: lib/modules/storage/web/settings.ex:89
-#: lib/modules/storage/web/settings.html.heex:360
+#: lib/modules/storage/web/libraries_component.ex:370
+#: lib/modules/storage/web/settings.ex:97
+#: lib/modules/storage/web/settings.html.heex:369
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:188
 #: lib/phoenix_kit_web/live/users/libraries.ex:38
 #: lib/phoenix_kit_web/live/users/libraries.ex:113
@@ -15407,7 +15413,7 @@ msgstr "Библиотеки"
 msgid "Library renamed to \"%{name}\""
 msgstr "Библиотека переименована в «%{name}»"
 
-#: lib/modules/storage/web/libraries_component.ex:557
+#: lib/modules/storage/web/libraries_component.ex:561
 #, elixir-autogen, elixir-format
 msgid "Only an empty library can be deleted."
 msgstr "Удалить можно только пустую библиотеку."
@@ -15440,7 +15446,7 @@ msgstr "Продолжить с Google"
 msgid "%{count} of %{limit} libraries"
 msgstr "%{count} из %{limit} библиотек"
 
-#: lib/modules/storage/web/libraries_component.ex:599
+#: lib/modules/storage/web/libraries_component.ex:603
 #, elixir-autogen, elixir-format
 msgid "Allow user libraries"
 msgstr "Разрешить пользовательские библиотеки"
@@ -15486,7 +15492,7 @@ msgstr "Библиотеки недоступны"
 msgid "Libraries keep your files apart from the site's media. Only you and the members you add can see them."
 msgstr "Библиотеки хранят ваши файлы отдельно от медиа сайта. Видеть их можете только Вы и добавленные Вами участники."
 
-#: lib/modules/storage/web/libraries_component.ex:620
+#: lib/modules/storage/web/libraries_component.ex:624
 #, elixir-autogen, elixir-format
 msgid "Libraries per user"
 msgstr "Библиотек на пользователя"
@@ -15552,7 +15558,7 @@ msgstr "Участников пока нет: эту библиотеку вид
 msgid "No user has that email"
 msgstr "Нет пользователя с таким адресом электронной почты"
 
-#: lib/modules/storage/web/libraries_component.ex:645
+#: lib/modules/storage/web/libraries_component.ex:649
 #, elixir-autogen, elixir-format
 msgid "No user libraries yet."
 msgstr "Пользовательских библиотек пока нет."
@@ -15567,20 +15573,20 @@ msgstr "Открыть библиотеки"
 msgid "Opened as admin"
 msgstr "Открыта администратором"
 
-#: lib/modules/storage/web/libraries_component.ex:679
+#: lib/modules/storage/web/libraries_component.ex:683
 #: lib/phoenix_kit_web/live/users/libraries.html.heex:96
 #, elixir-autogen, elixir-format
 msgid "Opening a user's library is recorded in the audit log."
 msgstr "Открытие библиотеки пользователя записывается в журнал аудита."
 
-#: lib/modules/storage/web/libraries_component.ex:653
+#: lib/modules/storage/web/libraries_component.ex:657
 #: lib/phoenix_kit_web/live/users/libraries.ex:207
 #: lib/phoenix_kit_web/live/users/libraries.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "Owner"
 msgstr "Владелец"
 
-#: lib/modules/storage/web/libraries_component.ex:631
+#: lib/modules/storage/web/libraries_component.ex:635
 #, elixir-autogen, elixir-format
 msgid "Private links last (hours)"
 msgstr "Срок действия приватных ссылок (часы)"
@@ -15630,28 +15636,28 @@ msgstr "Изображение"
 msgid "Thumbnail"
 msgstr "Миниатюра"
 
-#: lib/modules/storage/web/libraries_component.ex:666
+#: lib/modules/storage/web/libraries_component.ex:670
 #: lib/phoenix_kit_web/live/users/libraries.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "Trashed"
 msgstr "В корзине"
 
-#: lib/modules/storage/web/libraries_component.ex:576
+#: lib/modules/storage/web/libraries_component.ex:580
 #, elixir-autogen, elixir-format
 msgid "User libraries"
 msgstr "Пользовательские библиотеки"
 
-#: lib/modules/storage/web/libraries_component.ex:210
+#: lib/modules/storage/web/libraries_component.ex:211
 #, elixir-autogen, elixir-format
 msgid "User library settings could not be saved"
 msgstr "Не удалось сохранить настройки пользовательских библиотек"
 
-#: lib/modules/storage/web/libraries_component.ex:208
+#: lib/modules/storage/web/libraries_component.ex:209
 #, elixir-autogen, elixir-format
 msgid "User library settings saved"
 msgstr "Настройки пользовательских библиотек сохранены"
 
-#: lib/modules/storage/web/libraries_component.ex:579
+#: lib/modules/storage/web/libraries_component.ex:583
 #, elixir-autogen, elixir-format
 msgid "Users with the Storage permission can keep libraries of their own, private to them and the members they add. Their files are served only through links that expire."
 msgstr "Пользователи с разрешением «Хранилище» могут вести собственные библиотеки, доступные только им и добавленным участникам. Их файлы отдаются только по ссылкам с ограниченным сроком действия."
@@ -15741,7 +15747,7 @@ msgstr[0] "У %{count} сохранённого объекта ещё нет з�
 msgstr[1] "У %{count} сохранённых объектов ещё нет записанного расположения. Оно ищется в фоне, а объекты пока продолжают отдаваться."
 msgstr[2] "У %{count} сохранённых объектов ещё нет записанного расположения. Оно ищется в фоне, а объекты пока продолжают отдаваться."
 
-#: lib/modules/storage/web/settings.ex:265
+#: lib/modules/storage/web/settings.ex:274
 #, elixir-autogen, elixir-format
 msgid "This bucket still holds files, so it cannot be deleted. Disable it to stop storing new files there."
 msgstr "В этом бакете ещё есть файлы, поэтому его нельзя удалить. Отключите его, чтобы новые файлы туда больше не сохранялись."
@@ -15781,12 +15787,12 @@ msgstr "Показывать описания страниц в шапке ад�
 msgid "Signed (short-lived link)"
 msgstr "Подписанный (кратковременная ссылка)"
 
-#: lib/modules/storage/web/dimensions.ex:73
+#: lib/modules/storage/web/dimensions.ex:74
 #, elixir-autogen, elixir-format
 msgid "%{name} is a standard size every variant set has; it cannot be deleted"
 msgstr "%{name} — стандартный размер, который есть в каждом наборе вариантов; его нельзя удалить"
 
-#: lib/modules/storage/web/dimensions.ex:149
+#: lib/modules/storage/web/dimensions.ex:150
 #, elixir-autogen, elixir-format
 msgid "A library uses this variant set; it cannot be deleted"
 msgstr "Этот набор вариантов используется библиотекой; его нельзя удалить"
@@ -15796,27 +15802,27 @@ msgstr "Этот набор вариантов используется библ
 msgid "Active and in the trash"
 msgstr "Активные и в корзине"
 
-#: lib/modules/storage/web/profiles_component.ex:604
+#: lib/modules/storage/web/profiles_component.ex:619
 #, elixir-autogen, elixir-format
 msgid "Add bucket"
 msgstr "Добавить бакет"
 
-#: lib/modules/storage/web/profiles_component.ex:209
+#: lib/modules/storage/web/profiles_component.ex:224
 #, elixir-autogen, elixir-format
 msgid "Backup"
 msgstr "Резервная копия"
 
-#: lib/modules/storage/web/profiles_component.ex:459
+#: lib/modules/storage/web/profiles_component.ex:474
 #, elixir-autogen, elixir-format
 msgid "Bucket"
 msgstr "Бакет"
 
-#: lib/modules/storage/web/profiles_component.ex:131
+#: lib/modules/storage/web/profiles_component.ex:143
 #, elixir-autogen, elixir-format
 msgid "Bucket added to the profile"
 msgstr "Бакет добавлен в профиль"
 
-#: lib/modules/storage/web/profiles_component.ex:168
+#: lib/modules/storage/web/profiles_component.ex:180
 #, elixir-autogen, elixir-format
 msgid "Bucket taken out of the profile. Its files are copied to the profile's other buckets, then removed from it."
 msgstr "Бакет исключён из профиля. Его файлы копируются в другие бакеты профиля, а затем удаляются из него."
@@ -15841,7 +15847,7 @@ msgstr "Копии"
 msgid "Copies and sizes"
 msgstr "Копии и размеры"
 
-#: lib/modules/storage/web/settings.html.heex:494
+#: lib/modules/storage/web/settings.html.heex:503
 #, elixir-autogen, elixir-format
 msgid "Create and edit variant sets: the image and video sizes each library's uploads get."
 msgstr "Создание и изменение наборов вариантов: размеров изображений и видео, которые создаются для загрузок каждой библиотеки."
@@ -15851,7 +15857,7 @@ msgstr "Создание и изменение наборов вариантов
 msgid "Delete set"
 msgstr "Удалить набор"
 
-#: lib/modules/storage/web/profiles_component.ex:412
+#: lib/modules/storage/web/profiles_component.ex:427
 #, elixir-autogen, elixir-format
 msgid "Delete this storage profile?"
 msgstr "Удалить этот профиль хранения?"
@@ -15866,7 +15872,7 @@ msgstr "Удалить этот набор вариантов и его разм
 msgid "Every file is stored where its library's storage profile wants it, with the sizes of its variant set."
 msgstr "Каждый файл хранится там, где требует профиль хранения его библиотеки, и имеет все размеры своего набора вариантов."
 
-#: lib/modules/storage/web/dimensions.ex:165
+#: lib/modules/storage/web/dimensions.ex:166
 #, elixir-autogen, elixir-format
 msgid "Every file of this variant set will be checked, and missing sizes made."
 msgstr "Все файлы этого набора вариантов будут проверены, а недостающие размеры — созданы."
@@ -15876,7 +15882,8 @@ msgstr "Все файлы этого набора вариантов будут 
 msgid "Every library without its own set uses this one."
 msgstr "Каждая библиотека без собственного набора использует этот."
 
-#: lib/modules/storage/web/profiles_component.ex:211
+#: lib/modules/storage/web/history_component.ex:92
+#: lib/modules/storage/web/profiles_component.ex:226
 #, elixir-autogen, elixir-format
 msgid "Everything"
 msgstr "Всё"
@@ -15891,7 +15898,7 @@ msgstr "Файлы хранятся и имеют размеры согласн�
 msgid "For the reconciler"
 msgstr "Для согласователя"
 
-#: lib/modules/storage/web/libraries_component.ex:234
+#: lib/modules/storage/web/libraries_component.ex:235
 #, elixir-autogen, elixir-format
 msgid "Library storage saved. Its files are moved and resized in the background; the Health page shows what is left."
 msgstr "Настройки хранения библиотеки сохранены. Её файлы перемещаются и масштабируются в фоновом режиме; на странице «Состояние» видно, что ещё осталось."
@@ -15906,7 +15913,7 @@ msgstr "Автоматически создавать размеры после 
 msgid "Make zoomable tiles of images"
 msgstr "Создавать тайлы изображений для масштабирования"
 
-#: lib/modules/storage/web/profiles_component.ex:299
+#: lib/modules/storage/web/profiles_component.ex:314
 #, elixir-autogen, elixir-format
 msgid "New profile"
 msgstr "Новый профиль"
@@ -15916,22 +15923,22 @@ msgstr "Новый профиль"
 msgid "New variant set"
 msgstr "Новый набор вариантов"
 
-#: lib/modules/storage/web/profiles_component.ex:500
+#: lib/modules/storage/web/profiles_component.ex:515
 #, elixir-autogen, elixir-format
 msgid "No buckets yet: uploads to a library on this profile fail."
 msgstr "Бакетов пока нет: загрузки в библиотеку с этим профилем завершатся ошибкой."
 
-#: lib/modules/storage/web/settings.html.heex:524
+#: lib/modules/storage/web/settings.html.heex:533
 #, elixir-autogen, elixir-format
 msgid "Open the media health dashboard: the files not yet stored or sized as their library wants."
 msgstr "Откройте панель состояния медиа: файлы, которые ещё не хранятся или не имеют размеров согласно требованиям их библиотеки."
 
-#: lib/modules/storage/web/profiles_component.ex:212
+#: lib/modules/storage/web/profiles_component.ex:227
 #, elixir-autogen, elixir-format
 msgid "Originals"
 msgstr "Оригиналы"
 
-#: lib/modules/storage/web/profiles_component.ex:320
+#: lib/modules/storage/web/profiles_component.ex:335
 #, elixir-autogen, elixir-format
 msgid "Profile name"
 msgstr "Название профиля"
@@ -15941,12 +15948,12 @@ msgstr "Название профиля"
 msgid "Reconcile now"
 msgstr "Согласовать сейчас"
 
-#: lib/modules/storage/web/profiles_component.ex:208
+#: lib/modules/storage/web/profiles_component.ex:223
 #, elixir-autogen, elixir-format
 msgid "Replica"
 msgstr "Реплика"
 
-#: lib/modules/storage/web/profiles_component.ex:489
+#: lib/modules/storage/web/profiles_component.ex:504
 #, elixir-autogen, elixir-format
 msgid "Serve order"
 msgstr "Порядок отдачи"
@@ -15962,7 +15969,7 @@ msgstr "Показаны первые %{count} из %{total}."
 msgid "Sizes"
 msgstr "Размеры"
 
-#: lib/modules/storage/web/profiles_component.ex:213
+#: lib/modules/storage/web/profiles_component.ex:228
 #, elixir-autogen, elixir-format
 msgid "Sizes and tiles"
 msgstr "Размеры и тайлы"
@@ -15972,36 +15979,36 @@ msgstr "Размеры и тайлы"
 msgid "Sizes changed. Existing files are resized in the background."
 msgstr "Размеры изменены. Существующие файлы масштабируются в фоновом режиме."
 
-#: lib/modules/storage/web/libraries_component.ex:417
-#: lib/modules/storage/web/libraries_component.ex:654
+#: lib/modules/storage/web/libraries_component.ex:421
+#: lib/modules/storage/web/libraries_component.ex:658
 #, elixir-autogen, elixir-format
 msgid "Storage"
 msgstr "Хранилище"
 
-#: lib/modules/storage/web/libraries_component.ex:482
+#: lib/modules/storage/web/libraries_component.ex:486
 #, elixir-autogen, elixir-format
 msgid "Storage profile"
 msgstr "Профиль хранения"
 
-#: lib/modules/storage/web/profiles_component.ex:72
+#: lib/modules/storage/web/profiles_component.ex:78
 #, elixir-autogen, elixir-format
 msgid "Storage profile \"%{name}\" created"
 msgstr "Профиль хранения «%{name}» создан"
 
-#: lib/modules/storage/web/profiles_component.ex:96
+#: lib/modules/storage/web/profiles_component.ex:102
 #, elixir-autogen, elixir-format
 msgid "Storage profile deleted"
 msgstr "Профиль хранения удалён"
 
-#: lib/modules/storage/web/profiles_component.ex:86
-#: lib/modules/storage/web/profiles_component.ex:119
+#: lib/modules/storage/web/profiles_component.ex:92
+#: lib/modules/storage/web/profiles_component.ex:126
 #, elixir-autogen, elixir-format
 msgid "Storage profile saved"
 msgstr "Профиль хранения сохранён"
 
-#: lib/modules/storage/web/profiles_component.ex:290
-#: lib/modules/storage/web/settings.ex:88
-#: lib/modules/storage/web/settings.html.heex:342
+#: lib/modules/storage/web/profiles_component.ex:305
+#: lib/modules/storage/web/settings.ex:96
+#: lib/modules/storage/web/settings.html.heex:351
 #, elixir-autogen, elixir-format
 msgid "Storage profiles"
 msgstr "Профили хранения"
@@ -16011,12 +16018,12 @@ msgstr "Профили хранения"
 msgid "Stored and sized as their library wants"
 msgstr "Хранятся и имеют размеры согласно требованиям библиотеки"
 
-#: lib/modules/storage/web/profiles_component.ex:470
+#: lib/modules/storage/web/profiles_component.ex:485
 #, elixir-autogen, elixir-format
 msgid "Stores"
 msgstr "Хранит"
 
-#: lib/modules/storage/web/profiles_component.ex:106
+#: lib/modules/storage/web/profiles_component.ex:112
 #, elixir-autogen, elixir-format
 msgid "The Default profile, and a profile a library uses, cannot be deleted."
 msgstr "Профиль «По умолчанию» и профиль, используемый библиотекой, нельзя удалить."
@@ -16041,19 +16048,19 @@ msgstr "Согласователь поставлен в очередь. Обн�
 msgid "This set is missing standard sizes: %{names}. Until they are added, those sizes are served as the nearest smaller size or a placeholder."
 msgstr "В этом наборе не хватает стандартных размеров: %{names}. Пока они не добавлены, вместо них отдаётся ближайший меньший размер или заглушка."
 
-#: lib/modules/storage/web/dimensions.ex:153
+#: lib/modules/storage/web/dimensions.ex:154
 #, elixir-autogen, elixir-format
 msgid "This variant set cannot be deleted"
 msgstr "Этот набор вариантов нельзя удалить"
 
 #: lib/modules/storage/web/health.html.heex:41
-#: lib/modules/storage/web/libraries_component.ex:786
+#: lib/modules/storage/web/libraries_component.ex:790
 #, elixir-autogen, elixir-format
 msgid "Up to date"
 msgstr "Актуально"
 
 #: lib/modules/storage/web/dimensions.html.heex:111
-#: lib/modules/storage/web/profiles_component.ex:398
+#: lib/modules/storage/web/profiles_component.ex:413
 #, elixir-autogen, elixir-format
 msgid "Used by %{count} library."
 msgid_plural "Used by %{count} libraries."
@@ -16066,37 +16073,37 @@ msgstr[2] "Используется %{count} библиотеками."
 msgid "Users may choose it for their own libraries"
 msgstr "Пользователи могут выбирать его для своих библиотек"
 
-#: lib/modules/storage/web/libraries_component.ex:495
+#: lib/modules/storage/web/libraries_component.ex:499
 #, elixir-autogen, elixir-format
 msgid "Variant set"
 msgstr "Набор вариантов"
 
-#: lib/modules/storage/web/dimensions.ex:118
+#: lib/modules/storage/web/dimensions.ex:119
 #, elixir-autogen, elixir-format
 msgid "Variant set created"
 msgstr "Набор вариантов создан"
 
-#: lib/modules/storage/web/dimensions.ex:141
+#: lib/modules/storage/web/dimensions.ex:142
 #, elixir-autogen, elixir-format
 msgid "Variant set deleted"
 msgstr "Набор вариантов удалён"
 
-#: lib/modules/storage/web/dimensions.ex:129
+#: lib/modules/storage/web/dimensions.ex:130
 #, elixir-autogen, elixir-format
 msgid "Variant set saved"
 msgstr "Набор вариантов сохранён"
 
 #: lib/modules/storage/web/dimension_form.html.heex:10
-#: lib/modules/storage/web/dimensions.ex:27
+#: lib/modules/storage/web/dimensions.ex:28
 #: lib/modules/storage/web/dimensions.html.heex:4
-#: lib/modules/storage/web/settings.html.heex:351
-#: lib/modules/storage/web/settings.html.heex:503
+#: lib/modules/storage/web/settings.html.heex:360
+#: lib/modules/storage/web/settings.html.heex:512
 #, elixir-autogen, elixir-format
 msgid "Variant sets"
 msgstr "Наборы вариантов"
 
 #: lib/modules/storage/web/health.html.heex:50
-#: lib/modules/storage/web/libraries_component.ex:789
+#: lib/modules/storage/web/libraries_component.ex:793
 #, elixir-autogen, elixir-format
 msgid "Waiting"
 msgstr "Ожидают"
@@ -16159,82 +16166,82 @@ msgstr "Просторный вид"
 msgid "Compact view"
 msgstr "Компактный вид"
 
-#: lib/modules/storage/web/settings.html.heex:597
+#: lib/modules/storage/web/settings.html.heex:606
 #, elixir-autogen, elixir-format
 msgid "Check again"
 msgstr "Проверить снова"
 
-#: lib/modules/storage/web/settings.ex:94
+#: lib/modules/storage/web/settings.ex:103
 #, elixir-autogen, elixir-format
 msgid "External libraries"
 msgstr "Внешние библиотеки"
 
-#: lib/modules/storage/web/settings.ex:464
+#: lib/modules/storage/web/settings.ex:503
 #, elixir-autogen, elixir-format
 msgid "Image variants, resizing and conversion"
 msgstr "Варианты изображений, изменение размера и конвертация"
 
-#: lib/modules/storage/web/settings.ex:444
+#: lib/modules/storage/web/settings.ex:483
 #, elixir-autogen, elixir-format
 msgid "Not found on this server: %{tools}."
 msgstr "Не найдено на этом сервере: %{tools}."
 
-#: lib/modules/storage/web/settings.ex:469
+#: lib/modules/storage/web/settings.ex:508
 #, elixir-autogen, elixir-format
 msgid "PDF page count and metadata"
 msgstr "Число страниц и метаданные PDF"
 
-#: lib/modules/storage/web/settings.ex:468
+#: lib/modules/storage/web/settings.ex:507
 #, elixir-autogen, elixir-format
 msgid "PDF preview images"
 msgstr "Изображения предпросмотра PDF"
 
-#: lib/modules/storage/web/settings.html.heex:590
+#: lib/modules/storage/web/settings.html.heex:599
 #, elixir-autogen, elixir-format
 msgid "Programs on this server that media processing runs."
 msgstr "Программы на этом сервере, которые запускает обработка медиа."
 
-#: lib/modules/storage/web/settings.html.heex:560
+#: lib/modules/storage/web/settings.html.heex:569
 #, elixir-autogen, elixir-format
 msgid "Put back what storage needs: a bucket, a writable bucket in the Default profile, a copy count its buckets can hold. Resets the default dimensions. Keeps your buckets, redundancy and files."
 msgstr "Восстанавливает то, что нужно хранилищу: бакет, доступный для записи бакет в профиле «По умолчанию» и число копий, которое вмещают его бакеты. Сбрасывает размеры по умолчанию. Бакеты, резервирование и файлы сохраняются."
 
-#: lib/modules/storage/web/settings.html.heex:568
+#: lib/modules/storage/web/settings.html.heex:577
 #, elixir-autogen, elixir-format
 msgid "This resets the default dimensions and fixes missing bucket setup. Buckets, redundancy and uploaded files are kept. Continue?"
 msgstr "Размеры по умолчанию будут сброшены, а недостающая настройка бакетов исправлена. Бакеты, резервирование и загруженные файлы сохранятся. Продолжить?"
 
-#: lib/modules/storage/web/settings.html.heex:604
+#: lib/modules/storage/web/settings.html.heex:613
 #, elixir-autogen, elixir-format
 msgid "Tool"
 msgstr "Инструмент"
 
-#: lib/modules/storage/web/settings.ex:91
+#: lib/modules/storage/web/settings.ex:99
 #, elixir-autogen, elixir-format
 msgid "Tools"
 msgstr "Инструменты"
 
-#: lib/modules/storage/web/settings.html.heex:605
+#: lib/modules/storage/web/settings.html.heex:614
 #, elixir-autogen, elixir-format
 msgid "Used for"
 msgstr "Используется для"
 
-#: lib/modules/storage/web/settings.ex:467
+#: lib/modules/storage/web/settings.ex:506
 #, elixir-autogen, elixir-format
 msgid "Video dimensions, duration and capture date"
 msgstr "Размеры, длительность и дата съёмки видео"
 
-#: lib/modules/storage/web/settings.ex:466
+#: lib/modules/storage/web/settings.ex:505
 #, elixir-autogen, elixir-format
 msgid "Video variants and thumbnails"
 msgstr "Варианты и миниатюры видео"
 
-#: lib/modules/storage/web/settings.ex:465
+#: lib/modules/storage/web/settings.ex:504
 #, elixir-autogen, elixir-format
 msgid "Zoomable tiles for large images"
 msgstr "Масштабируемые тайлы для больших изображений"
 
-#: lib/modules/storage/web/settings.ex:416
+#: lib/modules/storage/web/settings.ex:455
 #, elixir-autogen, elixir-format
 msgid "added %{count} bucket to the Default profile"
 msgid_plural "added %{count} buckets to the Default profile"
@@ -16242,17 +16249,17 @@ msgstr[0] "добавлен %{count} бакет в профиль «По умо�
 msgstr[1] "добавлено %{count} бакета в профиль «По умолчанию»"
 msgstr[2] "добавлено %{count} бакетов в профиль «По умолчанию»"
 
-#: lib/modules/storage/web/settings.ex:430
+#: lib/modules/storage/web/settings.ex:469
 #, elixir-autogen, elixir-format
 msgid "cleared the missing default bucket"
 msgstr "сброшен отсутствующий бакет по умолчанию"
 
-#: lib/modules/storage/web/settings.ex:413
+#: lib/modules/storage/web/settings.ex:452
 #, elixir-autogen, elixir-format
 msgid "created bucket '%{name}'"
 msgstr "создан бакет «%{name}»"
 
-#: lib/modules/storage/web/settings.ex:423
+#: lib/modules/storage/web/settings.ex:462
 #, elixir-autogen, elixir-format
 msgid "lowered the Default profile to %{count} copy"
 msgid_plural "lowered the Default profile to %{count} copies"
@@ -16260,7 +16267,7 @@ msgstr[0] "профиль «По умолчанию» снижен до %{count}
 msgstr[1] "профиль «По умолчанию» снижен до %{count} копий"
 msgstr[2] "профиль «По умолчанию» снижен до %{count} копий"
 
-#: lib/modules/storage/web/settings.ex:433
+#: lib/modules/storage/web/settings.ex:472
 #, elixir-autogen, elixir-format
 msgid "reset %{count} dimensions"
 msgstr "сброшено размеров: %{count}"
@@ -16360,12 +16367,12 @@ msgstr "Перенести ключи всех таких бакетов в ин
 msgid "Move this bucket's keys into an integration? The bucket keeps working."
 msgstr "Перенести ключи этого бакета в интеграцию? Бакет продолжит работать."
 
-#: lib/modules/storage/web/settings.ex:222
+#: lib/modules/storage/web/settings.ex:231
 #, elixir-autogen, elixir-format
 msgid "Moved %{moved} bucket(s); %{failed} could not be moved and were left as they were."
 msgstr "Перенесено бакетов: %{moved}; не удалось перенести: %{failed} — они остались без изменений."
 
-#: lib/modules/storage/web/settings.ex:212
+#: lib/modules/storage/web/settings.ex:221
 #, elixir-autogen, elixir-format
 msgid "Moved the keys of %{count} bucket into an integration."
 msgid_plural "Moved the keys of %{count} buckets into an integration."
@@ -16378,7 +16385,7 @@ msgstr[2] "Ключи %{count} бакетов перенесены в интег
 msgid "Moving keys creates an integration, which needs access to Integrations."
 msgstr "Перенос ключей создаёт интеграцию, для чего нужен доступ к разделу «Интеграции»."
 
-#: lib/modules/storage/web/settings.ex:235
+#: lib/modules/storage/web/settings.ex:244
 #, elixir-autogen, elixir-format
 msgid "Moving keys creates integrations, which needs access to Integrations."
 msgstr "Перенос ключей создаёт интеграции, для чего нужен доступ к разделу «Интеграции»."
@@ -16485,7 +16492,7 @@ msgstr[0] "%{count} из ваших библиотек хранит файлы �
 msgstr[1] "%{count} из ваших библиотек хранят файлы в бакетах, использующих это соединение, и перестанут работать. Удалить его?"
 msgstr[2] "%{count} из ваших библиотек хранят файлы в бакетах, использующих это соединение, и перестанут работать. Удалить его?"
 
-#: lib/modules/storage/web/libraries_component.ex:617
+#: lib/modules/storage/web/libraries_component.ex:621
 #, elixir-autogen, elixir-format
 msgid "Allow their own buckets"
 msgstr "Разрешить собственные бакеты"
@@ -16545,17 +16552,17 @@ msgstr "Ничего настраивать не нужно."
 msgid "Only here"
 msgstr "Только здесь"
 
-#: lib/modules/storage/web/libraries_component.ex:353
+#: lib/modules/storage/web/libraries_component.ex:357
 #, elixir-autogen, elixir-format
 msgid "Own %{provider} bucket"
 msgstr "Собственный бакет %{provider}"
 
-#: lib/modules/storage/web/libraries_component.ex:350
+#: lib/modules/storage/web/libraries_component.ex:354
 #, elixir-autogen, elixir-format
 msgid "Site storage"
 msgstr "Хранилище сайта"
 
-#: lib/modules/storage/web/libraries_component.ex:356
+#: lib/modules/storage/web/libraries_component.ex:360
 #, elixir-autogen, elixir-format
 msgid "Site storage + own %{provider} backup"
 msgstr "Хранилище сайта + собственная резервная копия %{provider}"
@@ -16596,7 +16603,7 @@ msgstr "Проверка неожиданно прервалась"
 msgid "This cannot be changed once the library is created. The bucket is tested when you create the library. Deleting the library deletes the files it stored in your bucket."
 msgstr "Это нельзя изменить после создания библиотеки. Бакет проверяется при создании библиотеки. При удалении библиотеки удаляются файлы, которые она сохранила в вашем бакете."
 
-#: lib/modules/storage/web/libraries_component.ex:604
+#: lib/modules/storage/web/libraries_component.ex:608
 #, elixir-autogen, elixir-format
 msgid "Users who also hold the Storage own-storage and Integrations permissions may keep a library on their own S3-compatible bucket. Their files then live outside the site's storage."
 msgstr "Пользователи, у которых есть также права на собственное хранилище (Storage) и на «Интеграции», могут держать библиотеку в собственном S3-совместимом бакете. Их файлы тогда находятся вне хранилища сайта."
@@ -17279,67 +17286,67 @@ msgstr "Собственное имя бакета в сервисе хране�
 msgid "The keys and endpoint come from an Object Storage integration."
 msgstr "Ключи и конечная точка берутся из интеграции Object Storage."
 
-#: lib/modules/storage/web/settings.ex:350
+#: lib/modules/storage/web/settings.ex:389
 #, elixir-autogen, elixir-format
 msgid "Cloud"
 msgstr "Облако"
 
-#: lib/modules/storage/web/settings.ex:349
+#: lib/modules/storage/web/settings.ex:388
 #, elixir-autogen, elixir-format
 msgid "Local"
 msgstr "Локальное"
 
-#: lib/modules/storage/web/settings.ex:381
+#: lib/modules/storage/web/settings.ex:420
 #, elixir-autogen, elixir-format
 msgid "No bucket name"
 msgstr "Нет имени бакета"
 
-#: lib/modules/storage/web/settings.ex:372
+#: lib/modules/storage/web/settings.ex:411
 #, elixir-autogen, elixir-format
 msgid "No path configured"
 msgstr "Путь не настроен"
 
-#: lib/modules/storage/web/profiles_component.ex:258
+#: lib/modules/storage/web/profiles_component.ex:273
 #, elixir-autogen, elixir-format
 msgid "%{count} buckets take new files and each original is stored on 1 of them, picked by upload order, otherwise at random: files are spread across the buckets, not mirrored. Set the copies to 2 to keep every file on 2 buckets."
 msgstr "Новые файлы принимают %{count} бакета, и каждый оригинал сохраняется в 1 из них — по порядку загрузки, иначе случайно: файлы распределяются между бакетами, а не дублируются. Установите число копий 2, чтобы каждый файл хранился в 2 бакетах."
 
-#: lib/modules/storage/web/profiles_component.ex:303
+#: lib/modules/storage/web/profiles_component.ex:318
 #, elixir-autogen, elixir-format
 msgid "A storage profile says where a library's files are kept: which buckets, how many copies of each file, and which copy is served. A library without a profile of its own uses the Default. When the buckets, their roles or the copy counts change, files are copied or moved in the background; the Health page shows what is left."
 msgstr "Профиль хранения определяет, где лежат файлы библиотеки: в каких бакетах, сколько копий каждого файла и какая копия отдаётся. Библиотека без собственного профиля использует профиль по умолчанию. Когда меняются бакеты, их роли или число копий, файлы копируются или переносятся в фоне; страница «Состояние» показывает, что осталось."
 
-#: lib/modules/storage/web/profiles_component.ex:546
+#: lib/modules/storage/web/profiles_component.ex:561
 #, elixir-autogen, elixir-format
 msgid "Any"
 msgstr "Любой"
 
-#: lib/modules/storage/web/profiles_component.ex:382
+#: lib/modules/storage/web/profiles_component.ex:397
 #, elixir-autogen, elixir-format
 msgid "Copies needed to accept an upload"
 msgstr "Копий для успешной загрузки"
 
-#: lib/modules/storage/web/profiles_component.ex:360
+#: lib/modules/storage/web/profiles_component.ex:375
 #, elixir-autogen, elixir-format
 msgid "Copies of each original"
 msgstr "Копий каждого оригинала"
 
-#: lib/modules/storage/web/profiles_component.ex:371
+#: lib/modules/storage/web/profiles_component.ex:386
 #, elixir-autogen, elixir-format
 msgid "Copies of each size and tile"
 msgstr "Копий каждого размера и тайла"
 
-#: lib/modules/storage/web/profiles_component.ex:217
+#: lib/modules/storage/web/profiles_component.ex:232
 #, elixir-autogen, elixir-format
 msgid "Draining (moving files out)"
 msgstr "Опустошается (файлы переносятся)"
 
-#: lib/modules/storage/web/profiles_component.ex:265
+#: lib/modules/storage/web/profiles_component.ex:280
 #, elixir-autogen, elixir-format
 msgid "Each original is stored on %{copies} of the %{count} buckets that take new files."
 msgstr "Каждый оригинал сохраняется в %{copies} из %{count} бакетов, принимающих новые файлы."
 
-#: lib/modules/storage/web/profiles_component.ex:237
+#: lib/modules/storage/web/profiles_component.ex:252
 #, elixir-autogen, elixir-format
 msgid "Each original should have %{copies} copies, but only %{count} bucket can take new files, so each gets 1."
 msgid_plural "Each original should have %{copies} copies, but only %{count} buckets can take new files, so each gets %{count}."
@@ -17347,97 +17354,97 @@ msgstr[0] "У каждого оригинала должно быть %{copies} 
 msgstr[1] "У каждого оригинала должно быть %{copies} копий, но новые файлы могут принять только %{count} бакета, поэтому каждый получает %{count}."
 msgstr[2] "У каждого оригинала должно быть %{copies} копий, но новые файлы могут принять только %{count} бакетов, поэтому каждый получает %{count}."
 
-#: lib/modules/storage/web/profiles_component.ex:474
+#: lib/modules/storage/web/profiles_component.ex:489
 #, elixir-autogen, elixir-format
 msgid "Lower numbers get new files first. Leave it empty to share them: buckets with no number take turns at random."
 msgstr "Меньшие номера получают новые файлы первыми. Оставьте пустым, чтобы делить поровну: бакеты без номера выбираются случайно."
 
-#: lib/modules/storage/web/profiles_component.ex:233
+#: lib/modules/storage/web/profiles_component.ex:248
 #, elixir-autogen, elixir-format
 msgid "No bucket can take new files now, so uploads fail."
 msgstr "Сейчас ни один бакет не может принять новые файлы, поэтому загрузки не удаются."
 
-#: lib/modules/storage/web/profiles_component.ex:245
+#: lib/modules/storage/web/profiles_component.ex:260
 #, elixir-autogen, elixir-format
 msgid "One bucket takes new files, so every original is stored there."
 msgstr "Новые файлы принимает один бакет, поэтому каждый оригинал сохраняется в нём."
 
-#: lib/modules/storage/web/profiles_component.ex:463
+#: lib/modules/storage/web/profiles_component.ex:478
 #, elixir-autogen, elixir-format
 msgid "Primary: written and served. Replica: written when more copies are wanted than there are primaries; served only if no primary has the file. Backup: written, never served."
 msgstr "Основной: записывается и отдаётся. Реплика: записывается, когда нужно больше копий, чем основных; отдаётся, только если файла нет ни у одного основного. Резервный: записывается, никогда не отдаётся."
 
-#: lib/modules/storage/web/profiles_component.ex:216
+#: lib/modules/storage/web/profiles_component.ex:231
 #, elixir-autogen, elixir-format
 msgid "Read-only (no new files)"
 msgstr "Только чтение (без новых файлов)"
 
-#: lib/modules/storage/web/profiles_component.ex:479
+#: lib/modules/storage/web/profiles_component.ex:494
 #, elixir-autogen, elixir-format
 msgid "Upload order"
 msgstr "Порядок загрузки"
 
-#: lib/modules/storage/web/profiles_component.ex:484
+#: lib/modules/storage/web/profiles_component.ex:499
 #, elixir-autogen, elixir-format
 msgid "When a file is on several buckets, the one with the lowest number serves it."
 msgstr "Если файл лежит в нескольких бакетах, его отдаёт тот, у которого номер меньше."
 
-#: lib/modules/storage/web/settings.html.heex:333
+#: lib/modules/storage/web/settings.html.heex:342
 #, elixir-autogen, elixir-format
 msgid "Copies, sizes and tiles are set per library"
 msgstr "Копии, размеры и тайлы задаются для каждой библиотеки"
 
-#: lib/modules/storage/web/settings.html.heex:337
+#: lib/modules/storage/web/settings.html.heex:346
 #, elixir-autogen, elixir-format
 msgid "How many copies of each file are kept, and where:"
 msgstr "Сколько копий каждого файла хранится и где:"
 
-#: lib/modules/storage/web/settings.html.heex:355
+#: lib/modules/storage/web/settings.html.heex:364
 #, elixir-autogen, elixir-format
 msgid "Which profile and variant set a library uses:"
 msgstr "Какой профиль и набор вариантов использует библиотека:"
 
-#: lib/modules/storage/web/settings.html.heex:346
+#: lib/modules/storage/web/settings.html.heex:355
 #, elixir-autogen, elixir-format
 msgid "Which sizes are made automatically, and whether deep-zoom tiles are:"
 msgstr "Какие размеры создаются автоматически и создаются ли тайлы глубокого зума:"
 
-#: lib/modules/storage/web/libraries_component.ex:510
+#: lib/modules/storage/web/libraries_component.ex:514
 #, elixir-autogen, elixir-format
 msgid "Annotated thumbnails: bake annotation shapes into the grid thumbnail"
 msgstr "Миниатюры с пометками: встраивать пометки в миниатюру сетки"
 
-#: lib/modules/storage/web/libraries_component.ex:524
+#: lib/modules/storage/web/libraries_component.ex:528
 #, elixir-autogen, elixir-format
 msgid "Annotated thumbnails: off"
 msgstr "Миниатюры с пометками: выкл."
 
-#: lib/modules/storage/web/libraries_component.ex:521
+#: lib/modules/storage/web/libraries_component.ex:525
 #, elixir-autogen, elixir-format
 msgid "Annotated thumbnails: on"
 msgstr "Миниатюры с пометками: вкл."
 
-#: lib/modules/storage/web/libraries_component.ex:518
+#: lib/modules/storage/web/libraries_component.ex:522
 #, elixir-autogen, elixir-format
 msgid "Annotated thumbnails: site setting (off)"
 msgstr "Миниатюры с пометками: настройка сайта (выкл.)"
 
-#: lib/modules/storage/web/libraries_component.ex:517
+#: lib/modules/storage/web/libraries_component.ex:521
 #, elixir-autogen, elixir-format
 msgid "Annotated thumbnails: site setting (on)"
 msgstr "Миниатюры с пометками: настройка сайта (вкл.)"
 
-#: lib/modules/storage/web/libraries_component.ex:239
+#: lib/modules/storage/web/libraries_component.ex:240
 #, elixir-autogen, elixir-format
 msgid "Library setting saved"
 msgstr "Настройка библиотеки сохранена"
 
-#: lib/modules/storage/web/settings.html.heex:378
+#: lib/modules/storage/web/settings.html.heex:387
 #, elixir-autogen, elixir-format
 msgid "This is the site default; a library can choose otherwise on the Libraries tab."
 msgstr "Это значение сайта по умолчанию; библиотека может выбрать другое на вкладке «Библиотеки»."
 
-#: lib/modules/storage/web/profiles_component.ex:252
+#: lib/modules/storage/web/profiles_component.ex:267
 #, elixir-autogen, elixir-format
 msgid "Each original is stored on the primary bucket only. The other buckets take over only if a write to it fails, and hold nothing otherwise. Set the copies to 2 to keep every file on a second bucket."
 msgstr "Каждый оригинал сохраняется только в основном бакете. Остальные бакеты подхватывают файл, лишь если запись в основной не удалась, а иначе ничего не хранят. Установите число копий 2, чтобы каждый файл хранился и во втором бакете."
@@ -17452,33 +17459,33 @@ msgstr "Бакет успешно создан"
 msgid "Each original is stored on %{copies} of the %{count} primary buckets, so files are spread across them, not mirrored. Change the copies on the Storage profiles tab."
 msgstr "Каждый оригинал сохраняется в %{copies} из %{count} основных бакетов, поэтому файлы распределяются между ними, а не дублируются. Измените число копий на вкладке «Профили хранения»."
 
-#: lib/modules/storage/web/profiles_component.ex:449
+#: lib/modules/storage/web/profiles_component.ex:464
 #, elixir-autogen, elixir-format
 msgid "Keep every original on %{count} buckets"
 msgstr "Хранить каждый оригинал в %{count} бакетах"
 
-#: lib/modules/storage/web/profiles_component.ex:432
+#: lib/modules/storage/web/profiles_component.ex:447
 #, elixir-autogen, elixir-format
 msgid "Not used at this copy count: %{names}."
 msgstr "Не используется при таком числе копий: %{names}."
 
-#: lib/modules/storage/web/profiles_component.ex:443
+#: lib/modules/storage/web/profiles_component.ex:458
 #, elixir-autogen, elixir-format
 msgid "Set Copies of each original to %{count}? Files already stored are copied to the extra bucket in the background; the Health page shows what is left."
 msgstr "Установить число копий каждого оригинала равным %{count}? Уже сохранённые файлы копируются в дополнительный бакет в фоне; страница «Состояние» показывает, что осталось."
 
-#: lib/modules/storage/web/profiles_component.ex:148
+#: lib/modules/storage/web/profiles_component.ex:160
 #, elixir-autogen, elixir-format
 msgid "Bucket settings saved"
 msgstr "Настройки бакета сохранены"
 
-#: lib/modules/storage/web/profiles_component.ex:572
-#: lib/modules/storage/web/profiles_component.ex:573
+#: lib/modules/storage/web/profiles_component.ex:587
+#: lib/modules/storage/web/profiles_component.ex:588
 #, elixir-autogen, elixir-format
 msgid "Remove from profile"
 msgstr "Убрать из профиля"
 
-#: lib/modules/storage/web/profiles_component.ex:579
+#: lib/modules/storage/web/profiles_component.ex:594
 #, elixir-autogen, elixir-format
 msgid "Take this bucket out of the profile? Its files are copied to the profile's other buckets first, then deleted from this bucket. The bucket itself stays, and this profile no longer sends it files."
 msgstr "Убрать этот бакет из профиля? Его файлы сначала копируются в остальные бакеты профиля, затем удаляются из этого бакета. Сам бакет остаётся, а этот профиль больше не отправляет ему файлы."
@@ -17548,6 +17555,8 @@ msgstr "Не удалось"
 msgid "Finished"
 msgstr "Завершён"
 
+#: lib/modules/storage/web/history_component.ex:83
+#: lib/modules/storage/web/settings.ex:100
 #: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:250
 #, elixir-autogen, elixir-format
 msgid "History"
@@ -17573,17 +17582,20 @@ msgstr "Подходящих запусков нет."
 msgid "No sweeper pass in the last 15 minutes"
 msgstr "За последние 15 минут не было прохода sweeper"
 
+#: lib/modules/storage/web/history_component.ex:110
+#: lib/phoenix_kit_web/components/core/activity_list.ex:43
 #: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:253
 #, elixir-autogen, elixir-format
 msgid "Nothing recorded yet."
 msgstr "Пока ничего не записано."
 
+#: lib/modules/storage/web/history_component.ex:125
 #: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:140
 #, elixir-autogen, elixir-format
 msgid "Page %{page} of %{pages}"
 msgstr "Страница %{page} из %{pages}"
 
-#: lib/modules/storage/web/libraries_component.ex:736
+#: lib/modules/storage/web/libraries_component.ex:740
 #: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:137
 #, elixir-autogen, elixir-format
 msgid "Pause"
@@ -17599,7 +17611,7 @@ msgstr "Запрошена приостановка"
 msgid "Pause requested — the current batch is finishing"
 msgstr "Запрошена приостановка — текущий пакет завершается"
 
-#: lib/modules/storage/web/libraries_component.ex:788
+#: lib/modules/storage/web/libraries_component.ex:792
 #: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:296
 #: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:350
 #, elixir-autogen, elixir-format
@@ -17636,7 +17648,7 @@ msgstr "Спасён sweeper'ом"
 msgid "Rescues"
 msgstr "Спасения"
 
-#: lib/modules/storage/web/libraries_component.ex:747
+#: lib/modules/storage/web/libraries_component.ex:751
 #: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:147
 #, elixir-autogen, elixir-format
 msgid "Resume"
@@ -17699,7 +17711,7 @@ msgstr "Запустил"
 msgid "State"
 msgstr "Состояние"
 
-#: lib/modules/storage/web/libraries_component.ex:292
+#: lib/modules/storage/web/libraries_component.ex:293
 #: lib/phoenix_kit_web/live/modules/jobs/index.ex:347
 #, elixir-autogen, elixir-format
 msgid "That did not work."
@@ -17715,7 +17727,7 @@ msgstr "Этой задачи больше нет."
 msgid "The current batch is finishing…"
 msgstr "Текущий пакет завершается…"
 
-#: lib/modules/storage/web/libraries_component.ex:290
+#: lib/modules/storage/web/libraries_component.ex:291
 #: lib/phoenix_kit_web/live/modules/jobs/index.ex:330
 #, elixir-autogen, elixir-format
 msgid "The current batch is still finishing; try again in a moment."
@@ -17736,7 +17748,7 @@ msgstr "Этот тип задач этого не предлагает."
 msgid "Unfinished"
 msgstr "Незавершённые"
 
-#: lib/modules/storage/web/libraries_component.ex:287
+#: lib/modules/storage/web/libraries_component.ex:288
 #: lib/phoenix_kit_web/live/modules/jobs/index.ex:327
 #, elixir-autogen, elixir-format
 msgid "You may not do that."
@@ -17784,7 +17796,7 @@ msgstr "Один пакет этого запуска остановился, н
 msgid "Oban is not running on this node, so its jobs cannot be listed here. Open this page on a node that runs it."
 msgstr "Oban не запущен на этом узле, поэтому его задания здесь показать нельзя. Откройте эту страницу на узле, где он работает."
 
-#: lib/modules/storage/web/libraries_component.ex:719
+#: lib/modules/storage/web/libraries_component.ex:723
 #, elixir-autogen, elixir-format
 msgid "%{count} file could not be finished"
 msgid_plural "%{count} files could not be finished"
@@ -17792,7 +17804,7 @@ msgstr[0] "%{count} файл не удалось завершить"
 msgstr[1] "%{count} файла не удалось завершить"
 msgstr[2] "%{count} файлов не удалось завершить"
 
-#: lib/modules/storage/web/libraries_component.ex:716
+#: lib/modules/storage/web/libraries_component.ex:720
 #, elixir-autogen, elixir-format
 msgid "%{count} file left"
 msgid_plural "%{count} files left"
@@ -17805,12 +17817,12 @@ msgstr[2] "осталось %{count} файлов"
 msgid "A batch has been waiting for ten minutes and nothing in that queue has run since. Check that the queue is configured in Oban and that a node which runs it is up."
 msgstr "Пакет ждёт десять минут, и с тех пор в этой очереди ничего не выполнялось. Проверьте, что очередь настроена в Oban и что работает узел, который её обрабатывает."
 
-#: lib/modules/storage/web/libraries_component.ex:758
+#: lib/modules/storage/web/libraries_component.ex:762
 #, elixir-autogen, elixir-format
 msgid "Check now"
 msgstr "Проверить сейчас"
 
-#: lib/modules/storage/web/libraries_component.ex:790
+#: lib/modules/storage/web/libraries_component.ex:794
 #, elixir-autogen, elixir-format
 msgid "Needs attention"
 msgstr "Требует внимания"
@@ -17825,7 +17837,32 @@ msgstr "Запуски ждут очередь, которая не работа
 msgid "Storage runs"
 msgstr "Запуски хранилища"
 
-#: lib/modules/storage/web/libraries_component.ex:787
+#: lib/modules/storage/web/libraries_component.ex:791
 #, elixir-autogen, elixir-format
 msgid "Syncing"
 msgstr "Синхронизация"
+
+#: lib/modules/storage/web/history_component.ex:94
+#, elixir-autogen, elixir-format
+msgid "Job runs"
+msgstr "Запуски задач"
+
+#: lib/modules/storage/web/history_component.ex:93
+#, elixir-autogen, elixir-format
+msgid "Settings changes"
+msgstr "Изменения настроек"
+
+#: lib/phoenix_kit_web/components/core/activity_list.ex:35
+#, elixir-autogen, elixir-format
+msgid "What"
+msgstr "Что"
+
+#: lib/phoenix_kit_web/components/core/activity_list.ex:34
+#, elixir-autogen, elixir-format
+msgid "Who"
+msgstr "Кто"
+
+#: lib/modules/storage/web/history_component.ex:101
+#, elixir-autogen, elixir-format
+msgid "Who changed the storage settings, and what the background jobs did. Changes to buckets, profiles, libraries and sizes are kept permanently; job entries follow the activity retention."
+msgstr "Кто изменил настройки хранилища и что делали фоновые задачи. Изменения бакетов, профилей, библиотек и размеров хранятся постоянно; записи о задачах подчиняются сроку хранения активности."

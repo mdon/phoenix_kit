@@ -41,6 +41,7 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   require Logger
 
   alias PhoenixKit.Modules.Storage
+  alias PhoenixKit.Modules.Storage.Audit
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
   alias PhoenixKit.Modules.Storage.{Folder, Library, LibraryMember, Profiles}
   alias PhoenixKit.Modules.Storage.Providers.S3
@@ -204,8 +205,9 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   `"brand-assets-2"` … while one is taken) and the object-key prefix is
   generated, unless either is given.
   """
-  @spec create_system_library(map()) :: {:ok, Library.t()} | {:error, Ecto.Changeset.t()}
-  def create_system_library(attrs) do
+  @spec create_system_library(map(), keyword()) ::
+          {:ok, Library.t()} | {:error, Ecto.Changeset.t()}
+  def create_system_library(attrs, opts \\ []) do
     attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
     attrs = Map.put_new_lazy(attrs, "key_prefix", &generate_key_prefix/0)
 
@@ -213,7 +215,22 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
       %{"slug" => _} -> insert_system_library(attrs)
       _ -> insert_with_free_slug(attrs, Library.slugify(to_string(attrs["name"] || "")), 1)
     end
+    |> tap(fn
+      {:ok, library} ->
+        audit_library("storage.library.created", library, opts, %{"name" => library.name})
+
+      _error ->
+        :ok
+    end)
   end
+
+  # The site's libraries are in the history; a user's library is theirs and private.
+  defp audit_library(action, %Library{kind: "system"} = library, opts, metadata) do
+    Audit.log(action, "storage_library", library.uuid, opts, metadata)
+    :ok
+  end
+
+  defp audit_library(_action, _library, _opts, _metadata), do: :ok
 
   # Tries `base`, `base-2`, `base-3` … until the slug is free. Any other
   # error (a taken name, a blank one) is returned as it is.
@@ -240,12 +257,24 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   end
 
   @doc "Renames a library."
-  @spec rename_library(Library.t(), String.t()) ::
+  @spec rename_library(Library.t(), String.t(), keyword()) ::
           {:ok, Library.t()} | {:error, Ecto.Changeset.t()}
-  def rename_library(%Library{} = library, name) do
+  def rename_library(%Library{} = library, name, opts \\ []) do
     library
     |> Library.rename_changeset(%{name: name})
     |> repo().update()
+    |> tap(fn
+      {:ok, renamed} when renamed.name != library.name ->
+        audit_library("storage.library.renamed", renamed, opts, %{
+          "name" => renamed.name,
+          PhoenixKit.Activity.changes_key() => %{
+            "name" => %{"from" => library.name, "to" => renamed.name}
+          }
+        })
+
+      _result ->
+        :ok
+    end)
   end
 
   @doc """
@@ -253,10 +282,12 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   deleted, and a library that still has a file or a folder — trashed ones
   included — is refused (`:not_empty`); the database refuses it too.
   """
-  @spec delete_library(Library.t()) :: {:ok, Library.t()} | {:error, :default | :not_empty}
-  def delete_library(%Library{is_default: true}), do: {:error, :default}
+  @spec delete_library(Library.t(), keyword()) ::
+          {:ok, Library.t()} | {:error, :default | :not_empty}
+  def delete_library(library, opts \\ [])
+  def delete_library(%Library{is_default: true}, _opts), do: {:error, :default}
 
-  def delete_library(%Library{uuid: uuid} = library) do
+  def delete_library(%Library{uuid: uuid} = library, opts) do
     holds? =
       repo().exists?(from(f in StorageFile, where: f.library_uuid == ^uuid)) or
         repo().exists?(from(f in Folder, where: f.library_uuid == ^uuid))
@@ -265,8 +296,12 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
       {:error, :not_empty}
     else
       case repo().delete(library) do
-        {:ok, deleted} -> {:ok, deleted}
-        {:error, _changeset} -> {:error, :not_empty}
+        {:ok, deleted} ->
+          audit_library("storage.library.deleted", deleted, opts, %{"name" => deleted.name})
+          {:ok, deleted}
+
+        {:error, _changeset} ->
+          {:error, :not_empty}
       end
     end
   rescue
@@ -397,9 +432,9 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   the site-wide default again. Only the key changes (a concurrent change to
   another one is not lost), and a value of the wrong type is refused.
   """
-  @spec put_setting(Library.t(), setting(), term()) ::
+  @spec put_setting(Library.t(), setting(), term(), keyword()) ::
           {:ok, Library.t()} | {:error, :unknown_setting | :invalid_value | :not_found}
-  def put_setting(%Library{uuid: uuid}, key, value) do
+  def put_setting(%Library{uuid: uuid} = library, key, value, opts \\ []) do
     with {name, type} when is_binary(name) <- Map.get(@settings, key, :unknown),
          :ok <- check_type(type, value) do
       {count, _} =
@@ -421,12 +456,39 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
           |> repo().update_all([])
         end
 
-      if count == 1, do: {:ok, get_library(uuid)}, else: {:error, :not_found}
+      if count == 1 do
+        updated = get_library(uuid)
+        audit_setting(library, updated, key, opts)
+        {:ok, updated}
+      else
+        {:error, :not_found}
+      end
     else
       :unknown -> {:error, :unknown_setting}
       {:error, _reason} = error -> error
     end
   end
+
+  # A setting of a system library moving from one value to another (nil is "follow the
+  # site default").
+  defp audit_setting(%Library{} = before, %Library{} = updated, key, opts) do
+    old = setting(before, key)
+    new = setting(updated, key)
+
+    if old != new do
+      audit_library("storage.library.setting_changed", updated, opts, %{
+        "library" => updated.name,
+        PhoenixKit.Activity.changes_key() => %{
+          to_string(key) => %{"from" => setting_label(old), "to" => setting_label(new)}
+        }
+      })
+    end
+
+    :ok
+  end
+
+  defp setting_label(nil), do: "site default"
+  defp setting_label(value), do: value
 
   defp check_type(_type, nil), do: :ok
   defp check_type(:boolean, value) when is_boolean(value), do: :ok

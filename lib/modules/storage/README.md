@@ -416,7 +416,18 @@ by `Storage.LibraryState` and shown on Settings → Media → Libraries with
 `Reconciler.out_of_date_query/1`, the work-selection query `stale_query/1` its
 subset. The location and checksum backfills and the library purge are runs too
 (`storage.location_backfill`, `storage.checksum_backfill`,
-`storage.purge_library` — the purge is visible but cannot be paused or cancelled). A file is stale when
+`storage.purge_library` — the purge is visible but cannot be paused or cancelled).
+
+### History
+
+Every change to the site's storage configuration (buckets, profiles and their
+bucket rows, libraries and their profile / variant set / annotated-thumbnail
+choice, variant sets and sizes) is written to the Activity log by
+`Storage.Audit` — who, when, and what changed from → to — permanently, never
+naming a key or secret, and never for a user's own library, profile or bucket.
+The context functions take `actor_uuid:` (the LiveViews pass
+`PhoenixKitWeb.Actor.opts(socket)`). Settings → Media → **History** lists these
+with the storage job runs' entries. A file is stale when
 its placement stamp differs from its profile, or — for an active file only
 — its variant stamp differs from its set; trashed and unfinished files keep
 their size stamp until they are active again.

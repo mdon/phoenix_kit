@@ -29,7 +29,13 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
   @impl true
   def mount(socket) do
     {:ok,
-     assign(socket, profiles: nil, creating: false, dirty: MapSet.new(), saved: MapSet.new())}
+     assign(socket,
+       profiles: nil,
+       scope: nil,
+       creating: false,
+       dirty: MapSet.new(),
+       saved: MapSet.new()
+     )}
   end
 
   @impl true
@@ -63,7 +69,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
   def handle_event("cancel", _params, socket), do: {:noreply, assign(socket, :creating, false)}
 
   def handle_event("create", %{"profile" => params}, socket) do
-    case Profiles.create_profile(params) do
+    case Profiles.create_profile(params, actor(socket)) do
       {:ok, profile} ->
         {:noreply,
          socket
@@ -78,7 +84,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
 
   def handle_event("save_profile", %{"uuid" => uuid, "profile" => params}, socket) do
     with %StorageProfile{} = profile <- find(socket, uuid),
-         {:ok, _} <- Profiles.update_profile(profile, params) do
+         {:ok, _} <- Profiles.update_profile(profile, params, actor(socket)) do
       {:noreply,
        socket
        |> load()
@@ -92,7 +98,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
 
   def handle_event("delete_profile", %{"uuid" => uuid}, socket) do
     with %StorageProfile{} = profile <- find(socket, uuid),
-         {:ok, _} <- Profiles.delete_profile(profile) do
+         {:ok, _} <- Profiles.delete_profile(profile, actor(socket)) do
       {:noreply, socket |> load() |> flash(:info, gettext("Storage profile deleted"))}
     else
       nil ->
@@ -115,7 +121,8 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
          %{recommended: recommended} when is_integer(recommended) <-
            Profiles.copies_advice(profile),
          true <- to_string(recommended) == copies,
-         {:ok, _} <- Profiles.update_profile(profile, %{"copies_originals" => recommended}) do
+         {:ok, _} <-
+           Profiles.update_profile(profile, %{"copies_originals" => recommended}, actor(socket)) do
       {:noreply, socket |> load() |> flash(:info, gettext("Storage profile saved"))}
     else
       {:error, changeset} -> {:noreply, flash(socket, :error, error_message(changeset))}
@@ -127,7 +134,12 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
     with %StorageProfile{} = profile <- find(socket, uuid),
          true <- Enum.any?(socket.assigns.buckets, &(to_string(&1.uuid) == bucket_uuid)),
          {:ok, _} <-
-           Profiles.put_bucket(profile, bucket_uuid, %{serve_order: next_serve_order(profile)}) do
+           Profiles.put_bucket(
+             profile,
+             bucket_uuid,
+             %{serve_order: next_serve_order(profile)},
+             actor(socket)
+           ) do
       {:noreply, socket |> load() |> flash(:info, gettext("Bucket added to the profile"))}
     else
       {:error, changeset} -> {:noreply, flash(socket, :error, error_message(changeset))}
@@ -140,7 +152,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
 
     with %StorageProfile{} = profile <- find(socket, uuid),
          true <- Enum.any?(profile.buckets, &(to_string(&1.bucket_uuid) == bucket_uuid)),
-         {:ok, _} <- Profiles.put_bucket(profile, bucket_uuid, attrs) do
+         {:ok, _} <- Profiles.put_bucket(profile, bucket_uuid, attrs, actor(socket)) do
       {:noreply,
        socket
        |> load()
@@ -158,7 +170,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
   def handle_event("remove_bucket", %{"uuid" => uuid, "bucket_uuid" => bucket_uuid}, socket) do
     case find(socket, uuid) do
       %StorageProfile{} = profile ->
-        :ok = Profiles.remove_bucket(profile, bucket_uuid)
+        :ok = Profiles.remove_bucket(profile, bucket_uuid, actor(socket))
 
         {:noreply,
          socket
@@ -186,6 +198,9 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.ProfilesComponent do
   end
 
   # Only a profile this tab listed: the uuid arrives from the client.
+  # Who is acting, for the history (`Storage.Audit`).
+  defp actor(socket), do: PhoenixKitWeb.Actor.opts(socket.assigns.scope)
+
   defp find(socket, uuid), do: Enum.find(socket.assigns.profiles, &(to_string(&1.uuid) == uuid))
 
   defp next_serve_order(profile),

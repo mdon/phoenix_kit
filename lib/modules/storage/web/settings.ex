@@ -11,6 +11,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
 
   import Ecto.Query
 
+  alias PhoenixKit.Activity
   alias PhoenixKit.Integrations
   alias PhoenixKit.Integrations.ObjectStorageServices, as: Services
   alias PhoenixKit.Jobs.Events
@@ -18,6 +19,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
   alias PhoenixKit.Modules.Storage.BucketCredentials
   alias PhoenixKit.Modules.Storage.Endpoint
   alias PhoenixKit.Modules.Storage.ImageEditing
+  alias PhoenixKit.PubSub.Manager, as: PubSubManager
   alias PhoenixKit.Settings
   alias PhoenixKit.System.Dependencies
   alias PhoenixKit.Users.Auth.Scope
@@ -77,6 +79,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
     # A library's reconcile run moving updates the Libraries tab's sync column.
     if connected?(socket) do
       Events.subscribe()
+      PubSubManager.subscribe(Activity.pubsub_topic())
       Process.send_after(self(), :refresh_library_sync, @sync_refresh_interval)
     end
 
@@ -95,6 +98,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
       %{id: "libraries", label: gettext("Libraries"), icon: "hero-rectangle-stack"},
       %{id: "configuration", label: gettext("Configuration"), icon: "hero-cog-6-tooth"},
       %{id: "tools", label: gettext("Tools"), icon: "hero-wrench-screwdriver"},
+      %{id: "history", label: gettext("History"), icon: "hero-clock"},
       %{
         id: "external_libraries",
         label: gettext("External libraries"),
@@ -182,7 +186,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
       bucket ->
         new_enabled = !bucket.enabled
 
-        case Storage.update_bucket(bucket, %{enabled: new_enabled}) do
+        case Storage.update_bucket(bucket, %{enabled: new_enabled}, Actor.opts(socket)) do
           {:ok, _bucket} ->
             message =
               if new_enabled,
@@ -244,7 +248,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
   end
 
   def handle_event("delete_bucket", %{"id" => bucket_uuid}, socket) do
-    case bucket_uuid |> Storage.get_site_bucket() |> delete_site_bucket() do
+    case bucket_uuid |> Storage.get_site_bucket() |> delete_site_bucket(Actor.opts(socket)) do
       {:ok, _bucket} ->
         # Reload buckets and recalculate max redundancy
         buckets = Storage.list_buckets()
@@ -325,6 +329,20 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
 
   def handle_info({:job_run, _action, _run}, socket), do: {:noreply, socket}
 
+  # A storage entry reached the Activity log: the History tab shows it, if it is open.
+  def handle_info({:activity_logged, %{module: "storage"}}, socket) do
+    if socket.assigns.active_tab == "history" do
+      send_update(PhoenixKitWeb.Live.Modules.Storage.HistoryComponent,
+        id: "media-history",
+        reload: true
+      )
+    end
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:activity_logged, _entry}, socket), do: {:noreply, socket}
+
   # Eligibility changes with time, and a settings change need not create a run
   # (e.g. every stale file is waiting for an edit or retry). PubSub alone cannot
   # keep those derived states current.
@@ -341,8 +359,8 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
     {:noreply, socket}
   end
 
-  defp delete_site_bucket(nil), do: {:error, :not_found}
-  defp delete_site_bucket(bucket), do: Storage.delete_bucket(bucket)
+  defp delete_site_bucket(nil, _opts), do: {:error, :not_found}
+  defp delete_site_bucket(bucket, opts), do: Storage.delete_bucket(bucket, opts)
 
   defp legacy_bucket_count(buckets), do: Enum.count(buckets, &BucketCredentials.legacy?/1)
 

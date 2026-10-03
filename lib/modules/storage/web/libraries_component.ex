@@ -83,7 +83,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
   end
 
   def handle_event("create", %{"name" => name}, socket) do
-    case Libraries.create_system_library(%{name: name}) do
+    case Libraries.create_system_library(%{name: name}, actor(socket)) do
       {:ok, library} ->
         {:noreply,
          socket
@@ -116,7 +116,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
 
   def handle_event("rename", %{"uuid" => uuid, "name" => name}, socket) do
     with %{} = library <- find(socket, uuid),
-         {:ok, renamed} <- Libraries.rename_library(library, name) do
+         {:ok, renamed} <- Libraries.rename_library(library, name, actor(socket)) do
       {:noreply,
        socket
        |> assign(:renaming, nil)
@@ -130,7 +130,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
 
   def handle_event("delete", %{"uuid" => uuid}, socket) do
     with %{} = library <- find(socket, uuid),
-         {:ok, _} <- Libraries.delete_library(library) do
+         {:ok, _} <- Libraries.delete_library(library, actor(socket)) do
       {:noreply, socket |> load() |> flash(:info, gettext("Library deleted"))}
     else
       nil ->
@@ -172,8 +172,9 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
 
     with %{} = library <- find(socket, uuid),
          storage_changed? = storage_changed?(library, storage),
-         {:ok, library} <- set_storage(library, storage),
-         {:ok, _library} <- Libraries.put_setting(library, :annotated_thumbnails, value) do
+         {:ok, library} <- set_storage(library, storage, actor(socket)),
+         {:ok, _library} <-
+           Libraries.put_setting(library, :annotated_thumbnails, value, actor(socket)) do
       {:noreply,
        socket
        |> load()
@@ -238,10 +239,10 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
 
   defp saved_message(false), do: gettext("Library setting saved")
 
-  defp set_storage(library, params) do
+  defp set_storage(library, params, actor) do
     PhoenixKit.RepoHelper.repo().transaction(fn ->
-      with {:ok, library} <- maybe_set_profile(library, params["profile"]),
-           {:ok, library} <- maybe_set_variant_set(library, params["set"]) do
+      with {:ok, library} <- maybe_set_profile(library, params["profile"], actor),
+           {:ok, library} <- maybe_set_variant_set(library, params["set"], actor) do
         library
       else
         {:error, reason} -> PhoenixKit.RepoHelper.repo().rollback(reason)
@@ -249,21 +250,21 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
     end)
   end
 
-  defp maybe_set_profile(library, uuid) when is_binary(uuid) and uuid != "" do
+  defp maybe_set_profile(library, uuid, actor) when is_binary(uuid) and uuid != "" do
     if Profiles.profile_uuid_for(library) == uuid,
       do: {:ok, library},
-      else: Profiles.set_library_profile(library, uuid)
+      else: Profiles.set_library_profile(library, uuid, actor)
   end
 
-  defp maybe_set_profile(library, _uuid), do: {:ok, library}
+  defp maybe_set_profile(library, _uuid, _actor), do: {:ok, library}
 
-  defp maybe_set_variant_set(library, uuid) when is_binary(uuid) and uuid != "" do
+  defp maybe_set_variant_set(library, uuid, actor) when is_binary(uuid) and uuid != "" do
     if VariantSets.set_uuid_for(library) == uuid,
       do: {:ok, library},
-      else: VariantSets.set_library_variant_set(library, uuid)
+      else: VariantSets.set_library_variant_set(library, uuid, actor)
   end
 
-  defp maybe_set_variant_set(library, _uuid), do: {:ok, library}
+  defp maybe_set_variant_set(library, _uuid, _actor), do: {:ok, library}
 
   # Only a library this tab listed: the uuid arrives from the client.
   defp sync_action("check", library, socket) do
@@ -290,6 +291,9 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
     do: gettext("The current batch is still finishing; try again in a moment.")
 
   defp sync_error(_reason), do: gettext("That did not work.")
+
+  # Who is acting, for the history (`Storage.Audit`).
+  defp actor(socket), do: PhoenixKitWeb.Actor.opts(socket.assigns.scope)
 
   defp find(socket, uuid) do
     Enum.find_value(socket.assigns.rows, fn %{library: library} ->

@@ -311,7 +311,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
   end
 
   defp create_bucket(socket, bucket_params) do
-    case Storage.create_bucket(bucket_params) do
+    case Storage.create_bucket(bucket_params, Actor.opts(socket)) do
       {:ok, _bucket} ->
         socket =
           socket
@@ -333,7 +333,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.BucketForm do
   defp update_bucket(socket, bucket_params) do
     bucket = Storage.get_site_bucket(socket.assigns.bucket_uuid)
 
-    case Storage.update_bucket(bucket, bucket_params) do
+    case Storage.update_bucket(bucket, bucket_params, Actor.opts(socket)) do
       {:ok, _bucket} ->
         socket =
           socket

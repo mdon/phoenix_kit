@@ -98,6 +98,7 @@ defmodule PhoenixKit.Modules.Storage do
   alias PhoenixKit.Integrations.Probe
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
+  alias PhoenixKit.Modules.Storage.Audit
   alias PhoenixKit.Modules.Storage.Bucket
   alias PhoenixKit.Modules.Storage.CaptureDate
   alias PhoenixKit.Modules.Storage.Dimension
@@ -438,7 +439,7 @@ defmodule PhoenixKit.Modules.Storage do
       {:error, %Ecto.Changeset{}}
 
   """
-  def create_bucket(attrs \\ %{}) do
+  def create_bucket(attrs \\ %{}, opts \\ []) do
     # A new bucket joins the Default storage profile, as every new bucket
     # joined the one pool before profiles (V205).
     repo().transaction(fn ->
@@ -452,7 +453,27 @@ defmodule PhoenixKit.Modules.Storage do
       end
     end)
     |> tap(&bucket_changed/1)
+    |> tap(fn
+      {:ok, bucket} ->
+        audit_bucket("storage.bucket.created", bucket, opts, %{
+          "name" => bucket.name,
+          "provider" => bucket.provider,
+          "enabled" => bucket.enabled
+        })
+
+      _error ->
+        :ok
+    end)
   end
+
+  # The site's buckets are in the history; a user's own bucket is theirs and private.
+  # Never a key or a secret: `Audit.bucket_fields/0` is the whole list of what is named.
+  defp audit_bucket(action, %Bucket{owner_uuid: nil} = bucket, opts, metadata) do
+    Audit.log(action, "storage_bucket", bucket.uuid, opts, metadata)
+    :ok
+  end
+
+  defp audit_bucket(_action, _bucket, _opts, _metadata), do: :ok
 
   @doc """
   Creates a user's own bucket (V206).
@@ -495,7 +516,7 @@ defmodule PhoenixKit.Modules.Storage do
       {:error, %Ecto.Changeset{}}
 
   """
-  def update_bucket(%Bucket{} = bucket, attrs) do
+  def update_bucket(%Bucket{} = bucket, attrs, opts \\ []) do
     changeset = bucket_update_changeset(bucket, attrs)
 
     repo().transaction(fn ->
@@ -511,6 +532,20 @@ defmodule PhoenixKit.Modules.Storage do
       end
     end)
     |> tap(&bucket_changed/1)
+    |> tap(fn
+      {:ok, updated} ->
+        changes = Audit.changes(changeset, Audit.bucket_fields())
+
+        unless changes == %{},
+          do:
+            audit_bucket("storage.bucket.updated", updated, opts, %{
+              "name" => updated.name,
+              PhoenixKit.Activity.changes_key() => changes
+            })
+
+      _error ->
+        :ok
+    end)
   end
 
   # A user's own bucket is edited under the rules it was created under (its
@@ -528,9 +563,14 @@ defmodule PhoenixKit.Modules.Storage do
       %{buckets: rows} = profile ->
         if Enum.any?(rows, &(&1.bucket_uuid == bucket.uuid)) do
           {:ok, _} =
-            Profiles.put_bucket(profile, bucket.uuid, %{
-              write_priority: Profiles.write_priority(bucket.priority)
-            })
+            Profiles.put_bucket(
+              profile,
+              bucket.uuid,
+              %{
+                write_priority: Profiles.write_priority(bucket.priority)
+              },
+              audit: false
+            )
         end
 
       nil ->
@@ -550,7 +590,7 @@ defmodule PhoenixKit.Modules.Storage do
       {:error, %Ecto.Changeset{}}
 
   """
-  def delete_bucket(%Bucket{} = bucket) do
+  def delete_bucket(%Bucket{} = bucket, opts \\ []) do
     # A bucket that still holds files is refused (V204: the location FK is
     # RESTRICT); before, deleting it dropped every location row it had and
     # left its objects behind. An empty bucket leaves the storage profiles
@@ -572,6 +612,13 @@ defmodule PhoenixKit.Modules.Storage do
       end
     end)
     |> tap(&bucket_changed/1)
+    |> tap(fn
+      {:ok, deleted} ->
+        audit_bucket("storage.bucket.deleted", deleted, opts, %{"name" => deleted.name})
+
+      _error ->
+        :ok
+    end)
   end
 
   # The manager keeps the enabled buckets in a cache; a bucket that was
@@ -762,7 +809,7 @@ defmodule PhoenixKit.Modules.Storage do
   Deletes its current dimensions and recreates the 8 default ones. Other
   variant sets are left alone.
   """
-  def reset_dimensions_to_defaults do
+  def reset_dimensions_to_defaults(opts \\ []) do
     repo().transaction(fn ->
       # Delete the Default set's dimensions; its files are checked against
       # the sizes put back (a size whose spec changed is remade, one that is
@@ -891,6 +938,19 @@ defmodule PhoenixKit.Modules.Storage do
         |> Dimension.changeset(dim)
         |> repo().insert!()
       end)
+    end)
+    |> tap(fn
+      {:ok, _} ->
+        Audit.log(
+          "storage.variant_set.sizes_reset",
+          "storage_variant_set",
+          VariantSets.default_uuid(),
+          opts,
+          %{"variant_set" => "Default"}
+        )
+
+      _error ->
+        :ok
     end)
   end
 
@@ -1084,12 +1144,29 @@ defmodule PhoenixKit.Modules.Storage do
       {:error, %Ecto.Changeset{}}
 
   """
-  def create_dimension(attrs \\ %{}, variant_set_uuid \\ VariantSets.default_uuid()) do
+  def create_dimension(
+        attrs \\ %{},
+        variant_set_uuid \\ VariantSets.default_uuid(),
+        opts \\ []
+      ) do
     %Dimension{variant_set_uuid: variant_set_uuid}
     |> Dimension.changeset(attrs)
     |> repo().insert()
     |> tap(&size_changed/1)
+    |> tap(&audit_size(&1, "storage.variant_set.size_created", opts))
   end
+
+  # The fields of a size whose change is written to the history (not its order).
+  @audited_size_fields [
+    :name,
+    :width,
+    :height,
+    :quality,
+    :format,
+    :applies_to,
+    :enabled,
+    :maintain_aspect_ratio
+  ]
 
   @doc """
   Updates a dimension.
@@ -1103,13 +1180,27 @@ defmodule PhoenixKit.Modules.Storage do
       {:error, %Ecto.Changeset{}}
 
   """
-  def update_dimension(%Dimension{} = dimension, attrs) do
+  def update_dimension(%Dimension{} = dimension, attrs, opts \\ []) do
     changeset = Dimension.changeset(dimension, attrs)
 
     # Reordering the list changes no pixels.
     changeset
     |> repo().update()
     |> tap(&if(Map.drop(changeset.changes, [:order]) != %{}, do: size_changed(&1)))
+    |> tap(fn
+      {:ok, updated} ->
+        Audit.log_update(
+          "storage.variant_set.size_updated",
+          "storage_variant_set",
+          updated.variant_set_uuid,
+          opts,
+          Audit.changes(changeset, @audited_size_fields),
+          size_metadata(updated)
+        )
+
+      _error ->
+        :ok
+    end)
   end
 
   @doc """
@@ -1124,12 +1215,40 @@ defmodule PhoenixKit.Modules.Storage do
       {:error, %Ecto.Changeset{}}
 
   """
-  def delete_dimension(%Dimension{} = dimension) do
+  def delete_dimension(%Dimension{} = dimension, opts \\ []) do
     if Dimension.standard_slot?(dimension) do
       {:error, :standard_slot}
     else
-      dimension |> repo().delete() |> tap(&size_changed/1)
+      dimension
+      |> repo().delete()
+      |> tap(&size_changed/1)
+      |> tap(&audit_size(&1, "storage.variant_set.size_deleted", opts))
     end
+  end
+
+  defp audit_size({:ok, %Dimension{} = dimension}, action, opts) do
+    Audit.log(
+      action,
+      "storage_variant_set",
+      dimension.variant_set_uuid,
+      opts,
+      size_metadata(dimension)
+    )
+
+    :ok
+  end
+
+  defp audit_size(_result, _action, _opts), do: :ok
+
+  defp size_metadata(%Dimension{} = dimension) do
+    set = dimension.variant_set_uuid && VariantSets.get_variant_set(dimension.variant_set_uuid)
+
+    %{
+      "size" => dimension.name,
+      "variant_set" => set && set.name,
+      "width" => dimension.width,
+      "height" => dimension.height
+    }
   end
 
   # A size was added, changed or removed: every file of its set is stale,

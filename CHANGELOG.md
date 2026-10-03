@@ -12,6 +12,21 @@
   prove every object is still on its bucket. The Health page links to the storage runs.
   (`Storage.LibraryState`; `Reconciler.out_of_date_query/1` and `counts_by_library/0` count what is
   out of date apart from what the reconciler may take now.)
+- **Settings → Media has a History tab, and every change to the site's storage settings is
+  recorded.** Who created, renamed or deleted a bucket, a storage profile, a library, a variant set
+  or a size; who added a bucket to a profile, changed its role, order or status, or took it out;
+  who moved a library to another profile or variant set or changed its annotated-thumbnail choice;
+  who reset the sizes or remade them all — each with the person, the time and what changed from →
+  to (`Storage.Audit`, `storage.profile.updated`, `storage.library.profile_changed`, …). The
+  entries are permanent (not pruned by the activity retention), name only fields that are not
+  secret — never a key — and leave out a user's own library, profile and bucket, which are
+  private. The tab lists them with the storage job runs' entries, filters between the two, pages,
+  and follows the log live; each row opens its full entry on the Activity page. The context
+  functions take `actor_uuid:` in their options (`create_profile/2`, `put_bucket/4`,
+  `set_library_profile/3`, `Storage.update_bucket/3`, …); without one an entry says the system did
+  it.
+- `PhoenixKitWeb.Components.Core.ActivityList`: a list of activity entries for any screen that
+  shows a slice of the log; the Activity page shares its `summarize_details/1`.
 - **The Runs tab warns when a queue is not working**: a run's batch has been available for ten
   minutes and nothing in that queue has run since — observed from Oban's own table, so a web node
   with `queues: false` does not cry wolf for a worker node.
