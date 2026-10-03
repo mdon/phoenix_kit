@@ -13,6 +13,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
 
   alias PhoenixKit.Integrations
   alias PhoenixKit.Integrations.ObjectStorageServices, as: Services
+  alias PhoenixKit.Jobs.Events
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.BucketCredentials
   alias PhoenixKit.Modules.Storage.Endpoint
@@ -70,6 +71,9 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
       |> assign(:image_edit_mode, image_edit_mode)
       |> assign(:form_image_edit_mode, image_edit_mode)
       |> assign(:external_tools, Dependencies.external_tools())
+
+    # A library's reconcile run moving updates the Libraries tab's sync column.
+    if connected?(socket), do: Events.subscribe()
 
     {:ok, socket}
   end
@@ -304,6 +308,17 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
            ] do
     {:noreply, put_flash(socket, kind, message)}
   end
+
+  def handle_info({:job_run, _action, %{kind: "storage.reconcile"}}, socket) do
+    send_update(PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent,
+      id: "media-libraries",
+      reload_sync: true
+    )
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:job_run, _action, _run}, socket), do: {:noreply, socket}
 
   defp delete_site_bucket(nil), do: {:error, :not_found}
   defp delete_site_bucket(bucket), do: Storage.delete_bucket(bucket)

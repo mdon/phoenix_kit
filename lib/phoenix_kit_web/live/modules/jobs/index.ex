@@ -87,6 +87,7 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
       |> assign(:run_modules, run_modules())
       |> assign(:sweeper_seen?, true)
       |> assign(:oban_available?, true)
+      |> assign(:stalled_queues, [])
       |> load_stats()
       |> load_scheduled_jobs()
 
@@ -257,6 +258,7 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
     |> assign(:run_actors, actors(runs))
     |> assign(:active_run_count, Jobs.count_runs(state: :active))
     |> assign(:sweeper_seen?, sweeper_seen?())
+    |> assign(:stalled_queues, ObanStore.stalled_queues())
   end
 
   # The run the URL names, with its history and the people in it; nil when there

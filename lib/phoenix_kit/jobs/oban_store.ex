@@ -62,6 +62,45 @@ defmodule PhoenixKit.Jobs.ObanStore do
   def aggregate(query, kind, default \\ 0),
     do: read(default, &Oban.Repo.aggregate(&1, query, kind))
 
+  @stalled_after 600
+
+  @doc """
+  The queues that look dead: a run's batch has been `available` for `after_seconds`
+  (default ten minutes) and **nothing in that queue has executed or attempted a job
+  in that time**. Observed from Oban's own table — a web node with `queues: false`
+  proves nothing about a separate worker node, and this reads what the nodes
+  actually did. Empty when Oban cannot be asked.
+  """
+  @spec stalled_queues(non_neg_integer(), DateTime.t()) :: [String.t()]
+  def stalled_queues(after_seconds \\ @stalled_after, now \\ DateTime.utc_now()) do
+    since = DateTime.add(now, -after_seconds, :second)
+    worker = inspect(PhoenixKit.Jobs.RunWorker)
+
+    waiting =
+      from(j in Oban.Job,
+        where: j.worker == ^worker and j.state == "available" and j.scheduled_at < ^since,
+        distinct: true,
+        select: j.queue
+      )
+      |> all()
+
+    if waiting == [] do
+      []
+    else
+      alive =
+        from(j in Oban.Job,
+          where:
+            j.queue in ^waiting and
+              (j.state == "executing" or j.attempted_at > ^since or j.completed_at > ^since),
+          distinct: true,
+          select: j.queue
+        )
+        |> all()
+
+      waiting -- alive
+    end
+  end
+
   @doc "The Oban job counts by state (empty when Oban cannot be asked)."
   @spec state_counts() :: %{String.t() => non_neg_integer()}
   def state_counts do

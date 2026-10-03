@@ -3771,7 +3771,15 @@ defmodule PhoenixKit.Modules.Storage do
   def module_key, do: "storage"
 
   @impl PhoenixKit.Module
-  def job_kinds, do: [PhoenixKit.Modules.Storage.Jobs.CaptureDateBackfill]
+  def job_kinds do
+    [
+      PhoenixKit.Modules.Storage.Jobs.CaptureDateBackfill,
+      PhoenixKit.Modules.Storage.Jobs.ChecksumBackfill,
+      PhoenixKit.Modules.Storage.Jobs.LocationBackfill,
+      PhoenixKit.Modules.Storage.Jobs.PurgeLibrary,
+      PhoenixKit.Modules.Storage.Jobs.Reconcile
+    ]
+  end
 
   @impl PhoenixKit.Module
   def module_name, do: "Storage"

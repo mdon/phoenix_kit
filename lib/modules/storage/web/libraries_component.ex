@@ -29,7 +29,17 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
   """
   use PhoenixKitWeb, :live_component
 
-  alias PhoenixKit.Modules.Storage.{AnnotationThumbnail, Libraries, Profiles, VariantSets}
+  alias PhoenixKit.Jobs
+  alias PhoenixKit.Modules.Storage.Jobs.Reconcile
+
+  alias PhoenixKit.Modules.Storage.{
+    AnnotationThumbnail,
+    Libraries,
+    LibraryState,
+    Profiles,
+    VariantSets
+  }
+
   alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Format
@@ -45,12 +55,19 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
        creating: false,
        renaming: nil,
        rows: nil,
+       scope: nil,
+       sync: %{},
        dirty: MapSet.new(),
        saved: MapSet.new()
      )}
   end
 
   @impl true
+  # `reload_sync` comes from the settings page when a reconcile run moves.
+  def update(%{reload_sync: true}, socket) do
+    {:ok, if(socket.assigns.rows, do: load_sync(socket), else: socket)}
+  end
+
   def update(assigns, socket) do
     socket = assign(socket, assigns)
     {:ok, if(socket.assigns.rows, do: socket, else: load(socket))}
@@ -76,6 +93,20 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
 
       {:error, changeset} ->
         {:noreply, flash(socket, :error, error_message(changeset))}
+    end
+  end
+
+  # Check now / Pause / Resume on a library's sync. The permission check is the
+  # Jobs context's (`jobs.manage` and `media.manage`, against the active role);
+  # the buttons are only shown to those who pass it, and a hand-made event is
+  # refused all the same.
+  def handle_event("sync", %{"action" => action, "uuid" => uuid}, socket) do
+    with %{} = library <- find(socket, uuid),
+         {:ok, _} <- sync_action(action, library, socket) do
+      {:noreply, load_sync(socket)}
+    else
+      nil -> {:noreply, socket}
+      {:error, reason} -> {:noreply, socket |> load_sync() |> flash(:error, sync_error(reason))}
     end
   end
 
@@ -235,15 +266,47 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
   defp maybe_set_variant_set(library, _uuid), do: {:ok, library}
 
   # Only a library this tab listed: the uuid arrives from the client.
+  defp sync_action("check", library, socket) do
+    case Jobs.start(socket.assigns.scope, Reconcile, {"library", to_string(library.uuid)}) do
+      {:ok, run, _how} -> {:ok, run}
+      error -> error
+    end
+  end
+
+  defp sync_action("pause", library, socket), do: control(&Jobs.pause/2, library, socket)
+  defp sync_action("resume", library, socket), do: control(&Jobs.resume/2, library, socket)
+  defp sync_action(_action, _library, _socket), do: {:error, :unknown_action}
+
+  defp control(fun, library, socket) do
+    case socket.assigns.sync[to_string(library.uuid)] do
+      %{run: %{} = run} -> fun.(socket.assigns.scope, run)
+      _ -> {:error, :not_found}
+    end
+  end
+
+  defp sync_error(:unauthorized), do: gettext("You may not do that.")
+
+  defp sync_error(:draining),
+    do: gettext("The current batch is still finishing; try again in a moment.")
+
+  defp sync_error(_reason), do: gettext("That did not work.")
+
   defp find(socket, uuid) do
     Enum.find_value(socket.assigns.rows, fn %{library: library} ->
       if library.uuid == uuid, do: library
     end)
   end
 
+  # The state of every library's sync (three queries however many libraries).
+  defp load_sync(socket) do
+    uuids = Enum.map(socket.assigns.rows, fn %{library: library} -> library.uuid end)
+    assign(socket, :sync, LibraryState.for_libraries(uuids))
+  end
+
   defp load(socket) do
     socket
     |> assign(:rows, Libraries.list_system_libraries_with_stats())
+    |> load_sync()
     |> assign(:user_rows, Libraries.list_user_libraries_for_admin())
     |> assign(:user_libraries_enabled, Libraries.user_libraries_enabled?())
     |> assign(:user_buckets_enabled, Libraries.user_buckets_enabled?())
@@ -352,6 +415,7 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
                   <th class="text-right">{gettext("Folders")}</th>
                   <th class="text-right">{gettext("Size")}</th>
                   <th>{gettext("Storage")}</th>
+                  <th>{gettext("Sync")}</th>
                   <th></th>
                 </tr>
               </thead>
@@ -465,6 +529,14 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
                         saved={MapSet.member?(@saved, library_key(library.uuid))}
                       />
                     </form>
+                  </td>
+                  <td id={"#{@id}-sync-#{library.uuid}"} class="whitespace-nowrap">
+                    <.sync_cell
+                      state={@sync[to_string(library.uuid)]}
+                      uuid={library.uuid}
+                      scope={@scope}
+                      target={@myself}
+                    />
                   </td>
                   <td class="text-right whitespace-nowrap">
                     <button
@@ -618,4 +690,102 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent do
     </div>
     """
   end
+
+  # ---- the sync column --------------------------------------------------------
+
+  attr :state, :map, default: nil
+  attr :uuid, :any, required: true
+  attr :scope, :any, default: nil
+  attr :target, :any, required: true
+
+  defp sync_cell(%{state: nil} = assigns), do: ~H""
+
+  defp sync_cell(assigns) do
+    assigns =
+      assigns
+      |> assign(:controls, run_controls(assigns))
+      |> assign(:can_check?, Jobs.can_start?(assigns.scope, Reconcile))
+
+    ~H"""
+    <div class="flex flex-col gap-1">
+      <div class="flex items-center gap-2">
+        <span class={["badge badge-sm", sync_badge(@state.state)]} data-sync-state={@state.state}>
+          {sync_label(@state.state)}
+        </span>
+        <span :if={@state.state in [:syncing, :paused, :waiting]} class="text-xs text-base-content/60">
+          {ngettext("%{count} file left", "%{count} files left", @state.out_of_date)}
+        </span>
+        <span :if={@state.state == :attention and @state.failing > 0} class="text-xs text-warning">
+          {ngettext(
+            "%{count} file could not be finished",
+            "%{count} files could not be finished",
+            @state.failing
+          )}
+        </span>
+      </div>
+      <div class="flex flex-wrap items-center gap-1">
+        <button
+          :if={:pause in @controls and @state.state == :syncing}
+          type="button"
+          class="btn btn-xs"
+          phx-click="sync"
+          phx-value-action="pause"
+          phx-value-uuid={@uuid}
+          phx-target={@target}
+        >
+          <.icon name="hero-pause" class="w-3 h-3" /> {gettext("Pause")}
+        </button>
+        <button
+          :if={:resume in @controls and @state.state == :paused}
+          type="button"
+          class="btn btn-xs btn-primary"
+          phx-click="sync"
+          phx-value-action="resume"
+          phx-value-uuid={@uuid}
+          phx-target={@target}
+        >
+          <.icon name="hero-play" class="w-3 h-3" /> {gettext("Resume")}
+        </button>
+        <button
+          :if={@can_check? and @state.state in [:up_to_date, :waiting, :attention]}
+          type="button"
+          class="btn btn-xs btn-ghost"
+          phx-click="sync"
+          phx-value-action="check"
+          phx-value-uuid={@uuid}
+          phx-target={@target}
+        >
+          <.icon name="hero-arrow-path" class="w-3 h-3" /> {gettext("Check now")}
+        </button>
+        <.link
+          :if={@state.run}
+          navigate={Routes.path("/admin/jobs") <> "?run=" <> to_string(@state.run.uuid)}
+          class="link link-hover text-xs"
+        >
+          {gettext("Details")}
+        </.link>
+      </div>
+    </div>
+    """
+  end
+
+  defp run_controls(%{state: %{run: %{state: state} = run}, scope: scope})
+       when state in ~w(queued running pausing paused cancelling),
+       do: Jobs.controls_for(scope, run)
+
+  defp run_controls(_assigns), do: []
+
+  defp sync_badge(:up_to_date), do: "badge-success"
+  defp sync_badge(:syncing), do: "badge-info"
+  defp sync_badge(:paused), do: "badge-warning"
+  defp sync_badge(:waiting), do: "badge-warning"
+  defp sync_badge(:attention), do: "badge-error"
+
+  # "Up to date" says the files carry their library's current revisions; it does not
+  # verify that every object is still on its bucket (LibraryState).
+  defp sync_label(:up_to_date), do: gettext("Up to date")
+  defp sync_label(:syncing), do: gettext("Syncing")
+  defp sync_label(:paused), do: gettext("Paused")
+  defp sync_label(:waiting), do: gettext("Waiting")
+  defp sync_label(:attention), do: gettext("Needs attention")
 end

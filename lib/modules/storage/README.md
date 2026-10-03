@@ -403,9 +403,20 @@ Every set has the **standard sizes** `thumbnail`, `small`, `medium`,
 
 ### The reconciler (V205)
 
-`Storage.Reconciler`, run by `Workers.ReconcileJob` (10 files a run, 2 s
-apart, one file at a time under a session advisory lock), makes every
-**stale** file match its library's profile and set. A file is stale when
+`Storage.Reconciler`, run as a **job run per library** (`Storage.Jobs.Reconcile`,
+`storage.reconcile`: 10 files a batch, 2 s apart, one file at a time under a
+session advisory lock), makes every **stale** file match its library's profile
+and set. `Workers.ReconcileJob` is the Oban job every change to storage
+settings still queues; it starts those runs (`Reconcile.trigger/1`) for the
+libraries that have files to bring up to date, so it works inside a
+transaction. Each library's state — **Up to date**, **Syncing**, **Paused**,
+**Waiting** (files out of date and no run) or **Needs attention** — is derived
+by `Storage.LibraryState` and shown on Settings → Media → Libraries with
+**Check now**, **Pause** and **Resume**; "out of date" is
+`Reconciler.out_of_date_query/1`, the work-selection query `stale_query/1` its
+subset. The location and checksum backfills and the library purge are runs too
+(`storage.location_backfill`, `storage.checksum_backfill`,
+`storage.purge_library` — the purge is visible but cannot be paused or cancelled). A file is stale when
 its placement stamp differs from its profile, or — for an active file only
 — its variant stamp differs from its set; trashed and unfinished files keep
 their size stamp until they are active again.

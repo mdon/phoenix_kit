@@ -327,4 +327,51 @@ defmodule PhoenixKitWeb.Live.JobsPageTest do
       refute open_run(conn, start!()) =~ @note
     end
   end
+
+  describe "a queue that is not working" do
+    defp age_dispatch(run, minutes) do
+      old = DateTime.utc_now() |> DateTime.add(-minutes * 60, :second)
+
+      from(j in Oban.Job, where: j.id == ^Repo.get!(Run, run.uuid).oban_job_id)
+      |> Repo.update_all(set: [scheduled_at: old, inserted_at: old])
+    end
+
+    test "is named when a batch has waited ten minutes and nothing in its queue has run", %{
+      conn: conn
+    } do
+      run = start!()
+      age_dispatch(run, 20)
+
+      {:ok, view, html} = live(conn, @path)
+
+      assert has_element?(view, "#jobs-stalled-queues")
+      assert html =~ "Runs are waiting on a queue that is not working: default"
+    end
+
+    test "is not, when something in that queue has run lately", %{conn: conn} do
+      run = start!()
+      age_dispatch(run, 20)
+
+      Repo.insert_all("oban_jobs", [
+        %{
+          state: "completed",
+          queue: "default",
+          worker: "Other.Worker",
+          args: %{},
+          max_attempts: 1,
+          attempted_at: DateTime.utc_now() |> DateTime.add(-60, :second),
+          completed_at: DateTime.utc_now() |> DateTime.add(-60, :second)
+        }
+      ])
+
+      {:ok, view, _html} = live(conn, @path)
+      refute has_element?(view, "#jobs-stalled-queues")
+    end
+
+    test "is not, for a batch that has only just been queued", %{conn: conn} do
+      start!()
+      {:ok, view, _html} = live(conn, @path)
+      refute has_element?(view, "#jobs-stalled-queues")
+    end
+  end
 end

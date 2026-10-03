@@ -145,7 +145,7 @@ msgstr ""
 msgid "Email logs & analytics"
 msgstr ""
 
-#: lib/modules/storage/web/health.html.heex:78
+#: lib/modules/storage/web/health.html.heex:85
 #: lib/phoenix_kit_web/components/core/dashboard_overview.ex:204
 #: lib/phoenix_kit_web/live/components/library_settings.ex:641
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:39
@@ -552,7 +552,7 @@ msgstr ""
 msgid "Add a note above to start documenting information about this user."
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:350
+#: lib/modules/storage/web/libraries_component.ex:413
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:60
 #: lib/phoenix_kit_web/live/settings/website_access.ex:406
 #, elixir-autogen, elixir-format
@@ -626,8 +626,8 @@ msgstr ""
 #: lib/modules/storage/web/bucket_form.html.heex:426
 #: lib/modules/storage/web/bucket_form.html.heex:451
 #: lib/modules/storage/web/dimension_form.html.heex:240
-#: lib/modules/storage/web/libraries_component.ex:341
-#: lib/modules/storage/web/libraries_component.ex:386
+#: lib/modules/storage/web/libraries_component.ex:404
+#: lib/modules/storage/web/libraries_component.ex:450
 #: lib/modules/storage/web/profiles_component.ex:327
 #: lib/phoenix_kit/mentions/live.ex:250
 #: lib/phoenix_kit_web/comments_gettext_manifest.ex:41
@@ -909,7 +909,7 @@ msgstr ""
 #: lib/modules/storage/web/dimensions.html.heex:379
 #: lib/modules/storage/web/dimensions.html.heex:550
 #: lib/modules/storage/web/dimensions.html.heex:586
-#: lib/modules/storage/web/libraries_component.ex:491
+#: lib/modules/storage/web/libraries_component.ex:563
 #: lib/modules/storage/web/profiles_component.ex:414
 #: lib/modules/storage/web/settings.html.heex:276
 #: lib/phoenix_kit_web/components/core/bulk_select.ex:228
@@ -1146,8 +1146,8 @@ msgstr ""
 msgid "Feature Modules"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:351
-#: lib/modules/storage/web/libraries_component.ex:584
+#: lib/modules/storage/web/libraries_component.ex:414
+#: lib/modules/storage/web/libraries_component.ex:656
 #: lib/modules/storage/web/settings.html.heex:121
 #: lib/modules/storage/web/settings.html.heex:137
 #: lib/phoenix_kit/users/auth.ex:3241
@@ -1344,7 +1344,7 @@ msgstr ""
 
 #: lib/phoenix_kit_web/live/activity/index.html.heex:119
 #: lib/phoenix_kit_web/live/activity/index.html.heex:300
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:102
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:116
 #: lib/phoenix_kit_web/live/users/permissions_matrix.html.heex:18
 #, elixir-autogen, elixir-format
 msgid "Module"
@@ -1462,7 +1462,7 @@ msgstr ""
 msgid "Only the Owner can edit Admin permissions"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:609
+#: lib/modules/storage/web/libraries_component.ex:681
 #: lib/phoenix_kit_web/components/core/preview_card.ex:305
 #: lib/phoenix_kit_web/components/core/preview_card.ex:339
 #: lib/phoenix_kit_web/live/components/library_settings.ex:838
@@ -1785,8 +1785,8 @@ msgstr ""
 
 #: lib/modules/sitemap/web/settings.html.heex:495
 #: lib/modules/storage/web/dimensions.html.heex:97
-#: lib/modules/storage/web/libraries_component.ex:379
-#: lib/modules/storage/web/libraries_component.ex:569
+#: lib/modules/storage/web/libraries_component.ex:443
+#: lib/modules/storage/web/libraries_component.ex:641
 #: lib/phoenix_kit_web/comments_gettext_manifest.ex:67
 #: lib/phoenix_kit_web/components/core/markdown_editor.ex:356
 #: lib/phoenix_kit_web/components/core/markdown_editor.ex:440
@@ -1929,7 +1929,7 @@ msgstr ""
 #: lib/modules/storage/web/profiles_component.ex:491
 #: lib/modules/storage/web/settings.html.heex:125
 #: lib/modules/storage/web/settings.html.heex:138
-#: lib/modules/storage/web/settings.html.heex:605
+#: lib/modules/storage/web/settings.html.heex:606
 #: lib/phoenix_kit/users/table_columns.ex:291
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:189
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:244
@@ -2036,8 +2036,8 @@ msgstr ""
 
 #: lib/modules/storage/web/bucket_form.html.heex:54
 #: lib/modules/storage/web/bucket_form.html.heex:68
-#: lib/modules/storage/web/health.html.heex:114
-#: lib/modules/storage/web/health.html.heex:124
+#: lib/modules/storage/web/health.html.heex:121
+#: lib/modules/storage/web/health.html.heex:131
 #: lib/modules/storage/web/settings.html.heex:106
 #: lib/modules/storage/web/settings.html.heex:135
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1944
@@ -2304,8 +2304,8 @@ msgstr ""
 msgid "Failed to %{action} Legal module"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:277
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:282
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:291
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:296
 #, elixir-autogen, elixir-format
 msgid "Hide"
 msgstr ""
@@ -2362,8 +2362,8 @@ msgstr ""
 
 #: lib/modules/storage/web/dimensions.html.heex:205
 #: lib/modules/storage/web/dimensions.html.heex:243
-#: lib/modules/storage/web/libraries_component.ex:353
-#: lib/modules/storage/web/libraries_component.ex:585
+#: lib/modules/storage/web/libraries_component.ex:416
+#: lib/modules/storage/web/libraries_component.ex:657
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1945
 #: lib/phoenix_kit_web/live/users/libraries.html.heex:106
 #, elixir-autogen, elixir-format
@@ -2547,12 +2547,12 @@ msgstr ""
 msgid "Application name display"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:463
+#: lib/modules/storage/web/settings.html.heex:464
 #, elixir-autogen, elixir-format
 msgid "Apply Changes"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:460
+#: lib/modules/storage/web/settings.html.heex:461
 #, elixir-autogen, elixir-format
 msgid "Applying..."
 msgstr ""
@@ -2639,7 +2639,7 @@ msgstr ""
 msgid "Callback URL"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:469
+#: lib/modules/storage/web/settings.html.heex:470
 #, elixir-autogen, elixir-format
 msgid "Changes will be saved immediately"
 msgstr ""
@@ -3014,8 +3014,8 @@ msgstr ""
 #: lib/modules/storage/web/dimensions.html.heex:80
 #: lib/modules/storage/web/dimensions.html.heex:242
 #: lib/modules/storage/web/dimensions.html.heex:445
-#: lib/modules/storage/web/libraries_component.ex:349
-#: lib/modules/storage/web/libraries_component.ex:580
+#: lib/modules/storage/web/libraries_component.ex:412
+#: lib/modules/storage/web/libraries_component.ex:652
 #: lib/modules/storage/web/profiles_component.ex:349
 #: lib/modules/storage/web/settings.html.heex:134
 #: lib/phoenix_kit_web/components/media_browser.html.heex:427
@@ -3055,7 +3055,7 @@ msgstr ""
 msgid "No active sessions found."
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:467
+#: lib/modules/storage/web/settings.html.heex:468
 #, elixir-autogen, elixir-format
 msgid "No changes to apply"
 msgstr ""
@@ -3288,7 +3288,7 @@ msgstr ""
 msgid "Site Address (URL)"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:514
+#: lib/modules/storage/web/settings.html.heex:515
 #, elixir-autogen, elixir-format
 msgid "Soon"
 msgstr ""
@@ -3756,7 +3756,7 @@ msgstr ""
 msgid "Admin Preview"
 msgstr ""
 
-#: lib/modules/storage/web/health.html.heex:87
+#: lib/modules/storage/web/health.html.heex:94
 #, elixir-autogen, elixir-format
 msgid "All Healthy"
 msgstr ""
@@ -3999,7 +3999,7 @@ msgstr ""
 msgid "Create an OpenRouter account"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:445
+#: lib/modules/storage/web/settings.html.heex:446
 #, elixir-autogen, elixir-format
 msgid "Current limit: %{size} MB"
 msgstr ""
@@ -4162,7 +4162,7 @@ msgstr ""
 msgid "Failed to update avatar"
 msgstr ""
 
-#: lib/modules/storage/web/health.html.heex:122
+#: lib/modules/storage/web/health.html.heex:129
 #, elixir-autogen, elixir-format
 msgid "File"
 msgstr ""
@@ -4252,9 +4252,9 @@ msgstr ""
 msgid "Grant access to Google Docs and Google Drive"
 msgstr ""
 
-#: lib/modules/storage/web/health.ex:29
+#: lib/modules/storage/web/health.ex:30
 #: lib/modules/storage/web/health.html.heex:59
-#: lib/modules/storage/web/settings.html.heex:532
+#: lib/modules/storage/web/settings.html.heex:533
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:370
 #, elixir-autogen, elixir-format
 msgid "Health"
@@ -4350,12 +4350,12 @@ msgstr ""
 msgid "Manage your account settings and preferences"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:433
+#: lib/modules/storage/web/settings.html.heex:434
 #, elixir-autogen, elixir-format
 msgid "Max Upload Size (MB)"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:435
+#: lib/modules/storage/web/settings.html.heex:436
 #, elixir-autogen, elixir-format
 msgid "Maximum file size allowed per upload"
 msgstr ""
@@ -4365,12 +4365,12 @@ msgstr ""
 msgid "Media Buckets"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:320
+#: lib/modules/storage/web/settings.html.heex:321
 #, elixir-autogen, elixir-format
 msgid "Media Configuration"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:513
+#: lib/modules/storage/web/settings.html.heex:514
 #, elixir-autogen, elixir-format
 msgid "Media Stats"
 msgstr ""
@@ -4386,7 +4386,7 @@ msgstr ""
 msgid "Member removed from organization"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:583
+#: lib/modules/storage/web/libraries_component.ex:655
 #: lib/phoenix_kit_web/live/components/library_settings.ex:847
 #: lib/phoenix_kit_web/live/components/library_settings.ex:891
 #: lib/phoenix_kit_web/live/users/libraries.html.heex:104
@@ -4395,7 +4395,7 @@ msgstr ""
 msgid "Members"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:625
+#: lib/modules/storage/web/settings.html.heex:626
 #: lib/phoenix_kit_web/components/core/integration_picker.ex:186
 #, elixir-autogen, elixir-format
 msgid "Missing"
@@ -4605,7 +4605,7 @@ msgstr ""
 msgid "Remove this member from the organization?"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:573
+#: lib/modules/storage/web/settings.html.heex:574
 #, elixir-autogen, elixir-format
 msgid "Repair Media Module"
 msgstr ""
@@ -5551,7 +5551,7 @@ msgstr ""
 msgid "Reorder"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:392
+#: lib/modules/storage/web/libraries_component.ex:456
 #: lib/modules/storage/web/profiles_component.ex:396
 #: lib/phoenix_kit_web/live/components/library_settings.ex:796
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:56
@@ -5746,7 +5746,7 @@ msgstr ""
 
 #: lib/modules/sitemap/web/settings.ex:90
 #: lib/modules/sitemap/web/settings.html.heex:510
-#: lib/modules/storage/web/settings.ex:87
+#: lib/modules/storage/web/settings.ex:90
 #, elixir-autogen
 msgid "Configuration"
 msgstr ""
@@ -6053,7 +6053,7 @@ msgstr ""
 msgid "Folder not found"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:352
+#: lib/modules/storage/web/libraries_component.ex:415
 #: lib/phoenix_kit_web/components/folder_explorer.ex:250
 #, elixir-autogen, elixir-format
 msgid "Folders"
@@ -6108,7 +6108,7 @@ msgstr ""
 
 #: lib/phoenix_kit_web/components/core/preview_card.ex:210
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2484
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:134
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "Next"
 msgstr ""
@@ -6168,7 +6168,7 @@ msgstr ""
 msgid "Previous (←)"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:478
+#: lib/modules/storage/web/libraries_component.ex:550
 #: lib/phoenix_kit_web/components/folder_explorer.ex:681
 #: lib/phoenix_kit_web/components/media_browser.html.heex:1460
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2173
@@ -6861,7 +6861,7 @@ msgid "Preview"
 msgstr ""
 
 #: lib/phoenix_kit_web/components/core/preview_card.ex:201
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:123
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:137
 #, elixir-autogen, elixir-format
 msgid "Previous"
 msgstr ""
@@ -7334,7 +7334,8 @@ msgstr ""
 msgid "Date & Time"
 msgstr ""
 
-#: lib/modules/storage/web/settings.ex:436
+#: lib/modules/storage/web/libraries_component.ex:765
+#: lib/modules/storage/web/settings.ex:450
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:569
 #: lib/phoenix_kit_web/live/activity/index.html.heex:310
 #, elixir-autogen, elixir-format
@@ -7618,6 +7619,7 @@ msgstr ""
 msgid "Staff module for PhoenixKit — departments, teams, and people."
 msgstr ""
 
+#: lib/modules/storage/web/libraries_component.ex:418
 #: lib/phoenix_kit_web/live/modules.ex:143
 #, elixir-autogen, elixir-format
 msgid "Sync"
@@ -7657,8 +7659,8 @@ msgstr ""
 msgid "Admins Only"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:89
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:105
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:103
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:119
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:137
 #, elixir-autogen, elixir-format
 msgid "All"
@@ -8296,7 +8298,7 @@ msgstr ""
 msgid "All types"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:371
+#: lib/modules/storage/web/settings.html.heex:372
 #, elixir-autogen, elixir-format
 msgid "Annotated Thumbnails"
 msgstr ""
@@ -8324,12 +8326,12 @@ msgstr ""
 msgid "Background image"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:374
+#: lib/modules/storage/web/settings.html.heex:375
 #, elixir-autogen, elixir-format
 msgid "Bake Etcher annotation shapes (rectangles, marker strokes, etc.) into a file's grid thumbnail, regenerated in the background when annotations change. With this off the grid shows the plain thumbnail and no annotated variant is generated. ImageMagick is required when enabled."
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:541
+#: lib/modules/storage/web/settings.html.heex:542
 #, elixir-autogen, elixir-format
 msgid "Browse files no longer attached to any record (orphaned media) so you can review or delete them."
 msgstr ""
@@ -8475,7 +8477,7 @@ msgstr ""
 msgid "Filter"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:550
+#: lib/modules/storage/web/settings.html.heex:551
 #, elixir-autogen, elixir-format
 msgid "Find Orphaned Files"
 msgstr ""
@@ -8751,7 +8753,7 @@ msgstr ""
 msgid "Unread"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:510
+#: lib/modules/storage/web/settings.html.heex:511
 #, elixir-autogen, elixir-format
 msgid "View storage usage and media statistics. Coming soon."
 msgstr ""
@@ -9199,49 +9201,49 @@ msgstr ""
 msgid "New User Defaults"
 msgstr ""
 
-#: lib/modules/storage/web/settings.ex:251
+#: lib/modules/storage/web/settings.ex:254
 #, elixir-autogen, elixir-format
 msgid "Bucket deleted successfully"
 msgstr ""
 
-#: lib/modules/storage/web/settings.ex:181
+#: lib/modules/storage/web/settings.ex:184
 #, elixir-autogen, elixir-format
 msgid "Bucket disabled successfully"
 msgstr ""
 
-#: lib/modules/storage/web/settings.ex:180
+#: lib/modules/storage/web/settings.ex:183
 #, elixir-autogen, elixir-format
 msgid "Bucket enabled successfully"
 msgstr ""
 
 #: lib/modules/storage/web/bucket_form.ex:56
-#: lib/modules/storage/web/settings.ex:171
-#: lib/modules/storage/web/settings.ex:256
+#: lib/modules/storage/web/settings.ex:174
+#: lib/modules/storage/web/settings.ex:259
 #, elixir-autogen, elixir-format
 msgid "Bucket not found"
 msgstr ""
 
-#: lib/modules/storage/web/settings.ex:265
+#: lib/modules/storage/web/settings.ex:268
 #, elixir-autogen, elixir-format
 msgid "Failed to delete bucket"
 msgstr ""
 
-#: lib/modules/storage/web/settings.ex:292
+#: lib/modules/storage/web/settings.ex:295
 #, elixir-autogen, elixir-format
 msgid "Failed to repair: %{reason}"
 msgstr ""
 
-#: lib/modules/storage/web/settings.ex:187
+#: lib/modules/storage/web/settings.ex:190
 #, elixir-autogen, elixir-format
 msgid "Failed to update bucket"
 msgstr ""
 
-#: lib/modules/storage/web/settings.ex:282
+#: lib/modules/storage/web/settings.ex:285
 #, elixir-autogen, elixir-format
 msgid "Storage module repaired: %{summary}"
 msgstr ""
 
-#: lib/modules/storage/web/settings.ex:163
+#: lib/modules/storage/web/settings.ex:166
 #, elixir-autogen, elixir-format
 msgid "Storage settings updated successfully"
 msgstr ""
@@ -10173,7 +10175,7 @@ msgid "Could not rotate the image."
 msgstr ""
 
 #: lib/modules/storage/web/dimensions.ex:172
-#: lib/modules/storage/web/libraries_component.ex:153
+#: lib/modules/storage/web/libraries_component.ex:184
 #: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex:658
 #: lib/phoenix_kit_web/live/integrations/my_integration_form.ex:242
 #, elixir-autogen, elixir-format
@@ -13834,7 +13836,7 @@ msgstr ""
 msgid "sessions"
 msgstr ""
 
-#: lib/modules/storage/web/settings.ex:84
+#: lib/modules/storage/web/settings.ex:87
 #, elixir-autogen, elixir-format
 msgid "Buckets"
 msgstr ""
@@ -14250,7 +14252,7 @@ msgstr ""
 msgid "Edited"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:422
+#: lib/modules/storage/web/settings.html.heex:423
 #, elixir-autogen, elixir-format
 msgid "Every save overwrites the image for good. Nothing can be undone, and redacted areas are gone from storage."
 msgstr ""
@@ -14276,12 +14278,12 @@ msgstr ""
 msgid "Hide areas"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:387
+#: lib/modules/storage/web/settings.html.heex:388
 #, elixir-autogen, elixir-format
 msgid "Image Editing"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:403
+#: lib/modules/storage/web/settings.html.heex:404
 #, elixir-autogen, elixir-format
 msgid "Keep the original (recommended)"
 msgstr ""
@@ -14332,7 +14334,7 @@ msgstr ""
 msgid "Remove area"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:420
+#: lib/modules/storage/web/settings.html.heex:421
 #, elixir-autogen, elixir-format
 msgid "Replace the original"
 msgstr ""
@@ -14407,7 +14409,7 @@ msgstr ""
 msgid "The preview is approximate; colours and blur are exact once saved."
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:405
+#: lib/modules/storage/web/settings.html.heex:406
 #, elixir-autogen, elixir-format
 msgid "The unedited image is kept privately, so an edit can be changed or undone. Owners can delete it themselves."
 msgstr ""
@@ -14495,7 +14497,7 @@ msgstr ""
 msgid "Wait until the image has finished rendering."
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:389
+#: lib/modules/storage/web/settings.html.heex:390
 #, elixir-autogen, elixir-format
 msgid "What saving an edited image (crop, turn, redaction…) does with the original."
 msgstr ""
@@ -15289,44 +15291,44 @@ msgid "Standard fields"
 msgstr ""
 
 #: lib/modules/storage/web/dimensions.html.heex:57
-#: lib/modules/storage/web/libraries_component.ex:339
+#: lib/modules/storage/web/libraries_component.ex:402
 #: lib/modules/storage/web/profiles_component.ex:325
 #: lib/phoenix_kit_web/live/components/library_settings.ex:564
 #, elixir-autogen, elixir-format
 msgid "Create"
 msgstr ""
 
-#: lib/modules/storage/web/health.html.heex:113
-#: lib/modules/storage/web/health.html.heex:123
+#: lib/modules/storage/web/health.html.heex:120
+#: lib/modules/storage/web/health.html.heex:130
 #: lib/phoenix_kit_web/live/users/libraries.html.heex:26
 #: lib/phoenix_kit_web/live/users/media.html.heex:21
 #, elixir-autogen, elixir-format
 msgid "Library"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:75
+#: lib/modules/storage/web/libraries_component.ex:92
 #, elixir-autogen, elixir-format
 msgid "Library \"%{name}\" created"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:103
+#: lib/modules/storage/web/libraries_component.ex:134
 #, elixir-autogen, elixir-format
 msgid "Library deleted"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:271
 #: lib/modules/storage/web/libraries_component.ex:334
+#: lib/modules/storage/web/libraries_component.ex:397
 #, elixir-autogen, elixir-format
 msgid "Library name"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:312
+#: lib/modules/storage/web/libraries_component.ex:375
 #: lib/phoenix_kit_web/live/components/library_settings.ex:546
 #, elixir-autogen, elixir-format
 msgid "New library"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:113
+#: lib/modules/storage/web/libraries_component.ex:144
 #, elixir-autogen, elixir-format
 msgid "Only an empty library can be deleted, and never the default one."
 msgstr ""
@@ -15337,19 +15339,19 @@ msgstr ""
 msgid "Library not found"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:317
+#: lib/modules/storage/web/libraries_component.ex:380
 #, elixir-autogen, elixir-format
 msgid "A library is a separate space in Media with its own folders. Everything uploaded so far is in the default library. The Media page shows a library switcher once there are two or more."
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:489
+#: lib/modules/storage/web/libraries_component.ex:561
 #, elixir-autogen, elixir-format
 msgid "Delete this library?"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:303
-#: lib/modules/storage/web/settings.ex:86
-#: lib/modules/storage/web/settings.html.heex:359
+#: lib/modules/storage/web/libraries_component.ex:366
+#: lib/modules/storage/web/settings.ex:89
+#: lib/modules/storage/web/settings.html.heex:360
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:188
 #: lib/phoenix_kit_web/live/users/libraries.ex:38
 #: lib/phoenix_kit_web/live/users/libraries.ex:113
@@ -15358,12 +15360,12 @@ msgstr ""
 msgid "Libraries"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:93
+#: lib/modules/storage/web/libraries_component.ex:124
 #, elixir-autogen, elixir-format
 msgid "Library renamed to \"%{name}\""
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:485
+#: lib/modules/storage/web/libraries_component.ex:557
 #, elixir-autogen, elixir-format
 msgid "Only an empty library can be deleted."
 msgstr ""
@@ -15395,7 +15397,7 @@ msgstr ""
 msgid "%{count} of %{limit} libraries"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:527
+#: lib/modules/storage/web/libraries_component.ex:599
 #, elixir-autogen, elixir-format
 msgid "Allow user libraries"
 msgstr ""
@@ -15441,7 +15443,7 @@ msgstr ""
 msgid "Libraries keep your files apart from the site's media. Only you and the members you add can see them."
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:548
+#: lib/modules/storage/web/libraries_component.ex:620
 #, elixir-autogen, elixir-format
 msgid "Libraries per user"
 msgstr ""
@@ -15507,7 +15509,7 @@ msgstr ""
 msgid "No user has that email"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:573
+#: lib/modules/storage/web/libraries_component.ex:645
 #, elixir-autogen, elixir-format
 msgid "No user libraries yet."
 msgstr ""
@@ -15522,20 +15524,20 @@ msgstr ""
 msgid "Opened as admin"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:607
+#: lib/modules/storage/web/libraries_component.ex:679
 #: lib/phoenix_kit_web/live/users/libraries.html.heex:96
 #, elixir-autogen, elixir-format
 msgid "Opening a user's library is recorded in the audit log."
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:581
+#: lib/modules/storage/web/libraries_component.ex:653
 #: lib/phoenix_kit_web/live/users/libraries.ex:207
 #: lib/phoenix_kit_web/live/users/libraries.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "Owner"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:559
+#: lib/modules/storage/web/libraries_component.ex:631
 #, elixir-autogen, elixir-format
 msgid "Private links last (hours)"
 msgstr ""
@@ -15585,28 +15587,28 @@ msgstr ""
 msgid "Thumbnail"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:594
+#: lib/modules/storage/web/libraries_component.ex:666
 #: lib/phoenix_kit_web/live/users/libraries.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "Trashed"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:504
+#: lib/modules/storage/web/libraries_component.ex:576
 #, elixir-autogen, elixir-format
 msgid "User libraries"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:179
+#: lib/modules/storage/web/libraries_component.ex:210
 #, elixir-autogen, elixir-format
 msgid "User library settings could not be saved"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:177
+#: lib/modules/storage/web/libraries_component.ex:208
 #, elixir-autogen, elixir-format
 msgid "User library settings saved"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:507
+#: lib/modules/storage/web/libraries_component.ex:579
 #, elixir-autogen, elixir-format
 msgid "Users with the Storage permission can keep libraries of their own, private to them and the members they add. Their files are served only through links that expire."
 msgstr ""
@@ -15693,7 +15695,7 @@ msgid_plural "%{count} stored objects have no recorded location yet. They are be
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/modules/storage/web/settings.ex:262
+#: lib/modules/storage/web/settings.ex:265
 #, elixir-autogen, elixir-format
 msgid "This bucket still holds files, so it cannot be deleted. Disable it to stop storing new files there."
 msgstr ""
@@ -15783,17 +15785,17 @@ msgstr ""
 msgid "Check every file of this variant set now? Sizes a file is missing are made in the background."
 msgstr ""
 
-#: lib/modules/storage/web/health.ex:80
+#: lib/modules/storage/web/health.ex:81
 #, elixir-autogen, elixir-format
 msgid "Copies"
 msgstr ""
 
-#: lib/modules/storage/web/health.ex:79
+#: lib/modules/storage/web/health.ex:80
 #, elixir-autogen, elixir-format
 msgid "Copies and sizes"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:493
+#: lib/modules/storage/web/settings.html.heex:494
 #, elixir-autogen, elixir-format
 msgid "Create and edit variant sets: the image and video sizes each library's uploads get."
 msgstr ""
@@ -15813,7 +15815,7 @@ msgstr ""
 msgid "Delete this variant set and its sizes?"
 msgstr ""
 
-#: lib/modules/storage/web/health.html.heex:89
+#: lib/modules/storage/web/health.html.heex:96
 #, elixir-autogen, elixir-format
 msgid "Every file is stored where its library's storage profile wants it, with the sizes of its variant set."
 msgstr ""
@@ -15843,7 +15845,7 @@ msgstr ""
 msgid "For the reconciler"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:203
+#: lib/modules/storage/web/libraries_component.ex:234
 #, elixir-autogen, elixir-format
 msgid "Library storage saved. Its files are moved and resized in the background; the Health page shows what is left."
 msgstr ""
@@ -15873,7 +15875,7 @@ msgstr ""
 msgid "No buckets yet: uploads to a library on this profile fail."
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:523
+#: lib/modules/storage/web/settings.html.heex:524
 #, elixir-autogen, elixir-format
 msgid "Open the media health dashboard: the files not yet stored or sized as their library wants."
 msgstr ""
@@ -15888,7 +15890,7 @@ msgstr ""
 msgid "Profile name"
 msgstr ""
 
-#: lib/modules/storage/web/health.html.heex:75
+#: lib/modules/storage/web/health.html.heex:82
 #, elixir-autogen, elixir-format
 msgid "Reconcile now"
 msgstr ""
@@ -15903,12 +15905,12 @@ msgstr ""
 msgid "Serve order"
 msgstr ""
 
-#: lib/modules/storage/web/health.html.heex:102
+#: lib/modules/storage/web/health.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Showing the first %{count} of %{total}."
 msgstr ""
 
-#: lib/modules/storage/web/health.ex:81
+#: lib/modules/storage/web/health.ex:82
 #: lib/phoenix_kit_web/live/components/library_settings.ex:814
 #, elixir-autogen, elixir-format
 msgid "Sizes"
@@ -15924,13 +15926,13 @@ msgstr ""
 msgid "Sizes changed. Existing files are resized in the background."
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:354
-#: lib/modules/storage/web/libraries_component.ex:582
+#: lib/modules/storage/web/libraries_component.ex:417
+#: lib/modules/storage/web/libraries_component.ex:654
 #, elixir-autogen, elixir-format
 msgid "Storage"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:418
+#: lib/modules/storage/web/libraries_component.ex:482
 #, elixir-autogen, elixir-format
 msgid "Storage profile"
 msgstr ""
@@ -15952,8 +15954,8 @@ msgid "Storage profile saved"
 msgstr ""
 
 #: lib/modules/storage/web/profiles_component.ex:290
-#: lib/modules/storage/web/settings.ex:85
-#: lib/modules/storage/web/settings.html.heex:341
+#: lib/modules/storage/web/settings.ex:88
+#: lib/modules/storage/web/settings.html.heex:342
 #, elixir-autogen, elixir-format
 msgid "Storage profiles"
 msgstr ""
@@ -15973,17 +15975,17 @@ msgstr ""
 msgid "The Default profile, and a profile a library uses, cannot be deleted."
 msgstr ""
 
-#: lib/modules/storage/web/health.html.heex:97
+#: lib/modules/storage/web/health.html.heex:104
 #, elixir-autogen, elixir-format
 msgid "The reconciler copies files to the buckets their library's storage profile uses, removes copies it no longer uses, and makes the sizes its variant set lists. It runs by itself; a file stays here while something could not be done yet, and is tried again."
 msgstr ""
 
-#: lib/modules/storage/web/health.ex:53
+#: lib/modules/storage/web/health.ex:54
 #, elixir-autogen, elixir-format
 msgid "The reconciler could not be queued."
 msgstr ""
 
-#: lib/modules/storage/web/health.ex:49
+#: lib/modules/storage/web/health.ex:50
 #, elixir-autogen, elixir-format
 msgid "The reconciler is queued. Refresh to see its progress."
 msgstr ""
@@ -15999,6 +16001,7 @@ msgid "This variant set cannot be deleted"
 msgstr ""
 
 #: lib/modules/storage/web/health.html.heex:41
+#: lib/modules/storage/web/libraries_component.ex:786
 #, elixir-autogen, elixir-format
 msgid "Up to date"
 msgstr ""
@@ -16016,7 +16019,7 @@ msgstr[1] ""
 msgid "Users may choose it for their own libraries"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:431
+#: lib/modules/storage/web/libraries_component.ex:495
 #, elixir-autogen, elixir-format
 msgid "Variant set"
 msgstr ""
@@ -16039,19 +16042,20 @@ msgstr ""
 #: lib/modules/storage/web/dimension_form.html.heex:10
 #: lib/modules/storage/web/dimensions.ex:27
 #: lib/modules/storage/web/dimensions.html.heex:4
-#: lib/modules/storage/web/settings.html.heex:350
-#: lib/modules/storage/web/settings.html.heex:502
+#: lib/modules/storage/web/settings.html.heex:351
+#: lib/modules/storage/web/settings.html.heex:503
 #, elixir-autogen, elixir-format
 msgid "Variant sets"
 msgstr ""
 
 #: lib/modules/storage/web/health.html.heex:50
+#: lib/modules/storage/web/libraries_component.ex:789
 #, elixir-autogen, elixir-format
 msgid "Waiting"
 msgstr ""
 
-#: lib/modules/storage/web/health.html.heex:115
-#: lib/modules/storage/web/health.html.heex:125
+#: lib/modules/storage/web/health.html.heex:122
+#: lib/modules/storage/web/health.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "Waiting for"
 msgstr ""
@@ -16108,106 +16112,106 @@ msgstr ""
 msgid "Compact view"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:596
+#: lib/modules/storage/web/settings.html.heex:597
 #, elixir-autogen, elixir-format
 msgid "Check again"
 msgstr ""
 
-#: lib/modules/storage/web/settings.ex:91
+#: lib/modules/storage/web/settings.ex:94
 #, elixir-autogen, elixir-format
 msgid "External libraries"
 msgstr ""
 
-#: lib/modules/storage/web/settings.ex:450
+#: lib/modules/storage/web/settings.ex:464
 #, elixir-autogen, elixir-format
 msgid "Image variants, resizing and conversion"
 msgstr ""
 
-#: lib/modules/storage/web/settings.ex:430
+#: lib/modules/storage/web/settings.ex:444
 #, elixir-autogen, elixir-format
 msgid "Not found on this server: %{tools}."
 msgstr ""
 
-#: lib/modules/storage/web/settings.ex:455
+#: lib/modules/storage/web/settings.ex:469
 #, elixir-autogen, elixir-format
 msgid "PDF page count and metadata"
 msgstr ""
 
-#: lib/modules/storage/web/settings.ex:454
+#: lib/modules/storage/web/settings.ex:468
 #, elixir-autogen, elixir-format
 msgid "PDF preview images"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:589
+#: lib/modules/storage/web/settings.html.heex:590
 #, elixir-autogen, elixir-format
 msgid "Programs on this server that media processing runs."
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:559
+#: lib/modules/storage/web/settings.html.heex:560
 #, elixir-autogen, elixir-format
 msgid "Put back what storage needs: a bucket, a writable bucket in the Default profile, a copy count its buckets can hold. Resets the default dimensions. Keeps your buckets, redundancy and files."
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:567
+#: lib/modules/storage/web/settings.html.heex:568
 #, elixir-autogen, elixir-format
 msgid "This resets the default dimensions and fixes missing bucket setup. Buckets, redundancy and uploaded files are kept. Continue?"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:603
+#: lib/modules/storage/web/settings.html.heex:604
 #, elixir-autogen, elixir-format
 msgid "Tool"
 msgstr ""
 
-#: lib/modules/storage/web/settings.ex:88
+#: lib/modules/storage/web/settings.ex:91
 #, elixir-autogen, elixir-format
 msgid "Tools"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:604
+#: lib/modules/storage/web/settings.html.heex:605
 #, elixir-autogen, elixir-format
 msgid "Used for"
 msgstr ""
 
-#: lib/modules/storage/web/settings.ex:453
+#: lib/modules/storage/web/settings.ex:467
 #, elixir-autogen, elixir-format
 msgid "Video dimensions, duration and capture date"
 msgstr ""
 
-#: lib/modules/storage/web/settings.ex:452
+#: lib/modules/storage/web/settings.ex:466
 #, elixir-autogen, elixir-format
 msgid "Video variants and thumbnails"
 msgstr ""
 
-#: lib/modules/storage/web/settings.ex:451
+#: lib/modules/storage/web/settings.ex:465
 #, elixir-autogen, elixir-format
 msgid "Zoomable tiles for large images"
 msgstr ""
 
-#: lib/modules/storage/web/settings.ex:402
+#: lib/modules/storage/web/settings.ex:416
 #, elixir-autogen, elixir-format
 msgid "added %{count} bucket to the Default profile"
 msgid_plural "added %{count} buckets to the Default profile"
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/modules/storage/web/settings.ex:416
+#: lib/modules/storage/web/settings.ex:430
 #, elixir-autogen, elixir-format
 msgid "cleared the missing default bucket"
 msgstr ""
 
-#: lib/modules/storage/web/settings.ex:399
+#: lib/modules/storage/web/settings.ex:413
 #, elixir-autogen, elixir-format
 msgid "created bucket '%{name}'"
 msgstr ""
 
-#: lib/modules/storage/web/settings.ex:409
+#: lib/modules/storage/web/settings.ex:423
 #, elixir-autogen, elixir-format
 msgid "lowered the Default profile to %{count} copy"
 msgid_plural "lowered the Default profile to %{count} copies"
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/modules/storage/web/settings.ex:419
+#: lib/modules/storage/web/settings.ex:433
 #, elixir-autogen, elixir-format
 msgid "reset %{count} dimensions"
 msgstr ""
@@ -16304,12 +16308,12 @@ msgstr ""
 msgid "Move this bucket's keys into an integration? The bucket keeps working."
 msgstr ""
 
-#: lib/modules/storage/web/settings.ex:219
+#: lib/modules/storage/web/settings.ex:222
 #, elixir-autogen, elixir-format
 msgid "Moved %{moved} bucket(s); %{failed} could not be moved and were left as they were."
 msgstr ""
 
-#: lib/modules/storage/web/settings.ex:209
+#: lib/modules/storage/web/settings.ex:212
 #, elixir-autogen, elixir-format
 msgid "Moved the keys of %{count} bucket into an integration."
 msgid_plural "Moved the keys of %{count} buckets into an integration."
@@ -16321,7 +16325,7 @@ msgstr[1] ""
 msgid "Moving keys creates an integration, which needs access to Integrations."
 msgstr ""
 
-#: lib/modules/storage/web/settings.ex:232
+#: lib/modules/storage/web/settings.ex:235
 #, elixir-autogen, elixir-format
 msgid "Moving keys creates integrations, which needs access to Integrations."
 msgstr ""
@@ -16426,7 +16430,7 @@ msgid_plural "%{count} of your libraries keep their files in buckets that use th
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/modules/storage/web/libraries_component.ex:545
+#: lib/modules/storage/web/libraries_component.ex:617
 #, elixir-autogen, elixir-format
 msgid "Allow their own buckets"
 msgstr ""
@@ -16486,17 +16490,17 @@ msgstr ""
 msgid "Only here"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:290
+#: lib/modules/storage/web/libraries_component.ex:353
 #, elixir-autogen, elixir-format
 msgid "Own %{provider} bucket"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:287
+#: lib/modules/storage/web/libraries_component.ex:350
 #, elixir-autogen, elixir-format
 msgid "Site storage"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:293
+#: lib/modules/storage/web/libraries_component.ex:356
 #, elixir-autogen, elixir-format
 msgid "Site storage + own %{provider} backup"
 msgstr ""
@@ -16537,7 +16541,7 @@ msgstr ""
 msgid "This cannot be changed once the library is created. The bucket is tested when you create the library. Deleting the library deletes the files it stored in your bucket."
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:532
+#: lib/modules/storage/web/libraries_component.ex:604
 #, elixir-autogen, elixir-format
 msgid "Users who also hold the Storage own-storage and Integrations permissions may keep a library on their own S3-compatible bucket. Their files then live outside the site's storage."
 msgstr ""
@@ -17220,22 +17224,22 @@ msgstr ""
 msgid "The keys and endpoint come from an Object Storage integration."
 msgstr ""
 
-#: lib/modules/storage/web/settings.ex:336
+#: lib/modules/storage/web/settings.ex:350
 #, elixir-autogen, elixir-format
 msgid "Cloud"
 msgstr ""
 
-#: lib/modules/storage/web/settings.ex:335
+#: lib/modules/storage/web/settings.ex:349
 #, elixir-autogen, elixir-format
 msgid "Local"
 msgstr ""
 
-#: lib/modules/storage/web/settings.ex:367
+#: lib/modules/storage/web/settings.ex:381
 #, elixir-autogen, elixir-format
 msgid "No bucket name"
 msgstr ""
 
-#: lib/modules/storage/web/settings.ex:358
+#: lib/modules/storage/web/settings.ex:372
 #, elixir-autogen, elixir-format
 msgid "No path configured"
 msgstr ""
@@ -17322,57 +17326,57 @@ msgstr ""
 msgid "When a file is on several buckets, the one with the lowest number serves it."
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:332
+#: lib/modules/storage/web/settings.html.heex:333
 #, elixir-autogen, elixir-format
 msgid "Copies, sizes and tiles are set per library"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:336
+#: lib/modules/storage/web/settings.html.heex:337
 #, elixir-autogen, elixir-format
 msgid "How many copies of each file are kept, and where:"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:354
+#: lib/modules/storage/web/settings.html.heex:355
 #, elixir-autogen, elixir-format
 msgid "Which profile and variant set a library uses:"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:345
+#: lib/modules/storage/web/settings.html.heex:346
 #, elixir-autogen, elixir-format
 msgid "Which sizes are made automatically, and whether deep-zoom tiles are:"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:446
+#: lib/modules/storage/web/libraries_component.ex:510
 #, elixir-autogen, elixir-format
 msgid "Annotated thumbnails: bake annotation shapes into the grid thumbnail"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:460
+#: lib/modules/storage/web/libraries_component.ex:524
 #, elixir-autogen, elixir-format
 msgid "Annotated thumbnails: off"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:457
+#: lib/modules/storage/web/libraries_component.ex:521
 #, elixir-autogen, elixir-format
 msgid "Annotated thumbnails: on"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:454
+#: lib/modules/storage/web/libraries_component.ex:518
 #, elixir-autogen, elixir-format
 msgid "Annotated thumbnails: site setting (off)"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:453
+#: lib/modules/storage/web/libraries_component.ex:517
 #, elixir-autogen, elixir-format
 msgid "Annotated thumbnails: site setting (on)"
 msgstr ""
 
-#: lib/modules/storage/web/libraries_component.ex:208
+#: lib/modules/storage/web/libraries_component.ex:239
 #, elixir-autogen, elixir-format
 msgid "Library setting saved"
 msgstr ""
 
-#: lib/modules/storage/web/settings.html.heex:377
+#: lib/modules/storage/web/settings.html.heex:378
 #, elixir-autogen, elixir-format
 msgid "This is the site default; a library can choose otherwise on the Libraries tab."
 msgstr ""
@@ -17423,7 +17427,7 @@ msgstr ""
 msgid "Take this bucket out of the profile? Its files are copied to the profile's other buckets first, then deleted from this bucket. The bucket itself stays, and this profile no longer sends it files."
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:109
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:123
 #, elixir-autogen, elixir-format
 msgid "%{count} run"
 msgid_plural "%{count} runs"
@@ -17517,11 +17521,12 @@ msgstr ""
 msgid "Nothing recorded yet."
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:126
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:140
 #, elixir-autogen, elixir-format
 msgid "Page %{page} of %{pages}"
 msgstr ""
 
+#: lib/modules/storage/web/libraries_component.ex:736
 #: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:137
 #, elixir-autogen, elixir-format
 msgid "Pause"
@@ -17537,6 +17542,7 @@ msgstr ""
 msgid "Pause requested — the current batch is finishing"
 msgstr ""
 
+#: lib/modules/storage/web/libraries_component.ex:788
 #: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:296
 #: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:350
 #, elixir-autogen, elixir-format
@@ -17573,6 +17579,7 @@ msgstr ""
 msgid "Rescues"
 msgstr ""
 
+#: lib/modules/storage/web/libraries_component.ex:747
 #: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:147
 #, elixir-autogen, elixir-format
 msgid "Resume"
@@ -17629,18 +17636,19 @@ msgstr ""
 msgid "Started by"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:85
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:99
 #: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:71
 #, elixir-autogen, elixir-format
 msgid "State"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:345
+#: lib/modules/storage/web/libraries_component.ex:292
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:347
 #, elixir-autogen, elixir-format
 msgid "That did not work."
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:331
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:333
 #, elixir-autogen, elixir-format
 msgid "That job is gone."
 msgstr ""
@@ -17650,27 +17658,29 @@ msgstr ""
 msgid "The current batch is finishing…"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:328
+#: lib/modules/storage/web/libraries_component.ex:290
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:330
 #, elixir-autogen, elixir-format
 msgid "The current batch is still finishing; try again in a moment."
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:343
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:345
 #, elixir-autogen, elixir-format
 msgid "The job's state no longer allows that."
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:330
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:332
 #, elixir-autogen, elixir-format
 msgid "This kind of job does not offer that."
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:89
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "Unfinished"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:325
+#: lib/modules/storage/web/libraries_component.ex:287
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:327
 #, elixir-autogen, elixir-format
 msgid "You may not do that."
 msgstr ""
@@ -17696,7 +17706,7 @@ msgstr ""
 msgid "by schedule"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:109
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:123
 #, elixir-autogen, elixir-format
 msgid "live"
 msgstr ""
@@ -17711,7 +17721,51 @@ msgstr ""
 msgid "A batch of this run stopped without finishing and was recovered; the counts may not include the work it did before it stopped."
 msgstr ""
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:146
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:160
 #, elixir-autogen, elixir-format
 msgid "Oban is not running on this node, so its jobs cannot be listed here. Open this page on a node that runs it."
+msgstr ""
+
+#: lib/modules/storage/web/libraries_component.ex:719
+#, elixir-autogen, elixir-format
+msgid "%{count} file could not be finished"
+msgid_plural "%{count} files could not be finished"
+msgstr[0] ""
+msgstr[1] ""
+
+#: lib/modules/storage/web/libraries_component.ex:716
+#, elixir-autogen, elixir-format
+msgid "%{count} file left"
+msgid_plural "%{count} files left"
+msgstr[0] ""
+msgstr[1] ""
+
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:86
+#, elixir-autogen, elixir-format
+msgid "A batch has been waiting for ten minutes and nothing in that queue has run since. Check that the queue is configured in Oban and that a node which runs it is up."
+msgstr ""
+
+#: lib/modules/storage/web/libraries_component.ex:758
+#, elixir-autogen, elixir-format
+msgid "Check now"
+msgstr ""
+
+#: lib/modules/storage/web/libraries_component.ex:790
+#, elixir-autogen, elixir-format
+msgid "Needs attention"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:82
+#, elixir-autogen, elixir-format
+msgid "Runs are waiting on a queue that is not working: %{queues}"
+msgstr ""
+
+#: lib/modules/storage/web/health.html.heex:73
+#, elixir-autogen, elixir-format
+msgid "Storage runs"
+msgstr ""
+
+#: lib/modules/storage/web/libraries_component.ex:787
+#, elixir-autogen, elixir-format
+msgid "Syncing"
 msgstr ""

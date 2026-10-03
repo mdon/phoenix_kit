@@ -1,3 +1,38 @@
+## Unreleased
+
+### Added
+
+- **Each library's storage has a state, and can be checked and paused.** Settings → Media →
+  Libraries has a Sync column: **Up to date**, **Syncing** ("N files left"), **Paused**,
+  **Waiting** (files are out of date and no run is working on them — the case the Health page's
+  global count hid) or **Needs attention** (the last run failed with files left, or the reconciler
+  keeps failing on some). **Check now**, **Pause** and **Resume** are offered to those who hold
+  `jobs.manage` and `media.manage`, and the column follows the library's run live. "Up to date"
+  means the files carry their library's current profile and variant-set revisions; it does not
+  prove every object is still on its bucket. The Health page links to the storage runs.
+  (`Storage.LibraryState`; `Reconciler.out_of_date_query/1` and `counts_by_library/0` count what is
+  out of date apart from what the reconciler may take now.)
+- **The Runs tab warns when a queue is not working**: a run's batch has been available for ten
+  minutes and nothing in that queue has run since — observed from Oban's own table, so a web node
+  with `queues: false` does not cry wolf for a worker node.
+- `Jobs.can_start?/2`, for a screen that offers a button that starts a run.
+
+### Changed
+
+- **The storage reconciler is a job run per library** (`storage.reconcile`) instead of one walk
+  over every file. A change to a profile, a variant set or a library's choice still queues
+  `Workers.ReconcileJob`, which now starts the runs for the libraries that have files to bring up
+  to date (a pass already running begins again at its next batch). Each run shows on Admin → Jobs
+  with its progress, can be paused between batches, and keeps a history.
+- **The location backfill, the checksum backfill and the library purge are job runs too**
+  (`storage.location_backfill`, `storage.checksum_backfill`, `storage.purge_library`). The purge is
+  visible but cannot be paused or cancelled: it walks the whole library and cannot be undone. The
+  old Oban jobs remain as shims that start the runs, so jobs queued by 2.48.0 or earlier still work.
+
+### i18n
+
+- The new strings in all seven locales.
+
 ## 2.48.0 - 2026-10-03
 
 ### Added

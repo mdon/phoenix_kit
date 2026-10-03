@@ -138,6 +138,21 @@ defmodule PhoenixKit.Jobs do
 
   def controls_for(_scope, _run), do: []
 
+  @doc """
+  Whether `scope` may start a run of `kind` (`jobs.manage` and the kind's own
+  permission against the active role) — what a screen asks before it offers a
+  button that starts one.
+  """
+  @spec can_start?(Scope.t() | nil, kind()) :: boolean()
+  def can_start?(%Scope{} = scope, kind) do
+    case kind_module(kind) do
+      {:ok, kind_mod} -> authorize(scope, kind_mod, nil) == :ok
+      _ -> false
+    end
+  end
+
+  def can_start?(_scope, _kind), do: false
+
   defp state_controls(state) when state in ~w(queued running), do: [:pause, :cancel]
   defp state_controls("pausing"), do: [:cancel]
   defp state_controls("paused"), do: [:resume, :cancel]
