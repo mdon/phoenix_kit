@@ -228,4 +228,57 @@ defmodule PhoenixKitWeb.Live.JobsPageTest do
     {:ok, _view, html} = live(conn, @path)
     refute html =~ "No sweeper pass"
   end
+
+  describe "the sweeper warning and the badge are about all runs, not this view" do
+    setup do
+      {:ok, _} = PhoenixKit.Settings.update_setting(SweepWorker.last_sweep_setting(), "")
+      :ok
+    end
+
+    test "a filter that hides the waiting run does not hide the warning", %{conn: conn} do
+      start!()
+
+      {:ok, _view, html} = live(conn, @path <> "?run_state=completed")
+      assert html =~ "No sweeper pass in the last 15 minutes"
+    end
+
+    test "paused runs are not waiting on the sweeper, so they do not raise it", %{conn: conn} do
+      run = start!()
+      {:ok, _} = Engine.transition(run.uuid, {:pause, nil})
+
+      {:ok, _view, html} = live(conn, @path)
+      refute html =~ "No sweeper pass"
+    end
+
+    test "the Runs tab counts every unfinished run, whatever the list shows", %{conn: conn} do
+      start!()
+      start!(Counter, {"library", Ecto.UUID.generate()})
+      start!(Counter, {"library", Ecto.UUID.generate()})
+
+      {:ok, view, _html} = live(conn, @path <> "?run_state=completed")
+      assert render(view) =~ ~r/Runs\s*<span[^>]*badge[^>]*>\s*3\s*</
+    end
+  end
+
+  test "the periodic refresh reloads the open run, even when nothing was broadcast", %{conn: conn} do
+    run = start!()
+    {:ok, view, html} = live(conn, @path <> "?run=#{run.uuid}")
+    assert html =~ "Queued"
+
+    # a worker that committed and died before it could broadcast
+    Repo.update_all(from(r in Run, where: r.uuid == ^run.uuid), set: [state: "paused"])
+    send(view.pid, :refresh)
+
+    assert has_element?(view, "#run-#{run.uuid} .badge", "Paused")
+    refute has_element?(view, "#run-#{run.uuid} .badge", "Queued")
+    assert has_element?(view, ".modal-box .badge", "Paused")
+  end
+
+  test "the filters are the core selects, labelled and with their own ids", %{conn: conn} do
+    start!()
+    {:ok, view, html} = live(conn, @path)
+
+    assert has_element?(view, "form#runs-filter-state-form select#runs-filter-state")
+    assert html =~ ~s(for="runs-filter-state")
+  end
 end

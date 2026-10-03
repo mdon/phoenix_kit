@@ -107,6 +107,36 @@ defmodule PhoenixKit.JobsTest do
     end
   end
 
+  describe "the Owner, acting through a restricted active role" do
+    test "holds every control as themselves, and none while acting as the narrower role" do
+      owner = Repo.get!(User, Auth.get_user_by_email("seed-owner@phoenixkit.test").uuid)
+      {:ok, role} = Roles.create_role(%{name: "Narrow #{System.unique_integer([:positive])}"})
+      {:ok, _} = Permissions.grant_permission(role.uuid, "dashboard")
+      {:ok, _} = Roles.assign_role(owner, role.name)
+      {:ok, _} = PhoenixKit.Settings.update_boolean_setting("role_switcher_enabled", true)
+      owner = Repo.get!(User, owner.uuid)
+
+      full = Scope.for_user(owner)
+      assert Scope.owner?(full)
+      assert {:ok, run, :started} = Jobs.start(full, Counter)
+      assert {:ok, %{state: "paused"}} = Jobs.pause(full, run)
+
+      narrowed = Scope.for_user(%{owner | active_role_uuid: role.uuid})
+      refute Scope.owner?(narrowed), "acting as the narrower role, they are not the Owner"
+      assert "Owner" in Scope.held_roles(narrowed), "the roles they hold are unchanged"
+      refute Scope.can?(narrowed, "jobs.manage")
+
+      assert {:error, :unauthorized} = Jobs.resume(narrowed, run)
+      assert {:error, :unauthorized} = Jobs.cancel(narrowed, run)
+
+      assert {:error, :unauthorized} =
+               Jobs.start(narrowed, Counter, {"library", Ecto.UUID.generate()})
+
+      assert [] = Jobs.controls_for(narrowed, reload(run))
+      assert %{state: "paused"} = reload(run)
+    end
+  end
+
   describe "controls" do
     setup do
       scope = scope_with(["jobs.manage"])

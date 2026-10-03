@@ -21,9 +21,11 @@ defmodule PhoenixKit.Jobs.StateMachine do
     * `{:pause, actor}`, `{:resume, actor}`, `{:cancel, actor}`
     * `:request_restart` — a trigger asked for a fresh pass
     * `{:heartbeat, token}`
-    * `{:rescue, limit}` — the sweeper found the dispatch lost
-    * `{:fail, message}` — the run cannot go on (a kind that is gone, a job the
-      sweeper found discarded)
+    * `{:rescue, limit}` — the sweeper found the dispatch lost; refused while a
+      batch holds the run
+    * `{:fail, message}` — the run cannot go on (a job the sweeper found
+      discarded); refused while a batch holds the run — a batch ends its own run
+      through `{:checkpoint, token, {:fail, message}}`
 
   ## Precedence when a batch ends
 
@@ -93,7 +95,14 @@ defmodule PhoenixKit.Jobs.StateMachine do
     do: {:error, :claimed}
 
   def transition(%Run{} = run, {:claim, token}, now) do
-    base = %{claim_token: token, claimed_at: now, heartbeat_at: now, state: "running"}
+    base = %{
+      claim_token: token,
+      claim_owner: "queue",
+      claimed_at: now,
+      heartbeat_at: now,
+      state: "running"
+    }
+
     base = if is_nil(run.started_at), do: Map.put(base, :started_at, now), else: base
 
     changes = if restart_pending?(run), do: Map.merge(base, reset(run)), else: base
@@ -176,28 +185,30 @@ defmodule PhoenixKit.Jobs.StateMachine do
 
   # ---- sweeper -------------------------------------------------------------
 
+  # Failing a run from outside needs a run nothing holds: a batch that holds
+  # it is ended by its own checkpoint (or, if it is dead, released first), so
+  # the claim is never cleared from under a live batch.
   def transition(%Run{state: state}, {:fail, _message}, _now)
       when state in ~w(completed failed cancelled),
       do: {:error, :finished}
 
-  def transition(%Run{state: "cancelling"} = run, {:fail, _message}, now) do
-    {:ok, Map.merge(cancelled(run.cancelled_by_uuid, now), release()),
-     [{:log, "job.cancelled", %{}}]}
-  end
+  def transition(%Run{claim_token: token}, {:fail, _message}, _now) when not is_nil(token),
+    do: {:error, :claimed}
 
-  def transition(%Run{} = _run, {:fail, message}, now) do
-    {:ok, Map.merge(failed(message, now), release()),
-     [{:log, "job.failed", %{"error" => message}}]}
-  end
+  def transition(%Run{} = run, {:fail, message}, now), do: fail_run(run, message, now)
 
   def transition(%Run{state: state}, {:rescue, _limit}, _now)
       when state not in ~w(queued running),
       do: {:error, :not_active}
 
+  # A rescue replaces a lost dispatch; a held claim means one is not lost.
+  def transition(%Run{claim_token: token}, {:rescue, _limit}, _now) when not is_nil(token),
+    do: {:error, :claimed}
+
   def transition(%Run{rescues: rescues} = run, {:rescue, limit}, now) do
     if rescues >= limit do
       message = "the run lost its dispatch #{rescues} times and was given up on"
-      transition(run, {:fail, message}, now)
+      fail_run(run, message, now)
     else
       {:ok,
        Map.merge(release(), %{
@@ -217,7 +228,7 @@ defmodule PhoenixKit.Jobs.StateMachine do
     {:ok, Map.merge(release(), Map.put(settle(run, now), :error, message)), settle_log(run)}
   end
 
-  defp checkpoint(%Run{} = run, {:fail, message}, now), do: transition(run, {:fail, message}, now)
+  defp checkpoint(%Run{} = run, {:fail, message}, now), do: fail_run(run, message, now)
 
   defp checkpoint(%Run{state: "running"} = run, outcome, now) do
     progressed = progress(run, outcome)
@@ -292,6 +303,17 @@ defmodule PhoenixKit.Jobs.StateMachine do
 
   # ---- pieces --------------------------------------------------------------
 
+  # The run ends: failed, or cancelled when a cancel was waiting for this batch.
+  defp fail_run(%Run{state: "cancelling"} = run, _message, now) do
+    {:ok, Map.merge(cancelled(run.cancelled_by_uuid, now), release()),
+     [{:log, "job.cancelled", %{}}]}
+  end
+
+  defp fail_run(%Run{}, message, now) do
+    {:ok, Map.merge(failed(message, now), release()),
+     [{:log, "job.failed", %{"error" => message}}]}
+  end
+
   defp paused(actor, now) do
     {:ok, %{state: "paused", paused_by_uuid: actor, paused_at: now}, [{:log, "job.paused", %{}}]}
   end
@@ -310,7 +332,7 @@ defmodule PhoenixKit.Jobs.StateMachine do
 
   defp failed(message, now), do: %{state: "failed", error: message, finished_at: now}
 
-  defp release, do: %{claim_token: nil, claimed_at: nil}
+  defp release, do: %{claim_token: nil, claim_owner: nil, claimed_at: nil}
 
   # A pause or cancel that was waiting for the batch takes effect.
   defp settle(%Run{state: "pausing"} = run, now),

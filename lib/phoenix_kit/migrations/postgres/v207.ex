@@ -17,7 +17,8 @@ defmodule PhoenixKit.Migrations.Postgres.V207 do
       paused and cancelled it;
     * the execution protocol (§14 R1, R2, R5) — `generation` (every dispatch
       bumps it; an Oban job of an older generation is inert), `claim_token` and
-      `claimed_at` (a batch holds the run while it works), `oban_job_id` (the
+      `claimed_at` (a batch holds the run while it works), `claim_owner` (`queue` for an Oban
+      batch, `inline` for a script — the sweeper judges the two differently), `oban_job_id` (the
       current dispatch), `restart_seq` / `restart_ack` (a trigger that arrived,
       and the last one a batch has seen), `rescues` and `last_rescued_at` (the
       sweeper's durable budget) and `heartbeat_at`.
@@ -105,6 +106,7 @@ defmodule PhoenixKit.Migrations.Postgres.V207 do
         finished_at timestamp(0) without time zone,
         inserted_at timestamp(0) without time zone DEFAULT now() NOT NULL,
         updated_at timestamp(0) without time zone DEFAULT now() NOT NULL,
+        claim_owner character varying(10),
         CONSTRAINT phoenix_kit_job_runs_pkey PRIMARY KEY (uuid),
         CONSTRAINT phoenix_kit_job_runs_state_check CHECK (state IN (#{states})),
         CONSTRAINT phoenix_kit_job_runs_mode_check CHECK (mode IN (#{modes})),

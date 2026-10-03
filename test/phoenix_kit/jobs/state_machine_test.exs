@@ -22,6 +22,13 @@ defmodule PhoenixKit.Jobs.StateMachineTest do
       end
     end
 
+    test "marks the claim as a queue batch's, and a release clears it" do
+      assert %{claim_owner: "queue"} = changes(t(run(), {:claim, @token}))
+
+      assert %{claim_owner: nil, claim_token: nil} =
+               changes(t(claimed(claim_owner: "queue"), {:checkpoint, @token, {:release, "x"}}))
+    end
+
     test "keeps the first start time" do
       started = ~U[2026-10-03 11:00:00Z]
       refute Map.has_key?(changes(t(run(started_at: started), {:claim, @token})), :started_at)
@@ -282,18 +289,31 @@ defmodule PhoenixKit.Jobs.StateMachineTest do
                t(claimed(state: "cancelling"), {:checkpoint, @token, {:fail, "gave up"}})
     end
 
-    test "the sweeper can fail any unfinished run, and clears a claim it held" do
-      assert {:ok, %{state: "failed", claim_token: nil}, _} = t(claimed(), {:fail, "lost"})
+    test "a run nothing holds can be failed from outside; one a batch holds cannot" do
+      assert {:ok, %{state: "failed", error: "lost", claim_token: nil}, _} =
+               t(run(state: "running"), {:fail, "lost"})
+
+      assert {:error, :claimed} = t(claimed(), {:fail, "lost"})
       assert {:error, :finished} = t(run(state: "completed"), {:fail, "lost"})
+    end
+
+    test "a batch ends its own run through its checkpoint, whatever holds it" do
+      assert {:ok, %{state: "failed", claim_token: nil, claim_owner: nil}, _} =
+               t(claimed(claim_owner: "queue"), {:checkpoint, @token, {:fail, "gone"}})
     end
   end
 
   describe "rescue" do
     test "gives a lost dispatch a new generation and counts it" do
-      run = run(state: "running", rescues: 1, generation: 4, claim_token: @token)
+      run = run(state: "running", rescues: 1, generation: 4)
 
-      assert {:ok, %{rescues: 2, generation: 5, last_rescued_at: @now, claim_token: nil},
+      assert {:ok, %{rescues: 2, generation: 5, last_rescued_at: @now},
               [{:dispatch, 0}, {:log, "job.rescued", %{"rescues" => 2}}]} = t(run, {:rescue, 3})
+    end
+
+    test "is refused while a batch holds the run: a held claim is not a lost dispatch" do
+      run = run(state: "running", rescues: 1, generation: 4, claim_token: @token)
+      assert {:error, :claimed} = t(run, {:rescue, 3})
     end
 
     test "gives up at the limit, and the run fails instead of restarting for ever" do

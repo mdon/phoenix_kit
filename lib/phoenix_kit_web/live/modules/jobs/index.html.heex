@@ -47,11 +47,7 @@
     <% jobs_tabs = [
       Map.merge(
         %{id: "runs", label: gettext("Runs"), icon: "hero-play-circle"},
-        (Enum.any?(@runs, &PhoenixKit.Jobs.Run.active?/1) &&
-           %{
-             badge: Enum.count(@runs, &PhoenixKit.Jobs.Run.active?/1),
-             badge_class: "badge-primary"
-           }) ||
+        (@active_run_count > 0 && %{badge: @active_run_count, badge_class: "badge-primary"}) ||
           %{}
       ),
       %{id: "queue", label: gettext("Queue"), icon: "hero-queue-list"},
@@ -82,39 +78,32 @@
       <div class="card bg-base-100 shadow-xl">
         <div class="card-body p-4">
           <div class="flex flex-wrap items-end gap-4 mb-4">
-            <form id="runs-filter-state-form" phx-change="filter_run_state" class="fieldset">
-              <label class="label"><span class="label-text text-xs">{gettext("State")}</span></label>
-              <select name="run_state" class="select select-sm select-bordered">
-                <option value="all" selected={@run_state == "all"}>{gettext("All")}</option>
-                <option value="active" selected={@run_state == "active"}>
-                  {gettext("Unfinished")}
-                </option>
-                <option
-                  :for={state <- PhoenixKit.Jobs.Run.states()}
-                  value={state}
-                  selected={@run_state == state}
-                >
-                  {state_label(state)}
-                </option>
-              </select>
+            <form id="runs-filter-state-form" phx-change="filter_run_state">
+              <.select
+                id="runs-filter-state"
+                name="run_state"
+                label={gettext("State")}
+                value={@run_state}
+                class="select-sm"
+                options={
+                  [{gettext("All"), "all"}, {gettext("Unfinished"), "active"}] ++
+                    Enum.map(PhoenixKit.Jobs.Run.states(), &{state_label(&1), &1})
+                }
+              />
             </form>
             <form
               :if={length(@run_modules) > 1}
               id="runs-filter-module-form"
               phx-change="filter_run_module"
-              class="fieldset"
             >
-              <label class="label"><span class="label-text text-xs">{gettext("Module")}</span></label>
-              <select name="run_module" class="select select-sm select-bordered">
-                <option value="all" selected={@run_module == "all"}>{gettext("All")}</option>
-                <option
-                  :for={module <- @run_modules}
-                  value={module}
-                  selected={@run_module == module}
-                >
-                  {module}
-                </option>
-              </select>
+              <.select
+                id="runs-filter-module"
+                name="run_module"
+                label={gettext("Module")}
+                value={@run_module}
+                class="select-sm"
+                options={[{gettext("All"), "all"} | Enum.map(@run_modules, &{&1, &1})]}
+              />
             </form>
             <span class="text-sm text-base-content/60 ml-auto">
               {ngettext("%{count} run", "%{count} runs", @run_total)} · {gettext("live")}

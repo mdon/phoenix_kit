@@ -27,6 +27,25 @@
   it shows on the Runs tab with its progress and can be paused, resumed and cancelled. The mix task
   runs the same kind inline.
 
+### Fixed
+
+- **Recovery of job runs is decided under the run's row lock.** The sweeper lists candidates; the
+  engine (`Engine.recover/4`) reloads each and decides from the run as it is then, so a slow sweep
+  can no longer undo a newer dispatch, steal a live claim or charge the rescue budget twice. A
+  rescue or an outside failure of a run a batch holds is refused by the state machine.
+- **A script's claim (`Jobs.run_inline/3`) is a lease the sweeper respects** (new column
+  `claim_owner`, an hour, renewed by `Jobs.heartbeat/1`); a dead script's run is taken back when the
+  lease runs out. Inline execution now waits out `{:snooze, s}` and `schedule_in:`.
+- **An obsolete Oban delivery stays inert even when its kind has gone**: the worker claims first and
+  only then looks the kind up.
+- **Job runs work on a named Oban schema**: recovery, `Jobs.get_job_stats/0` and the Jobs page read
+  Oban's table through its configured prefix, and check a job is the run's own.
+- **The engine refuses to run inside a caller's transaction** (`{:error, :in_transaction}`), so no
+  event or `on_finish/2` escapes a rollback; `Jobs.start/4` documents `{:error, :raced}` as "not
+  recorded".
+- The Jobs page's sweeper warning and Runs badge cover all runs, not the filtered page; the open run
+  refreshes with the table; the filters use the core select.
+
 ### Changed
 
 - **Jobs is no longer a module you switch on: it is always on.** It leaves the Modules page; `jobs` is

@@ -113,5 +113,6 @@ config :phoenix_kit,
   job_kinds: [
     PhoenixKit.Test.JobKinds.Counter,
     PhoenixKit.Test.JobKinds.Restarting,
-    PhoenixKit.Test.JobKinds.Guarded
+    PhoenixKit.Test.JobKinds.Guarded,
+    PhoenixKit.Test.JobKinds.Short
   ]

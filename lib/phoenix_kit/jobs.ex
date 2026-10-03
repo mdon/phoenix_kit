@@ -49,7 +49,7 @@ defmodule PhoenixKit.Jobs do
 
   import Ecto.Query
 
-  alias PhoenixKit.Jobs.{Engine, History, Kind, Kinds, Run, RunWorker}
+  alias PhoenixKit.Jobs.{Engine, History, Kind, Kinds, ObanStore, Run, RunWorker}
   alias PhoenixKit.Users.Auth.Scope
 
   @type run_scope :: :site | {atom() | String.t(), String.t()}
@@ -64,6 +64,12 @@ defmodule PhoenixKit.Jobs do
   @doc """
   Starts a run of `kind` for `run_scope` on behalf of the person behind `scope`.
   Options: `:args`. Returns `{:ok, run, :started | :existing}` or an error.
+
+  `{:error, :raced}` means the start met a run that finished at that very moment
+  three times over: **the trigger was not recorded** — try again.
+  `{:error, :in_transaction}` means it was called inside a transaction of the
+  caller's, which would let a broadcast or `on_finish/2` escape a rollback: call it
+  after the transaction commits (see `PhoenixKit.Jobs.Engine`).
   """
   @spec start(Scope.t(), kind(), run_scope(), keyword()) ::
           {:ok, Run.t(), :started | :existing} | {:error, term()}
@@ -250,10 +256,14 @@ defmodule PhoenixKit.Jobs do
   # ---------------------------------------------------------------------------
 
   @doc """
-  Tells the engine a long batch is still alive. Call between steps of a batch
-  that may run for minutes; the sweeper takes a run whose batch is silent *and*
-  whose Oban job is no longer executing for lost. `:ok`, or `{:error,
+  Tells the engine a long batch is still alive, and checks that it still holds the
+  run. Call between steps of a batch that may run for minutes. `:ok`, or `{:error,
   :claim_lost}` when something else holds the run now (stop working).
+
+  For a queued batch this is **observability and a cooperative check only**: the
+  sweeper never reads it, and judges the batch by its own Oban job. For a script
+  (`run_inline/3`) it renews the lease that keeps the sweeper from taking the run
+  (`PhoenixKit.Jobs.Run.inline_lease_seconds/0`, an hour).
   """
   @spec heartbeat(Run.t()) :: :ok | {:error, :claim_lost}
   defdelegate heartbeat(run), to: Engine
@@ -264,7 +274,16 @@ defmodule PhoenixKit.Jobs do
   queueing. It goes through the same claim, checkpoint and failure rules as a
   queued run, and refuses a run a batch holds (`{:error, :claimed}`). Mode
   defaults to `"script"`; no Oban job is made. `:on_progress` is called with the
-  run after every batch that has more to do (a Mix task prints from it).
+  run after every batch that made progress (a Mix task prints from it). A
+  `{:snooze, s}` or a batch's `schedule_in:` is waited out — in short slices, so a
+  pause or a cancel ends the wait.
+
+  The claim a script takes is a **lease** (`PhoenixKit.Jobs.Run.inline_lease_seconds/0`,
+  an hour, renewed by `heartbeat/1`): the sweeper has no Oban job to ask about a
+  script and leaves its claim alone while the lease stands. A script that dies
+  leaves its run held until the lease runs out, when the sweeper takes the run back
+  (and a new script may take it over). Like `PhoenixKit.Jobs.System`, this is
+  trusted application code: it checks no permission.
   """
   @spec run_inline(module(), run_scope(), keyword()) :: {:ok, Run.t()} | {:error, term()}
   def run_inline(kind, run_scope \\ :site, opts \\ []) do
@@ -282,7 +301,12 @@ defmodule PhoenixKit.Jobs do
 
         case Engine.checkpoint(uuid, token, outcome, dispatch: false, mode: opts[:mode]) do
           {:ok, %Run{state: state} = updated} when state in ~w(queued running) ->
-            if progress = opts[:on_progress], do: progress.(updated)
+            # A snooze made no progress to report; a batch's own delay is waited
+            # out, in slices short enough to notice a pause or a cancel.
+            if match?({:more, _, _}, outcome) and opts[:on_progress],
+              do: opts[:on_progress].(updated)
+
+            wait(uuid, delay_of(outcome))
             inline(kind, updated, opts)
 
           {:ok, updated} ->
@@ -297,6 +321,37 @@ defmodule PhoenixKit.Jobs do
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  defp delay_of({:snooze, seconds}), do: seconds
+  defp delay_of({:more, _progress, opts}), do: Keyword.get(opts, :schedule_in, 0)
+  defp delay_of(_outcome), do: 0
+
+  @wait_slice 250
+
+  defp wait(_uuid, seconds) when seconds <= 0, do: :ok
+
+  defp wait(uuid, seconds) do
+    wait_until(uuid, System.monotonic_time(:millisecond) + seconds * 1000)
+  end
+
+  # Sleeps in short slices and gives up the wait as soon as the run is no longer
+  # waiting for a batch (someone paused or cancelled it), so a control is not
+  # held up by a long delay.
+  defp wait_until(uuid, deadline) do
+    remaining = deadline - System.monotonic_time(:millisecond)
+
+    cond do
+      remaining <= 0 ->
+        :ok
+
+      match?(%Run{state: state} when state not in ~w(queued running), get_run(uuid)) ->
+        :ok
+
+      true ->
+        Process.sleep(min(remaining, @wait_slice))
+        wait_until(uuid, deadline)
     end
   end
 
@@ -332,10 +387,7 @@ defmodule PhoenixKit.Jobs do
   """
   @spec get_job_stats() :: map()
   def get_job_stats do
-    stats =
-      from(j in Oban.Job, group_by: j.state, select: {j.state, count(j.id)})
-      |> repo().all()
-      |> Map.new()
+    stats = ObanStore.state_counts()
 
     Map.new(
       ~w(available scheduled executing completed retryable discarded cancelled)a,

@@ -5,18 +5,22 @@ defmodule PhoenixKit.Jobs.RunWorker do
 
   An Oban job here is `%{"run_uuid", "generation", "kind"}`. The flow:
 
-    1. the kind is looked up; a kind that is gone (its module disabled or
-       removed) fails the run ("kind unavailable") rather than looping;
-    2. **claim** the run for this generation (`Engine.claim/2`): an older
+    1. **claim** the run for this generation (`Engine.claim/2`): an older
        generation or a run that is paused, cancelled or finished does nothing
-       (`:ok`), and a run another batch still holds is snoozed;
+       (`:ok`), and a run another batch still holds is snoozed. This comes
+       first, before anything else is looked at, so a delivery that is not the
+       run's current dispatch is inert whatever else is true — including a kind
+       that has since disappeared;
+    2. the kind is looked up from the claimed run; a kind that is gone (its
+       module disabled or removed) fails the run ("kind unavailable") by
+       checkpointing the failure with the claim just taken, rather than looping;
     3. call `kind.batch/1`, rescuing a raise, an exit or a throw as an error;
     4. **checkpoint** (`Engine.checkpoint/4`): progress, cursor, the next
        dispatch and the history, in one transaction.
 
   An error that Oban will retry releases the claim and is returned, so the retry
   can take it; the last attempt fails the run. A `timeout/1` kill leaves the
-  claim held — `PhoenixKit.Jobs.Sweeper` releases it once Oban says the job is
+  claim held — `PhoenixKit.Jobs.SweepWorker` releases it once Oban says the job is
   no longer executing.
 
   `uniqueness` is on `run_uuid` + `generation`: the *same* dispatch cannot be
@@ -50,17 +54,15 @@ defmodule PhoenixKit.Jobs.RunWorker do
   def timeout(_job), do: :timer.minutes(10)
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"run_uuid" => run_uuid, "generation" => generation} = args} = job) do
-    case Kinds.get(args["kind"]) do
-      nil -> unavailable(run_uuid, args["kind"])
-      kind -> drive(kind, run_uuid, generation, job)
-    end
-  end
-
-  defp drive(kind, run_uuid, generation, %Oban.Job{} = job) do
+  def perform(%Oban.Job{args: %{"run_uuid" => run_uuid, "generation" => generation}} = job) do
     case Engine.claim(run_uuid, generation) do
       {:ok, run, token} ->
-        outcome = batch_outcome(kind, run, job.attempt >= job.max_attempts)
+        outcome =
+          case Kinds.get(run.kind) do
+            nil -> {:fail, unavailable(run.kind)}
+            kind -> batch_outcome(kind, run, job.attempt >= job.max_attempts)
+          end
+
         settle(run_uuid, token, outcome)
 
       {:skip, :busy} ->
@@ -68,6 +70,9 @@ defmodule PhoenixKit.Jobs.RunWorker do
 
       {:skip, _reason} ->
         :ok
+
+      {:error, reason} ->
+        {:error, "could not claim run #{run_uuid}: #{inspect(reason)}"}
     end
   end
 
@@ -125,12 +130,6 @@ defmodule PhoenixKit.Jobs.RunWorker do
   defp message(reason) when is_binary(reason), do: reason
   defp message(reason), do: inspect(reason)
 
-  defp unavailable(run_uuid, kind_name) do
-    message = "kind unavailable: #{kind_name} (its module is disabled or gone)"
-
-    case Engine.transition(run_uuid, {:fail, message}, mode: "auto") do
-      {:ok, _run} -> :ok
-      {:error, _reason} -> :ok
-    end
-  end
+  defp unavailable(kind_name),
+    do: "kind unavailable: #{kind_name} (its module is disabled or gone)"
 end

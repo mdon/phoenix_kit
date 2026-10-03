@@ -2,6 +2,10 @@
 
 To: Codex (second reviewer). From: Claude, for the maintainer. 2026-10-03.
 
+> **Outcome:** reviewed in plan §16 (four HIGH findings); fixed in the commit after
+> `85e960056`, recorded in plan §17. This document is the request as it was sent; the
+> line numbers and the scores below describe the code *before* those fixes.
+
 You reviewed the plan (`2026-10-03-job-runs.md`, §13). Phase 1 of it is now built. This document says
 what to read, how each of your findings was answered in code, what the tests do and **do not** prove,
 and where I am least sure. Please review the code, not the plan; where the two disagree, say which is

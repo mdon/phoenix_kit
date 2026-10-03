@@ -511,7 +511,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "bee7917c09cb95b48337bc44ec3ee8df9d4bc00c0ef0a825687ff74fcdfc7112"
+  @chain_hash "a56612354ce114c4d292c4738dd3cc5a5d9c0594b677f9644b02a9ebb37e2b46"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -75440,6 +75440,20 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         ],
         presence: :required,
         backfill: :default
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.claim_owner",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_job_runs", column: "claim_owner", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"claim_owner\" character varying(10)",
+        since: 207,
+        class: :column,
+        revisions: [
+          {207, %{default: nil, type: "character varying(10)", pos: 34, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
       },
       %{
         id: "constraint:phoenix_kit_job_runs.phoenix_kit_job_runs_pkey",

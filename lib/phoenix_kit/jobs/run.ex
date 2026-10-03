@@ -65,6 +65,7 @@ defmodule PhoenixKit.Jobs.Run do
     field :generation, :integer, default: 0
     field :claim_token, Ecto.UUID
     field :claimed_at, :utc_datetime
+    field :claim_owner, :string
     field :oban_job_id, :integer
     field :restart_seq, :integer, default: 0
     field :restart_ack, :integer, default: 0
@@ -100,6 +101,33 @@ defmodule PhoenixKit.Jobs.Run do
   @spec terminal?(t() | String.t()) :: boolean()
   def terminal?(%__MODULE__{state: state}), do: terminal?(state)
   def terminal?(state) when is_binary(state), do: state in @terminal_states
+
+  # How long a script's claim stands without a sign of life before the sweeper
+  # may take it for dead. An inline batch has no Oban job to ask about, so its
+  # lease is the only evidence; a kind with longer batches calls
+  # `PhoenixKit.Jobs.heartbeat/1`.
+  @inline_lease_seconds 3600
+
+  @doc "Seconds a script's claim stands without a heartbeat."
+  def inline_lease_seconds, do: @inline_lease_seconds
+
+  @doc "Whether a script (`run_inline/3`) holds the run, not an Oban batch."
+  @spec inline_claim?(t()) :: boolean()
+  def inline_claim?(%__MODULE__{claim_token: token, claim_owner: "inline"}), do: not is_nil(token)
+  def inline_claim?(%__MODULE__{}), do: false
+
+  @doc "Whether the lease of a script's claim has run out at `now`."
+  @spec lease_expired?(t(), DateTime.t()) :: boolean()
+  def lease_expired?(%__MODULE__{claimed_at: claimed, heartbeat_at: beat}, now) do
+    case Enum.reject([claimed, beat], &is_nil/1) do
+      [] ->
+        true
+
+      times ->
+        last = Enum.max(times, DateTime)
+        DateTime.compare(now, DateTime.add(last, @inline_lease_seconds, :second)) == :gt
+    end
+  end
 
   @doc "Whether a batch holds the run right now."
   @spec claimed?(t()) :: boolean()

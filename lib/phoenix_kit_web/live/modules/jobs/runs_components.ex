@@ -205,6 +205,12 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.RunsComponents do
 
         <.progress run={@run} />
 
+        <p :if={@run.rescues > 0} class="text-xs text-base-content/60 mt-1">
+          {gettext(
+            "A batch of this run stopped without finishing and was recovered; the counts may not include the work it did before it stopped."
+          )}
+        </p>
+
         <div class="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4 text-sm">
           <.fact label={gettext("Scope")} value={scope_label(@run)} />
           <.fact label={gettext("Started by")} value={started_by(@run, @actors)} />

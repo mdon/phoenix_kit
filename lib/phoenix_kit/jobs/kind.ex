@@ -24,7 +24,7 @@ defmodule PhoenixKit.Jobs.Kind do
     @impl true
     def batch(run) do
       case MyApp.Import.next_rows(run.args, run.cursor, 100) do
-        {[], _} -> {:done, %{done: 0}, %{"imported" => run.done}}
+        {[], _} -> {:done, %{"imported" => run.done}, %{done: 0}}
         {rows, cursor} ->
           MyApp.Import.insert(rows)
           {:more, %{cursor: cursor, done: length(rows)}, schedule_in: 1}
@@ -47,8 +47,13 @@ defmodule PhoenixKit.Jobs.Kind do
       `schedule_in: seconds` — the pause before the next batch.
     * `{:done, result}` or `{:done, result, progress}` — the run is finished;
       `result` is a map kept on the run, `progress` the last batch's increments.
-    * `{:snooze, seconds}` — nothing was done (waiting on something outside);
-      no checkpoint.
+      **The result comes first**; the engine and the state machine order the two the
+      other way round (`{:done, progress, result}`), which
+      `PhoenixKit.Jobs.RunWorker.batch_outcome/3` converts at the boundary.
+    * `{:snooze, seconds}` — nothing was done (waiting on something outside): the
+      progress is left as it was, the claim is released and the next batch is
+      dispatched after `seconds`. (Queued, that is a delayed Oban job; inline, the
+      script waits.)
     * `{:error, reason}` — the batch failed. Oban retries it (`max_attempts/0`);
       the last failure fails the run.
 
@@ -58,9 +63,28 @@ defmodule PhoenixKit.Jobs.Kind do
   ## The side-effect contract
 
   A crash after external work and before the checkpoint replays that batch.
-  `idempotent?/0` says the kind survives that. A kind that is not (a broadcast
-  that sends mail) must keep its own per-item marks, and the engine will not
-  pretend otherwise.
+  `idempotent?/0` says the kind survives that. **It is a declaration, not a
+  check**: the engine never calls it and enforces nothing; it is there so a reader
+  (and a future guard at the start boundary) knows what the author promised. A kind
+  that is not idempotent (a broadcast that sends mail) must keep its own per-item
+  marks, and the engine will not pretend otherwise.
+
+  Replay is also about **counts**. `done`/`failed` are added in the checkpoint
+  transaction, so a replayed batch cannot count twice — but work done by a batch
+  that crashed before its checkpoint is not counted by anyone, and a kind that
+  selects "what is still to do" (rather than walking a cursor) will not see it
+  again. Counts recovered from a crash are therefore *approximate* unless the
+  kind keeps durable per-item accounting; the Jobs page and the Mix task show what
+  the run recorded.
+
+  ## When `on_finish/2` runs
+
+  After the run reaches a terminal state and **after the commit**, once, in the
+  process that made the transition. It is best effort: a crash right after the
+  commit, a callback that raises, or a kind that is no longer available skips it
+  for good — an Oban retry sees a finished run and does not replay it. Use it for
+  something whose loss is harmless (dropping a cache, a log line). Work that must
+  happen when a run ends needs its own durable record and retry.
   """
 
   alias PhoenixKit.Jobs.Run

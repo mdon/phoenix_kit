@@ -11,7 +11,7 @@ defmodule PhoenixKit.Modules.Storage.CaptureDateIntegrationTest do
   use PhoenixKit.DataCase, async: false
 
   alias PhoenixKit.Jobs
-  alias PhoenixKit.Jobs.{Engine, Kinds, Run}
+  alias PhoenixKit.Jobs.{Engine, Kinds, Run, SweepWorker}
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.CaptureDate
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
@@ -79,6 +79,11 @@ defmodule PhoenixKit.Modules.Storage.CaptureDateIntegrationTest do
   end
 
   defp reload(file), do: Repo.get!(StorageFile, file.uuid)
+
+  defp backdate_run(run) do
+    old = DateTime.utc_now() |> DateTime.add(-600, :second) |> DateTime.truncate(:second)
+    Repo.update_all(from(r in Run, where: r.uuid == ^run.uuid), set: [updated_at: old])
+  end
 
   defp set!(file, fields) do
     {1, _} = Repo.update_all(from(f in StorageFile, where: f.uuid == ^file.uuid), set: fields)
@@ -283,6 +288,42 @@ defmodule PhoenixKit.Modules.Storage.CaptureDateIntegrationTest do
       {:ok, _} = Engine.transition(run.uuid, {:resume, nil})
       Oban.drain_queue(queue: :file_processing, with_recursion: true)
       assert %{state: "completed", done: 52} = Repo.get!(Run, run.uuid)
+    end
+
+    test "a batch that dies after dating files and before its checkpoint: each file stays dated once, the retry finishes the rest, and the counts are only what a checkpoint recorded",
+         ctx do
+      files = for n <- 1..3, do: store_jpeg!(ctx, "crash#{n}.jpg", @exif)
+      {:ok, run, :started} = CaptureDateBackfillJob.enqueue()
+      Repo.delete_all(from j in Oban.Job, where: j.worker != "PhoenixKit.Jobs.RunWorker")
+      job = Repo.get!(Oban.Job, Repo.get!(Run, run.uuid).oban_job_id)
+
+      # The first batch takes its claim and dates two files — its side effect — and
+      # the node dies before the checkpoint.
+      {:ok, _held, _token} = Engine.claim(run.uuid, 1)
+      [dated_a, dated_b, _left] = files
+      assert CaptureDateBackfillJob.record(dated_a.uuid) == :ok
+      assert CaptureDateBackfillJob.record(dated_b.uuid) == :ok
+      first = {reload(dated_a).taken_at, reload(dated_b).taken_at}
+
+      # Oban gives the job back; the sweeper releases the dead batch's claim.
+      backdate_run(run)
+      Repo.update_all(from(j in Oban.Job, where: j.id == ^job.id), set: [state: "available"])
+      assert %{released: 1} = SweepWorker.sweep()
+      assert %{claim_token: nil, state: "running", done: 0} = Repo.get!(Run, run.uuid)
+
+      # The retry takes the claim and finishes what is left.
+      Oban.drain_queue(queue: :file_processing, with_recursion: true)
+      final = Repo.get!(Run, run.uuid)
+
+      # File state: every file dated, the two the dead batch dated untouched.
+      assert Enum.all?(files, &(reload(&1).taken_at != nil))
+      assert {reload(dated_a).taken_at, reload(dated_b).taken_at} == first
+
+      # Progress: the run completed, but counts only the file its checkpointed batch
+      # handled. The two dated by the batch that died are in nobody's tally — the
+      # documented, approximate-after-a-crash behaviour (`Jobs.Kind`).
+      assert %{state: "completed", done: 1, total: 1, failed_count: 0} = final
+      assert CaptureDateBackfillJob.pending_count() == 0
     end
 
     test "needs media.manage as well as jobs.manage" do

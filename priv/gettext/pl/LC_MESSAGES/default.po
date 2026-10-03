@@ -503,7 +503,7 @@ msgstr "Informacje o koncie"
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:245
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:303
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:335
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:73
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:74
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:130
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:190
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:233
@@ -649,7 +649,7 @@ msgstr "Lista wypunktowana"
 #: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:66
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1266
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1740
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:169
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:170
 #: lib/phoenix_kit_web/live/notifications/settings.ex:434
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:486
 #: lib/phoenix_kit_web/live/settings/send_profile_form.html.heex:152
@@ -722,7 +722,7 @@ msgstr "Kliknij ikonę znacznika lub krzyżyka, aby przełączyć uprawnienie dl
 #: lib/phoenix_kit_web/components/media_viewer.html.heex:36
 #: lib/phoenix_kit_web/components/user_dashboard_nav.ex:359
 #: lib/phoenix_kit_web/legal_gettext_manifest.ex:50
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:264
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:271
 #, elixir-autogen, elixir-format
 msgid "Close"
 msgstr "Zamknij"
@@ -858,7 +858,7 @@ msgid "Create and manage user roles"
 msgstr "Twórz role użytkowników i zarządzaj nimi"
 
 #: lib/phoenix_kit_web/components/core/integration_picker.ex:305
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:210
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:217
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:238
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:344
 #, elixir-autogen, elixir-format
@@ -1344,7 +1344,7 @@ msgstr "Tryb"
 
 #: lib/phoenix_kit_web/live/activity/index.html.heex:119
 #: lib/phoenix_kit_web/live/activity/index.html.heex:300
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:107
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:102
 #: lib/phoenix_kit_web/live/users/permissions_matrix.html.heex:18
 #, elixir-autogen, elixir-format
 msgid "Module"
@@ -2304,8 +2304,8 @@ msgstr "Wygasa"
 msgid "Failed to %{action} Legal module"
 msgstr "Nie udało się %{action} moduł Informacje prawne"
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:280
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:285
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:269
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:274
 #, elixir-autogen, elixir-format
 msgid "Hide"
 msgstr "Ukryj"
@@ -5245,8 +5245,8 @@ msgstr "Treść zapisana"
 msgid "Comments"
 msgstr "Komentarze"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:291
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:347
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:298
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:354
 #, elixir-autogen, elixir-format
 msgid "Completed"
 msgstr "Ukończone"
@@ -6116,7 +6116,7 @@ msgstr "Nowy folder"
 
 #: lib/phoenix_kit_web/components/core/preview_card.ex:210
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2484
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:145
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:134
 #, elixir-autogen, elixir-format
 msgid "Next"
 msgstr "Dalej"
@@ -6288,7 +6288,7 @@ msgid "Your browser does not support the video tag."
 msgstr "Twoja przeglądarka nie obsługuje elementu wideo."
 
 #: lib/phoenix_kit_web/components/media_browser.ex:4733
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:318
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:325
 #, elixir-autogen, elixir-format
 msgid "%{count} failed"
 msgid_plural "%{count} failed"
@@ -6880,7 +6880,7 @@ msgid "Preview"
 msgstr "Podgląd"
 
 #: lib/phoenix_kit_web/components/core/preview_card.ex:201
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:134
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:123
 #, elixir-autogen, elixir-format
 msgid "Previous"
 msgstr "Poprzednia"
@@ -7678,8 +7678,8 @@ msgstr "Dodaj nowego użytkownika"
 msgid "Admins Only"
 msgstr "Tylko administratorzy"
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:88
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:109
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:89
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:105
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:137
 #, elixir-autogen, elixir-format
 msgid "All"
@@ -12977,7 +12977,7 @@ msgstr "Przekieruj na produkcję"
 msgid "Redirecting visitors to production"
 msgstr "Odwiedzający są przekierowywani na produkcję"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:229
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:236
 #: lib/phoenix_kit_web/live/settings/website_access.ex:404
 #, elixir-autogen, elixir-format
 msgid "Result"
@@ -16622,7 +16622,7 @@ msgstr "Nie możesz używać własnego magazynu"
 msgid "Mine"
 msgstr "Moje"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:321
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:328
 #: lib/phoenix_kit_web/live/users/media.html.heex:24
 #, elixir-autogen, elixir-format
 msgid "Site"
@@ -17467,7 +17467,7 @@ msgstr "Usuń z profilu"
 msgid "Take this bucket out of the profile? Its files are copied to the profile's other buckets first, then deleted from this bucket. The bucket itself stays, and this profile no longer sends it files."
 msgstr "Usunąć ten bucket z profilu? Jego pliki są najpierw kopiowane do pozostałych bucketów profilu, a potem usuwane z tego bucketa. Sam bucket pozostaje, a ten profil nie wysyła do niego już plików."
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:120
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "%{count} run"
 msgid_plural "%{count} runs"
@@ -17475,165 +17475,165 @@ msgstr[0] "%{count} uruchomienie"
 msgstr[1] "%{count} uruchomienia"
 msgstr[2] "%{count} uruchomień"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:237
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:244
 #, elixir-autogen, elixir-format
 msgid "Arguments"
 msgstr "Argumenty"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:214
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:221
 #, elixir-autogen, elixir-format
 msgid "Batches dispatched"
 msgstr "Uruchomione partie"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:211
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:218
 #, elixir-autogen, elixir-format
 msgid "Began"
 msgstr "Rozpoczęto"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:345
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:352
 #, elixir-autogen, elixir-format
 msgid "Cancel requested"
 msgstr "Zażądano anulowania"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:312
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:319
 #, elixir-autogen, elixir-format
 msgid "Cancel requested — the current batch is finishing"
 msgstr "Zażądano anulowania — bieżąca partia się kończy"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:166
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:167
 #, elixir-autogen, elixir-format
 msgid "Cancel this job? A batch that is working finishes first, and what it did is kept."
 msgstr "Anulować to zadanie? Trwająca partia najpierw się kończy, a to, co zrobiła, zostaje zachowane."
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:293
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:346
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:300
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:353
 #, elixir-autogen, elixir-format
 msgid "Cancelled"
 msgstr "Anulowano"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:290
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:297
 #, elixir-autogen, elixir-format
 msgid "Cancelling…"
 msgstr "Anulowanie…"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:213
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:220
 #, elixir-autogen, elixir-format
 msgid "Duration"
 msgstr "Czas trwania"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:292
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:348
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:299
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:355
 #, elixir-autogen, elixir-format
 msgid "Failed"
 msgstr "Nie powiodło się"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:212
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:219
 #, elixir-autogen, elixir-format
 msgid "Finished"
 msgstr "Zakończono"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:243
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:250
 #, elixir-autogen, elixir-format
 msgid "History"
 msgstr "Historia"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:69
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:70
 #, elixir-autogen, elixir-format
 msgid "Job"
 msgstr "Zadanie"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:217
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:224
 #, elixir-autogen, elixir-format
 msgid "Last sign of life"
 msgstr "Ostatni sygnał życia"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:79
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:80
 #, elixir-autogen, elixir-format
 msgid "No runs match."
 msgstr "Brak pasujących uruchomień."
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:75
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:71
 #, elixir-autogen, elixir-format
 msgid "No sweeper pass in the last 15 minutes"
 msgstr "Brak przebiegu sweepera w ciągu ostatnich 15 minut"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:246
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:253
 #, elixir-autogen, elixir-format
 msgid "Nothing recorded yet."
 msgstr "Nic jeszcze nie zapisano."
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:137
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:126
 #, elixir-autogen, elixir-format
 msgid "Page %{page} of %{pages}"
 msgstr "Strona %{page} z %{pages}"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:136
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:137
 #, elixir-autogen, elixir-format
 msgid "Pause"
 msgstr "Wstrzymaj"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:342
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:349
 #, elixir-autogen, elixir-format
 msgid "Pause requested"
 msgstr "Zażądano wstrzymania"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:309
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:316
 #, elixir-autogen, elixir-format
 msgid "Pause requested — the current batch is finishing"
 msgstr "Zażądano wstrzymania — bieżąca partia się kończy"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:289
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:343
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:296
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:350
 #, elixir-autogen, elixir-format
 msgid "Paused"
 msgstr "Wstrzymano"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:288
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:295
 #, elixir-autogen, elixir-format
 msgid "Pausing…"
 msgstr "Wstrzymywanie…"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:71
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:72
 #, elixir-autogen, elixir-format
 msgid "Progress"
 msgstr "Postęp"
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:57
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:53
 #, elixir-autogen, elixir-format
 msgid "Queue"
 msgstr "Kolejka"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:286
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:293
 #, elixir-autogen, elixir-format
 msgid "Queued"
 msgstr "W kolejce"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:350
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:357
 #, elixir-autogen, elixir-format
 msgid "Rescued by the sweeper"
 msgstr "Uratowane przez sweepera"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:215
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:222
 #, elixir-autogen, elixir-format
 msgid "Rescues"
 msgstr "Ratunki"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:146
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:147
 #, elixir-autogen, elixir-format
 msgid "Resume"
 msgstr "Wznów"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:344
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:351
 #, elixir-autogen, elixir-format
 msgid "Resumed"
 msgstr "Wznowiono"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:156
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:157
 #, elixir-autogen, elixir-format
 msgid "Retry"
 msgstr "Ponów"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:287
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:294
 #, elixir-autogen, elixir-format
 msgid "Running"
 msgstr "W toku"
@@ -17643,110 +17643,115 @@ msgstr "W toku"
 msgid "Runs"
 msgstr "Uruchomienia"
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:76
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:72
 #, elixir-autogen, elixir-format
 msgid "Runs are waiting, and nothing has checked on them lately. A run whose batch died is only recovered by the sweeper, which runs from Oban's cron every five minutes: check that PhoenixKit.Jobs.SweepWorker is in your crontab (mix phoenix_kit.update adds it)."
 msgstr "Uruchomienia czekają, a nikt ich ostatnio nie sprawdzał. Uruchomienie, którego partia padła, odzyskuje tylko sweeper, działający z crona Obana co pięć minut: sprawdź, czy PhoenixKit.Jobs.SweepWorker jest w Twoim crontabie (mix phoenix_kit.update go dodaje)."
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:59
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:55
 #, elixir-autogen, elixir-format
 msgid "Scheduled"
 msgstr "Zaplanowane"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:208
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:215
 #, elixir-autogen, elixir-format
 msgid "Scope"
 msgstr "Zakres"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:72
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:341
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:73
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:348
 #, elixir-autogen, elixir-format
 msgid "Started"
 msgstr "Rozpoczęto"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:349
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:356
 #, elixir-autogen, elixir-format
 msgid "Started a fresh pass"
 msgstr "Rozpoczęto nowy przebieg"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:209
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:216
 #, elixir-autogen, elixir-format
 msgid "Started by"
 msgstr "Uruchomił(a)"
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:86
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:70
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:85
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:71
 #, elixir-autogen, elixir-format
 msgid "State"
 msgstr "Stan"
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:336
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:344
 #, elixir-autogen, elixir-format
 msgid "That did not work."
 msgstr "To nie zadziałało."
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:322
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:330
 #, elixir-autogen, elixir-format
 msgid "That job is gone."
 msgstr "Tego zadania już nie ma."
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:175
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:176
 #, elixir-autogen, elixir-format
 msgid "The current batch is finishing…"
 msgstr "Bieżąca partia się kończy…"
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:319
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:327
 #, elixir-autogen, elixir-format
 msgid "The current batch is still finishing; try again in a moment."
 msgstr "Bieżąca partia jeszcze się kończy; spróbuj za chwilę."
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:334
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:342
 #, elixir-autogen, elixir-format
 msgid "The job's state no longer allows that."
 msgstr "Stan zadania już na to nie pozwala."
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:321
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:329
 #, elixir-autogen, elixir-format
 msgid "This kind of job does not offer that."
 msgstr "Ten rodzaj zadania tego nie oferuje."
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:90
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:89
 #, elixir-autogen, elixir-format
 msgid "Unfinished"
 msgstr "Niezakończone"
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:316
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:324
 #, elixir-autogen, elixir-format
 msgid "You may not do that."
 msgstr "Nie masz do tego uprawnień."
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:329
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:339
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:336
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:346
 #, elixir-autogen, elixir-format
 msgid "a user"
 msgstr "użytkownik"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:331
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:338
 #, elixir-autogen, elixir-format
 msgid "automatically"
 msgstr "automatycznie"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:333
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:340
 #, elixir-autogen, elixir-format
 msgid "by a script"
 msgstr "przez skrypt"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:332
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:339
 #, elixir-autogen, elixir-format
 msgid "by schedule"
 msgstr "według harmonogramu"
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:120
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "live"
 msgstr "na żywo"
 
-#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:334
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:341
 #, elixir-autogen, elixir-format
 msgid "manually"
 msgstr "ręcznie"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:209
+#, elixir-autogen, elixir-format
+msgid "A batch of this run stopped without finishing and was recovered; the counts may not include the work it did before it stopped."
+msgstr "Partia tego uruchomienia zatrzymała się bez zakończenia i została odzyskana; liczniki mogą nie obejmować pracy wykonanej przed zatrzymaniem."

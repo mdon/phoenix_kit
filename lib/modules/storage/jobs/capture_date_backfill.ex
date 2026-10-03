@@ -11,6 +11,12 @@ defmodule PhoenixKit.Modules.Storage.Jobs.CaptureDateBackfill do
   site-wide pass with a cursor. Replaying a batch is safe — a file that already
   has a date is not a candidate any more, and the write itself is guarded.
 
+  **Counts after a crash are approximate.** The pass selects files that still have
+  no date, so a batch that dies after dating some files and before its checkpoint
+  leaves those files correctly dated but counted by no one — the replay never sees
+  them. The run still completes; its `done` (and, when it was the first batch,
+  `total`) can be lower than the number of files that ended up dated.
+
   `restart/0` is `:merge`: a second trigger while a pass runs changes nothing (the
   files it would date are dated by the running pass, or by the next one).
   """

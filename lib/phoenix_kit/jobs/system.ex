@@ -12,7 +12,10 @@ defmodule PhoenixKit.Jobs.System do
   can never be read as "the system", because the two are different functions.
 
   Only call this from code that is itself trusted; never pass user input as the
-  kind or the mode.
+  kind or the mode. It is public API on purpose: code already running in the VM
+  can call anything, so hiding it would not make an authorization boundary — the
+  boundary is that user-facing paths pass a `Scope` to `PhoenixKit.Jobs`, which
+  checks it. The same holds for `PhoenixKit.Jobs.run_inline/3`.
   """
 
   alias PhoenixKit.Jobs.Engine
@@ -23,6 +26,10 @@ defmodule PhoenixKit.Jobs.System do
   Starts a run of `kind`, or returns the one already active. Options: `:args`,
   `:mode` (`:auto` by default), `:source` (a short phrase for the history, kept
   in the run's args as `"source"`).
+
+  `{:error, :raced}` means the trigger was not recorded (the active run finished
+  as this one arrived, three times over): try again. `{:error, :in_transaction}`
+  means it was called inside the caller's own transaction: call it after the commit.
   """
   @spec start(module(), PhoenixKit.Jobs.run_scope(), keyword()) ::
           {:ok, PhoenixKit.Jobs.Run.t(), :started | :existing} | {:error, term()}

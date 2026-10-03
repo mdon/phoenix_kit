@@ -181,4 +181,57 @@ defmodule PhoenixKit.Jobs.EngineConcurrencyTest do
     assert %{done: 10, generation: 2} = reload(run)
     assert length(jobs_of(run)) == 2
   end
+
+  test "cancelling a draining run while others start the same kind: no second run until it drains" do
+    for _ <- 1..10 do
+      {:ok, run, :started} = Engine.start(Counter, :site, args: %{steps: 5})
+      {:ok, _claimed, token} = Engine.claim(run.uuid, 1)
+
+      results =
+        concurrently(8, fn
+          1 -> Engine.transition(run.uuid, {:cancel, nil})
+          _ -> Engine.start(Counter, :site)
+        end)
+
+      assert {:ok, %{state: "cancelling"}} = hd(results)
+
+      # every start met the draining run (never a fresh one) ...
+      for {:ok, other, how} <- tl(results) do
+        assert how == :existing
+        assert other.uuid == run.uuid
+      end
+
+      assert Repo.aggregate(from(r in Run, where: r.kind == "test.counter"), :count) == 1
+
+      # ... and only once the batch has settled can a new run begin
+      {:ok, %{state: "cancelled"}} =
+        Engine.checkpoint(run.uuid, token, {:more, %{cursor: %{"step" => 1}, done: 1}, []})
+
+      assert {:ok, fresh, :started} = Engine.start(Counter, :site)
+      refute fresh.uuid == run.uuid
+
+      Repo.delete_all(from r in Run, where: like(r.kind, "test.%"))
+    end
+  end
+
+  test "a queued claim and an inline claim race for one run: exactly one holds it" do
+    for _ <- 1..25 do
+      {:ok, run, :started} = Engine.start(Counter, :site)
+
+      results =
+        concurrently(2, fn
+          1 -> Engine.claim(run.uuid, 1)
+          2 -> Engine.claim_inline(run.uuid)
+        end)
+
+      winners = Enum.count(results, &match?({:ok, _, _}, &1))
+      assert winners == 1, inspect(results)
+
+      held = reload(run)
+      assert held.claim_owner in ["queue", "inline"]
+      assert not is_nil(held.claim_token)
+
+      Repo.delete_all(from r in Run, where: like(r.kind, "test.%"))
+    end
+  end
 end

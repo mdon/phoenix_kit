@@ -9,6 +9,8 @@ defmodule PhoenixKit.Test.JobKinds do
   #   "raise_at"   the step on which the batch raises
   #   "error_at"   the step on which the batch returns `{:error, _}`
   #   "snooze_at"  the step on which the batch snoozes (once)
+  #   "snooze_for" the seconds that snooze asks for (default 0)
+  #   "sleep_ms"   a batch sleeps this long before it answers
   #   "schedule_in" pause after each batch (default 0)
   #   "notify"     a pid (as a string key in `:persistent_term`) told of every batch
   defmodule Counter do
@@ -58,6 +60,32 @@ defmodule PhoenixKit.Test.JobKinds do
     def batch(run), do: JobKinds.step(run)
   end
 
+  # A kind whose batch may only take 200 ms, to see a timeout for real.
+  defmodule Short do
+    @moduledoc false
+    use PhoenixKit.Jobs.Kind
+
+    alias PhoenixKit.Test.JobKinds
+
+    @impl true
+    def kind, do: "test.short"
+
+    @impl true
+    def module_key, do: "test"
+
+    @impl true
+    def title(_args, _scope), do: "Short"
+
+    @impl true
+    def idempotent?, do: true
+
+    @impl true
+    def timeout, do: 200
+
+    @impl true
+    def batch(run), do: JobKinds.step(run)
+  end
+
   defmodule Guarded do
     @moduledoc false
     use PhoenixKit.Jobs.Kind
@@ -90,12 +118,17 @@ defmodule PhoenixKit.Test.JobKinds do
     def batch(run), do: JobKinds.step(run)
   end
 
+  defp sleep(nil), do: :ok
+  defp sleep(ms), do: Process.sleep(ms)
+
   @doc false
   def step(run) do
     args = run.args
     steps = args["steps"] || 3
     per_batch = args["per_batch"] || 10
     step = run.cursor["step"] || 0
+
+    sleep(args["sleep_ms"])
 
     cond do
       args["raise_at"] == step ->
@@ -107,7 +140,7 @@ defmodule PhoenixKit.Test.JobKinds do
       args["snooze_at"] == step and not :persistent_term.get({:job_snoozed, run.uuid}, false) ->
         # A snooze checkpoints nothing, so "once" is remembered outside the run.
         :persistent_term.put({:job_snoozed, run.uuid}, true)
-        {:snooze, 0}
+        {:snooze, args["snooze_for"] || 0}
 
       step + 1 >= steps ->
         {:done, %{"steps" => steps}, %{done: per_batch}}

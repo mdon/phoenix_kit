@@ -5,18 +5,33 @@ defmodule PhoenixKit.Jobs.SweepWorker do
   Cron, every five minutes (`mix phoenix_kit.update` adds the entry to existing
   hosts).
 
-  It reads each active run's **own Oban job** (`oban_job_id`), never "is there any
-  job", and never a stale heartbeat alone (`dev_docs/plans/2026-10-03-job-runs.md`,
-  §14 R5):
+  The sweeper only **lists candidates** (unfinished runs untouched for
+  `@grace_seconds`). Whether one needs help is decided by
+  `PhoenixKit.Jobs.Engine.recover/4` under the run's row lock, from the run as it
+  is at that moment — a run a live worker advanced, rescued or claimed since the
+  listing is left alone, so a slow sweep can never undo a newer dispatch
+  (`dev_docs/plans/2026-10-03-job-runs.md`, §16 F1).
 
-  | the run | its Oban job | action |
+  It reads each run's **own Oban job** (`oban_job_id`, checked to be this run's
+  `RunWorker` job of this generation), through Oban's configured repo and prefix
+  (`PhoenixKit.Jobs.ObanStore`), never "is there any job" and never a stale
+  heartbeat alone (§14 R5). When Oban cannot be asked the run is left:
+
+  | the run | what it has | action |
   |---|---|---|
-  | holds a claim | `executing` | leave it (Lifeline owns a genuinely dead one) |
-  | holds a claim | anything else | the batch died: **release** the claim |
+  | holds a **queue** claim | its job is `executing` | leave it (Lifeline owns a genuinely dead one) |
+  | holds a **queue** claim | its job is anything else | the batch died: **release** the claim |
+  | holds an **inline** claim | a lease still running | leave it |
+  | holds an **inline** claim | a lease that ran out (`Run.lease_expired?/2`) | the script died: **release** the claim |
   | waiting | `available`, `scheduled`, `retryable`, `executing` | leave it |
   | waiting | `discarded` | its attempts are spent: the run **fails** |
   | waiting | `cancelled` outside the engine | the run **fails** |
   | waiting | `completed`, or gone, or of another generation | a lost dispatch: **rescue** |
+
+  A script (`Jobs.run_inline/3`) has no Oban job, so a missing job proves nothing
+  about it; its claim carries a lease (an hour without a `Jobs.heartbeat/1`).
+  The limitation is deliberate: a crashed script's run stays held until its lease
+  runs out, and a new script may take it over then.
 
   A rescue gives the run a new generation and dispatches it, and is counted on the
   row (`rescues`), so the budget survives restarts; at `@rescue_limit` the run fails
@@ -33,7 +48,7 @@ defmodule PhoenixKit.Jobs.SweepWorker do
 
   require Logger
 
-  alias PhoenixKit.Jobs.{Engine, Run}
+  alias PhoenixKit.Jobs.{Engine, ObanStore, Run}
   alias PhoenixKit.Settings
 
   @rescue_limit 3
@@ -57,25 +72,45 @@ defmodule PhoenixKit.Jobs.SweepWorker do
   @doc """
   One pass. Returns how many claims were released, runs failed and dispatches
   rescued. Public so a test, a Mix task or the Jobs page can run it now.
+
+  `:after_listing` (a function, for tests) is called once the candidates are
+  listed and before the first is recovered, to let a test move the world in
+  between.
   """
-  @spec sweep(DateTime.t()) :: %{released: integer(), failed: integer(), rescued: integer()}
-  def sweep(now \\ DateTime.utc_now()) do
+  @spec sweep(DateTime.t(), keyword()) :: %{
+          released: integer(),
+          failed: integer(),
+          rescued: integer()
+        }
+  def sweep(now \\ DateTime.utc_now(), opts \\ []) do
     now = DateTime.truncate(now, :second)
     cutoff = DateTime.add(now, -@grace_seconds, :second)
 
-    result =
+    candidates =
       from(r in Run,
         where:
           r.state in ["queued", "running", "pausing", "cancelling"] and r.updated_at < ^cutoff,
-        order_by: r.inserted_at
+        order_by: r.inserted_at,
+        select: r.uuid
       )
       |> repo().all()
-      |> Enum.reduce(%{released: 0, failed: 0, rescued: 0}, fn run, acc ->
-        merge(acc, handle(run))
+
+    if hook = opts[:after_listing], do: hook.()
+
+    result =
+      Enum.reduce(candidates, %{released: 0, failed: 0, rescued: 0}, fn uuid, acc ->
+        merge(acc, recover(uuid, now, cutoff))
       end)
 
     Settings.update_setting(@setting, DateTime.to_iso8601(now))
     result
+  end
+
+  defp recover(uuid, now, cutoff) do
+    case Engine.recover(uuid, cutoff, &decide(&1, now)) do
+      {:ok, tag} -> tag
+      {:error, _reason} -> :left
+    end
   end
 
   defp merge(acc, outcome) do
@@ -83,83 +118,51 @@ defmodule PhoenixKit.Jobs.SweepWorker do
       :released -> %{acc | released: acc.released + 1}
       :failed -> %{acc | failed: acc.failed + 1}
       :rescued -> %{acc | rescued: acc.rescued + 1}
-      :left -> acc
+      _left -> acc
     end
   end
 
-  defp handle(%Run{claim_token: token} = run) when not is_nil(token) do
-    case job_state(run) do
-      {"executing", _job} ->
-        :left
-
-      _ ->
-        case Engine.transition(
-               run.uuid,
-               {:checkpoint, token,
-                {:release, "the batch did not finish (a crash or a timeout)"}},
-               mode: "auto"
-             ) do
-          {:ok, %Run{state: state} = released} when state in ["queued", "running"] ->
-            # Once released, a run with a dead job is judged like any waiting one.
-            case handle_waiting(released) do
-              :left -> :released
-              other -> other
-            end
-
-          # A pause or cancel that was waiting for the dead batch has settled.
-          {:ok, _settled} ->
-            :released
-
-          {:error, _reason} ->
-            :left
-        end
+  # What to do with a run, from the run as the engine holds it under its lock.
+  defp decide(%Run{claim_token: token} = run, now) when not is_nil(token) do
+    if claim_alive?(run, now) do
+      :leave
+    else
+      {:released,
+       {:checkpoint, token, {:release, "the batch did not finish (a crash or a timeout)"}}}
     end
   end
 
-  defp handle(%Run{state: state} = run) when state in ["queued", "running"],
-    do: handle_waiting(run)
+  defp decide(%Run{state: state} = run, _now) when state in ["queued", "running"] do
+    case ObanStore.dispatch_of(run) do
+      :unavailable ->
+        :leave
 
-  defp handle(%Run{}), do: :left
+      %Oban.Job{state: state} when state in ~w(available scheduled retryable executing) ->
+        :leave
 
-  defp handle_waiting(%Run{} = run) do
-    case job_state(run) do
-      {state, _job} when state in ~w(available scheduled retryable executing) ->
-        :left
+      %Oban.Job{state: "discarded"} = job ->
+        {:failed, {:fail, "the batch used up its attempts: #{last_error(job)}"}}
 
-      {"discarded", job} ->
-        fail(run, "the batch used up its attempts: #{last_error(job)}")
-
-      {"cancelled", _job} ->
-        fail(run, "its Oban job was cancelled outside the run")
+      %Oban.Job{state: "cancelled"} ->
+        {:failed, {:fail, "its Oban job was cancelled outside the run"}}
 
       _lost ->
-        rescue_run(run)
+        {:rescued, {:rescue, @rescue_limit}}
     end
   end
 
-  # The state of the run's current dispatch, or nil when there is none that
-  # belongs to this generation (never made, pruned, or an older one).
-  defp job_state(%Run{oban_job_id: nil}), do: nil
+  defp decide(%Run{}, _now), do: :leave
 
-  defp job_state(%Run{oban_job_id: id, generation: generation}) do
-    case repo().get(Oban.Job, id) do
-      %Oban.Job{args: %{"generation" => ^generation}, state: state} = job -> {state, job}
-      _ -> nil
-    end
-  end
+  # Is the batch that holds the run still there? A script's is as long as its
+  # lease; an Oban batch's is as long as its job executes. When Oban cannot be
+  # asked, assume it is.
+  defp claim_alive?(%Run{claim_owner: "inline"} = run, now), do: not Run.lease_expired?(run, now)
 
-  defp fail(run, message) do
-    case Engine.transition(run.uuid, {:fail, message}, mode: "auto") do
-      {:ok, _run} -> :failed
-      {:error, _reason} -> :left
-    end
-  end
-
-  defp rescue_run(run) do
-    case Engine.transition(run.uuid, {:rescue, @rescue_limit}, mode: "auto") do
-      {:ok, %Run{state: "failed"}} -> :failed
-      {:ok, _run} -> :rescued
-      {:error, _reason} -> :left
+  defp claim_alive?(%Run{} = run, _now) do
+    case ObanStore.dispatch_of(run) do
+      :unavailable -> true
+      %Oban.Job{state: "executing"} -> true
+      _ -> false
     end
   end
 

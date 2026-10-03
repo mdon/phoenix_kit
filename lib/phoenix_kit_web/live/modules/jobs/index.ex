@@ -45,7 +45,7 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
     only: [run_modal: 1, runs_table: 1, state_label: 1]
 
   alias PhoenixKit.Jobs
-  alias PhoenixKit.Jobs.{Events, SweepWorker}
+  alias PhoenixKit.Jobs.{Events, ObanStore, SweepWorker}
   alias PhoenixKit.ScheduledJobs.ScheduledJob
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth.User
@@ -229,6 +229,7 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
       socket
       |> load_jobs()
       |> load_runs()
+      |> load_selected_run()
       |> load_stats()
       |> load_scheduled_jobs()
 
@@ -253,7 +254,8 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
     |> assign(:run_total, Jobs.count_runs(Keyword.take(filters, [:state, :module])))
     |> assign(:run_controls, Map.new(runs, &{&1.uuid, Jobs.controls_for(scope, &1)}))
     |> assign(:run_actors, actors(runs))
-    |> assign(:sweeper_seen?, sweeper_seen?(runs))
+    |> assign(:active_run_count, Jobs.count_runs(state: :active))
+    |> assign(:sweeper_seen?, sweeper_seen?())
   end
 
   # The run the URL names, with its history and the people in it; nil when there
@@ -303,9 +305,13 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
   end
 
   # No pass of the sweeper for a while, while runs are waiting on it: the page says
-  # so, because an orphaned run would otherwise sit looking alive.
-  defp sweeper_seen?(runs) do
-    if Enum.any?(runs, &Run.active?/1) do
+  # so, because an orphaned run would otherwise sit looking alive. Judged over ALL
+  # the runs the sweeper services (not this page of a filtered list, and not paused
+  # runs, which it leaves alone), so no filter or page can hide the warning.
+  @serviced_states ~w(queued running pausing cancelling)
+
+  defp sweeper_seen? do
+    if Jobs.count_runs(state: @serviced_states) > 0 do
       case DateTime.from_iso8601(Settings.get_setting(SweepWorker.last_sweep_setting(), "")) do
         {:ok, at, _} -> DateTime.diff(DateTime.utc_now(), at, :second) < 900
         _ -> false
@@ -338,7 +344,6 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
   defp control_error(_reason), do: gettext("That did not work.")
 
   defp load_jobs(socket) do
-    repo = PhoenixKit.Config.get_repo()
     filter_queue = socket.assigns.filter_queue
     filter_state = socket.assigns.filter_state
     filter_worker = socket.assigns.filter_worker
@@ -369,7 +374,7 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
       |> maybe_filter_worker(filter_worker)
       |> maybe_exclude_hidden_workers(hidden_workers, filter_worker)
 
-    total_count = repo.aggregate(query, :count, :id)
+    total_count = ObanStore.aggregate(query, :count)
     total_pages = Pagination.total_pages(total_count, per_page)
 
     jobs =
@@ -377,7 +382,7 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
       |> order_by([j], desc: j.inserted_at)
       |> limit(^per_page)
       |> offset(^((page - 1) * per_page))
-      |> repo.all()
+      |> ObanStore.all()
 
     socket
     |> assign(:jobs, jobs)
@@ -386,8 +391,6 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
   end
 
   defp load_job(id) do
-    repo = PhoenixKit.Config.get_repo()
-
     from(j in "oban_jobs",
       where: j.id == ^id,
       select: %{
@@ -410,7 +413,7 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
         cancelled_at: j.cancelled_at
       }
     )
-    |> repo.one()
+    |> ObanStore.one()
   end
 
   defp load_scheduled_jobs(socket) do
@@ -432,8 +435,6 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
   end
 
   defp load_stats(socket) do
-    repo = PhoenixKit.Config.get_repo()
-
     stats_query =
       from(j in "oban_jobs",
         group_by: [j.state],
@@ -442,7 +443,7 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
 
     stats =
       stats_query
-      |> repo.all()
+      |> ObanStore.all()
       |> Enum.into(%{})
 
     queue_query =
@@ -453,7 +454,7 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
 
     queues =
       queue_query
-      |> repo.all()
+      |> ObanStore.all()
       |> Enum.into(%{})
 
     worker_query =
@@ -464,7 +465,7 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
 
     workers =
       worker_query
-      |> repo.all()
+      |> ObanStore.all()
       |> Enum.sort_by(fn {name, _} -> name end)
 
     socket

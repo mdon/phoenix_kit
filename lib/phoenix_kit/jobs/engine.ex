@@ -16,6 +16,16 @@ defmodule PhoenixKit.Jobs.Engine do
   nothing) or after (it then sees the batch is done). That is what a re-read of
   the state before an enqueue could not give.
 
+  ## Not inside another transaction
+
+  The promise above — nothing is published or finished before the commit — can
+  only be kept when this module's transaction is the outermost one. Called from
+  inside a host's `Repo.transaction/1` or an `Ecto.Multi`, the commit is the
+  host's, and an event or an `on_finish/2` would escape a transaction that may
+  still roll back. Every entry point therefore refuses to run there and answers
+  `{:error, :in_transaction}` before writing anything: call `PhoenixKit.Jobs`
+  after your transaction commits.
+
   ## Dispatch
 
   A dispatch bumps `generation` (the state machine puts it in the changes) and
@@ -61,7 +71,8 @@ defmodule PhoenixKit.Jobs.Engine do
   `:retry_of` (a run uuid, kept in the args). Returns `{:ok, run, :started}`,
   `{:ok, run, :existing}` (an active run of this kind and scope exists; the
   kind's `restart/0` decided whether it was asked for a fresh pass) or
-  `{:error, reason}`.
+  `{:error, reason}`. `{:error, :raced}` — the active run finished as this start
+  arrived, three attempts in a row — means the trigger was **not** recorded.
   """
   @spec start(module(), scope(), keyword()) ::
           {:ok, Run.t(), :started | :existing} | {:error, term()}
@@ -78,6 +89,12 @@ defmodule PhoenixKit.Jobs.Engine do
   end
 
   defp do_start(kind, scope, opts) do
+    if repo().in_transaction?(),
+      do: {:error, :in_transaction},
+      else: do_start_outside(kind, scope, opts)
+  end
+
+  defp do_start_outside(kind, scope, opts) do
     ctx = ctx(opts)
     args = opts |> Keyword.get(:args, %{}) |> stringify()
     args = if retry = opts[:retry_of], do: Map.put(args, "retry_of", to_string(retry)), else: args
@@ -114,7 +131,7 @@ defmodule PhoenixKit.Jobs.Engine do
 
   defp insert_and_dispatch(attrs, ctx) do
     result =
-      repo().transaction(fn ->
+      transact(fn ->
         with {:ok, run} <- repo().insert(Run.insert_changeset(attrs)),
              {:ok, run, entries} <-
                run_effects(run, [{:dispatch, 0}, {:log, "job.started", %{}}], ctx) do
@@ -143,10 +160,11 @@ defmodule PhoenixKit.Jobs.Engine do
         if kind.restart() == :restart do
           case transition(run.uuid, :request_restart, ctx_opts(ctx)) do
             {:ok, run} -> {:ok, run, :existing}
-            # It finished before the request landed: the trigger is not lost, the
-            # start is tried again and makes a run of its own.
-            {:error, :finished} -> {:error, :raced}
-            {:error, _reason} -> {:ok, run, :existing}
+            # It finished (or went) before the request landed: the trigger is not
+            # lost, the start is tried again and makes a run of its own.
+            {:error, reason} when reason in [:finished, :not_found] -> {:error, :raced}
+            # Anything else means the request was not recorded: say so.
+            {:error, reason} -> {:error, reason}
           end
         else
           {:ok, run, :existing}
@@ -184,26 +202,47 @@ defmodule PhoenixKit.Jobs.Engine do
     ctx = ctx(opts)
 
     result =
-      repo().transaction(fn ->
-        with %Run{} = run <- lock(run_uuid) || {:error, :not_found},
-             {:ok, changes, effects} <- StateMachine.transition(run, event, now()),
-             {:ok, updated} <- repo().update(Ecto.Changeset.change(run, changes)),
-             {:ok, updated, entries} <- run_effects(updated, effects, ctx) do
-          {run, updated, entries}
-        else
-          {:error, reason} -> repo().rollback(reason)
+      transact(fn ->
+        with %Run{} = run <- lock(run_uuid) || {:error, :not_found} do
+          apply_event(run, event, ctx)
         end
+        |> unwrap()
       end)
 
     case result do
-      {:ok, {before, run, entries}} ->
-        published(run, entries, action(before, run, event))
-        finished(before, run)
-        {:ok, run}
+      {:ok, step} ->
+        announce(step)
+        {:ok, elem(step, 1)}
 
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  # One event on a locked run: the machine decides, the changes are written, the
+  # effects carried out. `{before, updated, entries, event}`, to be announced after
+  # the commit.
+  defp apply_event(%Run{} = run, event, ctx) do
+    with {:ok, changes, effects} <- StateMachine.transition(run, event, now()),
+         {:ok, updated} <- repo().update(Ecto.Changeset.change(run, changes)),
+         {:ok, updated, entries} <- run_effects(updated, effects, ctx) do
+      {:ok, {run, updated, entries, event}}
+    end
+  end
+
+  # Inside a transaction function: an error rolls back, anything else is the value.
+  defp unwrap({:ok, value}), do: value
+  defp unwrap({:error, reason}), do: repo().rollback(reason)
+
+  defp announce({before, run, entries, event}) do
+    published(run, entries, action(before, run, event))
+    finished(before, run)
+  end
+
+  # The one place a transaction opens. Refused inside an outer one: the commit
+  # would not be ours, and what follows it would escape a rollback.
+  defp transact(fun) do
+    if repo().in_transaction?(), do: {:error, :in_transaction}, else: repo().transaction(fun)
   end
 
   @doc """
@@ -213,12 +252,14 @@ defmodule PhoenixKit.Jobs.Engine do
   (paused, cancelled, finished…) or `:busy` (a batch still holds it).
   """
   @spec claim(String.t(), integer()) ::
-          {:ok, Run.t(), String.t()} | {:skip, :obsolete | :inactive | :busy}
+          {:ok, Run.t(), String.t()}
+          | {:skip, :obsolete | :inactive | :busy}
+          | {:error, :in_transaction}
   def claim(run_uuid, generation) do
     token = Ecto.UUID.generate()
 
     result =
-      repo().transaction(fn ->
+      transact(fn ->
         case lock(run_uuid) do
           nil ->
             repo().rollback({:skip, :obsolete})
@@ -244,29 +285,37 @@ defmodule PhoenixKit.Jobs.Engine do
     case result do
       {:ok, run} -> {:ok, run, token}
       {:error, {:skip, _reason} = skip} -> skip
+      {:error, :in_transaction} -> {:error, :in_transaction}
     end
   end
 
   @doc """
   Claims a run for **inline** execution (`PhoenixKit.Jobs.run_inline/3`): any
   generation, and the run's generation is bumped so a pending Oban job of the
-  old one is inert. Refuses a run a batch already holds.
+  old one is inert. Refuses a run a batch already holds — unless that is a
+  script's claim whose lease ran out (`Run.lease_expired?/2`), which a new script
+  may take over. The claim is marked `inline`: the sweeper has no Oban job to ask
+  about it, and judges it only by its lease.
   """
   @spec claim_inline(String.t()) ::
-          {:ok, Run.t(), String.t()} | {:error, :claimed | :inactive | :not_found}
+          {:ok, Run.t(), String.t()}
+          | {:error, :claimed | :inactive | :not_found | :in_transaction}
   def claim_inline(run_uuid) do
     token = Ecto.UUID.generate()
 
     result =
-      repo().transaction(fn ->
+      transact(fn ->
         with %Run{} = run <- lock(run_uuid) || {:error, :not_found},
-             {:ok, changes, _} <- StateMachine.transition(run, {:claim, token}, now()),
-             changes = Map.put(changes, :generation, run.generation + 1),
+             free = free_of_dead_script(run),
+             {:ok, changes, _} <- StateMachine.transition(free, {:claim, token}, now()),
+             changes =
+               Map.merge(changes, %{generation: run.generation + 1, claim_owner: "inline"}),
              {:ok, updated} <- repo().update(Ecto.Changeset.change(run, changes)) do
           updated
         else
           {:error, :claimed} -> repo().rollback(:claimed)
           {:error, :not_found} -> repo().rollback(:not_found)
+          {:error, :in_transaction} -> repo().rollback(:in_transaction)
           {:error, _} -> repo().rollback(:inactive)
         end
       end)
@@ -276,6 +325,89 @@ defmodule PhoenixKit.Jobs.Engine do
       {:error, reason} -> {:error, reason}
     end
   end
+
+  # The run as a new script may see it: a dead script's claim is not one.
+  defp free_of_dead_script(%Run{} = run) do
+    if Run.inline_claim?(run) and Run.lease_expired?(run, now()),
+      do: %{run | claim_token: nil, claim_owner: nil},
+      else: run
+  end
+
+  @doc """
+  Recovers one run the sweeper suspects stopped without saying so — **decided under
+  the row lock**.
+
+  The caller lists candidates cheaply; whether a candidate really needs recovery
+  is only knowable once nothing else can move it, so the decision is made here:
+  the run is locked and reloaded, must still be unchanged since `cutoff` and
+  waiting on a batch (`queued`, `running`, `pausing`, `cancelling`), and `decide`
+  is then called with the run as it is *now* and answers `:leave` or
+  `{tag, event}` — the state machine event that puts it right, and a tag
+  (`:released`, `:failed`, `:rescued`) for the caller's tally. A candidate that a
+  live worker advanced, rescued or claimed in the meantime is therefore left
+  alone, whatever the sweeper saw before. A release is followed by one more
+  decision on the released run (a dead job is judged like any waiting one), in
+  the same transaction.
+
+  `{:ok, tag}` (`:left` when nothing was done) or `{:error, reason}`.
+  """
+  @spec recover(
+          String.t(),
+          DateTime.t(),
+          (Run.t() -> :leave | {atom(), StateMachine.event()}),
+          keyword()
+        ) :: {:ok, atom()} | {:error, term()}
+  def recover(run_uuid, cutoff, decide, opts \\ []) do
+    ctx = ctx(Keyword.put_new(opts, :mode, "auto"))
+
+    result =
+      transact(fn ->
+        with %Run{} = run <- lock(run_uuid) || {:error, :not_found},
+             :ok <- recoverable(run, cutoff) do
+          recover_steps(run, decide, ctx, [], nil)
+        end
+        |> unwrap()
+      end)
+
+    case result do
+      {:ok, {tag, steps}} ->
+        Enum.each(steps, &announce/1)
+        {:ok, tag}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp recoverable(%Run{state: state, updated_at: updated_at}, cutoff) do
+    cond do
+      state not in ~w(queued running pausing cancelling) -> {:error, :not_active}
+      DateTime.compare(updated_at, cutoff) != :lt -> {:error, :changed}
+      true -> :ok
+    end
+  end
+
+  defp recover_steps(%Run{} = run, decide, ctx, steps, last_tag) do
+    case decide.(run) do
+      :leave ->
+        {:ok, {last_tag || :left, Enum.reverse(steps)}}
+
+      {tag, event} ->
+        with {:ok, {_before, updated, _entries, _event} = step} <- apply_event(run, event, ctx) do
+          steps = [step | steps]
+
+          if tag == :released and updated.state in ~w(queued running) do
+            recover_steps(updated, decide, ctx, steps, :released)
+          else
+            {:ok, {tally(tag, updated), Enum.reverse(steps)}}
+          end
+        end
+    end
+  end
+
+  # A rescue that used up the budget failed the run: the tally says so.
+  defp tally(:rescued, %Run{state: "failed"}), do: :failed
+  defp tally(tag, _run), do: tag
 
   @doc """
   The batch holding `token` is done: records its outcome (see

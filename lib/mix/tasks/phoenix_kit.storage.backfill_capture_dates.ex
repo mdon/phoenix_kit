@@ -21,6 +21,11 @@ defmodule Mix.Tasks.PhoenixKit.Storage.BackfillCaptureDates do
   server is already running, give it an unused port (`PORT=4021 mix …`).
 
   Exits `1` when any file could not be recorded.
+
+  The counts are what the run recorded at its batch boundaries. If this process is
+  killed mid-batch, the files that batch had already dated are not counted by
+  anyone (the next run only sees the files still undated); the files themselves
+  are dated correctly.
   """
 
   use Mix.Task
