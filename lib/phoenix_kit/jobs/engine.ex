@@ -306,10 +306,9 @@ defmodule PhoenixKit.Jobs.Engine do
     result =
       transact(fn ->
         with %Run{} = run <- lock(run_uuid) || {:error, :not_found},
-             free = free_of_dead_script(run),
+             {free, interrupted} = free_of_dead_script(run),
              {:ok, changes, _} <- StateMachine.transition(free, {:claim, token}, now()),
-             changes =
-               Map.merge(changes, %{generation: run.generation + 1, claim_owner: "inline"}),
+             changes = inline_claim_changes(changes, run, interrupted),
              {:ok, updated} <- repo().update(Ecto.Changeset.change(run, changes)) do
           updated
         else
@@ -326,11 +325,20 @@ defmodule PhoenixKit.Jobs.Engine do
     end
   end
 
-  # The run as a new script may see it: a dead script's claim is not one.
+  defp inline_claim_changes(changes, %Run{} = run, interrupted) do
+    changes = Map.merge(changes, %{generation: run.generation + 1, claim_owner: "inline"})
+
+    if interrupted,
+      do: Map.put(changes, :interruptions, run.interruptions + 1),
+      else: changes
+  end
+
+  # The run as a new script may see it: a dead script's claim is not one. The
+  # second element says a batch was cut off (the new script will run it again).
   defp free_of_dead_script(%Run{} = run) do
     if Run.inline_claim?(run) and Run.lease_expired?(run, now()),
-      do: %{run | claim_token: nil, claim_owner: nil},
-      else: run
+      do: {%{run | claim_token: nil, claim_owner: nil}, true},
+      else: {run, false}
   end
 
   @doc """

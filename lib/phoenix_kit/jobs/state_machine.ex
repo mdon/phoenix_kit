@@ -100,6 +100,7 @@ defmodule PhoenixKit.Jobs.StateMachine do
       claim_owner: "queue",
       claimed_at: now,
       heartbeat_at: now,
+      wake_at: nil,
       state: "running"
     }
 
@@ -138,6 +139,8 @@ defmodule PhoenixKit.Jobs.StateMachine do
        generation: run.generation + 1,
        paused_by_uuid: nil,
        paused_at: nil,
+       claim_owner: nil,
+       wake_at: nil,
        error: nil
      }, [{:dispatch, 0}, {:log, "job.resumed", %{}}]}
   end
@@ -215,7 +218,11 @@ defmodule PhoenixKit.Jobs.StateMachine do
          rescues: rescues + 1,
          last_rescued_at: now,
          generation: run.generation + 1
-       }), [{:dispatch, 0}, {:log, "job.rescued", %{"rescues" => rescues + 1}}]}
+       }),
+       [
+         {:dispatch, Run.seconds_until_wake(run, now)},
+         {:log, "job.rescued", %{"rescues" => rescues + 1}}
+       ]}
     end
   end
 
@@ -225,7 +232,12 @@ defmodule PhoenixKit.Jobs.StateMachine do
   # and nothing is dispatched. A requested pause or cancel settles now: nothing
   # is executing any more.
   defp checkpoint(%Run{} = run, {:release, message}, now) do
-    {:ok, Map.merge(release(), Map.put(settle(run, now), :error, message)), settle_log(run)}
+    changes =
+      release()
+      |> Map.merge(settle(run, now))
+      |> Map.merge(%{error: message, interruptions: run.interruptions + 1})
+
+    {:ok, changes, settle_log(run)}
   end
 
   defp checkpoint(%Run{} = run, {:fail, message}, now), do: fail_run(run, message, now)
@@ -236,7 +248,7 @@ defmodule PhoenixKit.Jobs.StateMachine do
     cond do
       restart_pending?(run) ->
         {:ok,
-         release()
+         release_after_batch(run)
          |> Map.merge(reset(run))
          |> Map.merge(restarted(run))
          |> Map.put(:generation, run.generation + 1),
@@ -249,8 +261,14 @@ defmodule PhoenixKit.Jobs.StateMachine do
          [{:log, "job.completed", %{"done" => progressed.done}}]}
 
       true ->
-        {:ok, Map.merge(release(), Map.merge(progressed, %{generation: run.generation + 1})),
-         [{:dispatch, delay(outcome)}]}
+        seconds = delay(outcome)
+
+        changes =
+          release_after_batch(run)
+          |> Map.merge(progressed)
+          |> Map.merge(%{generation: run.generation + 1, wake_at: wake_at(now, seconds)})
+
+        {:ok, changes, [{:dispatch, seconds}]}
     end
   end
 
@@ -315,7 +333,9 @@ defmodule PhoenixKit.Jobs.StateMachine do
   end
 
   defp paused(actor, now) do
-    {:ok, %{state: "paused", paused_by_uuid: actor, paused_at: now}, [{:log, "job.paused", %{}}]}
+    {:ok,
+     %{state: "paused", paused_by_uuid: actor, paused_at: now, claim_owner: nil, wake_at: nil},
+     [{:log, "job.paused", %{}}]}
   end
 
   defp pausing(actor, now) do
@@ -324,7 +344,14 @@ defmodule PhoenixKit.Jobs.StateMachine do
   end
 
   defp cancelled(actor, now) do
-    %{state: "cancelled", cancelled_by_uuid: actor, cancelled_at: now, finished_at: now}
+    %{
+      state: "cancelled",
+      cancelled_by_uuid: actor,
+      cancelled_at: now,
+      finished_at: now,
+      claim_owner: nil,
+      wake_at: nil
+    }
   end
 
   defp completed(result, now),
@@ -332,7 +359,19 @@ defmodule PhoenixKit.Jobs.StateMachine do
 
   defp failed(message, now), do: %{state: "failed", error: message, finished_at: now}
 
-  defp release, do: %{claim_token: nil, claim_owner: nil, claimed_at: nil}
+  defp release, do: %{claim_token: nil, claim_owner: nil, claimed_at: nil, wake_at: nil}
+
+  # After a batch that leaves more to do. A script keeps its ownership of the run
+  # between its batches (it waits out the delay itself, and nothing is dispatched
+  # for it); the batch claim, though, is given up — a pause then takes effect at
+  # once, not as a drain of work that is not running.
+  defp release_after_batch(%Run{claim_owner: "inline"}),
+    do: %{claim_token: nil, claimed_at: nil, wake_at: nil}
+
+  defp release_after_batch(%Run{}), do: release()
+
+  defp wake_at(_now, seconds) when seconds <= 0, do: nil
+  defp wake_at(now, seconds), do: DateTime.add(now, seconds, :second)
 
   # A pause or cancel that was waiting for the batch takes effect.
   defp settle(%Run{state: "pausing"} = run, now),

@@ -380,7 +380,9 @@ defmodule PhoenixKit.Jobs do
   def get_config, do: %{enabled: true, stats: get_job_stats()}
 
   @doc """
-  Job statistics from the Oban jobs table.
+  Job statistics from the Oban jobs table (read through Oban's configured prefix;
+  all zeros where no Oban instance runs in this VM, and a database error is
+  raised, not hidden).
 
       iex> PhoenixKit.Jobs.get_job_stats()
       %{available: 5, scheduled: 2, executing: 1, completed: 100, ...}
@@ -393,12 +395,6 @@ defmodule PhoenixKit.Jobs do
       ~w(available scheduled executing completed retryable discarded cancelled)a,
       &{&1, Map.get(stats, Atom.to_string(&1), 0)}
     )
-  rescue
-    _ -> default_stats()
-  end
-
-  defp default_stats do
-    Map.new(~w(available scheduled executing completed retryable discarded cancelled)a, &{&1, 0})
   end
 
   # ---------------------------------------------------------------------------

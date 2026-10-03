@@ -140,6 +140,14 @@
 
     <%!-- Queue Tab: Oban's own jobs --%>
     <div class={if @active_tab != "queue", do: "hidden"}>
+      <div :if={not @oban_available?} id="jobs-oban-unavailable" class="alert alert-warning mb-4">
+        <.icon name="hero-exclamation-triangle" class="w-5 h-5 shrink-0" />
+        <span class="text-sm">
+          {gettext(
+            "Oban is not running on this node, so its jobs cannot be listed here. Open this page on a node that runs it."
+          )}
+        </span>
+      </div>
       <div class="card bg-base-100 shadow-xl">
         <div class="card-body p-4">
           <div class="flex flex-wrap gap-4 mb-4">

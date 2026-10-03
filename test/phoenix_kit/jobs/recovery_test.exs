@@ -206,7 +206,10 @@ defmodule PhoenixKit.Jobs.RecoveryTest do
       assert {:error, :claimed} = Engine.claim_inline(run.uuid)
 
       backdate(run, Run.inline_lease_seconds() * 2)
-      assert {:ok, %{claim_owner: "inline"}, second} = Engine.claim_inline(run.uuid)
+
+      assert {:ok, %{claim_owner: "inline", interruptions: 1}, second} =
+               Engine.claim_inline(run.uuid)
+
       refute second == first
     end
 
@@ -250,6 +253,159 @@ defmodule PhoenixKit.Jobs.RecoveryTest do
         nil ->
           flunk("the inline batch never took its claim")
       end
+    end
+  end
+
+  describe "a script waiting out a delay between its batches" do
+    setup do
+      oban()
+      :ok
+    end
+
+    defp waiting_inline(seconds) do
+      run = start!(Counter, dispatch: false, args: %{steps: 3})
+      {:ok, _claimed, token} = Engine.claim_inline(run.uuid)
+
+      {:ok, waiting} =
+        Engine.checkpoint(
+          run.uuid,
+          token,
+          {:more, %{done: 1, cursor: %{"step" => 1}}, schedule_in: seconds},
+          dispatch: false
+        )
+
+      waiting
+    end
+
+    test "is recorded: the script is still the owner, and the next batch is due at wake_at" do
+      waiting = waiting_inline(600)
+
+      assert %{claim_token: nil, claim_owner: "inline", state: "running"} = reload(waiting)
+      assert DateTime.diff(waiting.wake_at, DateTime.utc_now()) in 595..605
+    end
+
+    test "is not a lost dispatch: a wait longer than the grace period creates no early successor" do
+      waiting = waiting_inline(600)
+      backdate(waiting, 600)
+
+      assert no_sweep() == SweepWorker.sweep()
+      assert %{generation: 3, rescues: 0, claim_owner: "inline"} = reload(waiting)
+      assert jobs(waiting) == []
+
+      assert %{success: 0, failure: 0} =
+               Oban.drain_queue(queue: :default, with_scheduled: true, with_recursion: true)
+    end
+
+    test "a live script is covered by the lease on top of its delay" do
+      waiting = waiting_inline(7200)
+      # an hour and a half after the checkpoint: still inside delay + lease
+      backdate(waiting, 5400)
+
+      assert no_sweep() == SweepWorker.sweep()
+      assert jobs(waiting) == []
+    end
+
+    test "once the delay and the lease have both passed the sweeper takes the run back" do
+      waiting = waiting_inline(60)
+
+      past = DateTime.utc_now() |> DateTime.add(-3 * 3600, :second) |> DateTime.truncate(:second)
+
+      from(r in Run, where: r.uuid == ^waiting.uuid)
+      |> Repo.update_all(set: [updated_at: past, wake_at: past, heartbeat_at: past])
+
+      assert %{rescued: 1} = SweepWorker.sweep()
+      assert %{claim_owner: nil, rescues: 1, generation: 4} = reload(waiting)
+      assert [_] = jobs(waiting)
+    end
+
+    test "the rescue of a queued run carries what is left of its delay" do
+      run = start!()
+      set_job_state(run, "completed")
+      due = DateTime.utc_now() |> DateTime.add(300, :second) |> DateTime.truncate(:second)
+
+      from(r in Run, where: r.uuid == ^run.uuid)
+      |> Repo.update_all(set: [wake_at: due])
+
+      backdate(run, 600)
+      assert %{rescued: 1} = SweepWorker.sweep()
+
+      [_old, new] = jobs(run)
+      assert DateTime.diff(new.scheduled_at, DateTime.utc_now()) in 290..305
+    end
+
+    test "a pause during the wait takes effect at once and ends the ownership" do
+      waiting = waiting_inline(600)
+
+      assert {:ok, %{state: "paused", claim_owner: nil, wake_at: nil}} =
+               Engine.transition(waiting.uuid, {:pause, nil})
+    end
+
+    test "a real script held in a long wait is not taken from under it" do
+      task =
+        Task.async(fn ->
+          Jobs.run_inline(Counter, :site, args: %{steps: 2, schedule_in: 3})
+        end)
+
+      # past the first batch, into the wait
+      run = wait_for_waiting()
+      backdate(run, 600)
+
+      assert no_sweep() == SweepWorker.sweep()
+      assert jobs(run) == []
+      assert {:ok, %Run{state: "completed"}} = Task.await(task, 15_000)
+    end
+
+    defp wait_for_waiting(attempts \\ 100) do
+      query =
+        from r in Run,
+          where:
+            r.kind == "test.counter" and r.claim_owner == "inline" and is_nil(r.claim_token) and
+              not is_nil(r.wake_at)
+
+      case Repo.one(query) do
+        %Run{} = run ->
+          run
+
+        nil when attempts > 0 ->
+          Process.sleep(50)
+          wait_for_waiting(attempts - 1)
+
+        nil ->
+          flunk("the script never began its wait")
+      end
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Without an Oban instance, nothing about a dispatch can be judged
+  # ---------------------------------------------------------------------------
+
+  describe "a sweep where no Oban runs" do
+    test "keeps a never-dispatched run's rescue budget, then rescues it once Oban is back" do
+      run = start!()
+      assert %{oban_job_id: nil, generation: 1, state: "queued"} = reload(run)
+
+      for _ <- 1..5 do
+        backdate(run, 600)
+        assert no_sweep() == SweepWorker.sweep()
+      end
+
+      assert %{rescues: 0, generation: 1, state: "queued"} = reload(run)
+
+      oban()
+      backdate(run, 600)
+      assert %{rescued: 1} = SweepWorker.sweep()
+      assert %{rescues: 1, generation: 2, state: "queued"} = reload(run)
+      assert [_] = jobs(run)
+    end
+
+    test "leaves a run that holds a queue claim alone too" do
+      run = start!()
+      {:ok, _claimed, token} = Engine.claim(run.uuid, 1)
+      backdate(run, 600)
+
+      assert no_sweep() == SweepWorker.sweep()
+      assert %{claim_token: ^token} = reload(run)
     end
   end
 
@@ -468,7 +624,7 @@ defmodule PhoenixKit.Jobs.RecoveryTest do
       oban()
       backdate(run, 600)
       assert %{released: 1} = SweepWorker.sweep()
-      assert %{state: "running", claim_token: nil, rescues: 0} = reload(run)
+      assert %{state: "running", claim_token: nil, rescues: 0, interruptions: 1} = reload(run)
     end
 
     test "when the attempts are spent Lifeline discards the job and the run fails" do

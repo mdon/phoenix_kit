@@ -43,6 +43,14 @@
 - **The engine refuses to run inside a caller's transaction** (`{:error, :in_transaction}`), so no
   event or `on_finish/2` escapes a rollback; `Jobs.start/4` documents `{:error, :raced}` as "not
   recorded".
+- **A script that asks its next batch to wait keeps its run through the wait** (`wake_at`, and the
+  script stays the run's owner between batches): the sweeper no longer reads the wait as a lost
+  dispatch, and a rescue carries what is left of a delay into its dispatch.
+- **Without an Oban instance the sweeper, the stats and the Jobs page no longer guess**: a run that
+  never had a dispatch keeps its rescue budget, nothing falls back to the default schema's table, and
+  the Queue tab says Oban is not running on that node.
+- **The "counts may be approximate" notice follows `interruptions`**, a new counter of batches cut off
+  and run again (an Oban retry, a sweeper release, a dead script's takeover); the Mix task prints it.
 - The Jobs page's sweeper warning and Runs badge cover all runs, not the filtered page; the open run
   refreshes with the table; the filters use the core select.
 

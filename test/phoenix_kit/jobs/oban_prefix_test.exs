@@ -142,4 +142,45 @@ defmodule PhoenixKit.Jobs.ObanPrefixTest do
     assert available == 2
     assert PhoenixKit.Jobs.get_job_stats().available == 2
   end
+
+  describe "where no Oban instance runs (a script, a web-only node)" do
+    # The prefix is known only from a running instance. Without one nothing may be
+    # guessed: reading the repo's default schema would show another table's rows.
+    setup do
+      run = start!()
+      id = reload(run).oban_job_id
+      stop_supervised!(Oban)
+
+      Repo.query!(
+        """
+        INSERT INTO public.oban_jobs (id, state, queue, worker, args, max_attempts)
+        VALUES ($1, 'available', 'default', 'Public.Decoy', '{}'::jsonb, 1)
+        """,
+        [id]
+      )
+
+      %{run: run, id: id}
+    end
+
+    test "says it is unavailable", %{run: run} do
+      refute ObanStore.available?()
+      assert :unavailable == ObanStore.dispatch_of(reload(run))
+    end
+
+    test "listings, one-row reads and counts answer their defaults, not the public table's decoy",
+         %{id: id} do
+      query = from(j in Oban.Job, where: j.id == ^id)
+
+      assert [] == ObanStore.all(query)
+      assert nil == ObanStore.one(query)
+      assert 0 == ObanStore.aggregate(query, :count)
+      assert %{} == ObanStore.state_counts()
+      assert [] == ObanStore.all(query, [])
+      assert :none == ObanStore.one(query, :none)
+    end
+
+    test "the stats are zeros", %{} do
+      assert %{available: 0, executing: 0} = PhoenixKit.Jobs.get_job_stats()
+    end
+  end
 end

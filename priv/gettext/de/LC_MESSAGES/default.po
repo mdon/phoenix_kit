@@ -2304,8 +2304,8 @@ msgstr "Läuft ab"
 msgid "Failed to %{action} Legal module"
 msgstr "Modul „Rechtliches“ konnte nicht %{action} werden"
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:269
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:274
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:277
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:282
 #, elixir-autogen, elixir-format
 msgid "Hide"
 msgstr "Ausblenden"
@@ -17635,12 +17635,12 @@ msgstr "Gestartet von"
 msgid "State"
 msgstr "Status"
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:344
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:345
 #, elixir-autogen, elixir-format
 msgid "That did not work."
 msgstr "Das hat nicht funktioniert."
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:330
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:331
 #, elixir-autogen, elixir-format
 msgid "That job is gone."
 msgstr "Diese Aufgabe gibt es nicht mehr."
@@ -17650,17 +17650,17 @@ msgstr "Diese Aufgabe gibt es nicht mehr."
 msgid "The current batch is finishing…"
 msgstr "Der aktuelle Stapel wird beendet…"
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:327
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:328
 #, elixir-autogen, elixir-format
 msgid "The current batch is still finishing; try again in a moment."
 msgstr "Der aktuelle Stapel wird noch beendet; versuchen Sie es gleich noch einmal."
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:342
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:343
 #, elixir-autogen, elixir-format
 msgid "The job's state no longer allows that."
 msgstr "Der Status der Aufgabe erlaubt das nicht mehr."
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:329
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:330
 #, elixir-autogen, elixir-format
 msgid "This kind of job does not offer that."
 msgstr "Diese Art von Aufgabe bietet das nicht an."
@@ -17670,7 +17670,7 @@ msgstr "Diese Art von Aufgabe bietet das nicht an."
 msgid "Unfinished"
 msgstr "Unfertig"
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:324
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:325
 #, elixir-autogen, elixir-format
 msgid "You may not do that."
 msgstr "Das dürfen Sie nicht."
@@ -17710,3 +17710,8 @@ msgstr "manuell"
 #, elixir-autogen, elixir-format
 msgid "A batch of this run stopped without finishing and was recovered; the counts may not include the work it did before it stopped."
 msgstr "Ein Stapel dieses Laufs wurde unterbrochen, ohne fertig zu werden, und wiederhergestellt; die Zählungen enthalten möglicherweise nicht die Arbeit, die er vor dem Abbruch geleistet hat."
+
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:146
+#, elixir-autogen, elixir-format
+msgid "Oban is not running on this node, so its jobs cannot be listed here. Open this page on a node that runs it."
+msgstr "Oban läuft auf diesem Knoten nicht, daher können seine Jobs hier nicht aufgelistet werden. Öffnen Sie diese Seite auf einem Knoten, auf dem es läuft."

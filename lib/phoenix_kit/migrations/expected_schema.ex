@@ -511,7 +511,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "a56612354ce114c4d292c4738dd3cc5a5d9c0594b677f9644b02a9ebb37e2b46"
+  @chain_hash "1172219d9b761e9fc401ccbc12a9974a1a75724133f922053083d1d8de8f17c1"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -75454,6 +75454,33 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         ],
         presence: :required,
         backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.wake_at",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_job_runs", column: "wake_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"wake_at\" timestamp(0) without time zone",
+        since: 207,
+        class: :column,
+        revisions: [
+          {207, %{default: nil, type: "timestamp(0) without time zone", pos: 35, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_job_runs.interruptions",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_job_runs", column: "interruptions", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_job_runs ADD COLUMN IF NOT EXISTS \"interruptions\" integer DEFAULT 0 NOT NULL",
+        since: 207,
+        class: :column,
+        revisions: [{207, %{default: "0", type: "integer", pos: 36, not_null: true}}],
+        presence: :required,
+        backfill: :default
       },
       %{
         id: "constraint:phoenix_kit_job_runs.phoenix_kit_job_runs_pkey",

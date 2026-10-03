@@ -18,7 +18,10 @@ defmodule PhoenixKit.Migrations.Postgres.V207 do
     * the execution protocol (§14 R1, R2, R5) — `generation` (every dispatch
       bumps it; an Oban job of an older generation is inert), `claim_token` and
       `claimed_at` (a batch holds the run while it works), `claim_owner` (`queue` for an Oban
-      batch, `inline` for a script — the sweeper judges the two differently), `oban_job_id` (the
+      batch, `inline` for a script — the sweeper judges the two differently; a script keeps it
+      between its batches too), `wake_at` (when the next batch should start, after a delay),
+      `interruptions` (batches that were interrupted and run again: the counts of such a run
+      are approximate), `oban_job_id` (the
       current dispatch), `restart_seq` / `restart_ack` (a trigger that arrived,
       and the last one a batch has seen), `rescues` and `last_rescued_at` (the
       sweeper's durable budget) and `heartbeat_at`.
@@ -107,6 +110,8 @@ defmodule PhoenixKit.Migrations.Postgres.V207 do
         inserted_at timestamp(0) without time zone DEFAULT now() NOT NULL,
         updated_at timestamp(0) without time zone DEFAULT now() NOT NULL,
         claim_owner character varying(10),
+        wake_at timestamp(0) without time zone,
+        interruptions integer DEFAULT 0 NOT NULL,
         CONSTRAINT phoenix_kit_job_runs_pkey PRIMARY KEY (uuid),
         CONSTRAINT phoenix_kit_job_runs_state_check CHECK (state IN (#{states})),
         CONSTRAINT phoenix_kit_job_runs_mode_check CHECK (mode IN (#{modes})),

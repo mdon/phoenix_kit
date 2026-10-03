@@ -86,6 +86,7 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
       |> assign(:run_history, [])
       |> assign(:run_modules, run_modules())
       |> assign(:sweeper_seen?, true)
+      |> assign(:oban_available?, true)
       |> load_stats()
       |> load_scheduled_jobs()
 
@@ -469,6 +470,7 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
       |> Enum.sort_by(fn {name, _} -> name end)
 
     socket
+    |> assign(:oban_available?, ObanStore.available?())
     |> assign(:stats, stats)
     |> assign(:queue_stats, queues)
     |> assign(:worker_stats, workers)

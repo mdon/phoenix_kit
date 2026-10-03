@@ -281,4 +281,50 @@ defmodule PhoenixKitWeb.Live.JobsPageTest do
     assert has_element?(view, "form#runs-filter-state-form select#runs-filter-state")
     assert html =~ ~s(for="runs-filter-state")
   end
+
+  describe "where this node runs no Oban" do
+    test "the Queue tab says so instead of showing another schema's table", %{conn: conn} do
+      stop_supervised!(Oban)
+
+      {:ok, view, html} = live(conn, @path <> "?tab=queue")
+      assert has_element?(view, "#jobs-oban-unavailable")
+      assert html =~ "Oban is not running on this node"
+    end
+
+    test "and says nothing when it does", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path <> "?tab=queue")
+      refute has_element?(view, "#jobs-oban-unavailable")
+    end
+  end
+
+  describe "the count caveat follows the interruptions" do
+    defp open_run(conn, run) do
+      {:ok, _view, html} = live(conn, @path <> "?run=#{run.uuid}")
+      html
+    end
+
+    @note "the counts may not include the work it did before it stopped"
+
+    test "a run whose batch was cut off and run again shows it, even when it completed", %{
+      conn: conn
+    } do
+      run = start!()
+
+      from(r in Run, where: r.uuid == ^run.uuid)
+      |> Repo.update_all(set: [interruptions: 1, state: "completed", error: nil, rescues: 0])
+
+      assert open_run(conn, run) =~ @note
+    end
+
+    test "a rescued dispatch alone does not: no batch was cut off", %{conn: conn} do
+      run = start!()
+      from(r in Run, where: r.uuid == ^run.uuid) |> Repo.update_all(set: [rescues: 2])
+
+      refute open_run(conn, run) =~ @note
+    end
+
+    test "an untroubled run does not", %{conn: conn} do
+      refute open_run(conn, start!()) =~ @note
+    end
+  end
 end

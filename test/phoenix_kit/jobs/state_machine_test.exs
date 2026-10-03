@@ -262,6 +262,78 @@ defmodule PhoenixKit.Jobs.StateMachineTest do
     end
   end
 
+  describe "a script's run between its batches (inline)" do
+    test "keeps the script as owner, gives up the batch claim, and records when the next batch is due" do
+      run = claimed(claim_owner: "inline")
+
+      assert {:ok, changes, [{:dispatch, 600}]} =
+               t(run, {:checkpoint, @token, {:more, %{done: 1}, schedule_in: 600}})
+
+      # the owner is not among the changes: it stays
+      assert %{claim_token: nil, wake_at: wake} = changes
+      refute Map.has_key?(changes, :claim_owner)
+      assert DateTime.diff(wake, @now) == 600
+
+      assert {:ok, %{claim_token: nil, wake_at: snooze_wake} = snoozed, _} =
+               t(run, {:checkpoint, @token, {:snooze, 30}})
+
+      refute Map.has_key?(snoozed, :claim_owner)
+      assert DateTime.diff(snooze_wake, @now) == 30
+    end
+
+    test "no delay, no wake time; a queue batch gives up its owner and records the time too" do
+      kept = changes(t(claimed(claim_owner: "inline"), {:checkpoint, @token, {:more, %{}, []}}))
+      assert %{wake_at: nil, claim_token: nil} = kept
+      refute Map.has_key?(kept, :claim_owner)
+
+      assert %{claim_owner: nil, wake_at: wake} =
+               changes(
+                 t(
+                   claimed(claim_owner: "queue"),
+                   {:checkpoint, @token, {:more, %{}, schedule_in: 5}}
+                 )
+               )
+
+      assert DateTime.diff(wake, @now) == 5
+    end
+
+    test "the last batch, and anything that settles the run, ends the ownership" do
+      run = claimed(claim_owner: "inline")
+
+      assert %{claim_owner: nil, state: "completed"} =
+               changes(t(run, {:checkpoint, @token, {:done, %{}, %{}}}))
+
+      assert %{claim_owner: nil, state: "failed"} =
+               changes(t(run, {:checkpoint, @token, {:fail, "x"}}))
+
+      waiting = run(state: "running", claim_owner: "inline", wake_at: @now)
+
+      assert %{claim_owner: nil, wake_at: nil, state: "paused"} =
+               changes(t(waiting, {:pause, nil}))
+
+      assert %{claim_owner: nil, wake_at: nil, state: "cancelled"} =
+               changes(t(waiting, {:cancel, nil}))
+    end
+
+    test "a pause is immediate: nothing is draining" do
+      waiting = run(state: "running", claim_owner: "inline", wake_at: @now)
+      assert {:ok, %{state: "paused"}, [{:log, "job.paused", _}]} = t(waiting, {:pause, nil})
+    end
+  end
+
+  describe "interruptions" do
+    test "a batch Oban will retry counts as one, and so does each further one" do
+      assert %{interruptions: 1} = changes(t(claimed(), {:checkpoint, @token, {:release, "x"}}))
+
+      assert %{interruptions: 3} =
+               changes(t(claimed(interruptions: 2), {:checkpoint, @token, {:release, "x"}}))
+    end
+
+    test "a rescue is not one: no batch was cut off" do
+      refute Map.has_key?(changes(t(run(state: "running"), {:rescue, 3})), :interruptions)
+    end
+  end
+
   describe "an error" do
     test "one Oban will retry releases the claim and changes no state" do
       run = claimed(generation: 2)
@@ -304,6 +376,18 @@ defmodule PhoenixKit.Jobs.StateMachineTest do
   end
 
   describe "rescue" do
+    test "carries what is left of the delay into the dispatch" do
+      due = DateTime.add(@now, 90, :second)
+
+      assert {:ok, _changes, [{:dispatch, 90}, _log]} =
+               t(run(state: "running", wake_at: due), {:rescue, 3})
+
+      past = DateTime.add(@now, -90, :second)
+
+      assert {:ok, _changes, [{:dispatch, 0}, _log]} =
+               t(run(state: "running", wake_at: past), {:rescue, 3})
+    end
+
     test "gives a lost dispatch a new generation and counts it" do
       run = run(state: "running", rescues: 1, generation: 4)
 

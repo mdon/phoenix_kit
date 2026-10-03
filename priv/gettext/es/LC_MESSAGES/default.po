@@ -2309,8 +2309,8 @@ msgstr "Caduca"
 msgid "Failed to %{action} Legal module"
 msgstr "No se pudo %{action} el módulo Legal"
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:269
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:274
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:277
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:282
 #, elixir-autogen, elixir-format
 msgid "Hide"
 msgstr "Ocultar"
@@ -17643,12 +17643,12 @@ msgstr "Iniciada por"
 msgid "State"
 msgstr "Estado"
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:344
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:345
 #, elixir-autogen, elixir-format
 msgid "That did not work."
 msgstr "Eso no funcionó."
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:330
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:331
 #, elixir-autogen, elixir-format
 msgid "That job is gone."
 msgstr "Esa tarea ya no existe."
@@ -17658,17 +17658,17 @@ msgstr "Esa tarea ya no existe."
 msgid "The current batch is finishing…"
 msgstr "El lote actual está terminando…"
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:327
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:328
 #, elixir-autogen, elixir-format
 msgid "The current batch is still finishing; try again in a moment."
 msgstr "El lote actual aún está terminando; inténtelo de nuevo en un momento."
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:342
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:343
 #, elixir-autogen, elixir-format
 msgid "The job's state no longer allows that."
 msgstr "El estado de la tarea ya no lo permite."
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:329
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:330
 #, elixir-autogen, elixir-format
 msgid "This kind of job does not offer that."
 msgstr "Este tipo de tarea no ofrece eso."
@@ -17678,7 +17678,7 @@ msgstr "Este tipo de tarea no ofrece eso."
 msgid "Unfinished"
 msgstr "Sin terminar"
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:324
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:325
 #, elixir-autogen, elixir-format
 msgid "You may not do that."
 msgstr "No tiene permiso para hacer eso."
@@ -17719,3 +17719,8 @@ msgstr "manualmente"
 #, elixir-autogen, elixir-format
 msgid "A batch of this run stopped without finishing and was recovered; the counts may not include the work it did before it stopped."
 msgstr "Un lote de esta ejecución se detuvo sin terminar y fue recuperado; es posible que los recuentos no incluyan el trabajo que hizo antes de detenerse."
+
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:146
+#, elixir-autogen, elixir-format
+msgid "Oban is not running on this node, so its jobs cannot be listed here. Open this page on a node that runs it."
+msgstr "Oban no se está ejecutando en este nodo, así que sus trabajos no se pueden listar aquí. Abra esta página en un nodo que lo ejecute."

@@ -2308,8 +2308,8 @@ msgstr "Aegub"
 msgid "Failed to %{action} Legal module"
 msgstr "Juriidilise mooduli %{action} ebaõnnestus"
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:269
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:274
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:277
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:282
 #, elixir-autogen, elixir-format
 msgid "Hide"
 msgstr "Peida"
@@ -17644,12 +17644,12 @@ msgstr "Alustaja"
 msgid "State"
 msgstr "Olek"
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:344
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:345
 #, elixir-autogen, elixir-format
 msgid "That did not work."
 msgstr "See ei õnnestunud."
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:330
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:331
 #, elixir-autogen, elixir-format
 msgid "That job is gone."
 msgstr "Seda ülesannet enam pole."
@@ -17659,17 +17659,17 @@ msgstr "Seda ülesannet enam pole."
 msgid "The current batch is finishing…"
 msgstr "Praegune partii lõpetab…"
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:327
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:328
 #, elixir-autogen, elixir-format
 msgid "The current batch is still finishing; try again in a moment."
 msgstr "Praegune partii alles lõpetab; proovige hetke pärast uuesti."
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:342
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:343
 #, elixir-autogen, elixir-format
 msgid "The job's state no longer allows that."
 msgstr "Ülesande olek seda enam ei luba."
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:329
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:330
 #, elixir-autogen, elixir-format
 msgid "This kind of job does not offer that."
 msgstr "Seda tüüpi ülesanne seda ei paku."
@@ -17679,7 +17679,7 @@ msgstr "Seda tüüpi ülesanne seda ei paku."
 msgid "Unfinished"
 msgstr "Lõpetamata"
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.ex:324
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:325
 #, elixir-autogen, elixir-format
 msgid "You may not do that."
 msgstr "Teil pole selleks luba."
@@ -17719,3 +17719,8 @@ msgstr "käsitsi"
 #, elixir-autogen, elixir-format
 msgid "A batch of this run stopped without finishing and was recovered; the counts may not include the work it did before it stopped."
 msgstr "Selle käivituse üks partii peatus lõpetamata ja taastati; arvud ei pruugi sisaldada tööd, mille see enne peatumist tegi."
+
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:146
+#, elixir-autogen, elixir-format
+msgid "Oban is not running on this node, so its jobs cannot be listed here. Open this page on a node that runs it."
+msgstr "Oban ei tööta sellel sõlmel, mistõttu selle töid ei saa siin loetleda. Avage see leht sõlmel, kus see töötab."

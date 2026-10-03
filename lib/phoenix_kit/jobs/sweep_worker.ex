@@ -15,7 +15,10 @@ defmodule PhoenixKit.Jobs.SweepWorker do
   It reads each run's **own Oban job** (`oban_job_id`, checked to be this run's
   `RunWorker` job of this generation), through Oban's configured repo and prefix
   (`PhoenixKit.Jobs.ObanStore`), never "is there any job" and never a stale
-  heartbeat alone (§14 R5). When Oban cannot be asked the run is left:
+  heartbeat alone (§14 R5). **When Oban cannot be asked — no instance runs in this
+  VM — every run that depends on a dispatch is left, one that never had a job id
+  included**, so a sweep from a script cannot spend a rescue on a dispatch nothing
+  here could have made:
 
   | the run | what it has | action |
   |---|---|---|
@@ -23,13 +26,16 @@ defmodule PhoenixKit.Jobs.SweepWorker do
   | holds a **queue** claim | its job is anything else | the batch died: **release** the claim |
   | holds an **inline** claim | a lease still running | leave it |
   | holds an **inline** claim | a lease that ran out (`Run.lease_expired?/2`) | the script died: **release** the claim |
+  | **inline**, between two batches (waiting out a delay) | a lease still running | leave it: the script will be back at `wake_at` |
+  | **inline**, between two batches | a lease that ran out | **rescue** — the dispatch carries the rest of the delay |
   | waiting | `available`, `scheduled`, `retryable`, `executing` | leave it |
   | waiting | `discarded` | its attempts are spent: the run **fails** |
   | waiting | `cancelled` outside the engine | the run **fails** |
   | waiting | `completed`, or gone, or of another generation | a lost dispatch: **rescue** |
 
   A script (`Jobs.run_inline/3`) has no Oban job, so a missing job proves nothing
-  about it; its claim carries a lease (an hour without a `Jobs.heartbeat/1`).
+  about it; its claim carries a lease (an hour without a `Jobs.heartbeat/1`) which
+  also covers the waits between its batches (`wake_at` plus the lease).
   The limitation is deliberate: a crashed script's run stays held until its lease
   runs out, and a new script may take it over then.
 
@@ -106,11 +112,20 @@ defmodule PhoenixKit.Jobs.SweepWorker do
     result
   end
 
+  # One run's trouble (a database error reading Oban's table, say) must not stop
+  # the pass over the others: it is logged, and the run is tried again next time.
   defp recover(uuid, now, cutoff) do
     case Engine.recover(uuid, cutoff, &decide(&1, now)) do
       {:ok, tag} -> tag
       {:error, _reason} -> :left
     end
+  rescue
+    error ->
+      Logger.warning(
+        "Jobs sweep: run #{uuid} could not be recovered: #{Exception.message(error)}"
+      )
+
+      :left
   end
 
   defp merge(acc, outcome) do
@@ -130,6 +145,14 @@ defmodule PhoenixKit.Jobs.SweepWorker do
       {:released,
        {:checkpoint, token, {:release, "the batch did not finish (a crash or a timeout)"}}}
     end
+  end
+
+  # A script waiting out a delay between its batches: it owns the run, and there is
+  # no Oban job to find. Its lease says whether it is still there; if it is not,
+  # the rescue carries the rest of the delay into the dispatch.
+  defp decide(%Run{state: state, claim_owner: "inline"} = run, now)
+       when state in ["queued", "running"] do
+    if Run.lease_expired?(run, now), do: {:rescued, {:rescue, @rescue_limit}}, else: :leave
   end
 
   defp decide(%Run{state: state} = run, _now) when state in ["queued", "running"] do

@@ -205,7 +205,7 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.RunsComponents do
 
         <.progress run={@run} />
 
-        <p :if={@run.rescues > 0} class="text-xs text-base-content/60 mt-1">
+        <p :if={@run.interruptions > 0} class="text-xs text-base-content/60 mt-1">
           {gettext(
             "A batch of this run stopped without finishing and was recovered; the counts may not include the work it did before it stopped."
           )}

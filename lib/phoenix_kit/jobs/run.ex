@@ -66,6 +66,8 @@ defmodule PhoenixKit.Jobs.Run do
     field :claim_token, Ecto.UUID
     field :claimed_at, :utc_datetime
     field :claim_owner, :string
+    field :wake_at, :utc_datetime
+    field :interruptions, :integer, default: 0
     field :oban_job_id, :integer
     field :restart_seq, :integer, default: 0
     field :restart_ack, :integer, default: 0
@@ -116,10 +118,15 @@ defmodule PhoenixKit.Jobs.Run do
   def inline_claim?(%__MODULE__{claim_token: token, claim_owner: "inline"}), do: not is_nil(token)
   def inline_claim?(%__MODULE__{}), do: false
 
-  @doc "Whether the lease of a script's claim has run out at `now`."
+  @doc """
+  Whether the lease of a script's claim has run out at `now`. The lease runs from
+  the latest sign of life — the claim, a heartbeat, or the time the script asked
+  its next batch to wait for (`wake_at`) — so a script waiting out a long delay
+  between batches holds its run for the delay *and* a lease after it.
+  """
   @spec lease_expired?(t(), DateTime.t()) :: boolean()
-  def lease_expired?(%__MODULE__{claimed_at: claimed, heartbeat_at: beat}, now) do
-    case Enum.reject([claimed, beat], &is_nil/1) do
+  def lease_expired?(%__MODULE__{claimed_at: claimed, heartbeat_at: beat, wake_at: wake}, now) do
+    case Enum.reject([claimed, beat, wake], &is_nil/1) do
       [] ->
         true
 
@@ -128,6 +135,19 @@ defmodule PhoenixKit.Jobs.Run do
         DateTime.compare(now, DateTime.add(last, @inline_lease_seconds, :second)) == :gt
     end
   end
+
+  @doc """
+  Whether a script owns the run between its batches: it holds no batch claim but
+  has not given the run up either (it is waiting out a delay).
+  """
+  @spec inline_waiting?(t()) :: boolean()
+  def inline_waiting?(%__MODULE__{claim_token: nil, claim_owner: "inline"}), do: true
+  def inline_waiting?(%__MODULE__{}), do: false
+
+  @doc "Seconds until `wake_at`, never negative; 0 when the run has no delay pending."
+  @spec seconds_until_wake(t(), DateTime.t()) :: non_neg_integer()
+  def seconds_until_wake(%__MODULE__{wake_at: nil}, _now), do: 0
+  def seconds_until_wake(%__MODULE__{wake_at: at}, now), do: max(0, DateTime.diff(at, now))
 
   @doc "Whether a batch holds the run right now."
   @spec claimed?(t()) :: boolean()

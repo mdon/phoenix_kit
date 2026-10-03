@@ -323,6 +323,10 @@ defmodule PhoenixKit.Modules.Storage.CaptureDateIntegrationTest do
       # handled. The two dated by the batch that died are in nobody's tally — the
       # documented, approximate-after-a-crash behaviour (`Jobs.Kind`).
       assert %{state: "completed", done: 1, total: 1, failed_count: 0} = final
+
+      # ... and the run says so: the interruption is recorded apart from the
+      # lost-dispatch rescues, so the Jobs page and the Mix task can disclose it.
+      assert %{interruptions: 1, rescues: 0, error: nil} = final
       assert CaptureDateBackfillJob.pending_count() == 0
     end
 

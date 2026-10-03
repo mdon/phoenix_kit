@@ -48,6 +48,17 @@ defmodule Mix.Tasks.PhoenixKit.Storage.BackfillCaptureDates do
     end
   end
 
+  # A batch cut off earlier (a crash, a timeout) was run again; the files it had
+  # already dated are in nobody's tally.
+  defp interrupted_note(%{interruptions: n}) when n > 0 do
+    Mix.shell().info(
+      "Note: #{n} batch(es) of this run were interrupted and run again; the counts above " <>
+        "may not include the files they had already dated. The files themselves are dated."
+    )
+  end
+
+  defp interrupted_note(_run), do: :ok
+
   defp backfill do
     pending = CaptureDateBackfillJob.pending_count()
     Mix.shell().info("#{pending} image(s) and video(s) without a capture date")
@@ -60,6 +71,7 @@ defmodule Mix.Tasks.PhoenixKit.Storage.BackfillCaptureDates do
         {:ok, %{state: "completed"} = run} ->
           totals = outcomes(run)
           Mix.shell().info("Done: " <> summary(totals))
+          interrupted_note(run)
           if Map.get(totals, :error, 0) > 0, do: exit({:shutdown, 1})
 
         {:ok, run} ->

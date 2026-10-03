@@ -9,51 +9,60 @@ defmodule PhoenixKit.Jobs.ObanStore do
   everything that looks at the dispatch again must go through the same
   configuration. This module is the one place that does.
 
-  Every function answers `:unavailable` (or the given default) when no Oban
-  instance runs in this VM — a script, a web-only node — because such a caller
-  cannot tell what became of a job, and must not guess.
+  **The prefix is known only from a running Oban instance.** Where none runs in
+  this VM (a script, a web-only node), this module does not guess: a dispatch
+  lookup answers `:unavailable`, and a listing answers the default the caller
+  gave. It never falls back to a raw query on the repo, which would read the
+  default schema — a different table. A database error while reading the *right*
+  table is not "unavailable"; it is raised.
   """
 
   import Ecto.Query
 
   alias PhoenixKit.Jobs.Run
 
+  @doc "Whether an Oban instance runs in this VM, so that its table can be read."
+  @spec available?() :: boolean()
+  def available?, do: not is_nil(Oban.whereis(Oban))
+
   @doc """
   The Oban job `id` as the current dispatch of `run`, or `nil` when there is none
   that belongs to it: never made, pruned, or a row of another worker, run or
   generation (an integer id alone proves nothing). `:unavailable` when Oban cannot
-  be asked.
+  be asked — **including for a run that has no job id**: whether a dispatch is
+  missing cannot be judged while nothing could have made one.
   """
   @spec dispatch_of(Run.t()) :: Oban.Job.t() | nil | :unavailable
-  def dispatch_of(%Run{oban_job_id: nil}), do: nil
-
   def dispatch_of(%Run{oban_job_id: id} = run) do
-    case with_config(&Oban.Repo.get(&1, Oban.Job, id)) do
-      :unavailable -> :unavailable
-      %Oban.Job{} = job -> if dispatch?(job, run), do: job, else: nil
-      nil -> nil
+    cond do
+      not available?() -> :unavailable
+      is_nil(id) -> nil
+      true -> check(Oban.Repo.get(Oban.config(), Oban.Job, id), run)
     end
   end
+
+  defp check(%Oban.Job{} = job, %Run{} = run), do: if(dispatch?(job, run), do: job, else: nil)
+  defp check(nil, _run), do: nil
 
   defp dispatch?(%Oban.Job{worker: worker, args: args}, %Run{} = run) do
     worker == inspect(PhoenixKit.Jobs.RunWorker) and
       args["run_uuid"] == run.uuid and args["generation"] == run.generation
   end
 
-  @doc "`Oban.Repo.all/2` for `query` against Oban's configured prefix and repo."
-  @spec all(Ecto.Queryable.t()) :: list()
-  def all(query), do: call(&Oban.Repo.all(&1, query), fn -> repo().all(query) end)
+  @doc "`Oban.Repo.all/2` for `query`; `default` when Oban cannot be asked."
+  @spec all(Ecto.Queryable.t(), list()) :: list()
+  def all(query, default \\ []), do: read(default, &Oban.Repo.all(&1, query))
 
-  @doc "`Oban.Repo.one/2` for `query`."
-  @spec one(Ecto.Queryable.t()) :: term()
-  def one(query), do: call(&Oban.Repo.one(&1, query), fn -> repo().one(query) end)
+  @doc "`Oban.Repo.one/2` for `query`; `default` when Oban cannot be asked."
+  @spec one(Ecto.Queryable.t(), term()) :: term()
+  def one(query, default \\ nil), do: read(default, &Oban.Repo.one(&1, query))
 
-  @doc "`Oban.Repo.aggregate/3` for `query`."
-  @spec aggregate(Ecto.Queryable.t(), :count | :sum | :avg | :min | :max) :: term()
-  def aggregate(query, kind),
-    do: call(&Oban.Repo.aggregate(&1, query, kind), fn -> repo().aggregate(query, kind) end)
+  @doc "`Oban.Repo.aggregate/3` for `query`; `default` when Oban cannot be asked."
+  @spec aggregate(Ecto.Queryable.t(), :count | :sum | :avg | :min | :max, term()) :: term()
+  def aggregate(query, kind, default \\ 0),
+    do: read(default, &Oban.Repo.aggregate(&1, query, kind))
 
-  @doc "The Oban job counts by state."
+  @doc "The Oban job counts by state (empty when Oban cannot be asked)."
   @spec state_counts() :: %{String.t() => non_neg_integer()}
   def state_counts do
     from(j in Oban.Job, group_by: j.state, select: {j.state, count(j.id)})
@@ -61,23 +70,7 @@ defmodule PhoenixKit.Jobs.ObanStore do
     |> Map.new()
   end
 
-  # Runs `fun` with the running Oban instance's configuration. Without one, a
-  # lookup that has a sensible default (a page listing) falls back to the repo's
-  # own schema; a dispatch lookup answers `:unavailable`.
-  defp with_config(fun) do
-    fun.(Oban.config())
-  rescue
-    _ -> :unavailable
-  catch
-    :exit, _ -> :unavailable
+  defp read(default, fun) do
+    if available?(), do: fun.(Oban.config()), else: default
   end
-
-  defp call(with_conf, fallback) do
-    case with_config(with_conf) do
-      :unavailable -> fallback.()
-      result -> result
-    end
-  end
-
-  defp repo, do: PhoenixKit.RepoHelper.repo()
 end
