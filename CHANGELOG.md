@@ -1,3 +1,45 @@
+## Unreleased
+
+### Added
+
+- **Job runs: long background work an admin can watch and control** (V207, `PhoenixKit.Jobs`). A run
+  is a durable record of one piece of work — its state, progress, who started, paused or cancelled
+  it, and its history — that Oban executes batch by batch. `Jobs.start/pause/resume/cancel/retry`
+  take the signed-in `Scope` and check `jobs.manage` and the kind's own permission against the
+  active role; boot, cron and scripts use `Jobs.System.start/3`, and `Jobs.run_inline/3` runs the
+  same kind in a script without Oban. A module adds a kind with `use PhoenixKit.Jobs.Kind` and
+  `job_kinds/0` (or `config :phoenix_kit, job_kinds: [...]`); the engine owns the rest.
+  - Every transition is one transaction: the row is locked, the change written, the next batch's Oban
+    job inserted and the Activity entry made together, so a crash cannot leave a run with no job or
+    a change with no history. A batch holds a claim on the run; an Oban job carries the generation it
+    was made for and an older one does nothing. Pause and cancel while a batch executes are requests
+    (`pausing`, `cancelling`) the batch settles at its checkpoint; resume is refused while one drains;
+    a trigger that arrives during the last batch starts a fresh pass instead of being lost.
+  - A sweeper (`Jobs.SweepWorker`, every five minutes) releases a dead batch's claim, fails a run
+    whose Oban job was discarded or cancelled, and rescues a lost dispatch up to three times;
+    `Jobs.PruneWorker` deletes finished runs after `job_runs_retention_days` (default 90).
+    `mix phoenix_kit.update` adds both to the host's crontab.
+- **The Jobs page has a Runs tab** (the default), with state and module filters, progress bars, the
+  controls each viewer may use, a drawer of one run with its history, and live updates; Oban's own
+  table is the Queue tab. It warns when runs are waiting and the sweeper has not been seen for
+  15 minutes. The tab, filters and opened run are in the URL.
+- **The capture-date backfill is the first kind** (`storage.capture_date_backfill`, `media.manage`):
+  it shows on the Runs tab with its progress and can be paused, resumed and cancelled. The mix task
+  runs the same kind inline.
+
+### Changed
+
+- **Jobs is no longer a module you switch on: it is always on.** It leaves the Modules page; `jobs` is
+  a core section key and `jobs.manage` a sub-permission that is granted to Admin at boot and *not*
+  backfilled to existing holders of `jobs`, who keep viewing. `Jobs.enabled?/0`, `enable_system/0`
+  and `disable_system/0` remain, deprecated, as `true` and no-ops.
+- **The capture-date backfill's worker** starts a run instead of walking the library itself; its old
+  job shape still arrives and does the same.
+
+### i18n
+
+- The Jobs page's new strings in all seven locales.
+
 ## 2.47.0 - 2026-10-03
 
 ### Changed

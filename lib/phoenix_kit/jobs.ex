@@ -49,7 +49,7 @@ defmodule PhoenixKit.Jobs do
 
   import Ecto.Query
 
-  alias PhoenixKit.Jobs.{Engine, History, Kinds, Run, RunWorker}
+  alias PhoenixKit.Jobs.{Engine, History, Kind, Kinds, Run, RunWorker}
   alias PhoenixKit.Users.Auth.Scope
 
   @type run_scope :: :site | {atom() | String.t(), String.t()}
@@ -111,6 +111,32 @@ defmodule PhoenixKit.Jobs do
       )
     end
   end
+
+  @doc """
+  The controls `scope` may offer on `run` right now: the state allows them, the
+  kind offers them, and the person holds `jobs.manage` and the kind's own
+  permission. For the Jobs page, which shows only what would work.
+  """
+  @spec controls_for(Scope.t(), Run.t()) :: [Kind.control()]
+  def controls_for(%Scope{} = scope, %Run{} = run) do
+    kind_mod = Kinds.get(run.kind)
+
+    if authorize(scope, kind_mod, nil) == :ok do
+      run.state
+      |> state_controls()
+      |> Enum.filter(&(is_nil(kind_mod) or &1 in kind_mod.controls()))
+    else
+      []
+    end
+  end
+
+  def controls_for(_scope, _run), do: []
+
+  defp state_controls(state) when state in ~w(queued running), do: [:pause, :cancel]
+  defp state_controls("pausing"), do: [:cancel]
+  defp state_controls("paused"), do: [:resume, :cancel]
+  defp state_controls(state) when state in ~w(failed cancelled), do: [:retry]
+  defp state_controls(_state), do: []
 
   defp control(%Scope{} = scope, run, control, event) do
     with %Run{} = found <- fetch(run) || {:error, :not_found},

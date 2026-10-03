@@ -53,7 +53,7 @@ msgstr "Системная информация"
 ## Navigation menu items
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:78
 #: lib/phoenix_kit/dashboard/admin_tabs.ex:93
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:282
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:295
 #: lib/phoenix_kit_web/components/core/dashboard_overview.ex:108
 #: lib/phoenix_kit_web/live/settings/users.ex:49
 #: lib/phoenix_kit_web/live/users/roles.html.heex:95
@@ -407,8 +407,7 @@ msgstr "Активно"
 #: lib/phoenix_kit_web/live/modules.html.heex:122
 #: lib/phoenix_kit_web/live/modules.html.heex:148
 #: lib/phoenix_kit_web/live/modules.html.heex:207
-#: lib/phoenix_kit_web/live/modules.html.heex:281
-#: lib/phoenix_kit_web/live/modules.html.heex:348
+#: lib/phoenix_kit_web/live/modules.html.heex:283
 #: lib/phoenix_kit_web/live/modules/languages.html.heex:61
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:41
 #: lib/phoenix_kit_web/live/settings/send_profile_form.html.heex:90
@@ -507,6 +506,7 @@ msgstr "Информация об аккаунте"
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:245
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:303
 #: lib/phoenix_kit_web/live/integrations/my_integrations.ex:335
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:73
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:130
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:190
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:233
@@ -652,6 +652,7 @@ msgstr "Маркированный список"
 #: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:66
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1266
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1740
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:169
 #: lib/phoenix_kit_web/live/notifications/settings.ex:434
 #: lib/phoenix_kit_web/live/settings/organization.html.heex:486
 #: lib/phoenix_kit_web/live/settings/send_profile_form.html.heex:152
@@ -724,6 +725,7 @@ msgstr "Нажмите на иконку галочки или крестика,
 #: lib/phoenix_kit_web/components/media_viewer.html.heex:36
 #: lib/phoenix_kit_web/components/user_dashboard_nav.ex:359
 #: lib/phoenix_kit_web/legal_gettext_manifest.ex:50
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:264
 #, elixir-autogen, elixir-format
 msgid "Close"
 msgstr "Закрыть"
@@ -755,8 +757,8 @@ msgstr "Название компании обязательно"
 #: lib/phoenix_kit_web/live/modules.html.heex:110
 #: lib/phoenix_kit_web/live/modules.html.heex:163
 #: lib/phoenix_kit_web/live/modules.html.heex:227
-#: lib/phoenix_kit_web/live/modules.html.heex:379
-#: lib/phoenix_kit_web/live/modules.html.heex:403
+#: lib/phoenix_kit_web/live/modules.html.heex:314
+#: lib/phoenix_kit_web/live/modules.html.heex:338
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:197
 #: lib/phoenix_kit_web/live/settings/integrations.html.heex:240
 #, elixir-autogen, elixir-format
@@ -859,6 +861,7 @@ msgid "Create and manage user roles"
 msgstr "Создание и управление ролями пользователей"
 
 #: lib/phoenix_kit_web/components/core/integration_picker.ex:305
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:210
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:238
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:344
 #, elixir-autogen, elixir-format
@@ -971,8 +974,7 @@ msgstr "Описание"
 #: lib/phoenix_kit_web/live/modules.html.heex:86
 #: lib/phoenix_kit_web/live/modules.html.heex:148
 #: lib/phoenix_kit_web/live/modules.html.heex:207
-#: lib/phoenix_kit_web/live/modules.html.heex:281
-#: lib/phoenix_kit_web/live/modules.html.heex:348
+#: lib/phoenix_kit_web/live/modules.html.heex:283
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:41
 #: lib/phoenix_kit_web/live/settings/users.html.heex:548
 #: lib/phoenix_kit_web/live/settings/users.html.heex:624
@@ -1345,6 +1347,7 @@ msgstr "Режим"
 
 #: lib/phoenix_kit_web/live/activity/index.html.heex:119
 #: lib/phoenix_kit_web/live/activity/index.html.heex:300
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:107
 #: lib/phoenix_kit_web/live/users/permissions_matrix.html.heex:18
 #, elixir-autogen, elixir-format
 msgid "Module"
@@ -1403,7 +1406,7 @@ msgstr "Noindex/nofollow отключены. Сайт снова доступе�
 msgid "Noindex/nofollow enabled. Search engines will not index this site."
 msgstr "Noindex/nofollow включены. Поисковые системы не будут индексировать этот сайт."
 
-#: lib/phoenix_kit/users/permissions.ex:1509
+#: lib/phoenix_kit/users/permissions.ex:1525
 #, elixir-autogen, elixir-format
 msgid "Not authenticated"
 msgstr "Не аутентифицирован"
@@ -1457,7 +1460,7 @@ msgstr "Нумерованный список"
 msgid "OK"
 msgstr "ОК"
 
-#: lib/phoenix_kit/users/permissions.ex:1518
+#: lib/phoenix_kit/users/permissions.ex:1534
 #, elixir-autogen, elixir-format
 msgid "Only the Owner can edit Admin permissions"
 msgstr "Только Владелец может редактировать права Администратора"
@@ -1506,7 +1509,7 @@ msgstr "Информация об организации сохранена"
 msgid "Overview of role permissions across all modules"
 msgstr "Обзор прав ролей по всем модулям"
 
-#: lib/phoenix_kit/users/permissions.ex:1512
+#: lib/phoenix_kit/users/permissions.ex:1528
 #, elixir-autogen, elixir-format
 msgid "Owner role always has full access and cannot be modified"
 msgstr "Роль Владелец всегда имеет полный доступ и не может быть изменена"
@@ -1542,7 +1545,7 @@ msgstr "Пароль успешно изменён."
 msgid "Pending"
 msgstr "Ожидает"
 
-#: lib/phoenix_kit/users/permissions.ex:1521
+#: lib/phoenix_kit/users/permissions.ex:1537
 #, elixir-autogen, elixir-format
 msgid "Permission denied"
 msgstr "Доступ запрещён"
@@ -1867,7 +1870,7 @@ msgstr "Выберите, к каким разделам и модулям эт�
 #: lib/modules/storage/web/dimensions.html.heex:5
 #: lib/modules/storage/web/health.html.heex:5
 #: lib/modules/storage/web/settings.html.heex:5
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:234
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:247
 #: lib/phoenix_kit_web/components/user_dashboard_nav.ex:170
 #: lib/phoenix_kit_web/live/modules/languages.ex:47
 #: lib/phoenix_kit_web/live/settings.ex:67
@@ -2189,7 +2192,7 @@ msgstr "Вы можете управлять только теми правам�
 msgid "You cannot edit permissions for this role"
 msgstr "Вы не можете редактировать права для этой роли"
 
-#: lib/phoenix_kit/users/permissions.ex:1515
+#: lib/phoenix_kit/users/permissions.ex:1531
 #, elixir-autogen, elixir-format
 msgid "You cannot edit permissions for your own role"
 msgstr "Вы не можете редактировать права для своей собственной роли"
@@ -2307,8 +2310,8 @@ msgstr "Истекает"
 msgid "Failed to %{action} Legal module"
 msgstr "Не удалось %{action} модуль Юридический"
 
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:189
-#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:194
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:280
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:285
 #, elixir-autogen, elixir-format
 msgid "Hide"
 msgstr "Скрыть"
@@ -4260,7 +4263,7 @@ msgstr "Предоставьте доступ к Google Docs и Google Drive"
 #: lib/modules/storage/web/health.ex:29
 #: lib/modules/storage/web/health.html.heex:59
 #: lib/modules/storage/web/settings.html.heex:532
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:357
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:370
 #, elixir-autogen, elixir-format
 msgid "Health"
 msgstr "Состояние"
@@ -4270,7 +4273,7 @@ msgstr "Состояние"
 msgid "Integration deleted"
 msgstr "Интеграция удалена"
 
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:325
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:338
 #: lib/phoenix_kit_web/components/profile_settings_tabs.ex:227
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1937
 #: lib/phoenix_kit_web/live/settings/integration_form.html.heex:10
@@ -4517,7 +4520,7 @@ msgstr "OpenRouter"
 msgid "Org"
 msgstr "Орг."
 
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:273
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:286
 #: lib/phoenix_kit_web/live/settings/organization.ex:46
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:160
 #: lib/phoenix_kit_web/live/users/user_details.html.heex:184
@@ -5222,12 +5225,7 @@ msgstr "Перед созданием API-ключей может потребо
 msgid "just now"
 msgstr "только что"
 
-#: lib/phoenix_kit_web/live/modules.html.heex:285
-#, elixir-autogen, elixir-format
-msgid "%{count} running"
-msgstr "%{count} выполняется"
-
-#: lib/phoenix_kit_web/live/modules.html.heex:481
+#: lib/phoenix_kit_web/live/modules.html.heex:416
 #, elixir-autogen, elixir-format
 msgid "Add to mix.exs"
 msgstr "Добавьте в mix.exs"
@@ -5238,12 +5236,11 @@ msgid "Auto-regenerate"
 msgstr "Авто-обновление"
 
 #: lib/phoenix_kit_web/components/core/column_settings.ex:141
-#: lib/phoenix_kit_web/live/modules.html.heex:310
 #, elixir-autogen, elixir-format
 msgid "Available"
 msgstr "Доступно"
 
-#: lib/phoenix_kit_web/live/modules.html.heex:364
+#: lib/phoenix_kit_web/live/modules.html.heex:299
 #, elixir-autogen, elixir-format
 msgid "Body Saved"
 msgstr "Тело сохранено"
@@ -5256,7 +5253,8 @@ msgstr "Тело сохранено"
 msgid "Comments"
 msgstr "Комментарии"
 
-#: lib/phoenix_kit_web/live/modules.html.heex:314
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:291
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:347
 #, elixir-autogen, elixir-format
 msgid "Completed"
 msgstr "Завершённых"
@@ -5266,12 +5264,7 @@ msgstr "Завершённых"
 msgid "Customer Support"
 msgstr "Служба поддержки"
 
-#: lib/phoenix_kit_web/live/modules.html.heex:322
-#, elixir-autogen, elixir-format
-msgid "Discarded"
-msgstr "Отклонённых"
-
-#: lib/phoenix_kit_web/live/modules.html.heex:499
+#: lib/phoenix_kit_web/live/modules.html.heex:434
 #, elixir-autogen, elixir-format
 msgid "Each module can be enabled or disabled using the toggle switches above. Click \"Configure\" to access detailed settings for each module on dedicated pages."
 msgstr "Каждый модуль можно включить или отключить с помощью переключателя. Нажмите «Настроить», чтобы перейти к детальным настройкам модуля."
@@ -5282,12 +5275,7 @@ msgstr "Каждый модуль можно включить или отклю�
 msgid "Enable module to access settings"
 msgstr "Включите модуль для доступа к настройкам"
 
-#: lib/phoenix_kit_web/live/modules.html.heex:301
-#, elixir-autogen, elixir-format
-msgid "Enable module to view background jobs"
-msgstr "Включите модуль для просмотра фоновых задач"
-
-#: lib/phoenix_kit_web/live/modules.html.heex:351
+#: lib/phoenix_kit_web/live/modules.html.heex:286
 #, elixir-autogen, elixir-format
 msgid "External"
 msgstr "Внешний"
@@ -5297,12 +5285,12 @@ msgstr "Внешний"
 msgid "Generate XML sitemaps for search engines with styled browser display"
 msgstr "Генерация XML-карт сайта для поисковых систем со стилизованным отображением в браузере"
 
-#: lib/phoenix_kit_web/live/modules.html.heex:365
+#: lib/phoenix_kit_web/live/modules.html.heex:300
 #, elixir-autogen, elixir-format
 msgid "Headers Only"
 msgstr "Только заголовки"
 
-#: lib/phoenix_kit_web/live/modules.html.heex:269
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:161
 #: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Jobs"
@@ -5334,12 +5322,12 @@ msgstr "Управление модулями"
 msgid "Message"
 msgstr "Сообщение"
 
-#: lib/phoenix_kit_web/live/modules.html.heex:497
+#: lib/phoenix_kit_web/live/modules.html.heex:432
 #, elixir-autogen, elixir-format
 msgid "Module Management"
 msgstr "Управление модулями"
 
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:202
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:215
 #: lib/phoenix_kit_web/live/modules.html.heex:5
 #, elixir-autogen, elixir-format
 msgid "Modules"
@@ -5355,7 +5343,7 @@ msgstr "Не задан"
 msgid "Noindex"
 msgstr "Noindex"
 
-#: lib/phoenix_kit_web/live/modules.html.heex:469
+#: lib/phoenix_kit_web/live/modules.html.heex:404
 #, elixir-autogen, elixir-format
 msgid "Not installed"
 msgstr "Не установлен"
@@ -5374,15 +5362,10 @@ msgstr "Выкл."
 msgid "On"
 msgstr "Вкл."
 
-#: lib/phoenix_kit_web/live/modules.html.heex:355
+#: lib/phoenix_kit_web/live/modules.html.heex:290
 #, elixir-autogen, elixir-format
 msgid "Requires %{module}"
 msgstr "Требует модуль %{module}"
-
-#: lib/phoenix_kit_web/live/modules.html.heex:318
-#, elixir-autogen, elixir-format
-msgid "Retryable"
-msgstr "Повторных попыток"
 
 #: lib/modules/sitemap/web/settings.ex:50
 #: lib/modules/sitemap/web/settings.html.heex:4
@@ -5402,16 +5385,6 @@ msgstr "Всего языков"
 msgid "URLs"
 msgstr "URL-адресов"
 
-#: lib/phoenix_kit_web/live/modules.html.heex:297
-#, elixir-autogen, elixir-format
-msgid "View Jobs"
-msgstr "Просмотр задач"
-
-#: lib/phoenix_kit_web/live/modules.html.heex:270
-#, elixir-autogen, elixir-format
-msgid "View-only dashboard for background job status and history"
-msgstr "Дашборд только для просмотра статуса и истории фоновых задач"
-
 #: lib/phoenix_kit_web/live/modules.html.heex:22
 #, elixir-autogen, elixir-format
 msgid "module to be enabled. Some features may not work correctly."
@@ -5428,8 +5401,8 @@ msgstr "требует, чтобы модуль"
 #: lib/modules/storage/web/health.html.heex:8
 #: lib/modules/storage/web/settings.ex:60
 #: lib/modules/storage/web/settings.html.heex:4
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:161
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:334
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:174
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:347
 #: lib/phoenix_kit_web/components/profile_settings_tabs.ex:228
 #: lib/phoenix_kit_web/live/users/media.ex:56
 #: lib/phoenix_kit_web/live/users/media.html.heex:5
@@ -6151,6 +6124,7 @@ msgstr "Новая папка"
 
 #: lib/phoenix_kit_web/components/core/preview_card.ex:210
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2484
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:145
 #, elixir-autogen, elixir-format
 msgid "Next"
 msgstr "Вперёд"
@@ -6322,6 +6296,7 @@ msgid "Your browser does not support the video tag."
 msgstr "Ваш браузер не поддерживает тег video."
 
 #: lib/phoenix_kit_web/components/media_browser.ex:4733
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:318
 #, elixir-autogen, elixir-format
 msgid "%{count} failed"
 msgid_plural "%{count} failed"
@@ -6913,9 +6888,10 @@ msgid "Preview"
 msgstr "Предпросмотр"
 
 #: lib/phoenix_kit_web/components/core/preview_card.ex:201
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:134
 #, elixir-autogen, elixir-format
 msgid "Previous"
-msgstr "Предыдущее"
+msgstr "Назад"
 
 #: lib/phoenix_kit_web/live/components/media_selector_modal.html.heex:226
 #: lib/phoenix_kit_web/live/users/media_selector.html.heex:91
@@ -7457,7 +7433,7 @@ msgstr "Значение"
 msgid "View details"
 msgstr "Подробнее"
 
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:264
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:277
 #: lib/phoenix_kit_web/live/settings/authorization.ex:45
 #, elixir-autogen, elixir-format
 msgid "Authorization"
@@ -7685,7 +7661,7 @@ msgstr "Связи пользователей"
 msgid "User connections module for PhoenixKit — follows, mutual connections, and blocking"
 msgstr "Модуль связей пользователей для PhoenixKit — подписки, взаимные связи и блокировки"
 
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:254
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:267
 #: lib/phoenix_kit_web/live/settings.ex:65
 #, elixir-autogen, elixir-format
 msgid "General"
@@ -7710,6 +7686,8 @@ msgstr "Добавить пользователя"
 msgid "Admins Only"
 msgstr "Только администраторы"
 
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:88
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:109
 #: lib/phoenix_kit_web/live/users/live_sessions.html.heex:137
 #, elixir-autogen, elixir-format
 msgid "All"
@@ -8150,7 +8128,7 @@ msgstr "Пользователь/Сессия"
 msgid "you"
 msgstr "вы"
 
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:348
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:361
 #, elixir-autogen, elixir-format
 msgid "Dimensions"
 msgstr "Размеры"
@@ -11170,7 +11148,7 @@ msgstr "Сюда можно добавлять только аудиофайлы
 msgid "Select one or more audio files"
 msgstr "Выберите один или несколько аудиофайлов"
 
-#: lib/phoenix_kit_web/live/modules.html.heex:438
+#: lib/phoenix_kit_web/live/modules.html.heex:373
 #, elixir-autogen, elixir-format
 msgid "Browse PhoenixKit packages on hex.pm"
 msgstr "Посмотреть пакеты PhoenixKit на hex.pm"
@@ -11191,7 +11169,7 @@ msgstr "Продолжить"
 msgid "Copied!"
 msgstr "Скопировано!"
 
-#: lib/phoenix_kit_web/live/modules.html.heex:436
+#: lib/phoenix_kit_web/live/modules.html.heex:371
 #, elixir-autogen, elixir-format
 msgid "Couldn't reach hex.pm, so the package list is unavailable right now."
 msgstr "Не удалось связаться с hex.pm, поэтому список пакетов сейчас недоступен."
@@ -13011,6 +12989,7 @@ msgstr "Переадресация на рабочий сайт"
 msgid "Redirecting visitors to production"
 msgstr "Посетители переадресуются на рабочий сайт"
 
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:229
 #: lib/phoenix_kit_web/live/settings/website_access.ex:404
 #, elixir-autogen, elixir-format
 msgid "Result"
@@ -13099,7 +13078,7 @@ msgstr "Введено"
 msgid "Visitors asking for a public URL are sent to the same path on the production site. Logged-in users and admin paths are never redirected. Everyone, or only search-engine crawlers."
 msgstr "Посетители, запрашивающие публичный адрес, отправляются на тот же путь рабочего сайта. Вошедшие пользователи и административные пути никогда не переадресуются. Все или только поисковые роботы."
 
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:291
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:304
 #: lib/phoenix_kit_web/live/settings/website_access.ex:48
 #, elixir-autogen, elixir-format
 msgid "Website access"
@@ -13903,7 +13882,7 @@ msgstr "Бакеты"
 msgid "OG"
 msgstr "OG"
 
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:309
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:322
 #: lib/phoenix_kit_web/live/settings/email_sending.html.heex:323
 #: lib/phoenix_kit_web/live/settings/send_profile_form.ex:25
 #: lib/phoenix_kit_web/live/settings/send_profiles.ex:26
@@ -13911,14 +13890,14 @@ msgstr "OG"
 msgid "Emails Bulk"
 msgstr "Массовые письма"
 
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:300
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:313
 #: lib/phoenix_kit_web/live/settings/email_preview.ex:48
 #: lib/phoenix_kit_web/live/settings/email_sending.ex:62
 #, elixir-autogen, elixir-format
 msgid "Emails Transactional"
 msgstr "Транзакционные письма"
 
-#: lib/phoenix_kit_web/live/modules.html.heex:447
+#: lib/phoenix_kit_web/live/modules.html.heex:382
 #, elixir-autogen, elixir-format
 msgid "No additional PhoenixKit packages available to install right now."
 msgstr "Сейчас нет дополнительных пакетов PhoenixKit для установки."
@@ -15413,7 +15392,7 @@ msgstr "Удалить эту библиотеку?"
 #: lib/modules/storage/web/libraries_component.ex:303
 #: lib/modules/storage/web/settings.ex:86
 #: lib/modules/storage/web/settings.html.heex:359
-#: lib/phoenix_kit/dashboard/admin_tabs.ex:175
+#: lib/phoenix_kit/dashboard/admin_tabs.ex:188
 #: lib/phoenix_kit_web/live/users/libraries.ex:38
 #: lib/phoenix_kit_web/live/users/libraries.ex:113
 #: lib/phoenix_kit_web/live/users/libraries.html.heex:19
@@ -16655,6 +16634,7 @@ msgstr "Вам нельзя использовать собственное хр
 msgid "Mine"
 msgstr "Мои"
 
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:321
 #: lib/phoenix_kit_web/live/users/media.html.heex:24
 #, elixir-autogen, elixir-format
 msgid "Site"
@@ -17498,3 +17478,288 @@ msgstr "Убрать из профиля"
 #, elixir-autogen, elixir-format
 msgid "Take this bucket out of the profile? Its files are copied to the profile's other buckets first, then deleted from this bucket. The bucket itself stays, and this profile no longer sends it files."
 msgstr "Убрать этот бакет из профиля? Его файлы сначала копируются в остальные бакеты профиля, затем удаляются из этого бакета. Сам бакет остаётся, а этот профиль больше не отправляет ему файлы."
+
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:120
+#, elixir-autogen, elixir-format
+msgid "%{count} run"
+msgid_plural "%{count} runs"
+msgstr[0] "%{count} запуск"
+msgstr[1] "%{count} запуска"
+msgstr[2] "%{count} запусков"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:237
+#, elixir-autogen, elixir-format
+msgid "Arguments"
+msgstr "Аргументы"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:214
+#, elixir-autogen, elixir-format
+msgid "Batches dispatched"
+msgstr "Запущено пакетов"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:211
+#, elixir-autogen, elixir-format
+msgid "Began"
+msgstr "Начат"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:345
+#, elixir-autogen, elixir-format
+msgid "Cancel requested"
+msgstr "Запрошена отмена"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:312
+#, elixir-autogen, elixir-format
+msgid "Cancel requested — the current batch is finishing"
+msgstr "Запрошена отмена — текущий пакет завершается"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:166
+#, elixir-autogen, elixir-format
+msgid "Cancel this job? A batch that is working finishes first, and what it did is kept."
+msgstr "Отменить эту задачу? Выполняющийся пакет сначала завершится, а то, что он сделал, сохранится."
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:293
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:346
+#, elixir-autogen, elixir-format
+msgid "Cancelled"
+msgstr "Отменено"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:290
+#, elixir-autogen, elixir-format
+msgid "Cancelling…"
+msgstr "Отмена…"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:213
+#, elixir-autogen, elixir-format
+msgid "Duration"
+msgstr "Длительность"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:292
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:348
+#, elixir-autogen, elixir-format
+msgid "Failed"
+msgstr "Не удалось"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:212
+#, elixir-autogen, elixir-format
+msgid "Finished"
+msgstr "Завершён"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:243
+#, elixir-autogen, elixir-format
+msgid "History"
+msgstr "История"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:69
+#, elixir-autogen, elixir-format
+msgid "Job"
+msgstr "Задача"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:217
+#, elixir-autogen, elixir-format
+msgid "Last sign of life"
+msgstr "Последний признак активности"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:79
+#, elixir-autogen, elixir-format
+msgid "No runs match."
+msgstr "Подходящих запусков нет."
+
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:75
+#, elixir-autogen, elixir-format
+msgid "No sweeper pass in the last 15 minutes"
+msgstr "За последние 15 минут не было прохода sweeper"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:246
+#, elixir-autogen, elixir-format
+msgid "Nothing recorded yet."
+msgstr "Пока ничего не записано."
+
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:137
+#, elixir-autogen, elixir-format
+msgid "Page %{page} of %{pages}"
+msgstr "Страница %{page} из %{pages}"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:136
+#, elixir-autogen, elixir-format
+msgid "Pause"
+msgstr "Приостановить"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:342
+#, elixir-autogen, elixir-format
+msgid "Pause requested"
+msgstr "Запрошена приостановка"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:309
+#, elixir-autogen, elixir-format
+msgid "Pause requested — the current batch is finishing"
+msgstr "Запрошена приостановка — текущий пакет завершается"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:289
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:343
+#, elixir-autogen, elixir-format
+msgid "Paused"
+msgstr "Приостановлено"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:288
+#, elixir-autogen, elixir-format
+msgid "Pausing…"
+msgstr "Приостановка…"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:71
+#, elixir-autogen, elixir-format
+msgid "Progress"
+msgstr "Прогресс"
+
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:57
+#, elixir-autogen, elixir-format
+msgid "Queue"
+msgstr "Очередь"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:286
+#, elixir-autogen, elixir-format
+msgid "Queued"
+msgstr "В очереди"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:350
+#, elixir-autogen, elixir-format
+msgid "Rescued by the sweeper"
+msgstr "Спасён sweeper'ом"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:215
+#, elixir-autogen, elixir-format
+msgid "Rescues"
+msgstr "Спасения"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:146
+#, elixir-autogen, elixir-format
+msgid "Resume"
+msgstr "Возобновить"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:344
+#, elixir-autogen, elixir-format
+msgid "Resumed"
+msgstr "Возобновлено"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:156
+#, elixir-autogen, elixir-format
+msgid "Retry"
+msgstr "Повторить"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:287
+#, elixir-autogen, elixir-format
+msgid "Running"
+msgstr "Выполняется"
+
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:49
+#, elixir-autogen, elixir-format
+msgid "Runs"
+msgstr "Запуски"
+
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:76
+#, elixir-autogen, elixir-format
+msgid "Runs are waiting, and nothing has checked on them lately. A run whose batch died is only recovered by the sweeper, which runs from Oban's cron every five minutes: check that PhoenixKit.Jobs.SweepWorker is in your crontab (mix phoenix_kit.update adds it)."
+msgstr "Запуски ждут, и их давно никто не проверял. Запуск, у которого погиб пакет, восстанавливает только sweeper, работающий из cron Oban каждые пять минут: убедитесь, что PhoenixKit.Jobs.SweepWorker есть в вашем crontab (mix phoenix_kit.update добавляет его)."
+
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:59
+#, elixir-autogen, elixir-format
+msgid "Scheduled"
+msgstr "Запланированные"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:208
+#, elixir-autogen, elixir-format
+msgid "Scope"
+msgstr "Область"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:72
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:341
+#, elixir-autogen, elixir-format
+msgid "Started"
+msgstr "Запущен"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:349
+#, elixir-autogen, elixir-format
+msgid "Started a fresh pass"
+msgstr "Начат новый проход"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:209
+#, elixir-autogen, elixir-format
+msgid "Started by"
+msgstr "Запустил"
+
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:86
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:70
+#, elixir-autogen, elixir-format
+msgid "State"
+msgstr "Состояние"
+
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:336
+#, elixir-autogen, elixir-format
+msgid "That did not work."
+msgstr "Не получилось."
+
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:322
+#, elixir-autogen, elixir-format
+msgid "That job is gone."
+msgstr "Этой задачи больше нет."
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:175
+#, elixir-autogen, elixir-format
+msgid "The current batch is finishing…"
+msgstr "Текущий пакет завершается…"
+
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:319
+#, elixir-autogen, elixir-format
+msgid "The current batch is still finishing; try again in a moment."
+msgstr "Текущий пакет ещё завершается; попробуйте чуть позже."
+
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:334
+#, elixir-autogen, elixir-format
+msgid "The job's state no longer allows that."
+msgstr "Состояние задачи больше этого не допускает."
+
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:321
+#, elixir-autogen, elixir-format
+msgid "This kind of job does not offer that."
+msgstr "Этот тип задач этого не предлагает."
+
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:90
+#, elixir-autogen, elixir-format
+msgid "Unfinished"
+msgstr "Незавершённые"
+
+#: lib/phoenix_kit_web/live/modules/jobs/index.ex:316
+#, elixir-autogen, elixir-format
+msgid "You may not do that."
+msgstr "У вас нет прав на это."
+
+## Navigation menu items
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:329
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:339
+#, elixir-autogen, elixir-format
+msgid "a user"
+msgstr "пользователь"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:331
+#, elixir-autogen, elixir-format
+msgid "automatically"
+msgstr "автоматически"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:333
+#, elixir-autogen, elixir-format
+msgid "by a script"
+msgstr "скриптом"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:332
+#, elixir-autogen, elixir-format
+msgid "by schedule"
+msgstr "по расписанию"
+
+#: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:120
+#, elixir-autogen, elixir-format
+msgid "live"
+msgstr "в реальном времени"
+
+#: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:334
+#, elixir-autogen, elixir-format
+msgid "manually"
+msgstr "вручную"

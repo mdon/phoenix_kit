@@ -1,11 +1,21 @@
 defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
   @moduledoc """
-  LiveView for viewing jobs.
+  The Jobs page: three tabs.
 
-  Provides a simple read-only view of all Oban jobs with filtering by queue and state.
+    * **Runs** (the default) — job runs (`PhoenixKit.Jobs`): long background work
+      with its state, progress and history, and the controls to pause, resume,
+      cancel and retry it for those who may (`jobs.manage`). Live over PubSub.
+    * **Queue** — Oban's own jobs, for debugging, with filtering by queue, state
+      and worker.
+    * **Scheduled** — one-shot tasks to run at a time.
+
+  The tab, the Runs filters, the opened run and the page live in the query
+  string, so any view is a link.
   """
 
   use PhoenixKitWeb, :live_view
+
+  alias PhoenixKit.Jobs.Run
 
   # Filter (queue, state, worker) and page live in the query string — a
   # filtered list is a real URL: shareable, reload-proof, and Back returns to
@@ -14,6 +24,14 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
   # what gets omitted from the URL.
   use PhoenixKitWeb.Live.UrlState,
     params: [
+      active_tab: [default: "runs", url_key: "tab", in: ~w(runs queue scheduled)],
+      run_state: [
+        default: "all",
+        url_key: "run_state",
+        in: ~w(all active) ++ Run.states()
+      ],
+      run_module: [default: "all", url_key: "run_module"],
+      selected_run_uuid: [default: "", url_key: "run"],
       filter_queue: [default: "all", url_key: "queue"],
       filter_state: [default: "all", url_key: "state"],
       filter_worker: [default: "all", url_key: "worker"],
@@ -23,8 +41,14 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
 
   import Ecto.Query
 
+  import PhoenixKitWeb.Live.Modules.Jobs.RunsComponents,
+    only: [run_modal: 1, runs_table: 1, state_label: 1]
+
+  alias PhoenixKit.Jobs
+  alias PhoenixKit.Jobs.{Events, SweepWorker}
   alias PhoenixKit.ScheduledJobs.ScheduledJob
   alias PhoenixKit.Settings
+  alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Utils.Json
   alias PhoenixKit.Utils.Pagination
   alias PhoenixKit.Utils.Routes
@@ -37,6 +61,7 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
 
     if connected?(socket) do
       Process.send_after(self(), :refresh, @refresh_interval)
+      Events.subscribe()
     end
 
     # :filter_queue, :filter_state, :filter_worker, and :current_page are
@@ -52,7 +77,15 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
       |> assign(:per_page, @per_page)
       |> assign(:selected_job, nil)
       |> assign(:selected_scheduled_job, nil)
-      |> assign(:active_tab, "oban")
+      |> assign(:runs, [])
+      |> assign(:run_controls, %{})
+      |> assign(:run_actors, %{})
+      |> assign(:run_total, 0)
+      |> assign(:selected_run, nil)
+      |> assign(:selected_run_controls, [])
+      |> assign(:run_history, [])
+      |> assign(:run_modules, run_modules())
+      |> assign(:sweeper_seen?, true)
       |> load_stats()
       |> load_scheduled_jobs()
 
@@ -66,7 +99,9 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
   # Deliberately not annotated with @impl — a single @impl anywhere in a module
   # makes Elixir demand it on every other callback too, and this LiveView's
   # mount/handle_event/handle_info carry none.
-  def handle_url_state(_state, socket), do: load_jobs(socket)
+  def handle_url_state(_state, socket) do
+    socket |> load_jobs() |> load_runs() |> load_selected_run()
+  end
 
   def handle_event("filter_queue", %{"queue" => queue}, socket) do
     {:noreply, push_url_state(socket, filter_queue: queue)}
@@ -130,7 +165,47 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
   end
 
   def handle_event("switch_tab", %{"tab" => tab}, socket) do
-    {:noreply, assign(socket, :active_tab, tab)}
+    {:noreply, push_url_state(socket, active_tab: tab, selected_run_uuid: "")}
+  end
+
+  def handle_event("filter_run_state", %{"run_state" => state}, socket) do
+    {:noreply, push_url_state(socket, run_state: state)}
+  end
+
+  def handle_event("filter_run_module", %{"run_module" => module}, socket) do
+    {:noreply, push_url_state(socket, run_module: module)}
+  end
+
+  def handle_event("show_run", %{"uuid" => uuid}, socket) do
+    {:noreply, push_url_state(socket, [selected_run_uuid: uuid], replace: true)}
+  end
+
+  def handle_event("close_run", _params, socket) do
+    {:noreply, push_url_state(socket, [selected_run_uuid: ""], replace: true)}
+  end
+
+  # A control on a run. The check is `PhoenixKit.Jobs`'s, against this scope's
+  # active role: the buttons are only shown to those who may, and a hand-made
+  # event is refused all the same.
+  def handle_event("run_control", %{"action" => action, "uuid" => uuid}, socket) do
+    scope = socket.assigns[:phoenix_kit_current_scope]
+
+    result =
+      case action do
+        "pause" -> Jobs.pause(scope, uuid)
+        "resume" -> Jobs.resume(scope, uuid)
+        "cancel" -> Jobs.cancel(scope, uuid)
+        "retry" -> Jobs.retry(scope, uuid)
+        _ -> {:error, :unknown_action}
+      end
+
+    socket =
+      case result do
+        {:error, reason} -> put_flash(socket, :error, control_error(reason))
+        _ok -> socket
+      end
+
+    {:noreply, socket |> load_runs() |> load_selected_run()}
   end
 
   def handle_event("show_scheduled_job", %{"id" => id}, socket) do
@@ -142,17 +217,125 @@ defmodule PhoenixKitWeb.Live.Modules.Jobs.Index do
     {:noreply, assign(socket, :selected_scheduled_job, nil)}
   end
 
+  # A run moved (PhoenixKit.Jobs.Events, after its transaction committed).
+  def handle_info({:job_run, _action, _run}, socket) do
+    {:noreply, socket |> load_runs() |> load_selected_run()}
+  end
+
   def handle_info(:refresh, socket) do
     Process.send_after(self(), :refresh, @refresh_interval)
 
     socket =
       socket
       |> load_jobs()
+      |> load_runs()
       |> load_stats()
       |> load_scheduled_jobs()
 
     {:noreply, socket}
   end
+
+  defp load_runs(socket) do
+    filters =
+      [
+        state: run_state_filter(socket.assigns.run_state),
+        module: if(socket.assigns.run_module != "all", do: socket.assigns.run_module),
+        limit: socket.assigns.per_page,
+        offset: (socket.assigns.current_page - 1) * socket.assigns.per_page
+      ]
+      |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+
+    runs = Jobs.list_runs(filters)
+    scope = socket.assigns[:phoenix_kit_current_scope]
+
+    socket
+    |> assign(:runs, runs)
+    |> assign(:run_total, Jobs.count_runs(Keyword.take(filters, [:state, :module])))
+    |> assign(:run_controls, Map.new(runs, &{&1.uuid, Jobs.controls_for(scope, &1)}))
+    |> assign(:run_actors, actors(runs))
+    |> assign(:sweeper_seen?, sweeper_seen?(runs))
+  end
+
+  # The run the URL names, with its history and the people in it; nil when there
+  # is none or it is gone.
+  defp load_selected_run(socket) do
+    run =
+      case socket.assigns.selected_run_uuid do
+        "" -> nil
+        uuid -> Jobs.get_run(uuid)
+      end
+
+    history = if run, do: Jobs.history(run), else: []
+    scope = socket.assigns[:phoenix_kit_current_scope]
+
+    socket
+    |> assign(:selected_run, run)
+    |> assign(:run_history, history)
+    |> assign(:selected_run_controls, if(run, do: Jobs.controls_for(scope, run), else: []))
+    |> assign(:run_actors, Map.merge(socket.assigns.run_actors, actors(List.wrap(run), history)))
+  end
+
+  defp run_state_filter("all"), do: nil
+  defp run_state_filter("active"), do: :active
+  defp run_state_filter(state), do: state
+
+  defp run_modules do
+    Jobs.kinds() |> Enum.map(& &1.module_key()) |> Enum.uniq() |> Enum.sort()
+  end
+
+  # Who started and who acted, by email, in one query.
+  defp actors(runs, history \\ []) do
+    uuids =
+      (Enum.flat_map(runs, &[&1.started_by_uuid, &1.paused_by_uuid, &1.cancelled_by_uuid]) ++
+         Enum.map(history, & &1.actor_uuid))
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    if uuids == [] do
+      %{}
+    else
+      repo = PhoenixKit.Config.get_repo()
+
+      from(u in User, where: u.uuid in ^uuids, select: {u.uuid, u.email})
+      |> repo.all()
+      |> Map.new(fn {uuid, email} -> {to_string(uuid), email} end)
+    end
+  end
+
+  # No pass of the sweeper for a while, while runs are waiting on it: the page says
+  # so, because an orphaned run would otherwise sit looking alive.
+  defp sweeper_seen?(runs) do
+    if Enum.any?(runs, &Run.active?/1) do
+      case DateTime.from_iso8601(Settings.get_setting(SweepWorker.last_sweep_setting(), "")) do
+        {:ok, at, _} -> DateTime.diff(DateTime.utc_now(), at, :second) < 900
+        _ -> false
+      end
+    else
+      true
+    end
+  end
+
+  defp control_error(:unauthorized), do: gettext("You may not do that.")
+
+  defp control_error(:draining),
+    do: gettext("The current batch is still finishing; try again in a moment.")
+
+  defp control_error(:control_not_offered), do: gettext("This kind of job does not offer that.")
+  defp control_error(:not_found), do: gettext("That job is gone.")
+
+  defp control_error(reason)
+       when reason in [
+              :finished,
+              :not_paused,
+              :already_paused,
+              :already_pausing,
+              :already_cancelling,
+              :cancelling,
+              :not_retryable
+            ],
+       do: gettext("The job's state no longer allows that.")
+
+  defp control_error(_reason), do: gettext("That did not work.")
 
   defp load_jobs(socket) do
     repo = PhoenixKit.Config.get_repo()
