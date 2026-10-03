@@ -25,6 +25,8 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
   alias PhoenixKitWeb.Actor
   alias PhoenixKitWeb.Live.Settings.UrlTabs
 
+  @sync_refresh_interval 30_000
+
   def mount(_params, _session, socket) do
     # Get current path for navigation
     current_path = get_current_path(socket, %{})
@@ -73,7 +75,10 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
       |> assign(:external_tools, Dependencies.external_tools())
 
     # A library's reconcile run moving updates the Libraries tab's sync column.
-    if connected?(socket), do: Events.subscribe()
+    if connected?(socket) do
+      Events.subscribe()
+      Process.send_after(self(), :refresh_library_sync, @sync_refresh_interval)
+    end
 
     {:ok, socket}
   end
@@ -319,6 +324,22 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.Settings do
   end
 
   def handle_info({:job_run, _action, _run}, socket), do: {:noreply, socket}
+
+  # Eligibility changes with time, and a settings change need not create a run
+  # (e.g. every stale file is waiting for an edit or retry). PubSub alone cannot
+  # keep those derived states current.
+  def handle_info(:refresh_library_sync, socket) do
+    Process.send_after(self(), :refresh_library_sync, @sync_refresh_interval)
+
+    if socket.assigns.active_tab == "libraries" do
+      send_update(PhoenixKitWeb.Live.Modules.Storage.LibrariesComponent,
+        id: "media-libraries",
+        reload_sync: true
+      )
+    end
+
+    {:noreply, socket}
+  end
 
   defp delete_site_bucket(nil), do: {:error, :not_found}
   defp delete_site_bucket(bucket), do: Storage.delete_bucket(bucket)

@@ -143,6 +143,19 @@ defmodule PhoenixKit.Jobs.ObanPrefixTest do
     assert PhoenixKit.Jobs.get_job_stats().available == 2
   end
 
+  test "stalled queues match the current run across the configured schemas" do
+    run = start!()
+    old = DateTime.utc_now() |> DateTime.add(-1200, :second)
+
+    from(j in Oban.Job, where: j.id == ^reload(run).oban_job_id)
+    |> Repo.update_all([set: [scheduled_at: old]], prefix: @prefix)
+
+    assert ["default"] == ObanStore.stalled_queues()
+
+    {:ok, _} = Engine.transition(run.uuid, {:pause, nil})
+    assert [] == ObanStore.stalled_queues()
+  end
+
   describe "where no Oban instance runs (a script, a web-only node)" do
     # The prefix is known only from a running instance. Without one nothing may be
     # guessed: reading the repo's default schema would show another table's rows.

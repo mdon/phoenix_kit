@@ -35,6 +35,9 @@ defmodule PhoenixKit.Modules.Storage.Jobs.Reconcile do
 
   use PhoenixKit.Jobs.Kind
 
+  import Ecto.Query
+
+  alias PhoenixKit.Jobs.Run
   alias PhoenixKit.Jobs.System, as: JobsSystem
   alias PhoenixKit.Modules.Storage.{Libraries, Reconciler}
 
@@ -112,24 +115,36 @@ defmodule PhoenixKit.Modules.Storage.Jobs.Reconcile do
     do: %{done: Map.get(batch, :reconciled, 0), failed: Map.get(batch, :stale, 0)}
 
   @doc """
-  Starts a run for every library that has files the reconciler may take now
-  (`restart/0` asks a running one to begin again). Returns `{:ok, libraries}`, the
-  libraries it looked at. It raises on a database error, so the Oban job that calls
-  it is retried.
+  Starts a run for every library that has files the reconciler may take now,
+  and records a restart for existing library runs even when their files are
+  temporarily ineligible or their current batch has already stamped them.
+  Returns `{:ok, libraries}` or `{:error, reason}` if a start was refused. A
+  database error raises; the trigger job retries either failure.
 
   `:source` is the short phrase the run's history keeps ("a profile changed").
   """
-  @spec trigger(keyword()) :: {:ok, [String.t()]}
+  @spec trigger(keyword()) :: {:ok, [String.t()]} | {:error, term()}
   def trigger(opts \\ []) do
-    libraries = Reconciler.libraries_with_work()
+    libraries = Enum.uniq(Reconciler.libraries_with_work() ++ active_libraries())
 
-    Enum.each(libraries, fn uuid ->
-      JobsSystem.start(__MODULE__, {"library", uuid},
-        mode: :auto,
-        source: opts[:source] || "a change to storage settings"
-      )
+    Enum.reduce_while(libraries, {:ok, libraries}, fn uuid, success ->
+      case JobsSystem.start(__MODULE__, {"library", uuid},
+             mode: :auto,
+             source: opts[:source] || "a change to storage settings"
+           ) do
+        {:ok, _run, _how} -> {:cont, success}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
     end)
+  end
 
-    {:ok, libraries}
+  defp active_libraries do
+    from(r in Run,
+      where: r.kind == ^kind() and r.scope_type == "library",
+      where: r.state in ~w(queued running pausing paused),
+      select: r.scope_uuid
+    )
+    |> PhoenixKit.RepoHelper.repo().all()
+    |> Enum.map(&to_string/1)
   end
 end

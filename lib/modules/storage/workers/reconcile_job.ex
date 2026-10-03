@@ -54,8 +54,10 @@ defmodule PhoenixKit.Modules.Storage.Workers.ReconcileJob do
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
-    {:ok, _libraries} = Reconcile.trigger()
-    :ok
+    case Reconcile.trigger() do
+      {:ok, _libraries} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   @doc """

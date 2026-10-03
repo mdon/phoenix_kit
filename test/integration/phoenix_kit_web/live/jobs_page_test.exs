@@ -329,6 +329,25 @@ defmodule PhoenixKitWeb.Live.JobsPageTest do
   end
 
   describe "a queue that is not working" do
+    test "ignores the leftover dispatch of a paused run", %{conn: conn} do
+      run = start!()
+      age_dispatch(run, 20)
+      {:ok, _} = Engine.transition(run.uuid, {:pause, nil})
+
+      {:ok, view, _html} = live(conn, @path)
+      refute has_element?(view, "#jobs-stalled-queues")
+    end
+
+    test "ignores a dispatch superseded by a newer generation", %{conn: conn} do
+      run = start!()
+      age_dispatch(run, 20)
+      {:ok, _} = Engine.transition(run.uuid, {:pause, nil})
+      {:ok, _} = Engine.transition(run.uuid, {:resume, nil})
+
+      {:ok, view, _html} = live(conn, @path)
+      refute has_element?(view, "#jobs-stalled-queues")
+    end
+
     defp age_dispatch(run, minutes) do
       old = DateTime.utc_now() |> DateTime.add(-minutes * 60, :second)
 

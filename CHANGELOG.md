@@ -29,6 +29,15 @@
   visible but cannot be paused or cancelled: it walks the whole library and cannot be undone. The
   old Oban jobs remain as shims that start the runs, so jobs queued by 2.48.0 or earlier still work.
 
+### Fixed
+
+- Storage reconcile triggers preserve restart requests for active libraries even when their
+  files are temporarily ineligible, and return start failures so the trigger job can retry.
+- The stalled-queue warning ignores paused runs and superseded dispatches, and matches the
+  current dispatch using each table's configured schema.
+- The Libraries tab refreshes derived sync state every 30 seconds while visible, including
+  changes that produce no run event. Its counts query reads only the displayed libraries.
+
 ### i18n
 
 - The new strings in all seven locales.

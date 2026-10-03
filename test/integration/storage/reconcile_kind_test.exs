@@ -153,6 +153,12 @@ defmodule PhoenixKit.Modules.Storage.ReconcileKindTest do
       # eligible is the work-selection query's own number
       assert Reconciler.stale_count(library_uuid: ctx.one.library.uuid) == 1
       assert stale?(eligible)
+
+      assert %{} == Reconciler.counts_by_library([ctx.two.library.uuid])
+      assert %{} == Reconciler.counts_by_library([])
+
+      assert %{out_of_date: 3} =
+               Reconciler.counts_by_library([ctx.one.library.uuid])[ctx.one.library.uuid]
     end
 
     test "libraries_with_work/0 lists the libraries the reconciler may take now", ctx do
@@ -166,6 +172,34 @@ defmodule PhoenixKit.Modules.Storage.ReconcileKindTest do
   end
 
   describe "trigger/1" do
+    test "records a restart even when the active run's files are temporarily ineligible", ctx do
+      file = upload!(ctx, ctx.one, "waiting for an edit")
+      stale!(ctx.one, ctx.c)
+      {:ok, run, :started} = Jobs.System.start(Reconcile, {"library", ctx.one.library.uuid})
+      {:ok, _, token} = Engine.claim(run.uuid, run.generation)
+
+      Repo.update_all(from(f in Storage.File, where: f.uuid == ^file.uuid),
+        set: [edit_state: "pending"]
+      )
+
+      refute Reconciler.pending?(library_uuid: ctx.one.library.uuid)
+      assert {:ok, libraries} = Reconcile.trigger()
+      assert ctx.one.library.uuid in libraries
+      assert %{restart_seq: 1} = Repo.get!(Run, run.uuid)
+
+      # Even a last batch must honor the recorded change rather than finish.
+      {:ok, restarted} = Engine.checkpoint(run.uuid, token, {:done, %{}, %{}})
+      assert %{state: "queued", cursor: %{}, restart_ack: 1} = restarted
+    end
+
+    test "does not report success when starting the runs is refused", ctx do
+      upload!(ctx, ctx.one, "x")
+      stale!(ctx.one, ctx.c)
+
+      assert {:ok, {:error, :in_transaction}} = Repo.transaction(fn -> Reconcile.trigger() end)
+      assert runs() == []
+    end
+
     test "starts a run for each library with work, and for no other", ctx do
       upload!(ctx, ctx.one, "x")
       upload!(ctx, ctx.two, "y")

@@ -53,7 +53,7 @@ defmodule PhoenixKit.Modules.Storage.LibraryState do
   @spec for_libraries([String.t()]) :: %{String.t() => t()}
   def for_libraries(library_uuids) do
     uuids = Enum.map(library_uuids, &to_string/1)
-    counts = Reconciler.counts_by_library()
+    counts = Reconciler.counts_by_library(cast(uuids))
     active = active_runs(uuids)
     last = last_runs(uuids)
 

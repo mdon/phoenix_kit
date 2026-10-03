@@ -88,6 +88,20 @@ defmodule PhoenixKitWeb.Live.LibrariesSyncTest do
     assert has_element?(view, "#{cell(ctx.library)} [data-sync-state=paused]")
   end
 
+  test "refreshes derived state even when no run event arrives", ctx do
+    {:ok, run, :started} =
+      Jobs.System.start(Reconcile, {"library", ctx.library.uuid})
+
+    view = libraries(ctx.conn)
+    assert has_element?(view, "#{cell(ctx.library)} [data-sync-state=syncing]")
+
+    # Simulate a missed notification: the next periodic refresh must catch up.
+    Repo.update_all(from(r in Run, where: r.uuid == ^run.uuid), set: [state: "paused"])
+    send(view.pid, :refresh_library_sync)
+
+    assert has_element?(view, "#{cell(ctx.library)} [data-sync-state=paused]")
+  end
+
   test "someone who may not manage jobs sees the state but no buttons", ctx do
     :ok = Permissions.revoke_permission(ctx.admin.uuid, "jobs.manage")
     {:ok, _run, :started} = Jobs.System.start(Reconcile, {"library", to_string(ctx.library.uuid)})

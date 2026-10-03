@@ -65,19 +65,30 @@ defmodule PhoenixKit.Jobs.ObanStore do
   @stalled_after 600
 
   @doc """
-  The queues that look dead: a run's batch has been `available` for `after_seconds`
-  (default ten minutes) and **nothing in that queue has executed or attempted a job
-  in that time**. Observed from Oban's own table — a web node with `queues: false`
-  proves nothing about a separate worker node, and this reads what the nodes
-  actually did. Empty when Oban cannot be asked.
+  The queues that look dead: an active run's current dispatch has been `available`
+  for `after_seconds` (default ten minutes) and **nothing in that queue has executed
+  or attempted a job in that time**. Paused runs and obsolete generations do not
+  need dispatch and cannot make a queue look stalled. Observed from Oban's own
+  table — a web node with `queues: false` proves nothing about a separate worker
+  node, and this reads what the nodes actually did. Empty when Oban cannot be asked.
   """
   @spec stalled_queues(non_neg_integer(), DateTime.t()) :: [String.t()]
   def stalled_queues(after_seconds \\ @stalled_after, now \\ DateTime.utc_now()) do
     since = DateTime.add(now, -after_seconds, :second)
     worker = inspect(PhoenixKit.Jobs.RunWorker)
+    # Oban's read prefix must not override the kit table's own schema, including
+    # a default-public kit with Oban installed into a separate named schema.
+    run_prefix = Run.__schema__(:prefix) || "public"
 
     waiting =
       from(j in Oban.Job,
+        join: r in Run,
+        prefix: ^run_prefix,
+        on: r.oban_job_id == j.id,
+        where: r.state in ~w(queued running),
+        where: is_nil(r.claim_owner) or r.claim_owner != "inline",
+        where: fragment("?->>'run_uuid' = ?::text", j.args, r.uuid),
+        where: fragment("?->>'generation' = ?::text", j.args, r.generation),
         where: j.worker == ^worker and j.state == "available" and j.scheduled_at < ^since,
         distinct: true,
         select: j.queue

@@ -142,13 +142,20 @@ defmodule PhoenixKit.Modules.Storage.Reconciler do
       few minutes (they wait out `@retry_after_seconds` before the next try).
 
   Keyed by the library's uuid as a string. A library absent from the map has
-  nothing out of date.
+  nothing out of date. An optional uuid list limits the query to the libraries
+  a screen is showing; omitted, it counts every library.
   """
-  @spec counts_by_library() :: %{String.t() => map()}
-  def counts_by_library do
+  @spec counts_by_library([String.t()] | nil) :: %{String.t() => map()}
+  def counts_by_library(library_uuids \\ nil) do
     retry_before = NaiveDateTime.add(NaiveDateTime.utc_now(), -@retry_after_seconds)
+    query = out_of_date_query()
 
-    from([f] in out_of_date_query(),
+    query =
+      if is_list(library_uuids),
+        do: where(query, [f], f.library_uuid in ^library_uuids),
+        else: query
+
+    from([f] in query,
       group_by: f.library_uuid,
       select: {
         f.library_uuid,
