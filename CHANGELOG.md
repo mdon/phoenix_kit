@@ -1,4 +1,4 @@
-## Unreleased
+## 2.47.0 - 2026-10-03
 
 ### Changed
 
@@ -35,6 +35,12 @@
   Replica at one copy it said files were spread at random across both; in fact the copy goes to the
   primary and the replica holds nothing unless a write to the primary fails. It now says so and, with
   several primaries, counts only them.
+
+### i18n
+
+- The strings the Save buttons, the idle-bucket line and the copy-count button added (9 in all) are
+  extracted and translated in de, es, et, fr, it, pl and ru; no entry is fuzzy.
+
 
 ## 2.46.0 - 2026-10-02
 
