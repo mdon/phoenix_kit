@@ -155,8 +155,11 @@ defmodule PhoenixKit.Settings.Setting do
 
   schema "phoenix_kit_settings" do
     field :key, :string
-    field :value, :string
-    field :value_json, :map
+    #  keeps both values out of  of a Setting or of a
+    # changeset over it (error logs, IEx): they carry the  ciphertext
+    # of secret rows, or the plaintext when encryption is off.
+    field :value, :string, redact: true
+    field :value_json, :map, redact: true
     field :module, :string
     field :date_added, :utc_datetime
     field :date_updated, :utc_datetime
