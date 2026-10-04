@@ -315,12 +315,18 @@ defmodule PhoenixKit.Integrations.KeyRotation do
 
   defp present?(value), do: is_binary(value) and value != ""
 
+  # `log: false` on both writes, for the same reason as
+  # `PhoenixKit.Settings.Queries.update_setting/2`: Ecto's SQL debug logger
+  # prints the bound params, and every row written here is a secret — so an
+  # unsilenced rotation printed the fresh ciphertext of EVERY integration
+  # connection and restricted setting in one go. The reads above stay
+  # logged: their params are key names, and result rows are never logged.
   defp rotate_row({:fields, setting, decrypted}, new_secret, repo) do
     new_value = Encryption.encrypt_fields_with_secret(decrypted, new_secret)
 
     setting
     |> Setting.update_changeset(%{value_json: new_value})
-    |> repo.update!()
+    |> repo.update!(log: false)
   end
 
   defp rotate_row({:value, setting, decrypted}, new_secret, repo) do
@@ -328,7 +334,7 @@ defmodule PhoenixKit.Integrations.KeyRotation do
 
     setting
     |> Setting.update_changeset(%{value: new_value})
-    |> repo.update!()
+    |> repo.update!(log: false)
   end
 
   defp normalize_result({:ok, count}), do: {:ok, %{rotated: count, dry_run: false}}
