@@ -44,13 +44,31 @@ defmodule PhoenixKit.Integrations.Telegram.ChatLinkTest do
   end
 
   describe "merge/3 in single mode" do
-    test "locks the most recent private chat when nothing is linked yet" do
+    test "locks the private chat when it is the only one that messaged the bot" do
+      chats = [%{"id" => "111", "type" => "private"}]
+
+      assert {["111"], ["111"]} = ChatLink.merge("single", [], chats)
+    end
+
+    test "links nothing when several private chats messaged the bot" do
+      # Picking the most recent one bound whoever wrote last — A presses Test,
+      # C's chat gets A's notifications. Order says nothing about who pressed
+      # Test, so with more than one candidate there is no safe answer.
       chats = [
         %{"id" => "111", "type" => "private"},
         %{"id" => "222", "type" => "private"}
       ]
 
-      assert {["222"], ["222"]} = ChatLink.merge("single", [], chats)
+      assert {[], []} = ChatLink.merge("single", [], chats)
+    end
+
+    test "one private chat that sent several messages is still one candidate" do
+      chats = [
+        %{"id" => "111", "type" => "private"},
+        %{"id" => "111", "type" => "private"}
+      ]
+
+      assert {["111"], ["111"]} = ChatLink.merge("single", [], chats)
     end
 
     test "keeps the already-locked private chat instead of switching to a newer one" do
@@ -124,6 +142,51 @@ defmodule PhoenixKit.Integrations.Telegram.ChatLinkTest do
 
       assert ids == ["111"]
       assert candidates == [%{"id" => "-500", "type" => "group", "title" => "Shop"}]
+    end
+
+    test "reports several private chats as ambiguous and names none of them" do
+      # The owner must be told why nothing was linked — and must not be shown
+      # strangers' private chats to pick from: that would leak who else talks
+      # to the bot, and picking would still be a guess.
+      chats = [
+        %{"id" => "111", "type" => "private", "title" => nil},
+        %{"id" => "222", "type" => "private", "title" => nil}
+      ]
+
+      assert %{ids: [], added: [], meta: meta, candidates: [], ambiguous?: true} =
+               ChatLink.capture("single", [], %{}, chats)
+
+      assert meta == %{}
+    end
+
+    test "one private chat is linked and is not ambiguous" do
+      chats = [%{"id" => "111", "type" => "private", "title" => nil}]
+
+      assert %{ids: ["111"], added: ["111"], ambiguous?: false} =
+               ChatLink.capture("single", [], %{}, chats)
+    end
+
+    test "no chats at all is not ambiguous" do
+      assert %{ids: [], added: [], ambiguous?: false} = ChatLink.capture("single", [], %{}, [])
+    end
+
+    test "is not ambiguous once a private chat is locked: the lock already refuses newcomers" do
+      chats = [
+        %{"id" => "222", "type" => "private", "title" => nil},
+        %{"id" => "333", "type" => "private", "title" => nil}
+      ]
+
+      assert %{ids: ["111"], added: [], ambiguous?: false} =
+               ChatLink.capture("single", ["111"], %{}, chats)
+    end
+
+    test "multi mode links everyone and is never ambiguous" do
+      chats = [
+        %{"id" => "111", "type" => "private", "title" => nil},
+        %{"id" => "222", "type" => "private", "title" => nil}
+      ]
+
+      assert %{ids: ["111", "222"], ambiguous?: false} = ChatLink.capture("multi", [], %{}, chats)
     end
 
     test "an already-linked group is not offered again" do

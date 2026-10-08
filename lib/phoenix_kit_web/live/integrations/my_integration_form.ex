@@ -347,7 +347,8 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
     Integrations.record_validation(socket.assigns.uuid, result, owner: owner(socket))
 
     # For Telegram, Test doubles as chat capture: read the chats that have
-    # messaged the bot and store them (single = lock the first, multi = all).
+    # messaged the bot and store them (single = link your chat when it is the
+    # only private one that messaged the bot, multi = all).
     capture = maybe_capture_telegram_chats(socket)
 
     flash =
@@ -392,7 +393,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
 
     case Telegram.get_updates(uuid, offset: nil, owner: owner) do
       {:ok, updates} ->
-        %{ids: ids, added: added, meta: meta, candidates: candidates} =
+        %{ids: ids, added: added, meta: meta, candidates: candidates, ambiguous?: ambiguous?} =
           ChatLink.capture(
             mode,
             existing,
@@ -409,7 +410,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
           )
         end
 
-        {:captured, added, candidates}
+        if ambiguous?, do: {:ambiguous, candidates}, else: {:captured, added, candidates}
 
       _ ->
         :unreachable
@@ -422,7 +423,17 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
   # as plain success — and it is precisely the state in which no notification
   # will ever arrive. Say so.
   defp capture_candidates({:captured, _added, candidates}), do: candidates
+  defp capture_candidates({:ambiguous, candidates}), do: candidates
   defp capture_candidates(_capture), do: []
+
+  # "Only me" refused to guess between several private chats. Say why nothing
+  # was linked and what does work — without naming any of those chats.
+  defp capture_flash({:ambiguous, _candidates}, _socket) do
+    {:warning,
+     gettext(
+       "Several people have messaged this bot, so we can't tell which chat is yours — nothing was linked. Link your chat by its ID below instead."
+     )}
+  end
 
   defp capture_flash({:captured, [_ | _] = added, _candidates}, _socket) do
     {:info, gettext("Linked %{count} chat(s)", count: length(added))}
@@ -681,7 +692,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
               <h3 class="card-title text-base">{gettext("Notifications")}</h3>
               <p class="text-sm text-base-content/60">
                 {gettext(
-                  "Message your bot, then press Test above — we'll capture your chat so it can notify you."
+                  "Message your bot, then press Test above — we'll capture your chat so it can notify you. If several people have messaged the bot, we can't tell which chat is yours: link it by its ID below instead."
                 )}
               </p>
 
@@ -776,6 +787,9 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
                     /start
                   </span>
                   {gettext("the bot in Telegram, then press Test Connection above.")}
+                  {gettext(
+                    "If anyone else has messaged the bot too, link your chat by its ID below instead."
+                  )}
                 </p>
                 <p>
                   {gettext("A group:")} {gettext("add the bot to the group, then send")}
@@ -804,7 +818,7 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
             </div>
           </div>
 
-          <.setup_instructions provider={@provider} open={@live_action == :new} />
+          <.setup_instructions provider={@provider} scope={:personal} open={@live_action == :new} />
 
           <%!-- Danger Zone (edit mode only). Personal connections have no
                OAuth to disconnect — just permanent removal. --%>

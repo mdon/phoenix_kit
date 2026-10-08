@@ -51,9 +51,13 @@ defmodule PhoenixKit.Integrations.Telegram.ChatLink do
   Folds captured chats into the already-linked ids, returning
   `{linked_ids, newly_added_ids}`.
 
-  `"single"` locks ONE private chat: the most recent one, and only while no
-  private chat is linked yet — a stranger who messaged the bot right after
-  the owner cannot displace it. A **group is never auto-linked** in this
+  `"single"` locks ONE private chat, and only when it is the ONLY private
+  chat in the peek and no private chat is linked yet — a stranger who
+  messaged the bot right after the owner cannot displace it. With several
+  private chats in the peek nothing is linked: message order says nothing
+  about which of them belongs to the person pressing Test, and taking the
+  most recent bound whoever wrote last. `capture/4` reports that case as
+  `ambiguous?`. A **group is never auto-linked** in this
   mode: a bot's username is public and anyone may add it to a group of their
   own and run `/start@bot` there, so "someone ran the command in it" proves
   nothing about who that someone is. Captured groups come back from
@@ -111,6 +115,11 @@ defmodule PhoenixKit.Integrations.Telegram.ChatLink do
   the `candidates`: captured groups that were NOT linked, for the owner to
   confirm one by one. Candidates are returned, never stored.
 
+  `ambiguous?` is true when `"single"` refused to link because several
+  private chats messaged the bot. Those chats are NOT candidates: offering
+  strangers' private chats would show the owner who else talks to the bot,
+  and picking one would still be a guess.
+
   Metadata is kept for LINKED chats only, and pruned to them. Recording a
   chat the lock just refused would turn the connection's data into a log of
   everyone who has ever messaged the bot.
@@ -119,7 +128,8 @@ defmodule PhoenixKit.Integrations.Telegram.ChatLink do
           ids: [String.t()],
           added: [String.t()],
           meta: map(),
-          candidates: [map()]
+          candidates: [map()],
+          ambiguous?: boolean()
         }
   def capture(mode, existing, existing_meta, chats) do
     {ids, added} = merge(mode, existing, chats)
@@ -133,7 +143,13 @@ defmodule PhoenixKit.Integrations.Telegram.ChatLink do
 
     candidates = Enum.filter(chats, &(group?(&1) and &1["id"] not in ids))
 
-    %{ids: ids, added: added, meta: meta, candidates: candidates}
+    %{
+      ids: ids,
+      added: added,
+      meta: meta,
+      candidates: candidates,
+      ambiguous?: mode == "single" and ambiguous?(existing, private_ids(chats))
+    }
   end
 
   @doc "Metadata for the given ids only — everything else is dropped."
@@ -165,10 +181,19 @@ defmodule PhoenixKit.Integrations.Telegram.ChatLink do
   # "does this id start with a minus" got that wrong for an @handle, which
   # silently consumed the single slot.
   defp lockable_private(existing, privates) do
-    if Enum.any?(existing, &(kind(&1) == :private)) do
-      []
-    else
-      privates |> ids() |> Enum.take(-1)
+    case privates |> ids() |> Enum.uniq() do
+      [only] -> if private_linked?(existing), do: [], else: [only]
+      _none_or_several -> []
     end
   end
+
+  # Several private chats and no slot taken: the case `lockable_private/2`
+  # refuses to guess. With a private chat already locked the lock refuses
+  # newcomers anyway, so there is nothing to tell the owner.
+  defp ambiguous?(existing, private_ids),
+    do: not private_linked?(existing) and length(private_ids) > 1
+
+  defp private_linked?(existing), do: Enum.any?(existing, &(kind(&1) == :private))
+
+  defp private_ids(chats), do: chats |> Enum.reject(&group?/1) |> ids() |> Enum.uniq()
 end
