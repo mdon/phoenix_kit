@@ -54,7 +54,10 @@ defmodule PhoenixKit.TestSupport.GainMapJpeg do
     </rdf:RDF></x:xmpmeta>
     """
 
-    gain = <<0xFF, 0xD8>> <> app1(@xmp <> gain_xmp) <> gain_core
+    gain_xmp = Keyword.get(opts, :gain_xmp, gain_xmp)
+
+    gain =
+      <<0xFF, 0xD8>> <> Keyword.get(opts, :gain_exif, <<>>) <> app1(@xmp <> gain_xmp) <> gain_core
 
     primary_xmp = fn ->
       """
@@ -71,7 +74,7 @@ defmodule PhoenixKit.TestSupport.GainMapJpeg do
       """
     end
 
-    xmp_segment = app1(@xmp <> primary_xmp.())
+    xmp_segment = app1(@xmp <> Keyword.get(opts, :primary_xmp, primary_xmp.()))
 
     extension =
       if extended?,

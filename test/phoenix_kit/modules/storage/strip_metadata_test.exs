@@ -120,6 +120,38 @@ defmodule PhoenixKit.Modules.Storage.StripMetadataTest do
       refute gps(out) =~ "GPSInfo"
     end
 
+    test "removes private XMP and EXIF from both pictures while keeping HDR parameters", ctx do
+      src = Path.join(ctx.tmp_dir, "private.jpg")
+
+      xmp = """
+      <x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+      <rdf:Description xmlns:hdrgm="http://ns.adobe.com/hdr-gain-map/1.0/"
+       xmlns:exif="http://ns.adobe.com/exif/1.0/" hdrgm:Version="1.0"
+       hdrgm:HDRCapacityMax="3.0" exif:GPSLatitude="59,26N">
+      <exif:GPSLongitude>24,45E</exif:GPSLongitude>
+      </rdf:Description></rdf:RDF></x:xmpmeta>
+      """
+
+      GainMapJpeg.build(src,
+        primary_xmp: xmp,
+        gain_xmp: xmp,
+        gain_exif: ExifFixture.segment(@tags)
+      )
+
+      kept = Path.join(ctx.tmp_dir, "private-kept.jpg")
+      assert {:ok, _} = HdrResize.resize(src, kept, 800)
+      assert File.read!(kept) =~ "59,26N"
+
+      out = Path.join(ctx.tmp_dir, "private-stripped.jpg")
+      assert {:ok, _} = HdrResize.resize(src, out, 800, strip_metadata: true)
+      assert %{"gain_map" => true, "headroom" => 8.0} = Hdr.read(out)
+      bytes = File.read!(out)
+      refute bytes =~ "GPS"
+      refute bytes =~ "59,26N"
+      refute bytes =~ "24,45E"
+      refute bytes =~ "Exif"
+    end
+
     test "keeps the EXIF when not told to strip", ctx do
       out = Path.join(ctx.tmp_dir, "kept.jpg")
       assert {:ok, _} = HdrResize.resize(hdr(ctx, %{}), out, 800)

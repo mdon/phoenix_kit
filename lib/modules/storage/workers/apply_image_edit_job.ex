@@ -540,7 +540,10 @@ defmodule PhoenixKit.Modules.Storage.ApplyImageEditJob do
         # would turn the image again.
         # The focal point belongs to the previous pixels too: a crop or turn
         # moves it, and a redaction can remove the subject altogether.
-        metadata: Map.drop(file.metadata || %{}, ["rotation", "focal"]),
+        metadata:
+          (file.metadata || %{})
+          |> Map.drop(["rotation", "focal"])
+          |> Map.put("hdr", %{}),
         original_file_uuid: backup.uuid
       )
       |> repo().update()
@@ -603,6 +606,8 @@ defmodule PhoenixKit.Modules.Storage.ApplyImageEditJob do
         focal -> Map.put(metadata, "focal", focal)
       end
 
+    metadata = Map.put(metadata, "hdr", hdr_summary(backup))
+
     tile_keys = drop_tiles!(file, backup.uuid)
     {:ok, _} = repo().delete(backup)
 
@@ -623,6 +628,9 @@ defmodule PhoenixKit.Modules.Storage.ApplyImageEditJob do
     {:published, file, Storage.unreferenced_keys(dropped_keys ++ tile_keys),
      {:reverted, ImageEdit.geometry(previous) != %{}}}
   end
+
+  defp hdr_summary(%{metadata: %{"hdr" => hdr}}) when is_map(hdr), do: hdr
+  defp hdr_summary(_file), do: %{}
 
   # Points the backup's rows at the copies `prepare/1` made (see
   # `copy_unedited/1`) and returns the keys they left, for deletion once
@@ -678,6 +686,7 @@ defmodule PhoenixKit.Modules.Storage.ApplyImageEditJob do
         metadata: %{
           "file_name" => file.file_name,
           "rotation" => get_in(file.metadata || %{}, ["rotation"]),
+          "hdr" => hdr_summary(file),
           "focal" => get_in(file.metadata || %{}, ["focal"])
         },
         system_managed: true,

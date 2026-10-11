@@ -87,6 +87,19 @@ defmodule PhoenixKit.Modules.Storage.HdrResizeTest do
     assert %{"gain_map" => true} = Hdr.read(dest)
   end
 
+  test "a rewritten XMP packet too large for a JPEG segment is refused", ctx do
+    xml = """
+    <x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+    <rdf:Description rdf:about='#{String.duplicate("\"", 13_000)}'/>
+    </rdf:RDF></x:xmpmeta>
+    """
+
+    src = source(ctx, primary_xmp: xml)
+    dest = Path.join(ctx.tmp_dir, "too-large.jpg")
+    assert {:error, "HDR XMP exceeds the JPEG segment limit"} = HdrResize.resize(src, dest, 800)
+    refute File.exists?(dest)
+  end
+
   test "an ordinary JPEG, and something that is not a JPEG, are refused", ctx do
     plain = Path.join(ctx.tmp_dir, "plain.jpg")
     {_, 0} = System.cmd("convert", ["-size", "200x100", "xc:red", plain], stderr_to_stdout: true)

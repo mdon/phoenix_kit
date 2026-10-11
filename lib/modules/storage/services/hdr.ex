@@ -119,8 +119,14 @@ defmodule PhoenixKit.Modules.Storage.Hdr do
 
   defp inside_file(%{offset: offset, size: size} = image, io) do
     case :file.position(io, :eof) do
-      {:ok, total} when offset > 0 and size > 0 and offset + size <= total -> image
-      _ -> nil
+      {:ok, total} when offset > 0 and size > 0 and offset + size <= total ->
+        case :file.pread(io, offset, 2) do
+          {:ok, <<0xFF, 0xD8>>} -> image
+          _ -> nil
+        end
+
+      _ ->
+        nil
     end
   end
 

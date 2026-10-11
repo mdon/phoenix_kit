@@ -256,8 +256,8 @@ defmodule PhoenixKit.Modules.Storage.ProcessFileJob do
   # (`Storage.Exif`), read from the same bytes and recorded in the same guarded
   # transaction. An edited image is skipped for the reason above: it carries no
   # EXIF, and `Storage.read_exif/1` reads its unedited backup's.
-  defp with_exif(metadata, _path, %{original_file_uuid: backup}) when is_binary(backup),
-    do: metadata
+  defp with_exif(metadata, path, %{original_file_uuid: backup}) when is_binary(backup),
+    do: Map.put(metadata, :hdr, Hdr.read(path))
 
   defp with_exif(metadata, path, _file) do
     metadata
@@ -361,15 +361,12 @@ defmodule PhoenixKit.Modules.Storage.ProcessFileJob do
   # rotation and tags in there are not this run's to touch.
   defp merge_exif(attrs, current) do
     {hdr, attrs} = Map.pop(attrs, :hdr)
+    {exif, attrs} = Map.pop(attrs, :exif)
+    meta = current.metadata || %{}
+    meta = if is_nil(hdr), do: meta, else: Map.put(meta, "hdr", hdr)
+    meta = if is_nil(exif), do: meta, else: Map.put(meta, "exif", exif)
 
-    case Map.pop(attrs, :exif) do
-      {nil, attrs} ->
-        attrs
-
-      {exif, attrs} ->
-        meta = Map.merge(current.metadata || %{}, %{"exif" => exif, "hdr" => hdr || %{}})
-        Map.put(attrs, :metadata, meta)
-    end
+    if is_nil(hdr) and is_nil(exif), do: attrs, else: Map.put(attrs, :metadata, meta)
   end
 
   # The metadata describes the original this run downloaded (`source`, its

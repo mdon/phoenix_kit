@@ -25,6 +25,7 @@ defmodule PhoenixKit.Modules.Storage.ImageEditingTest do
   alias PhoenixKit.Modules.Storage.ProcessFileJob
   alias PhoenixKit.Modules.Storage.VariantGenerator
   alias PhoenixKit.Settings
+  alias PhoenixKit.TestSupport.GainMapJpeg
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.Permissions
@@ -183,6 +184,30 @@ defmodule PhoenixKit.Modules.Storage.ImageEditingTest do
   end
 
   describe "saving an edit" do
+    test "HDR metadata follows the served original through edits, processing and restore", ctx do
+      path = Path.join(ctx.tmp, "hdr.jpg")
+      GainMapJpeg.build(path, width: 240, height: 160)
+      photo = upload!(ctx.owner, path, "hdr.jpg")
+      assert %{"gain_map" => true} = photo.metadata["hdr"]
+
+      edited = edit!(photo, %{"rotate" => 90}, ctx)
+      assert edited.metadata["hdr"] == %{}
+      assert %{"gain_map" => true} = ImageEditing.backup(edited).metadata["hdr"]
+
+      assert :ok =
+               ProcessFileJob.perform(%Oban.Job{
+                 args: %{"file_uuid" => photo.uuid, "filename" => "hdr.jpg"}
+               })
+
+      assert reload(photo).metadata["hdr"] == %{}
+      assert {:ok, reread} = Storage.read_exif(photo.uuid)
+      assert reread.metadata["hdr"] == %{}
+
+      assert {:ok, _} = ImageEditing.revert(edited, scope: ctx.scope)
+      assert [:ok] = drain()
+      assert %{"gain_map" => true} = reload(photo).metadata["hdr"]
+    end
+
     test "keeps the uuid, serves the edit, and hides the unedited original", ctx do
       before_keys = keys(ctx.photo.uuid)
       assert map_size(before_keys) > 1, "the upload has variants to move"

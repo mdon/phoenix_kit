@@ -701,6 +701,31 @@ stored under `_tiles/<uuid>/<v>/`. A version that is not the current one is
 a 404. The legacy `/tiles/<token>/<uuid>.dzi` resolves to the current version
 and is never cached.
 
+### HDR and camera metadata in renditions
+
+V217 stores each rendition's options in `Dimension.options` (`DimensionOptions`),
+including `crop_mode`, `fit_by`, `shape`, `keep_hdr` and `strip_metadata`.
+`Storage.create_dimension/1` and `update_dimension/2` also accept those names
+at the top level of their params.
+
+- `keep_hdr` defaults to false; the standard `medium` and `large` have it on.
+  A JPEG rendition that keeps proportions and fixes its width carries the
+  original JPEG's HDR gain map when it can. Unsupported containers or maps
+  fall back to an ordinary rendition. `config :phoenix_kit, hdr_renditions: false`
+  disables preservation site-wide.
+- `strip_metadata` defaults to true. Renditions drop camera, time and GPS
+  metadata while keeping the colour profile and orientation. HDR renditions
+  retain only the gain-map properties in XMP and the orientation in EXIF,
+  in both pictures. An unreadable XMP packet falls back to an ordinary rendition.
+  The uploaded original keeps its metadata.
+- These two choices apply when a rendition is generated; changing them does
+  not automatically remake existing renditions. Use **Regenerate all** on the
+  file's storage page to apply them to existing sizes.
+
+`metadata["hdr"]` describes the served original. Editing clears it because
+the rendered image has no gain map; restoring the unedited original restores
+its HDR summary. `Storage.read_exif/1` also refreshes this summary.
+
 ### Checking a file URL you were handed
 
 `URLSigner.verify_url(url, opts)` returns `{:ok, %{uuid:, variant:, version:}}`

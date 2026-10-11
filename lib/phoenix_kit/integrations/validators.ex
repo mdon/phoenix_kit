@@ -1040,13 +1040,7 @@ defmodule PhoenixKit.Integrations.Validators do
   # large floats, and an integer past the float range cannot become one. The
   # warning follows the amount shown, so "$0.00" never appears without it.
   defp dataforseo_balance_note(%{"money" => %{"balance" => balance}}) when is_number(balance) do
-    cents =
-      balance
-      |> to_decimal()
-      |> Decimal.round(2)
-      # -0.00 → 0.00
-      |> Decimal.add(Decimal.new(0))
-
+    cents = balance_cents(balance)
     amount = Decimal.to_string(cents, :normal)
 
     # A reading, not a fact: the next search spends it. The page that wants a
@@ -1062,6 +1056,22 @@ defmodule PhoenixKit.Integrations.Validators do
   end
 
   defp dataforseo_balance_note(_account), do: :ok
+
+  defp balance_cents(balance) do
+    decimal = to_decimal(balance)
+    context = Decimal.Context.get()
+    # Decimal 3.2's quantize checks the context precision. Leave room for all
+    # integer digits, cents and a rounding carry, without changing the caller's
+    # context or rounding a large balance down to its default precision.
+    precision = byte_size(Integer.to_string(decimal.coef)) + max(decimal.exp, 0) + 3
+
+    Decimal.Context.with(%{context | precision: max(context.precision, precision)}, fn ->
+      decimal
+      |> Decimal.round(2)
+      # -0.00 → 0.00
+      |> Decimal.add(Decimal.new(0))
+    end)
+  end
 
   defp to_decimal(value) when is_integer(value), do: Decimal.new(value)
   defp to_decimal(value) when is_float(value), do: Decimal.from_float(value)

@@ -9,9 +9,10 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ### V217 - Renditions that keep HDR ⚡ LATEST
 
-  `phoenix_kit_storage_dimensions.keep_hdr` (default false): a size with it on is
-  made from an HDR photo with its gain map kept. The standard `medium` and `large`
-  get it on, as they behaved before it was a setting. No rendition is remade.
+  `phoenix_kit_storage_dimensions.options` (`jsonb`, default `{}`) holds the rendition's
+  crop mode, fixed side, shape and HDR choice. The three former option columns are
+  copied into it and emptied. `keep_hdr` is on for the standard `medium` and `large`;
+  a size with it on keeps a photo's HDR gain map when it can. No rendition is remade.
 
   ### V216 - Key layout of a storage profile
 

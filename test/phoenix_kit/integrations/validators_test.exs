@@ -847,8 +847,18 @@ defmodule PhoenixKit.Integrations.ValidatorsTest do
       assert {:ok, %{reading: "Balance: $1" <> rest}} =
                Validators.interpret_dataforseo(200, with_balance(Integer.pow(10, 400)))
 
-      # Past Decimal's 28-digit context the cents are dropped; the digits stay.
-      assert rest =~ ~r/^0+(\.00)?$/
+      assert rest == String.duplicate("0", 400) <> ".00"
+    end
+
+    test "balance formatting preserves every digit and the caller's decimal context" do
+      context = %{Decimal.Context.get() | precision: 4, flags: [:inexact]}
+
+      Decimal.Context.with(context, fn ->
+        assert {:ok, %{reading: "Balance: $12345678901234567890.00"}} =
+                 Validators.interpret_dataforseo(200, with_balance(12_345_678_901_234_567_890))
+
+        assert Decimal.Context.get() == context
+      end)
     end
 
     test "a success with no account in it is still a success" do

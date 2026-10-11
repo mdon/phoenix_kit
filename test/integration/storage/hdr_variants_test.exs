@@ -154,6 +154,24 @@ defmodule PhoenixKit.Modules.Storage.HdrVariantsTest do
     assert Hdr.read(stored(ctx, file, "large")) == %{}
   end
 
+  test "an unreadable HDR XMP packet falls back to an ordinary rendition", ctx do
+    path = Path.join(ctx.tmp, "invalid-xmp.jpg")
+
+    GainMapJpeg.build(path,
+      primary_xmp: ~s(<x:xmpmeta xmlns:hdrgm="http://ns.adobe.com/hdr-gain-map/1.0/"><broken>)
+    )
+
+    file = upload!(ctx, path)
+    assert %{"gain_map" => true} = file.metadata["hdr"]
+
+    for name <- ~w(medium large) do
+      assert %{processing_status: "completed"} =
+               Storage.get_file_instance_by_name(file.uuid, name)
+
+      assert Hdr.read(stored(ctx, file, name)) == %{}
+    end
+  end
+
   test "with hdr_renditions off every size is ordinary", ctx do
     Application.put_env(:phoenix_kit, :hdr_renditions, false)
     on_exit(fn -> Application.delete_env(:phoenix_kit, :hdr_renditions) end)

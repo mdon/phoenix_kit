@@ -13,7 +13,8 @@ defmodule PhoenixKit.Modules.Storage.HdrResize do
     3. the metadata that describes the pictures (colour profile, EXIF, the XMP and
        ISO 21496-1 parameters of the map) is carried over **unchanged**, because it
        is about brightness and colour, not size. With `strip_metadata: true` the EXIF
-       (device, time, position, maker notes) is dropped but for the orientation tag;
+       (device, time, position, maker notes) is dropped but for the orientation tag,
+       and only the gain-map properties are kept in either picture's XMP;
     4. what *is* about size is rewritten: the directory's sizes and offsets, and the
        map's byte length in the picture's XMP.
 
@@ -28,6 +29,7 @@ defmodule PhoenixKit.Modules.Storage.HdrResize do
 
   require Logger
 
+  alias PhoenixKit.Modules.Storage.HdrXmp
   alias PhoenixKit.Modules.Storage.ImageProcessor
 
   # The gain map is detail the eye does not see, but its precision is brightness.
@@ -54,7 +56,7 @@ defmodule PhoenixKit.Modules.Storage.HdrResize do
          {:ok, {out_w, out_h}} <- sof_dims(primary_core),
          gm_target = max(round(gm_w * out_w / src_w), 1),
          {:ok, gain_core} <- resized_core(parts.gain, gm_target, @gain_map_quality) do
-      gain = assemble_gain(parts.gain_segments, gain_core)
+      gain = assemble_gain(parts.gain_segments, gain_core, strip?)
       primary = assemble_primary(parts, primary_core, byte_size(gain), strip?)
 
       case File.write(dest, primary <> gain) do
@@ -256,10 +258,20 @@ defmodule PhoenixKit.Modules.Storage.HdrResize do
   @xmp_extension "http://ns.adobe.com/xmp/extension/\0"
 
   # The gain map: its own segments (parameters, ISO marker) and the resized image.
-  defp assemble_gain(segments, core) do
-    kept = for %{raw: raw} = s <- segments, not mpf?(s), do: raw
+  defp assemble_gain(segments, core, strip?) do
+    kept =
+      segments
+      |> Enum.reject(&mpf?/1)
+      |> Enum.flat_map(&keep_gain_segment(&1, strip?))
+
     IO.iodata_to_binary([<<0xFF, 0xD8>>, kept, core])
   end
+
+  defp keep_gain_segment(%{marker: 0xE1, payload: <<@xmp, _::binary>>} = segment, strip?),
+    do: keep_segment(segment, nil, strip?)
+
+  defp keep_gain_segment(segment, true), do: keep_segment(segment, nil, true)
+  defp keep_gain_segment(%{raw: raw}, false), do: [raw]
 
   # The picture: what describes it (kept), the XMP's map length (rewritten), and the
   # directory (rewritten for the new sizes), then the resized image.
@@ -296,8 +308,8 @@ defmodule PhoenixKit.Modules.Storage.HdrResize do
 
   defp keep_segment(%{marker: 0xE1, payload: <<@xmp_extension, _::binary>>}, _, _), do: []
 
-  defp keep_segment(%{marker: 0xE1, payload: <<@xmp, xml::binary>>}, gain_len, _),
-    do: [xmp_segment(xml, gain_len)]
+  defp keep_segment(%{marker: 0xE1, payload: <<@xmp, xml::binary>>}, gain_len, strip?),
+    do: [xmp_segment(xml, gain_len, strip?)]
 
   defp keep_segment(%{marker: 0xE2, payload: <<"ICC_PROFILE\0", _::binary>>, raw: raw}, _, _),
     do: [raw]
@@ -367,16 +379,14 @@ defmodule PhoenixKit.Modules.Storage.HdrResize do
 
   # The picture's XMP, with the gain map's length corrected, and the pointer to an
   # extended XMP (a packet of further metadata that is not carried over) removed.
-  defp xmp_segment(xml, gain_len) do
-    patched =
-      xml
-      |> String.replace(
-        ~r/(Item:Semantic="GainMap"[^>]*?Item:Length=")\d+(")/s,
-        "\\g{1}#{gain_len}\\g{2}"
-      )
-      |> String.replace(~r/\s+xmpNote:HasExtendedXMP="[^"]*"/, "")
+  defp xmp_segment(xml, gain_len, strip?) do
+    payload = @xmp <> HdrXmp.rewrite(xml, gain_len, strip?)
 
-    payload = @xmp <> patched
+    # XML escaping can make the rewritten packet larger than its input. Refuse
+    # it rather than truncating the JPEG segment's 16-bit length on reassembly.
+    if byte_size(payload) > 65_533,
+      do: raise(ArgumentError, "HDR XMP exceeds the JPEG segment limit")
+
     <<0xFF, 0xE1, byte_size(payload) + 2::16, payload::binary>>
   end
 

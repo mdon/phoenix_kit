@@ -3918,6 +3918,7 @@ defmodule PhoenixKit.Modules.Storage do
 
     repo().transaction(fn ->
       with %PhoenixKit.Modules.Storage.File{} = row <- lock_file_row(file.uuid),
+           true <- source_uuid == (row.original_file_uuid || row.uuid),
            true <- original_key?(source_uuid, key),
            {:ok, updated} <-
              row

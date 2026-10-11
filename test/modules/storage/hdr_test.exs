@@ -119,6 +119,14 @@ defmodule PhoenixKit.Modules.Storage.HdrTest do
     assert Hdr.read(path) == %{}
   end
 
+  test "a directory pointing at non-JPEG bytes does not describe a gain map", ctx do
+    bytes = jpeg(iso: true, second: true)
+    second_at = byte_size(bytes) - 300
+    <<primary::binary-size(second_at), _soi::binary-size(2), tail::binary>> = bytes
+    path = write!(ctx, "broken.jpg", primary <> <<0, 0>> <> tail)
+    assert Hdr.read(path) == %{}
+  end
+
   test "an ordinary JPEG, other files and a missing file have none", ctx do
     assert Hdr.read(
              write!(

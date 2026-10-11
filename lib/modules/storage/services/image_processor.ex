@@ -43,6 +43,11 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
     "60"
   ]
 
+  # These probes parse stdout as dimensions, a frame count or a format. A
+  # recoverable profile warning (e.g. malformed XMP) must not enter that data;
+  # errors still have a nonzero exit status and retain their diagnostics.
+  @probe_args ["-quiet" | @limit_args]
+
   # 100 megapixels for resizing (variants): above any real camera, and the
   # header is read and refused before the decoder starts.
   @resize_max_pixels 100_000_000
@@ -87,7 +92,7 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
   end
 
   defp identify_dimensions(input) do
-    case System.cmd("identify", @limit_args ++ ["-format", "%wx%h", input],
+    case System.cmd("identify", @probe_args ++ ["-format", "%wx%h", input],
            stderr_to_stdout: true
          ) do
       {output, 0} ->
@@ -618,7 +623,7 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
          {output, 0} <-
            System.cmd(
              "convert",
-             @limit_args ++ [input, "-auto-orient", "-format", "%w %h", "info:"],
+             @probe_args ++ [input, "-auto-orient", "-format", "%w %h", "info:"],
              stderr_to_stdout: true
            ),
          [w, h] <- output |> last_line() |> String.split(),
@@ -639,7 +644,7 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
   end
 
   defp count_frames(input) do
-    case System.cmd("identify", @limit_args ++ ["-format", "%n\\n", input],
+    case System.cmd("identify", @probe_args ++ ["-format", "%n\\n", input],
            stderr_to_stdout: true
          ) do
       {output, 0} ->
@@ -695,7 +700,7 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
   end
 
   defp identify_format(input) do
-    case System.cmd("identify", @limit_args ++ ["-format", "%m", input], stderr_to_stdout: true) do
+    case System.cmd("identify", @probe_args ++ ["-format", "%m", input], stderr_to_stdout: true) do
       {output, 0} ->
         format = output |> String.trim() |> String.upcase()
 
@@ -846,7 +851,7 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
   def has_alpha_channel?(file_path) do
     with {:ok, input} <- pinned_input(file_path, "[0]"),
          {output, 0} <-
-           System.cmd("identify", @limit_args ++ ["-format", "%[channels]", input],
+           System.cmd("identify", @probe_args ++ ["-format", "%[channels]", input],
              stderr_to_stdout: true
            ) do
       # `%[channels]` starts with a colour model that ends in `a` when there is
