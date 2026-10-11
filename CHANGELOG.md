@@ -1,3 +1,48 @@
+## 2.61.0 - 2026-10-11
+
+**Migration V217.** Ships HDR renditions, a per-rendition "remove the camera's metadata" option, HDR gain-map
+detection in Media details, and the post-merge fixes from Codex's check of them. Existing renditions are not remade;
+regenerate them to apply the metadata fixes.
+
+### Added
+
+- **HDR gain-map detection.** A JPEG that carries an HDR gain map (an iPhone or Pixel photo) is recognised on upload
+  and shown in Media details (`Storage.Hdr`, recorded in `files.metadata["hdr"]`).
+- **HDR renditions.** A rendition of such a photo can keep its gain map, so it still glows on an HDR screen.
+  `Storage.HdrResize` splits the photo into the picture and its map, resizes both with ImageMagick, carries the colour
+  profile, EXIF, ISO 21496-1 and gain-map parameters over, and rewrites only what depends on size: the Multi-Picture
+  directory and the map's byte length in the picture's XMP. If it cannot be made, the ordinary rendition is.
+  `config :phoenix_kit, hdr_renditions: false` turns it off. The standard `medium` and `large` keep HDR.
+- **A "Remove the camera's metadata" option per rendition** (`strip_metadata`, on unless a size says otherwise):
+  EXIF with the device, time and GPS position, XMP, maker notes and comments are dropped, the colour profile stays,
+  and the orientation is applied to the pixels. A phone photo's 150 px thumbnail drops from 113 KB to 8 KB. An HDR
+  rendition keeps the gain map and one orientation-only EXIF segment. It applies to sizes made from now on.
+- **Rendition options are one JSON column** (`phoenix_kit_storage_dimensions.options`, V217, loaded as
+  `Storage.DimensionOptions`: `crop_mode`, `fit_by`, `shape`, `keep_hdr`, `strip_metadata`), so a new option needs no
+  migration. V217 copies the three former option columns (V210, V211, V214) into it and empties them; they stay,
+  nullable, until a later migration drops them.
+
+### Fixed
+
+- **Stripped HDR renditions no longer leak metadata:** the XMP of both pictures is parsed (`Storage.HdrXmp`) and only
+  gain-map properties are kept; the gain map's own segments are filtered too, and an unreadable packet falls back to
+  the ordinary rendition instead of being copied.
+- **The gain map's byte length in the XMP is corrected whatever the spelling** (prefixes, attribute order, element or
+  attribute form), and a rewritten packet over the JPEG segment limit is refused rather than truncated.
+- **A second picture whose directory entry does not start at a JPEG marker is ignored** by gain-map detection.
+- **HDR state follows edits and restores:** editing an image clears `metadata["hdr"]`, the unedited backup keeps it,
+  and reverting restores it; the edited file's own HDR is re-read after processing.
+- **Image probes ignore recoverable ImageMagick warnings** (`-quiet`), so a malformed-XMP warning can no longer end up
+  in the parsed dimensions, frame count or format.
+- **The DataForSEO balance note formats under Decimal 3.2** (its `quantize` now checks the context precision);
+  `decimal` moves to 3.2.0, which also clears the `hex.audit` advisory on 3.1.1.
+- **EXIF and HDR are recorded only against the bytes they were read from:** the recording transaction now also
+  checks that `source_uuid` is still the file's original, so an edit swapping it mid-run cannot be overwritten.
+
+### i18n
+
+- Translations in the eight locales for the new rendition options.
+
 ## 2.60.3 - 2026-10-10
 
 No migration. Ships PR #923 (opt-in permanent default-locale redirect); the review found nothing to fix.
