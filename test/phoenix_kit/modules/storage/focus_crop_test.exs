@@ -8,6 +8,7 @@ defmodule PhoenixKit.Modules.Storage.FocusCropTest do
   use ExUnit.Case, async: true
 
   alias PhoenixKit.Modules.Storage.{Dimension, ImageProcessor, VariantSets}
+  alias PhoenixKit.Test.ExifFixture
 
   describe "focus_window/3" do
     test "a square window on a landscape photo is the full height" do
@@ -207,6 +208,37 @@ defmodule PhoenixKit.Modules.Storage.FocusCropTest do
 
         # The square is 120px of 1600: half of it falls outside the center window.
         assert red_share(focus) > red_share(center) * 1.8
+      end
+    end
+
+    test "cuts a photo turned the way a camera can turn it where it is shown", %{tmp_dir: dir} do
+      if imagemagick?() do
+        # Stored 160x120 and brightest at the top, shown 120x160 turned by orientation 7
+        # (the one ImageMagick leaves a stale canvas offset after turning): the right edge
+        # is the bright one. A tall box at the right must be the bright part.
+        photo = Path.join(dir, "turned.jpg")
+
+        {_, 0} =
+          System.cmd("convert", ["-size", "160x120", "gradient:white-black", "jpg:" <> photo])
+
+        <<0xFF, 0xD8, rest::binary>> = File.read!(photo)
+
+        File.write!(photo, [
+          <<0xFF, 0xD8>>,
+          ExifFixture.segment(%{orientation: 7}),
+          rest
+        ])
+
+        out = Path.join(dir, "turned_focus.jpg")
+
+        assert {:ok, _} =
+                 ImageProcessor.resize_and_crop_focus(photo, out, 40, 120, {1.0, 1.0},
+                   format: "jpg",
+                   strip_metadata: true
+                 )
+
+        {mean, 0} = System.cmd("convert", [out, "-format", "%[fx:mean]", "info:"])
+        assert String.to_float(mean) > 0.6
       end
     end
 

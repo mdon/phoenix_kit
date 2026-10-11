@@ -91,23 +91,27 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
     end
   end
 
+  # The canvas (`%W x %H`, the page geometry), not the first frame's own size: an
+  # optimised animated GIF stores frames cropped to what changed, so frame 0
+  # can be smaller than the picture it belongs to.
   defp identify_dimensions(input) do
-    case System.cmd("identify", @probe_args ++ ["-format", "%wx%h", input],
+    case System.cmd("identify", @probe_args ++ ["-format", "%w %h %W %H", input],
            stderr_to_stdout: true
          ) do
       {output, 0} ->
-        case String.split(String.trim(output), "x") do
-          [width_str, height_str] ->
-            case {Integer.parse(width_str), Integer.parse(height_str)} do
-              {{width, ""}, {height, ""}} ->
-                {:ok, {width, height}}
+        output
+        |> String.trim()
+        |> String.split()
+        |> Enum.map(&Integer.parse/1)
+        |> case do
+          [{w, ""}, {h, ""}, {cw, ""}, {ch, ""}] when cw >= w and ch >= h and cw > 0 ->
+            {:ok, {cw, ch}}
 
-              _ ->
-                {:error, "Failed to parse dimensions: #{output}"}
-            end
+          [{w, ""}, {h, ""} | _] ->
+            {:ok, {w, h}}
 
           _ ->
-            {:error, "Invalid dimension format: #{output}"}
+            {:error, "Failed to parse dimensions: #{output}"}
         end
 
       {output, exit_code} ->
@@ -390,6 +394,55 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
   end
 
   @doc false
+  # Cuts `{crop_width, crop_height, left, top}` out of a JPEG exactly as it is
+  # stored (no orientation applied, no metadata kept) and scales the window to
+  # `{width, height}`. The caller owns the window's coordinates: `HdrResize` crops a
+  # photo and its gain map with windows that name the same part of the picture.
+  @spec crop_window(
+          String.t(),
+          String.t(),
+          {pos_integer(), pos_integer(), non_neg_integer(), non_neg_integer()},
+          {pos_integer(), pos_integer()},
+          keyword()
+        ) :: {:ok, String.t()} | {:error, String.t()}
+  def crop_window(
+        input_path,
+        output_path,
+        {crop_w, crop_h, left, top},
+        {width, height},
+        opts \\ []
+      ) do
+    quality = Keyword.get(opts, :quality, 85)
+
+    with {:ok, input} <- pinned_input(input_path, "[0]"),
+         {:ok, {cur_w, cur_h}} <- extract_dimensions(input_path),
+         :ok <- check_pixel_budget(cur_w, cur_h, @resize_max_pixels) do
+      args =
+        @limit_args ++
+          [
+            input,
+            "-crop",
+            "#{crop_w}x#{crop_h}+#{left}+#{top}",
+            "+repage",
+            "-resize",
+            "#{width}x#{height}!",
+            "-quality",
+            to_string(quality),
+            "jpg:#{output_path}"
+          ]
+
+      case System.cmd("convert", args, stderr_to_stdout: true) do
+        {_output, 0} -> {:ok, output_path}
+        {output, _exit_code} -> {:error, "ImageMagick convert failed: #{output}"}
+      end
+    else
+      {:error, reason} -> {:error, "Failed to read the image: #{reason}"}
+    end
+  rescue
+    e -> {:error, "Image crop failed: #{inspect(e)}"}
+  end
+
+  @doc false
   # The crop window `{crop_width, crop_height, left, top}` of the shape
   # `{width, height}` inside a `{cur_w, cur_h}` photo, centered on the focal point
   # where the edges allow and kept inside the photo where they do not.
@@ -424,7 +477,9 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
        ) do
     # The window is cut from the oriented photo at full resolution, then scaled to
     # the exact size: it has the target's shape, so `!` only absorbs rounding.
-    args = [input_path, "-auto-orient", "-background", background]
+    # `+repage` after the turn: for some orientations ImageMagick leaves the old canvas
+    # offset behind, and the crop that follows then misses the picture altogether.
+    args = [input_path, "-auto-orient", "+repage", "-background", background]
 
     args =
       if format in ["jpg", "jpeg"],
@@ -876,7 +931,7 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
          background,
          strip?
        ) do
-    args = if strip?, do: [input_path, "-auto-orient"], else: [input_path]
+    args = if strip?, do: [input_path, "-auto-orient", "+repage"], else: [input_path]
 
     # Set background color for padding/extension (rarely used with ^ resize)
     args = args ++ ["-background", background]

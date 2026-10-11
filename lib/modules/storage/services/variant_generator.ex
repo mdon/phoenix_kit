@@ -273,7 +273,9 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
 
   # A rendition of a photo with an HDR gain map keeps the map (`HdrResize`) when its
   # size says so (`Dimension.keep_hdr`, set in the rendition's editor) and it can: a
-  # JPEG that keeps the photo's proportions and fits its width. Every other size, and
+  # JPEG that keeps the photo's proportions and fits its width, or one cropped to a
+  # box (the map is cropped to the same part of the picture, around the subject for a
+  # focus crop). Every other size, and
   # any photo the map cannot be carried over for, is made the ordinary way. An HDR
   # rendition is a bonus: if it cannot be made, the size still is.
   # `config :phoenix_kit, hdr_renditions: false` turns it off for the whole site.
@@ -292,7 +294,7 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
   end
 
   defp make_variant(file, original_path, variant_path, dimension, focal, false) do
-    case hdr_variant(file, original_path, variant_path, dimension) do
+    case hdr_variant(file, original_path, variant_path, dimension, focal) do
       {:ok, path} ->
         {:ok, path}
 
@@ -301,12 +303,25 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
     end
   end
 
-  defp hdr_variant(file, original_path, variant_path, dimension) do
+  defp hdr_variant(file, original_path, variant_path, dimension, focal) do
     if hdr_rendition?(file, dimension) and Hdr.gain_map?(Hdr.read(original_path)) do
-      case HdrResize.resize(original_path, variant_path, dimension.width,
-             quality: dimension.quality || 85,
-             strip_metadata: Dimension.strip_metadata?(dimension)
-           ) do
+      opts = [
+        quality: dimension.quality || 85,
+        strip_metadata: Dimension.strip_metadata?(dimension)
+      ]
+
+      result =
+        if dimension.maintain_aspect_ratio == true,
+          do: HdrResize.resize(original_path, variant_path, dimension.width, opts),
+          else:
+            HdrResize.crop(
+              original_path,
+              variant_path,
+              {dimension.width, dimension.height},
+              [focal: focal] ++ opts
+            )
+
+      case result do
         {:ok, _info} ->
           {:ok, variant_path}
 
@@ -364,11 +379,19 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
       file.file_type == "image" and
       Dimension.keep_hdr?(dimension) and
       String.downcase(to_string(dimension.format)) in ["jpg", "jpeg"] and
-      dimension.maintain_aspect_ratio == true and
-      not Dimension.fixed_height?(dimension) and
-      not Dimension.focus_crop?(dimension) and
-      is_integer(dimension.width)
+      hdr_shape?(dimension)
   end
+
+  # A size that keeps the photo's proportions and fits its width, or a box it is cropped to.
+  defp hdr_shape?(%{maintain_aspect_ratio: true} = dimension),
+    do:
+      not Dimension.fixed_height?(dimension) and not Dimension.focus_crop?(dimension) and
+        is_integer(dimension.width)
+
+  defp hdr_shape?(%{maintain_aspect_ratio: false} = dimension),
+    do: is_integer(dimension.width) and is_integer(dimension.height)
+
+  defp hdr_shape?(_), do: false
 
   # Identical bytes can retain a shared key. Changed bytes need a fresh key
   # whenever ANY instance expects the old checksum, including this file's:

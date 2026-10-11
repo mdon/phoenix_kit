@@ -19818,8 +19818,8 @@ msgstr "marge %{value}"
 
 #: lib/modules/storage/web/dimension_form.html.heex:265
 #, elixir-autogen, elixir-format
-msgid "An iPhone or Pixel photo carries an HDR gain map, which lets bright areas glow on an HDR screen. A size with this on is made with the map kept; without it the size is an ordinary picture. It applies to JPEG sizes that keep the photo's proportions and fit its width, and only to photos that have a map. It adds a few KB per picture, and applies to sizes made from now on."
-msgstr "Une photo d’iPhone ou de Pixel contient une carte de gain HDR, qui fait briller les zones lumineuses sur un écran HDR. Une taille avec cette option est créée en conservant la carte ; sans elle, la taille est une image ordinaire. Elle s’applique aux tailles JPEG qui gardent les proportions de la photo et s’ajustent à la largeur, et seulement aux photos qui ont une carte. Elle ajoute quelques Ko par image et s’applique aux tailles créées à partir de maintenant."
+msgid "An iPhone or Pixel photo carries an HDR gain map, which lets bright areas glow on an HDR screen. A size with this on is made with the map kept; without it the size is an ordinary picture. It applies to JPEG sizes, whether they keep the photo's proportions or crop it to a box, and only to photos that have a map. It adds a few KB per picture, and applies to sizes made from now on."
+msgstr "Une photo d’iPhone ou de Pixel contient une carte de gain HDR, qui fait briller les zones lumineuses sur un écran HDR. Une taille avec cette option est créée en conservant la carte ; sans elle, la taille est une image ordinaire. Elle s’applique aux tailles JPEG, qu’elles gardent les proportions de la photo ou la recadrent dans un cadre, et seulement aux photos qui ont une carte. Elle ajoute quelques Ko par image et s’applique aux tailles créées à partir de maintenant."
 
 #: lib/modules/storage/web/dimension_form.html.heex:255
 #, elixir-autogen, elixir-format

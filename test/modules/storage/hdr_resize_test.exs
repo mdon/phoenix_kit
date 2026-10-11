@@ -8,6 +8,7 @@ defmodule PhoenixKit.Modules.Storage.HdrResizeTest do
 
   alias PhoenixKit.Modules.Storage.Hdr
   alias PhoenixKit.Modules.Storage.HdrResize
+  alias PhoenixKit.Modules.Storage.ImageProcessor
   alias PhoenixKit.TestSupport.GainMapJpeg
 
   @moduletag :tmp_dir
@@ -112,5 +113,129 @@ defmodule PhoenixKit.Modules.Storage.HdrResizeTest do
     File.write!(text, "hello")
     assert {:error, :not_a_jpeg} = HdrResize.resize(text, dest, 100)
     assert {:error, :enoent} = HdrResize.resize(Path.join(ctx.tmp_dir, "nope"), dest, 100)
+  end
+
+  describe "crop/4" do
+    alias PhoenixKit.Test.ExifFixture
+
+    # The mean brightness (0..1) of a picture, after `ops`.
+    defp mean(path, ops \\ []) do
+      {out, 0} =
+        System.cmd("convert", [path <> "[0]"] ++ ops ++ ["-format", "%[fx:mean]", "info:"],
+          stderr_to_stdout: true
+        )
+
+      String.to_float(out)
+    end
+
+    # The gain map of `path`, written next to it.
+    defp gain_of(path, ctx) do
+      bin = File.read!(path)
+      {:ok, %{gain: gain}} = HdrResize.split(bin)
+      out = Path.join(ctx.tmp_dir, "gain_#{System.unique_integer([:positive])}.jpg")
+      File.write!(out, gain)
+      out
+    end
+
+    test "is a box of the asked size that is still an HDR photo", ctx do
+      src = source(ctx)
+      dest = Path.join(ctx.tmp_dir, "out.jpg")
+
+      assert {:ok, %{width: 300, height: 300, gain_map_bytes: gm}} =
+               HdrResize.crop(src, dest, {300, 300})
+
+      assert dims(dest) == "300x300"
+
+      assert %{"gain_map" => true, "kinds" => ["ultrahdr"], "gain_map_bytes" => ^gm} =
+               Hdr.read(dest)
+
+      bin = File.read!(dest)
+      assert [_, length] = Regex.run(~r/Item:Semantic="GainMap"[^>]*Item:Length="(\d+)"/s, bin)
+      assert String.to_integer(length) == gm
+
+      # The map covers the same part of the picture, at the same fraction of the size
+      assert dims(gain_of(dest, ctx)) == "75x75"
+      assert binary_part(bin, byte_size(bin) - gm, gm) =~ ~s(hdrgm:GainMapMax="3.0")
+    end
+
+    test "the map is cut where the picture is: the subject's part of both", ctx do
+      # Portrait: a square box slides up and down. The picture runs white to black
+      # downwards, the map from dark grey to light grey.
+      src = source(ctx, width: 1200, height: 1600)
+      top = Path.join(ctx.tmp_dir, "top.jpg")
+      bottom = Path.join(ctx.tmp_dir, "bottom.jpg")
+
+      {:ok, _} = HdrResize.crop(src, top, {300, 300}, focal: {0.5, 0.0})
+      {:ok, _} = HdrResize.crop(src, bottom, {300, 300}, focal: {0.5, 1.0})
+
+      # The picture: the top three quarters against the bottom three quarters
+      assert_in_delta mean(top), 0.625, 0.03
+      assert_in_delta mean(bottom), 0.375, 0.03
+
+      # The map: the same parts of it (20..80% grey from the top down)
+      assert_in_delta mean(gain_of(top, ctx)), 0.425, 0.04
+      assert_in_delta mean(gain_of(bottom, ctx)), 0.575, 0.04
+    end
+
+    test "no focal point is the middle", ctx do
+      src = source(ctx, width: 1200, height: 1600)
+      a = Path.join(ctx.tmp_dir, "a.jpg")
+      b = Path.join(ctx.tmp_dir, "b.jpg")
+
+      {:ok, _} = HdrResize.crop(src, a, {300, 300})
+      {:ok, _} = HdrResize.crop(src, b, {300, 300}, focal: {0.5, 0.5})
+
+      assert_in_delta mean(a), mean(b), 0.005
+      assert_in_delta mean(a), 0.5, 0.03
+    end
+
+    test "a box bigger than the picture shrinks to it, and keeps its shape", ctx do
+      src = source(ctx, width: 400, height: 300)
+      dest = Path.join(ctx.tmp_dir, "out.jpg")
+
+      assert {:ok, %{width: 300, height: 300}} = HdrResize.crop(src, dest, {1000, 1000})
+      assert dims(dest) == "300x300"
+      assert %{"gain_map" => true} = Hdr.read(dest)
+    end
+
+    # Every way a camera can turn a photo: the box is cut where the photo is shown,
+    # which ImageMagick (`-auto-orient`, then `-crop`) tells us independently.
+    for orientation <- 1..8, focal <- [{0.0, 0.0}, {1.0, 1.0}], box <- [{300, 100}, {100, 300}] do
+      test "a turned photo (orientation #{orientation}) is cut where it is shown, focal #{inspect(focal)}, box #{inspect(box)}",
+           ctx do
+        orientation = unquote(orientation)
+        focal = unquote(Macro.escape(focal))
+        {bw, bh} = unquote(Macro.escape(box))
+
+        src = source(ctx, exif: ExifFixture.segment(%{orientation: orientation}))
+        dest = Path.join(ctx.tmp_dir, "out.jpg")
+
+        assert {:ok, _} = HdrResize.crop(src, dest, {bw, bh}, focal: focal)
+
+        # What was asked, on the photo as shown
+        {shown_w, shown_h} = if orientation in 5..8, do: {1200, 1600}, else: {1600, 1200}
+
+        {cw, ch, left, top} =
+          ImageProcessor.focus_window(
+            focal,
+            {shown_w, shown_h},
+            {bw, bh}
+          )
+
+        oracle =
+          mean(src, [
+            "-auto-orient",
+            "+repage",
+            "-crop",
+            "#{cw}x#{ch}+#{left}+#{top}",
+            "+repage",
+            "-resize",
+            "#{bw}x#{bh}!"
+          ])
+
+        assert_in_delta mean(dest, ["-auto-orient"]), oracle, 0.03
+        assert %{"gain_map" => true} = Hdr.read(dest)
+      end
+    end
   end
 end

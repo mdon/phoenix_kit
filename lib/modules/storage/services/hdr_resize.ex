@@ -71,6 +71,130 @@ defmodule PhoenixKit.Modules.Storage.HdrResize do
     error -> {:error, Exception.message(error)}
   end
 
+  @doc """
+  Writes a `width` x `height` crop of the gain-map JPEG at `source` to `dest`, still an
+  HDR photo: the picture is cropped, and the gain map is cropped to the same part of
+  it (a map covers the whole picture, so cutting the picture alone would put the
+  brightness of one place over another).
+
+  The box is cut as `ImageProcessor.resize_and_crop_focus/6` cuts it: the largest
+  window of its shape, centered on `:focal` (`{x, y}`, fractions of the photo as it
+  is displayed; the middle by default) as far as the edges allow, then scaled to the
+  box, which shrinks to fit when the photo is smaller. A turned photo (EXIF
+  orientation) is cut where it is shown, and keeps its orientation tag, so its pixels
+  and its map stay as the camera stored them. Takes `:quality` and `:strip_metadata`
+  like `resize/4`.
+  """
+  @spec crop(Path.t(), Path.t(), {pos_integer(), pos_integer()}, keyword()) ::
+          result() | {:error, term()}
+  def crop(source, dest, {width, height}, opts \\ []) do
+    quality = Keyword.get(opts, :quality, 85)
+    strip? = Keyword.get(opts, :strip_metadata, false)
+    focal = Keyword.get(opts, :focal) || {0.5, 0.5}
+
+    with {:ok, bin} <- File.read(source),
+         {:ok, parts} <- split(bin),
+         {:ok, {src_w, src_h}} <- sof_dims(parts.primary),
+         {:ok, {gm_w, gm_h}} <- sof_dims(parts.gain),
+         orientation = orientation(parts),
+         shown = shown_size({src_w, src_h}, orientation),
+         box = ImageProcessor.cap_to_original({width, height}, shown),
+         window = ImageProcessor.focus_window(focal, shown, box),
+         {cw, ch, left, top} = stored_window(window, {src_w, src_h}, orientation),
+         {out_w, out_h} = stored_box(box, orientation),
+         {:ok, primary_core} <-
+           cropped_core(parts.primary, {cw, ch, left, top}, {out_w, out_h}, quality),
+         gain_window = scale_window({cw, ch, left, top}, {src_w, src_h}, {gm_w, gm_h}),
+         gain_box =
+           {max(round(out_w * gm_w / src_w), 1), max(round(out_h * gm_h / src_h), 1)},
+         {:ok, gain_core} <- cropped_core(parts.gain, gain_window, gain_box, @gain_map_quality) do
+      gain = assemble_gain(parts.gain_segments, gain_core, strip?)
+      primary = assemble_primary(parts, primary_core, byte_size(gain), strip?)
+
+      case File.write(dest, primary <> gain) do
+        :ok ->
+          {:ok, %{width: out_w, height: out_h, gain_map_bytes: byte_size(gain)}}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+    end
+  rescue
+    error -> {:error, Exception.message(error)}
+  end
+
+  # ── orientation ───────────────────────────────────────────────
+
+  # How the picture is turned for display (EXIF orientation 1..8; 1 when it has no tag).
+  defp orientation(parts) do
+    parts.segments
+    |> Enum.find_value(fn
+      %{marker: 0xE1, payload: <<"Exif\0\0", tiff::binary>>} -> exif_orientation(tiff)
+      _ -> nil
+    end)
+    |> case do
+      n when n in 1..8 -> n
+      _ -> 1
+    end
+  end
+
+  # Orientations 5..8 turn the picture a quarter, so it is shown with its sides swapped.
+  defp shown_size({w, h}, n) when n in 5..8, do: {h, w}
+  defp shown_size(size, _), do: size
+
+  defp stored_box({w, h}, n) when n in 5..8, do: {h, w}
+  defp stored_box(box, _), do: box
+
+  # The window `{width, height, left, top}` as seen on screen, found in the picture as
+  # it is stored: each orientation's inverse, on the window's edges (`x0..x1`, `y0..y1`
+  # on screen) against the stored `sw` x `sh`.
+  defp stored_window({w, h, left, top}, {sw, sh}, n) do
+    {x0, x1, y0, y1} = {left, left + w, top, top + h}
+
+    {sx0, sx1, sy0, sy1} =
+      case n do
+        2 -> {sw - x1, sw - x0, y0, y1}
+        3 -> {sw - x1, sw - x0, sh - y1, sh - y0}
+        4 -> {x0, x1, sh - y1, sh - y0}
+        5 -> {y0, y1, x0, x1}
+        6 -> {y0, y1, sh - x1, sh - x0}
+        7 -> {sw - y1, sw - y0, sh - x1, sh - x0}
+        8 -> {sw - y1, sw - y0, x0, x1}
+        _ -> {x0, x1, y0, y1}
+      end
+
+    {sx1 - sx0, sy1 - sy0, sx0, sy0}
+  end
+
+  # The same part of the picture in another picture of the same scene (the gain map
+  # is a fraction of the picture's size), kept inside it and at least a pixel.
+  defp scale_window({w, h, left, top}, {pw, ph}, {gw, gh}) do
+    x0 = min(round(left * gw / pw), gw - 1)
+    x1 = min(max(round((left + w) * gw / pw), x0 + 1), gw)
+    y0 = min(round(top * gh / ph), gh - 1)
+    y1 = min(max(round((top + h) * gh / ph), y0 + 1), gh)
+
+    {x1 - x0, y1 - y0, x0, y0}
+  end
+
+  # `bin` cropped to `window` and scaled to `box`, as the JPEG image data alone.
+  defp cropped_core(bin, window, box, quality) do
+    input = temp(".jpg")
+    output = temp(".jpg")
+
+    try do
+      with :ok <- File.write(input, bin),
+           {:ok, _} <- ImageProcessor.crop_window(input, output, window, box, quality: quality),
+           {:ok, out} <- File.read(output) do
+        {_segments, core_at} = segments(out)
+        {:ok, binary_part(out, core_at, byte_size(out) - core_at)}
+      end
+    after
+      File.rm(input)
+      File.rm(output)
+    end
+  end
+
   # ── splitting ─────────────────────────────────────────────────
 
   @doc false

@@ -19827,8 +19827,8 @@ msgstr "varu %{value}"
 
 #: lib/modules/storage/web/dimension_form.html.heex:265
 #, elixir-autogen, elixir-format
-msgid "An iPhone or Pixel photo carries an HDR gain map, which lets bright areas glow on an HDR screen. A size with this on is made with the map kept; without it the size is an ordinary picture. It applies to JPEG sizes that keep the photo's proportions and fit its width, and only to photos that have a map. It adds a few KB per picture, and applies to sizes made from now on."
-msgstr "iPhone’i või Pixeli foto sisaldab HDR-i gain mapi, mis laseb eredatel aladel HDR-ekraanil hõõguda. Selle valikuga suurus tehakse kaardi säilitamisega; ilma selleta on suurus tavaline pilt. See kehtib JPEG-suurustele, mis säilitavad foto proportsioonid ja järgivad laiust, ning ainult fotodele, millel kaart on. See lisab pildi kohta paar KB ja kehtib nüüdsest tehtavatele suurustele."
+msgid "An iPhone or Pixel photo carries an HDR gain map, which lets bright areas glow on an HDR screen. A size with this on is made with the map kept; without it the size is an ordinary picture. It applies to JPEG sizes, whether they keep the photo's proportions or crop it to a box, and only to photos that have a map. It adds a few KB per picture, and applies to sizes made from now on."
+msgstr "iPhone’i või Pixeli foto sisaldab HDR-i gain mapi, mis laseb eredatel aladel HDR-ekraanil hõõguda. Selle valikuga suurus tehakse kaardi säilitamisega; ilma selleta on suurus tavaline pilt. See kehtib JPEG-suurustele, olgu need foto proportsioone säilitavad või selle kasti kärpivad, ning ainult fotodele, millel kaart on. See lisab pildi kohta paar KB ja kehtib nüüdsest tehtavatele suurustele."
 
 #: lib/modules/storage/web/dimension_form.html.heex:255
 #, elixir-autogen, elixir-format

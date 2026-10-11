@@ -71,6 +71,34 @@ defmodule PhoenixKit.Modules.Storage.AnimatedRenditionsTest do
     end
   end
 
+  describe "extract_dimensions/1" do
+    test "gives the canvas of an optimised animation, not its first frame's crop", ctx do
+      path = Path.join(ctx.tmp_dir, "cropped.gif")
+
+      {_, 0} =
+        System.cmd(
+          "convert",
+          ~w[( -size 120x60 xc:none -fill red -draw] ++
+            ["rectangle 40,20 59,39", "-set", "delay", "10", ")"] ++
+            ~w[( -size 120x60 xc:none -fill red -draw] ++
+            ["rectangle 50,20 69,39", "-set", "delay", "10", ")"] ++
+            ["-loop", "0", "-layers", "optimize", path],
+          stderr_to_stdout: true
+        )
+
+      # the first frame is stored as just the 20x20 square
+      assert ["20x20" <> _ | _] = identify(path, "%wx%h\n")
+      assert {:ok, {120, 60}} = ImageProcessor.extract_dimensions(path)
+    end
+
+    test "a plain picture is its own size", ctx do
+      path = Path.join(ctx.tmp_dir, "plain.png")
+      {_, 0} = System.cmd("convert", ["-size", "80x40", "xc:red", path])
+
+      assert {:ok, {80, 40}} = ImageProcessor.extract_dimensions(path)
+    end
+  end
+
   describe "resize with animated: true" do
     test "keeps every frame, each on the whole canvas, and the delays", ctx do
       out = Path.join(ctx.tmp_dir, "small.gif")

@@ -19818,8 +19818,8 @@ msgstr "Spielraum %{value}"
 
 #: lib/modules/storage/web/dimension_form.html.heex:265
 #, elixir-autogen, elixir-format
-msgid "An iPhone or Pixel photo carries an HDR gain map, which lets bright areas glow on an HDR screen. A size with this on is made with the map kept; without it the size is an ordinary picture. It applies to JPEG sizes that keep the photo's proportions and fit its width, and only to photos that have a map. It adds a few KB per picture, and applies to sizes made from now on."
-msgstr "Ein iPhone- oder Pixel-Foto enthält eine HDR-Gain-Map, mit der helle Bereiche auf einem HDR-Bildschirm leuchten. Eine Größe mit dieser Option wird mit erhaltener Map erstellt; ohne sie ist die Größe ein gewöhnliches Bild. Gilt für JPEG-Größen, die die Proportionen des Fotos beibehalten und sich nach der Breite richten, und nur für Fotos mit Map. Sie kostet wenige KB pro Bild und gilt für Größen, die ab jetzt erstellt werden."
+msgid "An iPhone or Pixel photo carries an HDR gain map, which lets bright areas glow on an HDR screen. A size with this on is made with the map kept; without it the size is an ordinary picture. It applies to JPEG sizes, whether they keep the photo's proportions or crop it to a box, and only to photos that have a map. It adds a few KB per picture, and applies to sizes made from now on."
+msgstr "Ein iPhone- oder Pixel-Foto enthält eine HDR-Gain-Map, mit der helle Bereiche auf einem HDR-Bildschirm leuchten. Eine Größe mit dieser Option wird mit erhaltener Map erstellt; ohne sie ist die Größe ein gewöhnliches Bild. Gilt für JPEG-Größen, egal ob sie die Proportionen des Fotos beibehalten oder es auf ein Feld zuschneiden, und nur für Fotos mit Map. Sie kostet wenige KB pro Bild und gilt für Größen, die ab jetzt erstellt werden."
 
 #: lib/modules/storage/web/dimension_form.html.heex:255
 #, elixir-autogen, elixir-format

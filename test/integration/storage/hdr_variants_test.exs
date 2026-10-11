@@ -109,6 +109,34 @@ defmodule PhoenixKit.Modules.Storage.HdrVariantsTest do
     assert Hdr.read(stored(ctx, file, "thumbnail")) == %{}
   end
 
+  test "a size cropped to a box keeps the gain map too, cut where the picture is", ctx do
+    import Ecto.Query
+    alias PhoenixKit.Modules.Storage.Dimension
+    alias PhoenixKit.Modules.Storage.VariantSets
+
+    square =
+      Repo.one!(
+        from d in Dimension,
+          where: d.name == "small_square" and d.variant_set_uuid == ^VariantSets.default_uuid()
+      )
+
+    refute square.maintain_aspect_ratio
+    {:ok, _} = Storage.update_dimension(square, %{keep_hdr: true})
+
+    path = Path.join(ctx.tmp, "hdr.jpg")
+    GainMapJpeg.build(path, width: 2400, height: 1800)
+    file = upload!(ctx, path)
+
+    assert %{"gain_map" => true, "kinds" => ["ultrahdr"]} =
+             Hdr.read(stored(ctx, file, "small_square"))
+
+    assert %{width: 300, height: 300} =
+             Storage.get_file_instance_by_name(file.uuid, "small_square")
+
+    # the other crops, with the setting off, are ordinary pictures
+    assert Hdr.read(stored(ctx, file, "thumbnail_square")) == %{}
+  end
+
   test "renditions leave the camera's metadata out, unless a size says otherwise", ctx do
     import Ecto.Query
     alias PhoenixKit.Modules.Storage.Dimension

@@ -709,8 +709,10 @@ including `crop_mode`, `fit_by`, `shape`, `keep_hdr` and `strip_metadata`.
 at the top level of their params.
 
 - `keep_hdr` defaults to false; the standard `medium` and `large` have it on.
-  A JPEG rendition that keeps proportions and fixes its width carries the
-  original JPEG's HDR gain map when it can. Unsupported containers or maps
+  A JPEG rendition that keeps proportions and fixes its width, or one cropped
+  to a box (center or focus crop; the gain map is cut to the same part of the
+  picture, and a turned photo is cut where it is shown), carries the original
+  JPEG's HDR gain map when it can. Unsupported containers or maps
   fall back to an ordinary rendition. `config :phoenix_kit, hdr_renditions: false`
   disables preservation site-wide.
 - `strip_metadata` defaults to true. Renditions drop camera, time and GPS
