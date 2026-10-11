@@ -85,10 +85,17 @@ defmodule PhoenixKit.Modules.Storage.ImageEditing do
   @spec editable?(StorageFile.t() | nil) :: boolean()
   def editable?(%StorageFile{} = file) do
     file.file_type == "image" and editable_mime?(file.mime_type) and
-      file.system_managed != true and file.status == "active"
+      file.system_managed != true and file.status == "active" and not animated?(file)
   end
 
   def editable?(_), do: false
+
+  # An edit is rendered from one frame, so an animation would come out a still picture.
+  defp animated?(%StorageFile{metadata: %{"animation" => %{"frames" => frames}}})
+       when is_integer(frames),
+       do: frames > 1
+
+  defp animated?(_), do: false
 
   @doc "Whether images of `mime_type` can be edited (ImageMagick writes them back)."
   @spec editable_mime?(term()) :: boolean()

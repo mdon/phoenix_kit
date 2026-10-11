@@ -630,6 +630,30 @@ defmodule PhoenixKitWeb.Live.StorageProfilesUITest do
       refute Dimension.strip_metadata?(Repo.reload!(medium))
     end
 
+    test "a rendition keeps animated pictures animated unless told not to", %{conn: conn} do
+      medium =
+        Repo.one!(
+          from d in Dimension,
+            where:
+              d.name == "medium" and
+                d.variant_set_uuid == ^VariantSets.default_uuid()
+        )
+
+      assert Dimension.keep_animation?(medium)
+
+      {:ok, view, html} =
+        live(conn, Routes.path("/admin/settings/media/renditions/#{medium.uuid}/edit"))
+
+      assert html =~ ~s(id="dimension-keep-animation")
+      assert has_element?(view, "#dimension-keep-animation input[type=checkbox][checked]")
+
+      view
+      |> form("#dimension-form", %{"dimension" => %{"keep_animation" => "false"}})
+      |> render_submit()
+
+      refute Dimension.keep_animation?(Repo.reload!(medium))
+    end
+
     test "a rendition that keeps proportions can fix its height, for a horizontal panorama",
          %{conn: conn} do
       {:ok, view, html} =

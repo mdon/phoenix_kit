@@ -527,6 +527,17 @@ defmodule PhoenixKitWeb.Live.Users.MediaStorage do
 
   def dimensions_label(_), do: "–"
 
+  @doc "\"39 frames, 1.8 s\" for an animated file; nil for a still picture."
+  def animation_label(%{metadata: %{"animation" => %{"frames" => frames} = animation}})
+      when is_integer(frames) and frames > 1 do
+    seconds = (animation["duration_ms"] || 0) / 1000
+
+    ngettext("%{count} frame", "%{count} frames", frames, count: frames) <>
+      if(seconds > 0, do: ", #{:erlang.float_to_binary(seconds, decimals: 1)} s", else: "")
+  end
+
+  def animation_label(_), do: nil
+
   @doc false
   # What a size asks for, as its set states it: the edge it fits and its pixels.
   def spec_label(nil), do: "–"

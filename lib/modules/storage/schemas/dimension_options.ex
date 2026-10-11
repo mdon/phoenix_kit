@@ -11,6 +11,9 @@ defmodule PhoenixKit.Modules.Storage.DimensionOptions do
     * `shape` — which pictures it is made for: `"any"`, `"wide"` or `"tall"`.
     * `keep_hdr` — whether a photo with an HDR gain map keeps the map in this size
       (`Storage.HdrResize`).
+    * `keep_animation` — whether an animated GIF or WebP stays animated in this size.
+      On unless a size says otherwise; a fixed box that crops the picture is a still
+      whatever it says. A size with it off is the first frame.
     * `strip_metadata` — whether the camera's metadata (EXIF with the device, the time
       and the GPS position, XMP, maker notes) is left out of the rendition. The colour
       profile stays and the orientation is applied to the pixels, so the picture looks
@@ -39,6 +42,7 @@ defmodule PhoenixKit.Modules.Storage.DimensionOptions do
     field :shape, :string, default: "any"
     field :keep_hdr, :boolean, default: false
     field :strip_metadata, :boolean, default: true
+    field :keep_animation, :boolean, default: true
   end
 
   @type t :: %__MODULE__{
@@ -46,12 +50,13 @@ defmodule PhoenixKit.Modules.Storage.DimensionOptions do
           fit_by: String.t(),
           shape: String.t(),
           keep_hdr: boolean(),
-          strip_metadata: boolean()
+          strip_metadata: boolean(),
+          keep_animation: boolean()
         }
 
   @doc "The option names."
   @spec keys() :: [atom()]
-  def keys, do: [:crop_mode, :fit_by, :shape, :keep_hdr, :strip_metadata]
+  def keys, do: [:crop_mode, :fit_by, :shape, :keep_hdr, :strip_metadata, :keep_animation]
 
   @doc false
   def changeset(options, attrs) do

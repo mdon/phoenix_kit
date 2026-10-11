@@ -132,6 +132,10 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
   - `opts` - Additional options
     - `:quality` - JPEG quality 1-100 (default: 85)
     - `:format` - Output format override (jpg, png, webp, etc)
+    - `:animated` - keep every frame of an animated GIF or WebP (default: false, the
+      first frame only for a still format). Each frame is flattened onto the canvas
+      before it is resized, and the result is re-optimised; `animation_info/1` says
+      whether a file is animated, and an animation over `animation_limits/0` is refused.
     - `:strip_metadata` - leave the camera's metadata (EXIF, XMP, comment) out and
       apply the orientation to the pixels; the colour profile stays (default: false).
       `resize_and_crop_center/5` and `resize_and_crop_focus/6` take it too.
@@ -144,19 +148,24 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
     quality = Keyword.get(opts, :quality, 85)
     format = Keyword.get(opts, :format, nil)
     strip? = Keyword.get(opts, :strip_metadata, false)
+    animated? = Keyword.get(opts, :animated, false)
 
     # Extract current dimensions (pinned and limited like every call here),
     # and refuse an oversized header before the decoder ever runs.
     with {:ok, input} <- pinned_input(input_path, frame_for(output_path, format)),
          {:ok, {current_width, current_height}} <- extract_dimensions(input_path),
-         :ok <- check_pixel_budget(current_width, current_height, @resize_max_pixels) do
+         :ok <- check_pixel_budget(current_width, current_height, @resize_max_pixels),
+         :ok <- check_animation_budget(input_path, {current_width, current_height}, animated?) do
       # Calculate resize parameters
       resize_spec = calculate_resize_spec(current_width, current_height, width, height)
 
       # Build ImageMagick convert command
       args =
         @limit_args ++
-          build_convert_args(input, output_path, resize_spec, quality, format, strip?)
+          build_convert_args(input, output_path, resize_spec, quality, format,
+            strip: strip?,
+            animated: animated?
+          )
 
       Logger.info("Resizing image: #{input_path} -> #{output_path}, resize spec: #{resize_spec}")
 
@@ -603,6 +612,61 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
     if String.downcase(target) in ["gif", "webp"], do: "", else: "[0]"
   end
 
+  # The most an animation we re-encode may be: frames, and frames times pixels. Past
+  # either, a size is made as a still picture, not skipped.
+  @animation_max_frames 300
+  @animation_max_pixels 150_000_000
+
+  @doc "The limits on an animation that is resized: `%{frames:, pixels:}` (frames times pixels)."
+  @spec animation_limits() :: %{frames: pos_integer(), pixels: pos_integer()}
+  def animation_limits, do: %{frames: @animation_max_frames, pixels: @animation_max_pixels}
+
+  @doc """
+  Whether `file_path` is an animation, and how long: `{:ok, %{frames:, duration_ms:}}`
+  with `frames` of 1 for a still picture. The duration is the sum of the frames'
+  delays. `{:error, reason}` for something ImageMagick cannot read.
+  """
+  @spec animation_info(String.t()) ::
+          {:ok, %{frames: pos_integer(), duration_ms: non_neg_integer()}} | {:error, String.t()}
+  def animation_info(file_path) do
+    with {:ok, input} <- pinned_input(file_path),
+         {output, 0} <-
+           System.cmd("identify", @limit_args ++ ["-format", "%T\\n", input],
+             stderr_to_stdout: true
+           ) do
+      delays =
+        for line <- String.split(output, "\n", trim: true),
+            {ticks, ""} <- [Integer.parse(String.trim(line))],
+            do: ticks
+
+      if delays == [],
+        do: {:error, "could not read the frames"},
+        else: {:ok, %{frames: length(delays), duration_ms: Enum.sum(delays) * 10}}
+    else
+      {:error, _} = error -> error
+      {output, _status} when is_binary(output) -> {:error, String.trim(output)}
+    end
+  end
+
+  # An animation that would be re-encoded is bounded by its frames and by what they
+  # add up to, as a still picture is bounded by its pixels: a GIF of a few hundred
+  # frames at screen size is a lot of memory for a thumbnail.
+  defp check_animation_budget(_input_path, _size, false), do: :ok
+
+  defp check_animation_budget(input_path, {width, height}, true) do
+    case animation_info(input_path) do
+      {:ok, %{frames: frames}}
+      when frames > @animation_max_frames or frames * width * height > @animation_max_pixels ->
+        {:error, "animation is too large"}
+
+      {:ok, _} ->
+        :ok
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
   # What ImageMagick actually thinks this is, checked against a short
   # allowlist. The extension and the browser's content-type are both the
   # uploader's claims; this is the only reading that counts, and it does
@@ -750,8 +814,13 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
     {max(round(w * scale), 1), max(round(h * scale), 1)}
   end
 
-  defp build_convert_args(input_path, output_path, resize_spec, quality, format, strip?) do
-    args = [input_path]
+  defp build_convert_args(input_path, output_path, resize_spec, quality, format, flags) do
+    strip? = Keyword.get(flags, :strip, false)
+    animated? = Keyword.get(flags, :animated, false)
+
+    # An animated GIF stores most frames as the part that changed; each is put on the
+    # full canvas first, or a resize turns them into fragments.
+    args = if animated?, do: [input_path, "-coalesce"], else: [input_path]
 
     # A format without transparency is flattened on white; left to
     # ImageMagick, a see-through PNG turned into a JPEG comes out black.
@@ -767,6 +836,7 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
     # always did; the orientation is then applied to the pixels, since the tag
     # that said it is going.
     args = if strip?, do: args ++ ["-auto-orient" | strip_metadata_args()], else: args
+    args = if animated?, do: args ++ ["-layers", "optimize"], else: args
 
     # Add quality setting for JPEG (ImageMagick quality for lossy formats)
     args = args ++ ["-quality", to_string(quality)]

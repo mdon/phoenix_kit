@@ -177,7 +177,12 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
         # The format is decided from the pixels, so it comes after the
         # download: a JPEG size of a see-through image would turn its
         # transparent background black.
-        output_format = output_format(format_override, file, original_path)
+        animated? = animated_rendition?(file, dimension, format_override, original_path)
+
+        output_format =
+          if animated?,
+            do: file.ext |> to_string() |> String.trim_leading(".") |> String.downcase(),
+            else: output_format(format_override, file, original_path)
 
         # Generate variant filename using file checksum + variant name for uniqueness
         variant_ext = determine_variant_extension(file.ext, output_format)
@@ -219,7 +224,14 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
           variant_storage_path = "#{file.file_path}/#{variant_filename}"
 
           with {:ok, variant_path} <-
-                 make_variant(file, original_path, variant_path, effective_dimension, focal),
+                 make_variant(
+                   file,
+                   original_path,
+                   variant_path,
+                   effective_dimension,
+                   focal,
+                   animated?
+                 ),
                {:ok, file_stats} <- get_variant_file_stats(variant_path),
                variant_storage_path <- safe_variant_key(variant_storage_path, file_stats.checksum),
                {:ok, storage_info} <-
@@ -265,7 +277,21 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
   # any photo the map cannot be carried over for, is made the ordinary way. An HDR
   # rendition is a bonus: if it cannot be made, the size still is.
   # `config :phoenix_kit, hdr_renditions: false` turns it off for the whole site.
-  defp make_variant(file, original_path, variant_path, dimension, focal) do
+  defp make_variant(_file, original_path, variant_path, dimension, _focal, true) do
+    # The size keeps the animation: every frame, in the original's own format.
+    ImageProcessor.resize(
+      original_path,
+      variant_path,
+      if(Dimension.fixed_height?(dimension), do: nil, else: dimension.width),
+      if(Dimension.fixed_height?(dimension), do: dimension.height, else: nil),
+      quality: dimension.quality || 85,
+      format: dimension.format,
+      animated: true,
+      strip_metadata: Dimension.strip_metadata?(dimension)
+    )
+  end
+
+  defp make_variant(file, original_path, variant_path, dimension, focal, false) do
     case hdr_variant(file, original_path, variant_path, dimension) do
       {:ok, path} ->
         {:ok, path}
@@ -293,6 +319,43 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
       end
     else
       :skip
+    end
+  end
+
+  # Whether this rendition is the animated original made smaller, as a GIF or WebP:
+  # its size says so (`Dimension.keep_animation`), it is an animated GIF or WebP, and
+  # it can: a size that keeps the picture's proportions (a cropped box is a still),
+  # in the size's own format rather than an alternative one, within the limits of
+  # `ImageProcessor.animation_limits/0`. Every other size is a still picture of the
+  # first frame, as before. `config :phoenix_kit, animated_renditions: false` turns it
+  # off for the whole site.
+  defp animated_rendition?(file, dimension, format_override, original_path) do
+    Application.get_env(:phoenix_kit, :animated_renditions, true) and
+      file.file_type == "image" and
+      Dimension.keep_animation?(dimension) and
+      format_override == dimension.format and
+      animated_ext?(file) and
+      dimension.maintain_aspect_ratio == true and
+      not Dimension.focus_crop?(dimension) and
+      animation_fits?(original_path)
+  end
+
+  defp animated_ext?(file),
+    do:
+      file.ext
+      |> to_string()
+      |> String.trim_leading(".")
+      |> String.downcase()
+      |> Kernel.in(~w(gif webp))
+
+  defp animation_fits?(path) do
+    limits = ImageProcessor.animation_limits()
+
+    with {:ok, %{frames: frames}} when frames > 1 <- ImageProcessor.animation_info(path),
+         {:ok, {w, h}} <- ImageProcessor.extract_dimensions(path) do
+      frames <= limits.frames and frames * w * h <= limits.pixels
+    else
+      _ -> false
     end
   end
 
@@ -667,6 +730,7 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
         "jpeg" -> "image/jpeg"
         "png" -> "image/png"
         "webp" -> "image/webp"
+        "gif" -> "image/gif"
         "mp4" -> "video/mp4"
         _ -> original_mime
       end

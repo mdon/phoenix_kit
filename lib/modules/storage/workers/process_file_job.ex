@@ -113,6 +113,7 @@ defmodule PhoenixKit.Modules.Storage.ProcessFileJob do
         with {:ok, metadata} <- extract_and_log_image_metadata(temp_path),
              metadata = with_capture_date(metadata, temp_path, file),
              metadata = with_exif(metadata, temp_path, file),
+             metadata = with_animation(metadata, temp_path, file),
              :ok <- update_and_log_metadata(file, source, metadata),
              :ok <- log_dimensions_info() do
           generate_and_log_variants(file)
@@ -256,6 +257,20 @@ defmodule PhoenixKit.Modules.Storage.ProcessFileJob do
   # (`Storage.Exif`), read from the same bytes and recorded in the same guarded
   # transaction. An edited image is skipped for the reason above: it carries no
   # EXIF, and `Storage.read_exif/1` reads its unedited backup's.
+  # An animated GIF or WebP records how many frames it has and how long it runs
+  # (`metadata["animation"]`), which the file's storage page shows. A still picture
+  # records nothing.
+  defp with_animation(metadata, path, file) do
+    ext = file.ext |> to_string() |> String.trim_leading(".") |> String.downcase()
+
+    with true <- ext in ~w(gif webp),
+         {:ok, %{frames: frames} = info} when frames > 1 <- ImageProcessor.animation_info(path) do
+      Map.put(metadata, :animation, info)
+    else
+      _ -> metadata
+    end
+  end
+
   defp with_exif(metadata, path, %{original_file_uuid: backup}) when is_binary(backup),
     do: Map.put(metadata, :hdr, Hdr.read(path))
 
@@ -359,14 +374,20 @@ defmodule PhoenixKit.Modules.Storage.ProcessFileJob do
 
   # The EXIF summary joins the row's `metadata` rather than replacing it: the
   # rotation and tags in there are not this run's to touch.
+  defp stringify(map), do: Map.new(map, fn {k, v} -> {to_string(k), v} end)
+
   defp merge_exif(attrs, current) do
     {hdr, attrs} = Map.pop(attrs, :hdr)
     {exif, attrs} = Map.pop(attrs, :exif)
+    {animation, attrs} = Map.pop(attrs, :animation)
     meta = current.metadata || %{}
     meta = if is_nil(hdr), do: meta, else: Map.put(meta, "hdr", hdr)
     meta = if is_nil(exif), do: meta, else: Map.put(meta, "exif", exif)
+    meta = if is_nil(animation), do: meta, else: Map.put(meta, "animation", stringify(animation))
 
-    if is_nil(hdr) and is_nil(exif), do: attrs, else: Map.put(attrs, :metadata, meta)
+    if is_nil(hdr) and is_nil(exif) and is_nil(animation),
+      do: attrs,
+      else: Map.put(attrs, :metadata, meta)
   end
 
   # The metadata describes the original this run downloaded (`source`, its

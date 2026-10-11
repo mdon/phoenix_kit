@@ -282,6 +282,12 @@ defmodule PhoenixKit.Modules.Storage.Dimension do
 
   def strip_metadata?(_), do: true
 
+  @doc "Whether an animated GIF or WebP stays animated in this rendition (on unless a size says otherwise)."
+  def keep_animation?(%__MODULE__{options: %DimensionOptions{keep_animation: keep}}),
+    do: keep != false
+
+  def keep_animation?(_), do: true
+
   @doc "How a fixed rendition can be cropped: around the middle, or around the subject."
   def crop_modes, do: @crop_modes
 
