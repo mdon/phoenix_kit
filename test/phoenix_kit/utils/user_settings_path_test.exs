@@ -28,6 +28,10 @@ defmodule PhoenixKit.Utils.UserSettingsPathTest do
 
     start_supervised!({PhoenixKit.Cache.Registry, []})
     start_supervised!({PhoenixKit.Cache, name: :settings})
+
+    # Locale segments only exist on a multilingual site; with the switch off no
+    # URL carries one (`single_language_routes_test.exs`).
+    PhoenixKit.Cache.put(:settings, "languages_enabled", "true")
     :ok
   end
 

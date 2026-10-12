@@ -16,8 +16,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
   import Phoenix.Component, only: [sigil_H: 2]
   import Phoenix.LiveViewTest, only: [rendered_to_string: 1]
 
-  alias Ecto.Adapters.SQL.Sandbox
   alias PhoenixKit.Cache
+  alias PhoenixKit.Test.LanguageSettings
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Users.Permissions
@@ -591,6 +591,11 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
   end
 
   describe "project title link — locale-aware, probed against the host's own router (issue #843)" do
+    # A multilingual site: with the switch off no locale segment exists at all.
+    setup do
+      LanguageSettings.multilingual!()
+    end
+
     # Both `.link` instances (the full title and the collapsed "…" variant,
     # which only renders once `page_title` is set — `admin_shell/2` always
     # passes one) used to hardcode `href="/"`, losing the locale a visitor on
@@ -674,12 +679,6 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperAdminHeaderTest do
       # Same primed-cache setup as `PhoenixKit.Utils.UserSettingsPathTest`:
       # the setting is read through the ETS cache, so prime it in-process
       # instead of touching the database.
-      if Application.get_env(:phoenix_kit, :test_repo_available, false) do
-        :ok = Sandbox.checkout(PhoenixKit.Test.Repo)
-      end
-
-      start_supervised!({Cache.Registry, []})
-      start_supervised!({Cache, name: :settings})
       Cache.put(:settings, "default_language_no_prefix", "true")
 
       html =

@@ -13,12 +13,20 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcherLocaleContractTest do
       languages admin page generates snippets that pass it);
     * the predicate behind the dev-only warning for a session-locale page.
   """
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   import Phoenix.LiveViewTest, only: [rendered_to_string: 1]
   import Phoenix.Component, only: [sigil_H: 2]
 
+  alias PhoenixKit.Test.LanguageSettings
   alias PhoenixKitWeb.Components.Core.LanguageSwitcher
+
+  # The switcher is for a multilingual site: with the switch off no URL carries
+  # a locale segment. Primed on, so the cache (a global process) makes the file
+  # `async: false`.
+  setup do
+    LanguageSettings.multilingual!()
+  end
 
   defp two_languages do
     [
