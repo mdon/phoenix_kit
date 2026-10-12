@@ -84,8 +84,6 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
   alias PhoenixKit.Utils.Values
   alias PhoenixKitWeb.Components.Core.Icon
 
-  @default_locale Config.default_locale()
-
   @doc """
   Renders a dropdown language switcher.
 
@@ -601,7 +599,7 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
       assigns.current_locale ||
         Process.get(:phoenix_kit_current_locale) ||
         Gettext.get_locale(PhoenixKitWeb.Gettext) ||
-        @default_locale
+        Config.default_locale()
 
     # Get enabled languages - these are full dialect codes with names
     # Ensure we always have a list, even if nil is returned
@@ -728,7 +726,7 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
       assigns.current_locale ||
         Process.get(:phoenix_kit_current_locale) ||
         Gettext.get_locale(PhoenixKitWeb.Gettext) ||
-        @default_locale
+        Config.default_locale()
 
     # Get enabled languages - these are full dialect codes with names
     # Ensure we always have a list, even if nil is returned
@@ -836,10 +834,10 @@ defmodule PhoenixKitWeb.Components.Core.LanguageSwitcher do
       assigns.current_locale ||
         Process.get(:phoenix_kit_current_locale) ||
         Gettext.get_locale(PhoenixKitWeb.Gettext) ||
-        @default_locale
+        Config.default_locale()
 
     # Ensure locale is always a string
-    locale = if is_binary(locale), do: locale, else: @default_locale
+    locale = if is_binary(locale), do: locale, else: Config.default_locale()
 
     languages_config =
       case assigns.languages do

@@ -509,17 +509,9 @@ defmodule PhoenixKit.Utils.Multilang do
   end
 
   defp default_language_code do
-    if Code.ensure_loaded?(Languages) and
-         function_exported?(Languages, :get_default_language, 0) do
-      case Languages.get_default_language() do
-        %{code: code} when is_binary(code) -> code
-        _ -> "en-US"
-      end
-    else
-      "en-US"
-    end
+    Languages.primary_language_code()
   rescue
-    _ -> "en-US"
+    _ -> PhoenixKit.Config.default_locale()
   end
 
   defp get_language_info(code) do
