@@ -5,8 +5,11 @@ defmodule PhoenixKitWeb.Live.Modules.Languages do
   Provides interface for managing available languages and localization settings.
 
   Languages is core and this page is always reachable; its first card is the site's
-  multi-language switch (`toggle_languages`). With the switch off nothing below it is
-  shown. Saved configuration is kept, and menus offer no language choices.
+  multi-language switch (`toggle_languages`), the second the site's primary language
+  and URL policy (`set_primary_language`, `toggle_default_language_no_prefix`) — shown
+  with the switch off too, since a single-language site needs its language as well.
+  With the switch off nothing else is shown. Saved configuration is kept, and menus
+  offer no language choices.
   """
   use PhoenixKitWeb, :live_view
 
@@ -72,6 +75,7 @@ defmodule PhoenixKitWeb.Live.Modules.Languages do
       |> assign(:switcher_show_native_names, false)
       # Site-wide URL behavior — primary-language locale-segment toggle.
       |> assign(:default_language_no_prefix, Languages.default_language_no_prefix?())
+      |> assign_primary_language()
 
     {:ok, socket}
   end
@@ -108,6 +112,23 @@ defmodule PhoenixKitWeb.Live.Modules.Languages do
 
       {:error, _changeset} ->
         {:noreply, put_flash(socket, :error, gettext("Failed to update URL behavior setting"))}
+    end
+  end
+
+  # Allowed with the switch off: a single-language site picks its language here.
+  defp handle_language_event("set_primary_language", %{"code" => code}, socket) do
+    case Languages.set_primary_language(code) do
+      {:ok, _config} ->
+        {:noreply,
+         socket
+         |> reload_display_languages()
+         |> put_flash(:info, gettext("Primary language updated"))}
+
+      {:error, _reason} ->
+        {:noreply,
+         socket
+         |> assign_primary_language()
+         |> put_flash(:error, gettext("Failed to set the primary language"))}
     end
   end
 
@@ -236,6 +257,30 @@ defmodule PhoenixKitWeb.Live.Modules.Languages do
     end
   end
 
+  # The primary-language select: the enabled languages while the switch is on
+  # (the primary must be one of them), every predefined language while off.
+  defp assign_primary_language(socket) do
+    primary = Languages.primary_language_code()
+
+    options =
+      if Languages.enabled?() do
+        Enum.map(Languages.get_enabled_languages(), &{&1.name, &1.code})
+      else
+        Languages.get_available_languages()
+        |> Enum.map(&{&1.name, &1.code})
+        |> Enum.sort()
+      end
+
+    options =
+      if Enum.any?(options, fn {_name, code} -> code == primary end),
+        do: options,
+        else: [{primary, primary} | options]
+
+    socket
+    |> assign(:primary_language_code, primary)
+    |> assign(:primary_language_options, options)
+  end
+
   defp get_current_path(_socket, _session) do
     # For LanguagesLive, return the settings path
     Routes.path("/admin/settings/languages")
@@ -252,6 +297,8 @@ defmodule PhoenixKitWeb.Live.Modules.Languages do
 
     socket
     |> assign(:ml_enabled, enabled)
+    |> assign(:default_language_no_prefix, Languages.default_language_no_prefix?())
+    |> assign_primary_language()
     |> assign(:languages, display_languages)
     |> assign(:grouped_languages, grouped_languages)
     |> assign(:enabled_codes, enabled_codes)

@@ -74,6 +74,23 @@
               />
             </div>
 
+            <%!-- Primary language lives on Settings → Languages; this line is
+                 how the admin of a single-language site finds it. --%>
+            <div
+              id="primary-language-link"
+              class="fieldset w-full min-w-0 grid-cols-[minmax(0,1fr)]"
+            >
+              <span class="fieldset-legend text-base font-medium">
+                {gettext("Language & URLs")}
+              </span>
+              <p class="text-sm text-base-content/70">
+                {gettext("Primary language: %{language}.", language: @primary_language_name)}
+                <.pk_link navigate="/admin/settings/languages" class="link link-primary">
+                  {gettext("Set it, and how languages appear in URLs")}
+                </.pk_link>
+              </p>
+            </div>
+
             <%!-- "Admin Panel" chip in the admin header --%>
             <div class="fieldset w-full min-w-0 grid-cols-[minmax(0,1fr)]">
               <.checkbox
