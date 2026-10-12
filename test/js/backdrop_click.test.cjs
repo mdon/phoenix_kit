@@ -1,11 +1,13 @@
 "use strict";
 
-// Unit tests for `backdropClick` and `textareaSizeChanged` in
-// priv/static/assets/phoenix_kit.js.
+// Unit tests for `backdropClick`, `textareaSizeChanged` and `strayFieldClick`
+// in priv/static/assets/phoenix_kit.js.
 //
 // `backdropClick` decides whether a click on a PkDialog closes it: the press
-// and the release must both land on the <dialog> element. `textareaSizeChanged`
-// decides whether a press on a textarea was a resize.
+// and the release must both land on the <dialog> element, whatever the click's
+// own target says. `textareaSizeChanged` decides whether a press on a textarea
+// was a resize. `strayFieldClick` decides whether a click is the tail of a
+// selection dragged out of a text field.
 //
 // Run: mix test.js  (node --test needs the explicit file on Node 25)
 
@@ -63,30 +65,32 @@ global.window = {
 global.localStorage = storage;
 global.sessionStorage = storage;
 
-const { backdropClick, textareaSizeChanged } = require("../../priv/static/assets/phoenix_kit.js");
+const { backdropClick, textareaSizeChanged, strayFieldClick } = require("../../priv/static/assets/phoenix_kit.js");
 
 const dialog = { id: "modal" };
 const field = { id: "description" };
 
 test("a press and release on the dialog itself is a backdrop click", () => {
-  assert.equal(backdropClick(dialog, dialog, dialog), true);
+  assert.equal(backdropClick(dialog, dialog, dialog, dialog), true);
 });
 
 test("a drag from a field out onto the backdrop is not", () => {
   // The browser reports the common ancestor — the dialog — as the click target.
-  assert.equal(backdropClick(dialog, field, dialog), false);
+  assert.equal(backdropClick(dialog, field, dialog, dialog), false);
 });
 
 test("a drag from the backdrop that ends inside the box is not", () => {
-  assert.equal(backdropClick(dialog, dialog, field), false);
+  // Same common ancestor, so the click target is the dialog here too.
+  assert.equal(backdropClick(dialog, dialog, field, dialog), false);
 });
 
 test("a click inside the box is not", () => {
-  assert.equal(backdropClick(dialog, field, field), false);
+  assert.equal(backdropClick(dialog, field, field, field), false);
 });
 
-test("a click with no recorded press does not close", () => {
-  assert.equal(backdropClick(dialog, null, dialog), false);
+test("a click with no recorded press or release does not close", () => {
+  assert.equal(backdropClick(dialog, null, dialog, dialog), false);
+  assert.equal(backdropClick(dialog, dialog, null, dialog), false);
 });
 
 test("a press that leaves the inline size alone is not a resize", () => {
@@ -105,4 +109,44 @@ test("a second drag from an already resized field is a resize too", () => {
     textareaSizeChanged({ height: "300px", width: "420px" }, { height: "180px", width: "420px" }),
     true
   );
+});
+
+// A node whose `contains` answers from a fixed list of descendants.
+function node(tagName, extra, descendants) {
+  const el = Object.assign({ tagName: tagName }, extra || {});
+  el.contains = (other) => other === el || (descendants || []).indexOf(other) !== -1;
+  return el;
+}
+
+const textarea = node("TEXTAREA");
+const emailInput = node("INPUT", { type: "email" });
+const checkbox = node("INPUT", { type: "checkbox" });
+const paragraph = node("P");
+const wrapper = node("DIV", {}, [textarea, emailInput, checkbox, paragraph]);
+const elsewhere = node("DIV");
+
+test("a selection dragged out of a textarea is not a click on its wrapper", () => {
+  assert.equal(strayFieldClick(textarea, wrapper, 1), true);
+  assert.equal(strayFieldClick(emailInput, wrapper, 1), true);
+});
+
+test("an ordinary click on the field itself goes through", () => {
+  assert.equal(strayFieldClick(textarea, textarea, 1), false);
+});
+
+test("a press on something that is not a text field goes through", () => {
+  assert.equal(strayFieldClick(checkbox, wrapper, 1), false);
+  assert.equal(strayFieldClick(paragraph, wrapper, 1), false);
+});
+
+test("a keyboard activation is never stopped", () => {
+  assert.equal(strayFieldClick(textarea, wrapper, 0), false);
+});
+
+test("a click on an element that does not contain the field goes through", () => {
+  assert.equal(strayFieldClick(textarea, elsewhere, 1), false);
+});
+
+test("a click with no recorded press goes through", () => {
+  assert.equal(strayFieldClick(null, wrapper, 1), false);
 });

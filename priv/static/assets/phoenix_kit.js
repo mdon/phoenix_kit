@@ -3597,15 +3597,17 @@ if (typeof window.Chart === "undefined") {
     module.exports.isDialogOpenInBrowser = isDialogOpenInBrowser;
   }
 
-  // True when a click on a dialog is a click on its backdrop: it must both
-  // BEGIN and END on the <dialog> element itself. The browser dispatches a
-  // click to the nearest common ancestor of the press and the release, so a
-  // drag that starts inside the box and is let go past its edge — selecting
-  // the text of a field, pulling a textarea's resize grip — also arrives with
-  // the dialog as its target, and closed the modal under the user's cursor
-  // with whatever they had typed.
-  function backdropClick(dialog, pressTarget, clickTarget) {
-    return !!dialog && pressTarget === dialog && clickTarget === dialog;
+  // True when a click on a dialog is a click on its backdrop: the press AND
+  // the release must both land on the <dialog> element itself. The browser
+  // dispatches a click to the nearest common ancestor of the two, so a drag
+  // that starts inside the box and is let go past its edge — selecting the
+  // text of a field, pulling a textarea's resize grip — also arrives with the
+  // dialog as its target, and closed the modal under the user's cursor with
+  // whatever they had typed. So does the opposite drag, from the backdrop
+  // into the box, which is why the click's own target proves nothing and the
+  // release is checked separately.
+  function backdropClick(dialog, pressTarget, releaseTarget, clickTarget) {
+    return !!dialog && pressTarget === dialog && releaseTarget === dialog && clickTarget === dialog;
   }
 
   // Keeps the size a user dragged a <textarea> to. The resize grip writes
@@ -3647,18 +3649,60 @@ if (typeof window.Chart === "undefined") {
       const done = function() {
         window.removeEventListener("pointerup", done, true);
         window.removeEventListener("pointercancel", done, true);
+        window.removeEventListener("pointermove", released, true);
         el._pkResizing = false;
         const after = inlineSize(el);
         if (textareaSizeChanged(before, after)) keepTextareaSize(el, after);
       };
+      // A button let go outside the window may never deliver its pointerup.
+      // The first move that reports no button down ends the press instead, or
+      // the field would stay "mid-drag" and the next patch would take its size.
+      const released = function(move) { if (move.buttons === 0) done(); };
       window.addEventListener("pointerup", done, true);
       window.addEventListener("pointercancel", done, true);
+      window.addEventListener("pointermove", released, true);
+    }, true);
+  }
+
+  // The same drag, caught for everything that is not a PkDialog. A press that
+  // begins in a text field and is released outside it — a selection dragged
+  // past the field's edge — is dispatched as a click on their common ancestor:
+  // a wrapper carrying `phx-click` (a hand-rolled modal's backdrop, a row or
+  // card that opens something) then fires and takes the half-typed text with
+  // it. Nobody means that gesture as a click on the ancestor, so it is
+  // stopped before any handler sees it. Only pointer clicks count: a keyboard
+  // activation reports `detail` 0 and has no press to compare against.
+  function textEntryField(el) {
+    if (!el || !el.tagName) return false;
+    if (el.isContentEditable) return true;
+    if (el.tagName === "TEXTAREA") return true;
+    if (el.tagName !== "INPUT") return false;
+    const type = (el.type || "text").toLowerCase();
+    return ["text", "search", "email", "url", "tel", "password", "number"].indexOf(type) !== -1;
+  }
+
+  function strayFieldClick(pressTarget, clickTarget, detail) {
+    if (!pressTarget || !clickTarget || !detail) return false;
+    if (pressTarget === clickTarget) return false;
+    if (!textEntryField(pressTarget)) return false;
+    return typeof clickTarget.contains === "function" && clickTarget.contains(pressTarget);
+  }
+
+  if (typeof document !== "undefined" && document.addEventListener && !window.__pkStrayClickBound) {
+    window.__pkStrayClickBound = true;
+    let pressedOn = null;
+    document.addEventListener("pointerdown", function(e) { pressedOn = e.target; }, true);
+    document.addEventListener("click", function(e) {
+      const pressed = pressedOn;
+      pressedOn = null;
+      if (strayFieldClick(pressed, e.target, e.detail)) e.stopPropagation();
     }, true);
   }
 
   if (typeof module === "object" && module.exports) {
     module.exports.backdropClick = backdropClick;
     module.exports.textareaSizeChanged = textareaSizeChanged;
+    module.exports.strayFieldClick = strayFieldClick;
   }
 
   // ---------------------------------------------------------------------------
@@ -4033,13 +4077,22 @@ if (typeof window.Chart === "undefined") {
       // (rather than a descendant) means the user clicked outside the
       // modal-box on the ::backdrop surface. Children stop propagation
       // naturally because event.target lands on them, not on the dialog.
-      // The press must have begun there too — see `backdropClick`.
+      // The press and the release must both have landed there too — see
+      // `backdropClick`. A release outside the dialog never reaches these
+      // listeners, which leaves the release unset and the click refused.
       self._pressTarget = null;
-      self._onPointerDown = function(e) { self._pressTarget = e.target; };
+      self._releaseTarget = null;
+      self._onPointerDown = function(e) {
+        self._pressTarget = e.target;
+        self._releaseTarget = null;
+      };
+      self._onPointerUp = function(e) { self._releaseTarget = e.target; };
       self._onClick = function(e) {
         const pressTarget = self._pressTarget;
+        const releaseTarget = self._releaseTarget;
         self._pressTarget = null;
-        if (!backdropClick(self.el, pressTarget, e.target) || !self._isCloseable()) return;
+        self._releaseTarget = null;
+        if (!backdropClick(self.el, pressTarget, releaseTarget, e.target) || !self._isCloseable()) return;
         // Same reason as the Escape path: `close()` is a no-op, and fires no
         // `close` event, on a top-layer dialog whose `open` attribute is gone.
         self._restoreOpenAttr();
@@ -4048,6 +4101,7 @@ if (typeof window.Chart === "undefined") {
       this.el.addEventListener("cancel", self._onCancel);
       this.el.addEventListener("close", self._onClose);
       this.el.addEventListener("pointerdown", self._onPointerDown);
+      this.el.addEventListener("pointerup", self._onPointerUp);
       this.el.addEventListener("click", self._onClick);
 
       // data-close-guard="input": see the header comment. Local state only —
@@ -4122,6 +4176,7 @@ if (typeof window.Chart === "undefined") {
       if (this._onClose) this.el.removeEventListener("close", this._onClose);
       if (this._onClick) this.el.removeEventListener("click", this._onClick);
       if (this._onPointerDown) this.el.removeEventListener("pointerdown", this._onPointerDown);
+      if (this._onPointerUp) this.el.removeEventListener("pointerup", this._onPointerUp);
       if (this._onShowEvent) this.el.removeEventListener("pk:dialog-show", this._onShowEvent);
       if (this._onInput) this.el.removeEventListener("input", this._onInput);
     }
@@ -4236,6 +4291,15 @@ if (typeof window.Chart === "undefined") {
     },
 
     updated() {
+      // The server closed the modal on a live connection — saved, cancelled
+      // or dismissed. The draft is finished with: left in place, the next
+      // reconnect would hand it back and reopen a modal the user had closed,
+      // or one whose contents were already saved. After a reconnect the flag
+      // also reads "false", but that is the re-mount, and the draft is
+      // exactly what `_maybeRestore` is about to use.
+      if (!pkWasDisconnected && this.el.dataset.draftActive !== "true") {
+        delete pkDialogDrafts[this.el.id];
+      }
       this._maybeRestore();
     },
 
