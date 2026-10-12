@@ -380,6 +380,17 @@
                   <td class="text-right whitespace-nowrap">
                     <a
                       :if={row.instance && row.state in [:ok, :stale, :no_copy]}
+                      href={view_url(row.instance, @file)}
+                      target="_blank"
+                      rel="noopener"
+                      class="btn btn-ghost btn-xs btn-square"
+                      title={gettext("View")}
+                      aria-label={gettext("View")}
+                    >
+                      <.icon name="hero-eye" class="w-4 h-4" />
+                    </a>
+                    <a
+                      :if={row.instance && row.state in [:ok, :stale, :no_copy]}
                       href={download_url(row.instance, @file)}
                       download={download_name(@file, row.instance)}
                       class="btn btn-ghost btn-xs btn-square"

@@ -75,6 +75,27 @@ defmodule PhoenixKitWeb.Live.Users.MediaStorageTest do
       assert html =~ "Open in media view"
     end
 
+    test "each rendition can be opened in a new tab as well as downloaded", %{
+      conn: conn,
+      user: user
+    } do
+      file = image!(user)
+      {:ok, _view, html} = live(conn, storage_path(file))
+
+      row = html |> Floki.parse_document!() |> Floki.find("#rendition-original")
+      [view] = Floki.find(row, ~s(a[aria-label="View"]))
+      [download] = Floki.find(row, ~s(a[aria-label="Download"]))
+
+      [href] = Floki.attribute(view, "href")
+      [saves] = Floki.attribute(download, "href")
+
+      assert href =~ "/file/#{file.uuid}/original"
+      refute href =~ "dl=1"
+      assert Floki.attribute(view, "target") == ["_blank"]
+      assert Floki.attribute(view, "rel") == ["noopener"]
+      assert saves == href <> "&dl=1" or saves == href <> "?dl=1"
+    end
+
     test "names the library and both profiles, and whether the file is up to date", %{
       conn: conn,
       user: user
