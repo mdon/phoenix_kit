@@ -458,6 +458,9 @@ on the library page). A library that has not chosen follows its set's old
 switch moved. Tiles are cut on the first request; turning deep zoom off only
 stops serving them, and the ones made stay stored.
 
+> **The deep zoom switch is locked** while it is redone — see
+> `dev_docs/plans/2026-10-12-deep-zoom-rework.md`. Serving is unchanged.
+
 - A generated variant records the `spec_hash` of the size that made it; a
   file records the set and revision its variants were made by.
 - A missing image size that is being made is served as the nearest smaller
