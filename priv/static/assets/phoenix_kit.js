@@ -3597,6 +3597,70 @@ if (typeof window.Chart === "undefined") {
     module.exports.isDialogOpenInBrowser = isDialogOpenInBrowser;
   }
 
+  // True when a click on a dialog is a click on its backdrop: it must both
+  // BEGIN and END on the <dialog> element itself. The browser dispatches a
+  // click to the nearest common ancestor of the press and the release, so a
+  // drag that starts inside the box and is let go past its edge — selecting
+  // the text of a field, pulling a textarea's resize grip — also arrives with
+  // the dialog as its target, and closed the modal under the user's cursor
+  // with whatever they had typed.
+  function backdropClick(dialog, pressTarget, clickTarget) {
+    return !!dialog && pressTarget === dialog && clickTarget === dialog;
+  }
+
+  // Keeps the size a user dragged a <textarea> to. The resize grip writes
+  // inline `height`/`width`, which the server never rendered, so the next
+  // LiveView patch drops the `style` attribute and the field snaps back to
+  // its default size mid-edit. A press on a textarea that leaves its inline
+  // size changed is a resize; from then on the size is put back whenever a
+  // patch takes it away. Bound once on the document, so every textarea is
+  // covered — core's components, a module's own markup, inside a dialog or
+  // not — with nothing to opt into.
+  function textareaSizeChanged(before, after) {
+    return !!before && !!after && (before.height !== after.height || before.width !== after.width);
+  }
+
+  function inlineSize(el) {
+    return { height: el.style.height || "", width: el.style.width || "" };
+  }
+
+  function keepTextareaSize(el, size) {
+    el._pkKeptSize = size;
+    if (el._pkSizeObserver || typeof MutationObserver !== "function") return;
+    el._pkSizeObserver = new MutationObserver(function() {
+      const kept = el._pkKeptSize;
+      // Mid-drag the browser is the one writing the style; leave it alone.
+      if (!kept || el._pkResizing) return;
+      if (el.style.height !== kept.height) el.style.height = kept.height;
+      if (el.style.width !== kept.width) el.style.width = kept.width;
+    });
+    el._pkSizeObserver.observe(el, { attributes: true, attributeFilter: ["style"] });
+  }
+
+  if (typeof document !== "undefined" && document.addEventListener && !window.__pkTextareaSizeBound) {
+    window.__pkTextareaSizeBound = true;
+    document.addEventListener("pointerdown", function(e) {
+      const el = e.target;
+      if (!el || el.tagName !== "TEXTAREA") return;
+      const before = inlineSize(el);
+      el._pkResizing = true;
+      const done = function() {
+        window.removeEventListener("pointerup", done, true);
+        window.removeEventListener("pointercancel", done, true);
+        el._pkResizing = false;
+        const after = inlineSize(el);
+        if (textareaSizeChanged(before, after)) keepTextareaSize(el, after);
+      };
+      window.addEventListener("pointerup", done, true);
+      window.addEventListener("pointercancel", done, true);
+    }, true);
+  }
+
+  if (typeof module === "object" && module.exports) {
+    module.exports.backdropClick = backdropClick;
+    module.exports.textareaSizeChanged = textareaSizeChanged;
+  }
+
   // ---------------------------------------------------------------------------
   // TableLocalSearch Hook
   // ---------------------------------------------------------------------------
@@ -3969,8 +4033,13 @@ if (typeof window.Chart === "undefined") {
       // (rather than a descendant) means the user clicked outside the
       // modal-box on the ::backdrop surface. Children stop propagation
       // naturally because event.target lands on them, not on the dialog.
+      // The press must have begun there too — see `backdropClick`.
+      self._pressTarget = null;
+      self._onPointerDown = function(e) { self._pressTarget = e.target; };
       self._onClick = function(e) {
-        if (e.target !== self.el || !self._isCloseable()) return;
+        const pressTarget = self._pressTarget;
+        self._pressTarget = null;
+        if (!backdropClick(self.el, pressTarget, e.target) || !self._isCloseable()) return;
         // Same reason as the Escape path: `close()` is a no-op, and fires no
         // `close` event, on a top-layer dialog whose `open` attribute is gone.
         self._restoreOpenAttr();
@@ -3978,6 +4047,7 @@ if (typeof window.Chart === "undefined") {
       };
       this.el.addEventListener("cancel", self._onCancel);
       this.el.addEventListener("close", self._onClose);
+      this.el.addEventListener("pointerdown", self._onPointerDown);
       this.el.addEventListener("click", self._onClick);
 
       // data-close-guard="input": see the header comment. Local state only —
@@ -4051,6 +4121,7 @@ if (typeof window.Chart === "undefined") {
       if (this._onCancel) this.el.removeEventListener("cancel", this._onCancel);
       if (this._onClose) this.el.removeEventListener("close", this._onClose);
       if (this._onClick) this.el.removeEventListener("click", this._onClick);
+      if (this._onPointerDown) this.el.removeEventListener("pointerdown", this._onPointerDown);
       if (this._onShowEvent) this.el.removeEventListener("pk:dialog-show", this._onShowEvent);
       if (this._onInput) this.el.removeEventListener("input", this._onInput);
     }
