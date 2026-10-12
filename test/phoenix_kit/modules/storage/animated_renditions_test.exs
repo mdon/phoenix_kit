@@ -52,6 +52,23 @@ defmodule PhoenixKit.Modules.Storage.AnimatedRenditionsTest do
     out |> String.split("\n", trim: true)
   end
 
+  defp cropped_gif(ctx) do
+    path = Path.join(ctx.tmp_dir, "cropped.gif")
+
+    {_, 0} =
+      System.cmd(
+        "convert",
+        ~w[( -size 120x60 xc:none -fill red -draw] ++
+          ["rectangle 40,20 59,39", "-set", "delay", "10", ")"] ++
+          ~w[( -size 120x60 xc:none -fill red -draw] ++
+          ["rectangle 50,20 69,39", "-set", "delay", "10", ")"] ++
+          ["-loop", "0", "-layers", "optimize", path],
+        stderr_to_stdout: true
+      )
+
+    path
+  end
+
   describe "animation_info/1" do
     test "counts the frames and adds up their delays", ctx do
       assert {:ok, %{frames: 3, duration_ms: 300}} =
@@ -73,18 +90,7 @@ defmodule PhoenixKit.Modules.Storage.AnimatedRenditionsTest do
 
   describe "extract_dimensions/1" do
     test "gives the canvas of an optimised animation, not its first frame's crop", ctx do
-      path = Path.join(ctx.tmp_dir, "cropped.gif")
-
-      {_, 0} =
-        System.cmd(
-          "convert",
-          ~w[( -size 120x60 xc:none -fill red -draw] ++
-            ["rectangle 40,20 59,39", "-set", "delay", "10", ")"] ++
-            ~w[( -size 120x60 xc:none -fill red -draw] ++
-            ["rectangle 50,20 69,39", "-set", "delay", "10", ")"] ++
-            ["-loop", "0", "-layers", "optimize", path],
-          stderr_to_stdout: true
-        )
+      path = cropped_gif(ctx)
 
       # the first frame is stored as just the 20x20 square
       assert ["20x20" <> _ | _] = identify(path, "%wx%h\n")
@@ -184,6 +190,82 @@ defmodule PhoenixKit.Modules.Storage.AnimatedRenditionsTest do
       out = Path.join(ctx.tmp_dir, "first.png")
       assert {:ok, ^out} = ImageProcessor.resize(animated_gif(ctx), out, 60, nil, format: "png")
       assert identify(out, "%wx%h\n") == ["60x30"]
+    end
+
+    test "animation requires opting in even for GIF and WebP output", ctx do
+      source = animated_gif(ctx)
+
+      for format <- ~w(gif webp) do
+        out = Path.join(ctx.tmp_dir, "first.#{format}")
+        assert {:ok, ^out} = ImageProcessor.resize(source, out, 60, nil, format: format)
+        assert {:ok, %{frames: 1}} = ImageProcessor.animation_info(out)
+      end
+    end
+
+    test "still crops select one frame even for GIF and WebP output", ctx do
+      source = animated_gif(ctx)
+
+      for format <- ~w(gif webp), mode <- [:center, :focus] do
+        out = Path.join(ctx.tmp_dir, "#{mode}.#{format}")
+
+        result =
+          case mode do
+            :center ->
+              ImageProcessor.resize_and_crop_center(source, out, 30, 30, format: format)
+
+            :focus ->
+              ImageProcessor.resize_and_crop_focus(source, out, 30, 30, {0.5, 0.5},
+                format: format
+              )
+          end
+
+        assert {:ok, ^out} = result
+        assert {:ok, %{frames: 1}} = ImageProcessor.animation_info(out)
+      end
+    end
+
+    test "a still rendition of a cropped GIF frame keeps the canvas and subject position", ctx do
+      out = Path.join(ctx.tmp_dir, "canvas.png")
+      assert {:ok, ^out} = ImageProcessor.resize(cropped_gif(ctx), out, 60, nil, format: "png")
+      assert identify(out, "%wx%h\n") == ["60x30"]
+
+      {pixel, 0} = System.cmd("convert", [out, "-format", "%[pixel:p{25,15}]", "info:"])
+      assert pixel =~ "255,0,0" or pixel =~ "red" or pixel =~ "#FF0000"
+    end
+
+    test "still crops use the canvas of a cropped GIF frame", ctx do
+      source = cropped_gif(ctx)
+
+      for mode <- [:center, :focus], strip? <- [true, false] do
+        out = Path.join(ctx.tmp_dir, "canvas-#{mode}-#{strip?}.png")
+        opts = [format: "png", strip_metadata: strip?]
+
+        result =
+          case mode do
+            :center ->
+              ImageProcessor.resize_and_crop_center(source, out, 30, 30, opts)
+
+            :focus ->
+              ImageProcessor.resize_and_crop_focus(source, out, 30, 30, {0.5, 0.5}, opts)
+          end
+
+        assert {:ok, ^out} = result
+        assert identify(out, "%wx%h\n") == ["30x30"]
+        {pixel, 0} = System.cmd("convert", [out, "-format", "%[pixel:p{10,15}]", "info:"])
+        assert pixel =~ "255,0,0" or pixel =~ "red" or pixel =~ "#FF0000"
+      end
+    end
+
+    test "WebP animations retain their frames, canvas and duration", ctx do
+      source = Path.join(ctx.tmp_dir, "anim.webp")
+      {_, 0} = System.cmd("convert", [animated_gif(ctx), "-coalesce", source])
+      out = Path.join(ctx.tmp_dir, "small.webp")
+
+      assert {:ok, ^out} =
+               ImageProcessor.resize(source, out, 60, nil, format: "webp", animated: true)
+
+      assert {:ok, %{frames: 3, duration_ms: 300}} = ImageProcessor.animation_info(out)
+      assert identify(out, "%Wx%H\n") |> Enum.uniq() == ["60x30"]
     end
 
     test "strips metadata like any other resize", ctx do

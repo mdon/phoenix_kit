@@ -137,7 +137,7 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
     - `:quality` - JPEG quality 1-100 (default: 85)
     - `:format` - Output format override (jpg, png, webp, etc)
     - `:animated` - keep every frame of an animated GIF or WebP (default: false, the
-      first frame only for a still format). Each frame is flattened onto the canvas
+      first frame only, including GIF/WebP output). Each frame is flattened onto the canvas
       before it is resized, and the result is re-optimised; `animation_info/1` says
       whether a file is animated, and an animation over `animation_limits/0` is refused.
     - `:strip_metadata` - leave the camera's metadata (EXIF, XMP, comment) out and
@@ -156,7 +156,7 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
 
     # Extract current dimensions (pinned and limited like every call here),
     # and refuse an oversized header before the decoder ever runs.
-    with {:ok, input} <- pinned_input(input_path, frame_for(output_path, format)),
+    with {:ok, input} <- pinned_input(input_path, frame_for(output_path, format, animated?)),
          {:ok, {current_width, current_height}} <- extract_dimensions(input_path),
          :ok <- check_pixel_budget(current_width, current_height, @resize_max_pixels),
          :ok <- check_animation_budget(input_path, {current_width, current_height}, animated?) do
@@ -302,8 +302,8 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
          :ok <- check_pixel_budget(width, height, @resize_max_pixels) do
       args =
         @limit_args ++
+          read_args(input) ++
           [
-            input,
             "-auto-orient",
             "-background",
             "white",
@@ -479,7 +479,7 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
     # the exact size: it has the target's shape, so `!` only absorbs rounding.
     # `+repage` after the turn: for some orientations ImageMagick leaves the old canvas
     # offset behind, and the crop that follows then misses the picture altogether.
-    args = [input_path, "-auto-orient", "+repage", "-background", background]
+    args = read_args(input_path) ++ ["-auto-orient", "+repage", "-background", background]
 
     args =
       if format in ["jpg", "jpeg"],
@@ -656,16 +656,22 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
     end
   end
 
-  # An animated source (GIF, WebP) resized to a format that holds one picture
-  # makes ImageMagick write one file per frame — `out-0.png`, `out-1.png` —
-  # and never the `out.png` asked for. Those targets take frame 0; a GIF or
-  # WebP target is left whole, so an animation stays one.
+  # Only an explicit animation request can read all frames, and only a GIF or
+  # WebP output can hold them. Still crops and animation fallbacks always read
+  # frame 0, even when their output format also supports animation.
   @doc false
-  @spec frame_for(String.t(), String.t() | nil) :: String.t()
-  def frame_for(output_path, format) do
+  @spec frame_for(String.t(), String.t() | nil, boolean()) :: String.t()
+  def frame_for(output_path, format, animated? \\ false) do
     target = format || output_path |> Path.extname() |> String.trim_leading(".")
-    if String.downcase(target) in ["gif", "webp"], do: "", else: "[0]"
+    if animated? and String.downcase(target) in ["gif", "webp"], do: "", else: "[0]"
   end
+
+  # Optimised frames may hold just a patch and an offset within the canvas.
+  # Restore that canvas even for frame 0; resizing the patch loses its size
+  # and the subject's position. The pinned coder comes from the bytes.
+  defp read_args("gif:" <> _ = input), do: [input, "-coalesce"]
+  defp read_args("webp:" <> _ = input), do: [input, "-coalesce"]
+  defp read_args(input), do: [input]
 
   # The most an animation we re-encode may be: frames, and frames times pixels. Past
   # either, a size is made as a still picture, not skipped.
@@ -686,7 +692,7 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
   def animation_info(file_path) do
     with {:ok, input} <- pinned_input(file_path),
          {output, 0} <-
-           System.cmd("identify", @limit_args ++ ["-format", "%T\\n", input],
+           System.cmd("identify", @probe_args ++ ["-format", "%T\\n", input],
              stderr_to_stdout: true
            ) do
       delays =
@@ -742,7 +748,7 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
          {output, 0} <-
            System.cmd(
              "convert",
-             @probe_args ++ [input, "-auto-orient", "-format", "%w %h", "info:"],
+             @probe_args ++ read_args(input) ++ ["-auto-orient", "-format", "%w %h", "info:"],
              stderr_to_stdout: true
            ),
          [w, h] <- output |> last_line() |> String.split(),
@@ -873,9 +879,7 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
     strip? = Keyword.get(flags, :strip, false)
     animated? = Keyword.get(flags, :animated, false)
 
-    # An animated GIF stores most frames as the part that changed; each is put on the
-    # full canvas first, or a resize turns them into fragments.
-    args = if animated?, do: [input_path, "-coalesce"], else: [input_path]
+    args = read_args(input_path)
 
     # A format without transparency is flattened on white; left to
     # ImageMagick, a see-through PNG turned into a JPEG comes out black.
@@ -931,7 +935,8 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
          background,
          strip?
        ) do
-    args = if strip?, do: [input_path, "-auto-orient", "+repage"], else: [input_path]
+    args = read_args(input_path)
+    args = if strip?, do: args ++ ["-auto-orient", "+repage"], else: args
 
     # Set background color for padding/extension (rarely used with ^ resize)
     args = args ++ ["-background", background]

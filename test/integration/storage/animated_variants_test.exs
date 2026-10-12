@@ -170,4 +170,77 @@ defmodule PhoenixKit.Modules.Storage.AnimatedVariantsTest do
     {instance, _} = stored(ctx, file, "medium")
     refute instance.mime_type == "image/gif"
   end
+
+  test "keeping the original format with animation off and alternative WebP sizes are stills",
+       ctx do
+    dimension = fn name ->
+      Repo.one!(
+        from d in Dimension,
+          where: d.name == ^name and d.variant_set_uuid == ^VariantSets.default_uuid()
+      )
+    end
+
+    {:ok, _} =
+      Storage.update_dimension(dimension.("small"), %{format: nil, keep_animation: false})
+
+    {:ok, _} =
+      Storage.update_dimension(dimension.("medium"), %{alternative_formats: ["webp"]})
+
+    file = upload!(ctx, gif!(ctx))
+
+    {instance, small} = stored(ctx, file, "small")
+    assert instance.mime_type == "image/gif"
+    assert frames(small) == 1
+
+    {instance, alternative} = stored(ctx, file, "medium_webp")
+    assert instance.mime_type == "image/webp"
+    assert frames(alternative) == 1
+
+    {_, medium} = stored(ctx, file, "medium")
+    assert frames(medium) == 3
+  end
+
+  test "a transparent GIF with a cropped first frame records and resizes its full canvas", ctx do
+    path = Path.join(ctx.tmp, "cropped.gif")
+    seed = :rand.uniform(200)
+
+    {_, 0} =
+      System.cmd("convert", [
+        "(",
+        "-size",
+        "300x100",
+        "xc:none",
+        "-fill",
+        "rgb(#{seed},20,30)",
+        "-draw",
+        "rectangle 100,30 139,69",
+        "-set",
+        "delay",
+        "20",
+        ")",
+        "(",
+        "-size",
+        "300x100",
+        "xc:none",
+        "-fill",
+        "rgb(#{seed},20,30)",
+        "-draw",
+        "rectangle 120,30 159,69",
+        "-set",
+        "delay",
+        "20",
+        ")",
+        "-loop",
+        "0",
+        "-layers",
+        "optimize",
+        path
+      ])
+
+    file = upload!(ctx, path)
+    assert {file.width, file.height} == {300, 100}
+    {instance, thumbnail} = stored(ctx, file, "thumbnail")
+    assert {instance.width, instance.height} == {150, 50}
+    assert size(thumbnail) == "150x50"
+  end
 end

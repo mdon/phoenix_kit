@@ -59,9 +59,11 @@ defmodule PhoenixKit.Modules.Storage.ImagePipelineEdgesTest do
       assert {:ok, ^cropped} = ImageProcessor.resize_and_crop_center(gif, cropped, 16, 16)
       assert File.exists?(cropped)
 
-      # A GIF target keeps the animation: nothing here picks a frame for it.
-      assert ImageProcessor.frame_for("out.gif", nil) == ""
-      assert ImageProcessor.frame_for("out.bin", "webp") == ""
+      # GIF/WebP output holds all frames only with an explicit animation request.
+      assert ImageProcessor.frame_for("out.gif", nil) == "[0]"
+      assert ImageProcessor.frame_for("out.bin", "webp") == "[0]"
+      assert ImageProcessor.frame_for("out.gif", nil, true) == ""
+      assert ImageProcessor.frame_for("out.bin", "webp", true) == ""
       assert ImageProcessor.frame_for("out.png", nil) == "[0]"
     end
   end

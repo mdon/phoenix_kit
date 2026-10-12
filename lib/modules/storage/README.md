@@ -704,7 +704,7 @@ and is never cached.
 ### HDR and camera metadata in renditions
 
 V217 stores each rendition's options in `Dimension.options` (`DimensionOptions`),
-including `crop_mode`, `fit_by`, `shape`, `keep_hdr` and `strip_metadata`.
+including `crop_mode`, `fit_by`, `shape`, `keep_hdr`, `strip_metadata` and `keep_animation`.
 `Storage.create_dimension/1` and `update_dimension/2` also accept those names
 at the top level of their params.
 
@@ -720,7 +720,15 @@ at the top level of their params.
   retain only the gain-map properties in XMP and the orientation in EXIF,
   in both pictures. An unreadable XMP packet falls back to an ordinary rendition.
   The uploaded original keeps its metadata.
-- These two choices apply when a rendition is generated; changing them does
+- `keep_animation` defaults to true. Proportional renditions of animated GIFs
+  and WebPs keep every frame in the original format, including height-fixed
+  sizes. Fixed crops, alternative formats, sizes with the option off, and
+  animations over 300 frames or 150 million total canvas pixels use the first
+  frame. That frame is restored to its full canvas before resizing or cropping.
+  `config :phoenix_kit, animated_renditions: false` disables preservation site-wide.
+  Processing records the frame count and duration in `metadata["animation"]`;
+  the storage page shows them and the image editor refuses animated files.
+- These choices apply when a rendition is generated; changing them does
   not automatically remake existing renditions. Use **Regenerate all** on the
   file's storage page to apply them to existing sizes.
 

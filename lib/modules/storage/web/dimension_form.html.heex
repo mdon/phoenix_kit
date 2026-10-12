@@ -231,17 +231,13 @@
             class="fieldset"
           >
             <legend class="fieldset-legend font-semibold">{gettext("Animated pictures")}</legend>
-            <label class="label cursor-pointer justify-start gap-3">
-              <input type="hidden" name="dimension[keep_animation]" value="false" />
-              <input
-                type="checkbox"
-                name="dimension[keep_animation]"
-                value="true"
-                checked={get_field_value(@changeset, :keep_animation) != false}
-                class="checkbox checkbox-sm"
-              />
-              <span class="label-text">{gettext("Keep the animation")}</span>
-            </label>
+            <.checkbox
+              id="dimension-keep-animation-input"
+              name="dimension[keep_animation]"
+              checked={get_field_value(@changeset, :keep_animation) != false}
+              class="checkbox-sm"
+              label={gettext("Keep the animation")}
+            />
             {render_error(@changeset, :keep_animation)}
             <p class="text-xs text-base-content/50 mt-1">
               {gettext(
