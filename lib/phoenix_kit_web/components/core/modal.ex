@@ -96,10 +96,10 @@ defmodule PhoenixKitWeb.Components.Core.Modal do
       "`:center` is the classic centered box. `:end` is a **drawer**: a full-height sheet anchored to the end (right) edge that slides in from the side (daisyUI 5's `modal-end`), for tall content such as a create/edit form opened over the page it belongs to — the page stays underneath, the sheet scrolls internally. The box takes the full width below `sm`, `max_width` above it (`\"2xl\"` is a good form width); `max_height` does not apply — the sheet always fills the viewport height."
 
   attr :close_guard, :atom,
-    default: nil,
-    values: [nil, :input],
+    default: :confirm,
+    values: [nil, :confirm, :input],
     doc:
-      "`:input` arms the `PkDialog` hook's client-side guard: while a submittable form (`form[phx-submit]`) inside this dialog holds a field that differs from its rendered default, Esc and the backdrop are no-ops immediately, before the server has heard of the edit — the round trip (plus any `phx-debounce` window) would otherwise let a quick Esc discard what was just typed. Recomputed on every keystroke and every server patch, never latched: once the server re-renders the form (with the value, or reset after a save) the guard lets go and `closeable` is the only authority — so a dialog whose LiveView never reports dirtiness still closes. Filter/search forms (`phx-change` only, `role=\"search\"`, `type=\"search\"`) never count."
+      "What Esc and the backdrop do while a submittable form (`form[phx-submit]`) inside this dialog holds input the user typed. `:confirm` (the default): the first attempt is refused with a nudge of the box and a second one within a few seconds closes — one stray click or key cannot cost a filled-in form, and nobody is trapped. It keys off real input/change events, so it also covers a `phx-change` form, which the server re-renders with the typed value. `:input` is the strict variant: Esc and the backdrop are no-ops for as long as a field differs from its rendered default, immediately, before the server has heard of the edit — recomputed on every keystroke and every server patch, never latched, so once the server re-renders the form `closeable` is the only authority. `nil` turns both off. Filter/search forms (`phx-change` only, `role=\"search\"`, `type=\"search\"`) never count, and the modal's own buttons are never affected."
 
   attr :rest, :global,
     doc:

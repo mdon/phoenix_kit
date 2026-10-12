@@ -65,7 +65,7 @@ global.window = {
 global.localStorage = storage;
 global.sessionStorage = storage;
 
-const { backdropClick, textareaSizeChanged, strayFieldClick } = require("../../priv/static/assets/phoenix_kit.js");
+const { backdropClick, textareaSizeChanged, strayFieldClick, discardAttempt } = require("../../priv/static/assets/phoenix_kit.js");
 
 const dialog = { id: "modal" };
 const field = { id: "description" };
@@ -149,4 +149,24 @@ test("a click on an element that does not contain the field goes through", () =>
 
 test("a click with no recorded press goes through", () => {
   assert.equal(strayFieldClick(null, wrapper, 1), false);
+});
+
+// `discardAttempt` — the verdict on one Escape / backdrop click against a
+// modal holding typed input, given when the last attempt was refused.
+
+test("the first attempt on unsaved input is refused", () => {
+  assert.equal(discardAttempt(0, 10_000), "refuse");
+  assert.equal(discardAttempt(undefined, 10_000), "refuse");
+});
+
+test("a second attempt soon after goes through", () => {
+  assert.equal(discardAttempt(10_000, 11_000), "allow");
+});
+
+test("the same key reaching a stacked dialog twice is one attempt", () => {
+  assert.equal(discardAttempt(10_000, 10_020), "same");
+});
+
+test("an attempt long after the refusal is a first attempt again", () => {
+  assert.equal(discardAttempt(10_000, 30_000), "refuse");
 });
