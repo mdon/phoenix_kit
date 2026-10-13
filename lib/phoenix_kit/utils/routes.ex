@@ -1311,8 +1311,9 @@ defmodule PhoenixKit.Utils.Routes do
   end
 
   @doc """
-  Returns a locale-aware admin path. For non-primary locales the locale
-  segment is always emitted. For the primary locale the shape follows
+  Returns a locale-aware admin path. On a single-language site (multi-language
+  support off) no locale segment is emitted for any locale. Otherwise, for
+  non-primary locales the locale segment is always emitted. For the primary locale the shape follows
   the site-wide `default_language_no_prefix` setting
   (`Languages.default_language_no_prefix?/0`): prefixless when the
   setting is on, prefixed when off.

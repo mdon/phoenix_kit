@@ -25,6 +25,21 @@ Kit routes redirect (302) a request carrying a locale segment to the same path
 without it — old `/en/...` links keep working. An admin URL renders as-is under
 the primary language, since both admin shapes route.
 
+What this means for a host:
+
+- **The segment-less route must exist.** The redirect's target is the same
+  path without the segment (`/products`), so a host that only declares
+  `/:locale/products` — and reaches it through `Routes.path/2` — has nothing to
+  land on. Declare the unprefixed route (see "Migrating a session-locale app"
+  below for the two-scope shape) or turn multi-language support on.
+- **Link builders stop emitting the segment.** `Routes.path/2`,
+  `Routes.locale_aware_path/2`, `Routes.home_path/2`, `Routes.admin_path/2` and
+  `Routes.localize_served_path/2` return the path without it, for any locale
+  — including an explicit `locale: "et"`.
+- **`:default_locale_redirect` covers this redirect too.** A host that opted
+  into 301/308 for the default-locale redirect gets it for the single-language
+  one (GET and HEAD); other methods always get a 307.
+
 That redirect is done by the kit's locale plug, so it covers the kit's own
 routes only. **A host that declares its own `scope "/:locale"` routes** must
 either turn multi-language support on (the supported shape for a site served in
