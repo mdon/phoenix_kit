@@ -1,7 +1,15 @@
 defmodule PhoenixKit.Utils.RoutesTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: false
 
+  alias PhoenixKit.Test.LanguageSettings
   alias PhoenixKit.Utils.Routes
+
+  # Locale segments only exist on a multilingual site; with nothing configured
+  # the switch reads as off and no URL carries one (see
+  # `single_language_routes_test.exs`).
+  setup do
+    LanguageSettings.multilingual!()
+  end
 
   # All assertions below assume the default language resolves to "en".
   # `Routes.get_default_language_base/0` rescues any DB lookup failure and

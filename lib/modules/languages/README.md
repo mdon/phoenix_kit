@@ -8,8 +8,14 @@ Languages is **core and always on** — not a toggleable feature module. It has 
 
 | Switch | The site |
 |--------|----------|
-| **Off** (default) | Serves the configured fallback locale (`PhoenixKit.Config.default_locale/0`) only. `get_languages/0` and `get_enabled_languages/0` are `[]`, `enabled_locale_codes/0` is just the default, and **no menu or switcher offers a language**. The page shows only the switch. |
-| **On** | Routes and offers the configured languages. Turning it on restores the saved configuration, or seeds English on first use; turning it off keeps the configured list. |
+| **Off** (default) | Single-language: serves its **primary language** (`primary_language_code/0`) only, and **no URL carries a locale segment** — a request with one is redirected (302) to the clean path. `get_languages/0` and `get_enabled_languages/0` are `[]`, `enabled_locale_codes/0` is just the primary, and **no menu or switcher offers a language**. The page shows the switch and the "Primary language & URLs" card. |
+| **On** | Routes and offers the configured languages. Turning it on restores the saved configuration; on first use it seeds the primary language and turns `default_language_no_prefix` on (unless that setting was ever saved), so the site keeps its clean URLs. Turning it off keeps the configured list. |
+
+### The primary language
+
+`Languages.primary_language_code/0` is the site's language whether the switch is on or off — use it instead of `get_default_language/0` plus a fallback of your own (that function is `nil` while the switch is off). It resolves: the request-scoped override and the configured default (switch on) → the default stored in `languages_config` (kept while off; `set_primary_language/1` writes it) → the runtime `config :phoenix_kit, default_locale` (default `"en-US"`). `Settings.get_content_language/0` and `Routes.get_default_admin_locale/0` read it.
+
+`Languages.single_language?/0` (`single_language_safe?/0` for URL emission) is the switch-off test. Locale-routing rules for both modes: `guides/locale-routing.md`.
 
 ⚠️ **A menu or switcher reads `get_enabled_languages/0`, never `get_display_languages/0`.** The latter returns hardcoded defaults while the switch is off (a legacy preview list) — languages the site does not serve, so a switcher built from it links to routes that do not exist.
 
@@ -122,7 +128,7 @@ DialectMapper.resolve_dialect("en")           # => "en-US" (URL-driven; base -> 
 ### System Management
 
 ```elixir
-Languages.enable_system()    # Enable with default English
+Languages.enable_system()    # Enable (first use: the primary language, prefixless)
 Languages.disable_system()   # Disable (preserves config)
 Languages.enabled?()         # Check if enabled
 ```
@@ -132,7 +138,9 @@ Languages.enabled?()         # Check if enabled
 ```elixir
 Languages.get_languages()              # All configured languages
 Languages.get_enabled_languages()      # Only enabled, sorted by position
-Languages.get_default_language()       # Language with is_default: true
+Languages.get_default_language()       # Language with is_default: true (nil while off)
+Languages.primary_language_code()      # The site's language, switch on or off
+Languages.single_language?()           # Switch off: no locale segment in URLs
 Languages.get_display_languages()      # Configured (if enabled) or top 12 defaults
 Languages.get_language("es-ES")        # Specific language by code
 Languages.enabled_locale_codes()       # For URL routing
@@ -144,6 +152,7 @@ Languages.enabled_locale_codes()       # For URL routing
 Languages.add_language("es-ES")           # Add from predefined list
 Languages.remove_language("es-ES")        # Remove (not if default or last)
 Languages.set_default_language("es-ES")   # Change default
+Languages.set_primary_language("uk")      # Change default, switch on or off (adds it if missing)
 Languages.enable_language("fr-FR")        # Reactivate disabled
 Languages.disable_language("de-DE")       # Hide from frontend
 Languages.move_language_up("es-ES")       # Reorder
@@ -278,4 +287,4 @@ PhoenixKit.Settings.get_json_setting("languages_config", nil)
 
 ### Primary language returns nil
 
-The primary language comes from `Languages.get_default_language()`. Ensure at least one language has `"is_default": true` in the config.
+`Languages.get_default_language()` is `nil` while the switch is off — use `Languages.primary_language_code/0`, which never is. With the switch on, ensure at least one language has `"is_default": true` in the config.

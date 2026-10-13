@@ -43,8 +43,8 @@ defmodule PhoenixKitWeb.Live.Modules.LanguagesToggleTest do
 
       {:ok, view, _html} = live(conn, @languages_path)
 
-      assert render(view) =~ "URL Behavior"
-      assert render(view) =~ "Default Language Without Prefix"
+      assert render(view) =~ "Primary language &amp; URLs"
+      assert render(view) =~ "Primary language without prefix"
       refute toggle_checked?(view)
     end
 

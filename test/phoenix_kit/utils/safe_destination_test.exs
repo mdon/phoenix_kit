@@ -10,7 +10,7 @@ defmodule PhoenixKit.Utils.SafeDestinationTest do
   inline, and settings reads fall back to their supplied default when the DB is
   unreachable.
   """
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   # `EmptyRouter` deliberately cannot match core's own landing, which is the one
   # case the resolver logs as a misconfiguration. Expected here, so it is
@@ -28,11 +28,19 @@ defmodule PhoenixKit.Utils.SafeDestinationTest do
   # PROCESS starts even with no database — only its connections fail — so
   # `Process.whereis/1` answers the wrong question and made every test here hang
   # on a checkout that could never succeed.
+  #
+  # The file is written for a multilingual site (a locale segment on the
+  # primary language, `LocalizedHomeRouter`), and a site with the switch off
+  # emits none — so it primes the switch on, which makes the file `async:
+  # false`: the settings cache is a globally named process.
   setup do
     if Application.get_env(:phoenix_kit, :test_repo_available, false) do
       :ok = Sandbox.checkout(PhoenixKit.Test.Repo)
     end
 
+    start_supervised!({PhoenixKit.Cache.Registry, []})
+    start_supervised!({PhoenixKit.Cache, name: :settings})
+    PhoenixKit.Cache.put(:settings, "languages_enabled", "true")
     :ok
   end
 

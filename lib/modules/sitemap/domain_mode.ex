@@ -297,16 +297,11 @@ defmodule PhoenixKit.Modules.Sitemap.DomainMode do
     _ -> MapSet.new()
   end
 
+  # The site's primary language (base code), whether or not multi-language
+  # support is on — a single-language site's own language, not a literal "en".
   defp raw_default_language do
-    if Languages.enabled?() do
-      case Enum.find(Languages.get_languages(), & &1.is_default) do
-        %{code: code} -> DialectMapper.extract_base(code)
-        _ -> "en"
-      end
-    else
-      "en"
-    end
+    DialectMapper.extract_base(Languages.primary_language_code())
   rescue
-    _ -> "en"
+    _ -> DialectMapper.extract_base(PhoenixKit.Config.default_locale())
   end
 end
