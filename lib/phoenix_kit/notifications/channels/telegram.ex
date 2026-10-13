@@ -1,12 +1,17 @@
 defmodule PhoenixKit.Notifications.Channels.Telegram do
   @moduledoc """
-  Telegram notification channel — delivers a user's notifications to their
-  personal Telegram bot connection(s).
+  Telegram notification channel — delivers a user's notifications to Telegram,
+  through their own bot or through the site's.
 
   There's nothing to configure on the notifications page: the channel
-  **auto-discovers** the recipient's Telegram integration connections and sends
-  to the chat(s) captured on them (during Test on the integration form). Each
-  connection carries a `mode`:
+  **auto-discovers** where to send.
+
+  ## Personal bot
+
+  The recipient's own Telegram integration connections, and the chat(s)
+  captured on them (during Test on the integration form). A personal bot wins
+  over the site's: someone who set one up wants it used. Each connection carries
+  a `mode`:
 
     * `"single"` — auto-capture locks one private chat (the owner's), so a
       stranger who messages the bot right after them is not picked up.
@@ -16,12 +21,26 @@ defmodule PhoenixKit.Notifications.Channels.Telegram do
   (a group, a channel), so `chat_ids` is not capped by it. The channel sends
   to every id on the list and does not care which kind each one is.
 
-  `configured?/2` is true once the recipient has a connection with at least
-  one linked chat. The bot token is resolved owner-scoped to the recipient at
-  send time — this module never handles it.
+  ## Site bot
 
-  The `config` arg (the `notification_channel:telegram` blob) carries only
-  routing/cadence for this channel; connection + chat live on the integration.
+  When the recipient has no personal bot linked, the site's bot delivers —
+  if the admin chose one (`Telegram.SiteBot`) and the recipient linked their
+  chat to it (`Telegram.Linking`). The chat id is read from `config`
+  (`"site_chat_id"`), and the bot comes from the site setting, never from the
+  user's config: a link made to a bot that is no longer the site's bot is not
+  honoured, so changing the bot cannot send one person's messages through a
+  stranger's.
+
+  A failure of the site bot itself (revoked token, deleted connection, a 401 or
+  404) is transient: it hits every linked user alike, so it must not switch
+  anyone's channel off. Only errors about the chat (blocked, kicked,
+  deactivated, chat not found) are permanent there.
+
+  `configured?/2` is true once the recipient has somewhere to send. Bot tokens
+  are resolved owner-scoped at send time — this module never handles them.
+
+  The `config` arg (the `notification_channel:telegram` blob) carries routing/
+  cadence and, for the site bot, the linked chat.
   """
 
   @behaviour PhoenixKit.Notifications.Channel
@@ -32,6 +51,7 @@ defmodule PhoenixKit.Notifications.Channels.Telegram do
 
   alias PhoenixKit.Integrations
   alias PhoenixKit.Integrations.Telegram, as: Client
+  alias PhoenixKit.Integrations.Telegram.SiteBot
 
   @impl true
   def key, do: "telegram"
@@ -43,11 +63,11 @@ defmodule PhoenixKit.Notifications.Channels.Telegram do
   def icon, do: "hero-paper-airplane"
 
   @impl true
-  def configured?(user_uuid, _config), do: linked_targets(user_uuid) != []
+  def configured?(user_uuid, config), do: targets(user_uuid, config) != []
 
   @impl true
-  def deliver(envelope, _config) do
-    deliver_to(linked_targets(envelope.recipient_uuid), envelope)
+  def deliver(envelope, config) do
+    deliver_to(targets(envelope.recipient_uuid, config), envelope)
   end
 
   @impl true
@@ -55,19 +75,44 @@ defmodule PhoenixKit.Notifications.Channels.Telegram do
 
   # --- Discovery ------------------------------------------------------------
 
-  # `{connection_uuid, chat_id}` pairs for every chat captured on the user's
-  # Telegram connections. Single-mode connections contribute one; multi many.
-  defp linked_targets(user_uuid) when is_binary(user_uuid) do
+  # `{connection_uuid, chat_id, owner}` for every place to send. The user's own
+  # bot first; the site bot only when they have none.
+  defp targets(user_uuid, config) when is_binary(user_uuid) do
+    case personal_targets(user_uuid) do
+      [] -> site_targets(config)
+      personal -> personal
+    end
+  end
+
+  defp targets(_user_uuid, _config), do: []
+
+  # Every chat captured on the user's Telegram connections. Single-mode
+  # connections contribute one; multi many.
+  defp personal_targets(user_uuid) do
     "telegram"
     |> Integrations.list_connections(owner: {:user, user_uuid})
     |> Enum.flat_map(fn %{uuid: uuid, data: data} ->
-      Enum.map(chat_ids_of(data), &{uuid, &1})
+      Enum.map(chat_ids_of(data), &{uuid, &1, {:user, user_uuid}})
     end)
   rescue
     _ -> []
   end
 
-  defp linked_targets(_), do: []
+  # The chat the user linked to the site bot — and only while that is still the
+  # site's bot.
+  defp site_targets(config) when is_map(config) do
+    with chat_id when is_binary(chat_id) and chat_id != "" <- config["site_chat_id"],
+         linked when is_binary(linked) <- config["site_connection_uuid"],
+         ^linked <- SiteBot.connection_uuid() do
+      [{linked, chat_id, :system}]
+    else
+      _ -> []
+    end
+  rescue
+    _ -> []
+  end
+
+  defp site_targets(_config), do: []
 
   defp chat_ids_of(data) do
     case data["chat_ids"] do
@@ -82,10 +127,10 @@ defmodule PhoenixKit.Notifications.Channels.Telegram do
 
   # A single target (single mode / one bot, one chat): propagate the error so a
   # blocked chat soft-disables the channel.
-  defp deliver_to([{uuid, chat_id}], envelope) do
-    case send(uuid, chat_id, envelope) do
+  defp deliver_to([{uuid, chat_id, owner}], envelope) do
+    case send(uuid, chat_id, owner, envelope) do
       {:ok, _} -> :ok
-      {:error, reason} -> classify(reason)
+      {:error, reason} -> classify(reason, owner)
     end
   end
 
@@ -94,7 +139,8 @@ defmodule PhoenixKit.Notifications.Channels.Telegram do
   # transiently unreachable (may re-send to already-delivered chats — Telegram
   # has no idempotency key, so delivery is at-least-once).
   defp deliver_to(targets, envelope) do
-    results = Enum.map(targets, fn {uuid, chat_id} -> send(uuid, chat_id, envelope) end)
+    results =
+      Enum.map(targets, fn {uuid, chat_id, owner} -> send(uuid, chat_id, owner, envelope) end)
 
     cond do
       Enum.all?(results, &match?({:ok, _}, &1)) ->
@@ -117,14 +163,14 @@ defmodule PhoenixKit.Notifications.Channels.Telegram do
     end
   end
 
-  defp send(uuid, chat_id, envelope) do
-    Client.send_message(uuid, chat_id, body(envelope), owner: {:user, envelope.recipient_uuid})
+  defp send(uuid, chat_id, owner, envelope) do
+    Client.send_message(uuid, chat_id, body(envelope), owner: owner)
   end
 
   defp transient?({:error, reason}),
     do:
-      match?({:error, {:transient, _}}, classify(reason)) or
-        match?({:error, {:transient, _}, _}, classify(reason))
+      match?({:error, {:transient, _}}, classify(reason, :personal)) or
+        match?({:error, {:transient, _}, _}, classify(reason, :personal))
 
   defp transient?(_), do: false
 
@@ -134,12 +180,23 @@ defmodule PhoenixKit.Notifications.Channels.Telegram do
   defp body(%{text: text}), do: text
 
   # Map the send client's error into the permanent/transient taxonomy.
-  defp classify(:unreachable), do: {:error, {:transient, :unreachable}}
+  #
+  # A permanent error soft-disables the recipient's channel. For the site bot
+  # (`owner == :system`) that is only right when the failure is about THAT
+  # chat — the user blocked the bot, the chat is gone, the account was
+  # deactivated. A failure of the bot itself (revoked token, deleted or
+  # unconfigured connection, anything Telegram says that is not about the
+  # chat) hits every linked user alike: it is transient there, so nobody is
+  # switched off for something an admin fixes in one place.
+  defp classify(:unreachable, _owner), do: {:error, {:transient, :unreachable}}
 
-  defp classify(reason) when reason in [:not_configured, :deleted],
+  defp classify(reason, :system) when reason in [:not_configured, :deleted],
+    do: {:error, {:transient, reason}}
+
+  defp classify(reason, _owner) when reason in [:not_configured, :deleted],
     do: {:error, {:permanent, reason}}
 
-  defp classify(desc) when is_binary(desc) do
+  defp classify(desc, owner) when is_binary(desc) do
     down = String.downcase(desc)
 
     cond do
@@ -171,12 +228,16 @@ defmodule PhoenixKit.Notifications.Channels.Telegram do
       ]) ->
         {:error, {:transient, desc}}
 
+      owner == :system ->
+        {:error, {:transient, desc}}
+
       true ->
         {:error, {:permanent, desc}}
     end
   end
 
-  defp classify(other), do: {:error, {:permanent, other}}
+  defp classify(other, :system), do: {:error, {:transient, other}}
+  defp classify(other, _owner), do: {:error, {:permanent, other}}
 
   defp retry_after_ms(desc) do
     case Regex.run(~r/retry after (\d+)/i, desc) do

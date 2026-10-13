@@ -1850,6 +1850,14 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
                 </div>
               </form>
             <% end %>
+
+            <%!-- Telegram: link a chat to the website's bot. Renders nothing   --%>
+            <%!-- unless the admin chose a bot or the user still has a link.    --%>
+            <.live_component
+              module={PhoenixKitWeb.Live.Components.TelegramNotificationsCard}
+              id="telegram-notifications-card"
+              user={@user}
+            />
           </div>
         <% end %>
 

@@ -77,7 +77,24 @@ defmodule PhoenixKit.Integrations.Telegram do
     |> maybe_put(:offset, Keyword.get(opts, :offset, -1))
     |> maybe_put(:allowed_updates, opts[:allowed_updates] || ["message"])
     |> maybe_put(:timeout, opts[:timeout])
+    |> maybe_put(:limit, opts[:limit])
     |> then(&request(token, "getUpdates", &1))
+  end
+
+  @doc "The bot itself, as `getMe` reports it (`\"username\"` among other fields)."
+  @spec get_me(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
+  def get_me(uuid, opts \\ []) when is_binary(uuid) do
+    with_token(uuid, opts, &request(&1, "getMe", %{}))
+  end
+
+  @doc """
+  The bot's webhook, as `getWebhookInfo` reports it (`"url"` is `""` when none
+  is set). A bot with a webhook gets no `getUpdates`, so linking by deep link
+  cannot work on it.
+  """
+  @spec get_webhook_info(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
+  def get_webhook_info(uuid, opts \\ []) when is_binary(uuid) do
+    with_token(uuid, opts, &request(&1, "getWebhookInfo", %{}))
   end
 
   # --- Internals ------------------------------------------------------------

@@ -310,6 +310,47 @@
         </div>
       </form>
 
+      <%!-- Telegram: this website bot as the one that delivers users'
+           notifications. Each user links their own chat from their
+           notification settings. --%>
+      <div
+        :if={@provider.key == "telegram" and @name != nil}
+        class="card bg-base-100 shadow-sm"
+      >
+        <div class="card-body space-y-3">
+          <h3 class="card-title text-base">{gettext("User notifications")}</h3>
+
+          <form id="telegram-site-bot-form" phx-change="set_site_bot">
+            <.checkbox
+              name="enabled"
+              checked={@site_bot}
+              label={gettext("Deliver user notifications through this bot")}
+            >
+              <:description>
+                {gettext(
+                  "Each user links their own Telegram chat under Profile → Notifications. Users who set up their own bot keep using it. Only one website bot can deliver at a time."
+                )}
+              </:description>
+            </.checkbox>
+          </form>
+
+          <div :if={@site_bot_webhook} class="alert alert-warning text-sm" role="alert">
+            <.icon name="hero-exclamation-triangle" class="w-5 h-5 shrink-0" />
+            <span>
+              {gettext(
+                "This bot has a webhook set, so Telegram will not hand its messages to the site and users cannot link their chats. Remove the webhook (setWebhook with an empty url) or use another bot."
+              )}
+            </span>
+          </div>
+
+          <p class="text-xs text-base-content/60">
+            {gettext(
+              "Use a bot that only this website uses: the site reads and clears the bot's incoming messages to link chats, so a second program reading the same bot would miss them."
+            )}
+          </p>
+        </div>
+      </div>
+
       <%!-- Step 2: Connect Account (OAuth providers only) --%>
       <div :if={@provider.auth_type == :oauth2 && @name != nil} class="card bg-base-100 shadow-sm">
         <div class="card-body">
@@ -490,7 +531,7 @@
               type="button"
               phx-click="delete_connection"
               class="btn btn-outline btn-error btn-sm shrink-0"
-              data-confirm={delete_confirm(@bucket_uses)}
+              data-confirm={delete_confirm(@bucket_uses, @site_bot)}
               phx-disable-with={gettext("Deleting…")}
             >
               <.icon name="hero-trash" class="w-4 h-4" />

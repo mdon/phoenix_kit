@@ -17,6 +17,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
   alias PhoenixKit.Integrations.Events
   alias PhoenixKit.Integrations.OAuth
   alias PhoenixKit.Integrations.Providers
+  alias PhoenixKit.Integrations.Telegram.SiteBot
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
@@ -45,6 +46,8 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
       |> assign(:form_values, %{})
       |> assign(:testing, false)
       |> assign(:oauth_state, nil)
+      |> assign(:site_bot, false)
+      |> assign(:site_bot_webhook, false)
 
     {:ok, socket}
   end
@@ -102,6 +105,8 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
             Map.get(Storage.bucket_counts_by_connection(), uuid, 0)
           )
           |> assign(:data, data)
+          |> assign(:site_bot, provider_key == "telegram" and SiteBot.selected?(uuid))
+          |> assign(:site_bot_webhook, false)
           # Values typed on /new (a dry-run Test) are saved by now. Kept, they
           # would be rendered as typed — a secret included — on the edit page
           # that Create patches to.
@@ -153,14 +158,23 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
 
   # A connection is deleted without checking who uses it, so a storage bucket
   # that does is named before it stops working.
-  defp delete_confirm(0),
+  defp delete_confirm(0, false),
     do: gettext("Permanently delete this connection? This cannot be undone.")
 
-  defp delete_confirm(count) do
+  defp delete_confirm(count, false) do
     ngettext(
       "%{count} storage bucket uses this connection and will stop working. Permanently delete it? This cannot be undone.",
       "%{count} storage buckets use this connection and will stop working. Permanently delete it? This cannot be undone.",
       count
+    )
+  end
+
+  # The website's notification bot: every user who linked a chat to it stops
+  # getting Telegram notifications, and has to link again to a new one.
+  defp delete_confirm(count, true) do
+    gettext(
+      "This is the website's Telegram bot for user notifications — everyone who linked a chat to it will stop receiving them. %{rest}",
+      rest: delete_confirm(count, false)
     )
   end
 
@@ -356,6 +370,28 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
   # Events — Delete connection (Danger Zone)
   # ---------------------------------------------------------------------------
 
+  # Telegram: deliver users' notifications through this website bot. The
+  # checkbox is a phx-change form, so the hidden "false" fallback is what
+  # arrives when it is cleared.
+  def handle_event("set_site_bot", %{"enabled" => enabled}, socket)
+      when is_binary(socket.assigns.uuid) do
+    uuid = socket.assigns.uuid
+    opts = [actor_uuid: Actor.uuid(socket), source: "integrations"]
+
+    result = if enabled == "true", do: SiteBot.select(uuid, opts), else: SiteBot.clear(opts)
+
+    socket =
+      case result do
+        :ok -> assign(socket, :site_bot, SiteBot.selected?(uuid))
+        _ -> assign(socket, :error, gettext("Could not change this setting."))
+      end
+
+    {:noreply, check_site_bot_webhook(socket)}
+  end
+
+  # No saved connection yet (new mode): nothing to choose.
+  def handle_event("set_site_bot", _params, socket), do: {:noreply, socket}
+
   def handle_event("delete_connection", _params, socket) do
     case Integrations.remove_connection(socket.assigns.uuid, Actor.uuid(socket)) do
       :ok ->
@@ -453,7 +489,7 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
           |> assign(:warning, nil)
       end
 
-    {:noreply, assign(socket, :testing, false)}
+    {:noreply, socket |> assign(:testing, false) |> check_site_bot_webhook()}
   end
 
   # PubSub: reload data when integrations change
@@ -677,6 +713,15 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationForm do
   defp extract_setup_attrs(provider_key, params) do
     Providers.setup_attrs(Providers.get(provider_key), params)
   end
+
+  # Linking reads the bot's updates, which Telegram refuses on a bot with a
+  # webhook — say so while the admin is looking, not when a user's link
+  # silently never completes.
+  defp check_site_bot_webhook(%{assigns: %{site_bot: true, uuid: uuid}} = socket) do
+    assign(socket, :site_bot_webhook, SiteBot.webhook_set?(uuid))
+  end
+
+  defp check_site_bot_webhook(socket), do: assign(socket, :site_bot_webhook, false)
 
   defp reload_data(socket) do
     if socket.assigns[:uuid] do

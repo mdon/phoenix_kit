@@ -12,6 +12,7 @@ Centralized OAuth / API key / bot token / credential management.
 - `lib/phoenix_kit/integrations/oauth.ex` — generic OAuth 2.0 with CSRF state
 - `lib/phoenix_kit/integrations/events.ex` — PubSub events (owner-routed)
 - `lib/phoenix_kit/integrations/telegram.ex` — Telegram bot client (send + one-shot getUpdates)
+- `lib/phoenix_kit/integrations/telegram/linking.ex` + `site_bot.ex` — the website bot for user notifications: deep-link chat linking and the admin's choice of bot (one bot — one site; see the notifications guide)
 - `lib/phoenix_kit_web/live/settings/integrations.ex` + `integration_form.ex` — website-wide (system) UI
 - `lib/phoenix_kit_web/live/integrations/my_integrations.ex` + `my_integration_form.ex` — personal (per-user) UI
 - `lib/phoenix_kit_web/components/core/integration_picker.ex` — reusable picker

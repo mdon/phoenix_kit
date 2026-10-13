@@ -100,5 +100,41 @@ are computed + enqueued independently, so "Telegram on, inbox off" works with
   one chat) / `"multi"` (broadcast to all who started the bot); an **Unlink**
   button clears captured `chat_ids`. The `notification_channel:telegram` config
   holds only routing/cadence — connection + chat live on the integration.
+- **Site bot (one bot — one site)** — the admin picks ONE website Telegram
+  connection (Settings → Integrations → the bot → "User notifications", setting
+  `telegram_notifications_connection`, `Telegram.SiteBot`); it is off by default.
+  Each user then links their own chat from the **Telegram card on their profile
+  settings page** (`Live.Components.TelegramNotificationsCard`, no admin access
+  needed): Connect mints a one-time `https://t.me/<bot>?start=<token>` link
+  (`Telegram.Linking`, 64-char token, hash in `phoenix_kit_users_tokens` context
+  `telegram_link`, minted for ONE bot, 15 min, spent by the delete that reads it),
+  the user presses Start, and `Linking.poll/1` links THAT chat to the token's
+  owner — the sender is never guessed, a group `/start` is ignored, and the bot's
+  reply names the site, never the account.
+  - **Polling** — there is no webhook or background poller: the card polls every
+    3 s while a link is pending (one timer per card; Connect / "I've sent it" are
+    throttled; a card with nothing pending never calls Telegram), once on opening
+    with a pending link, and on the button. A poll reads the updates with
+    `getUpdates`, then runs ONE short database transaction under a Postgres
+    advisory lock (spend the tokens, record the links) — no Telegram call inside
+    it — and only after the commit confirms the offset and sends the replies. A
+    failed confirmation re-reads the batch, which is harmless: a `/start` whose
+    chat is already linked to the bot is passed over silently, never answered
+    "expired". The bot must have no webhook (`getUpdates` refuses) — the admin
+    form warns.
+  - **Storage** — `custom_fields["notification_channel:telegram"]`
+    (`site_chat_id`, `site_connection_uuid`, `linked_at`); the FIRST link switches
+    on the types the user already receives in the app (a one-time copy), after
+    that the card's checkboxes rule and fail-closed stays the default. Linking
+    and Disconnect are logged to the activity feed as `telegram.linked` /
+    `telegram.unlinked` (actor = the user; the chat id is not recorded).
+  - **Delivery** — a user's own bot wins over the site bot; a link to a bot that
+    is no longer the selected one delivers nothing. Errors about the CHAT
+    (blocked, kicked, deactivated, chat not found) are permanent and soft-disable
+    that user's channel; errors about the BOT (revoked token, 401/404, deleted
+    connection) are transient for the site bot — every linked user would fail
+    alike, so none is switched off. A soft-disabled user sees "Switched off" on
+    the card and a **Reconnect** button, which runs the same one-tap flow and
+    switches delivery back on.
 
 **Cleanup:** `PhoenixKit.Notifications.PruneWorker` daily (`"0 4 * * *"`). Retention: `notifications_retention_days` → falls back to `activity_retention_days` (default 90). Cascading FK deletes also remove notifications when the underlying activity is pruned.
