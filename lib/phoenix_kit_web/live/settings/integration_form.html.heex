@@ -402,7 +402,9 @@
           <.icon name="hero-chevron-down" class="w-4 h-4 ml-auto text-base-content/40" />
         </summary>
         <div class="card-body pt-0 text-sm text-base-content/70 space-y-4">
-          <div :for={{section, idx} <- Enum.with_index(Map.get(@provider, :instructions, []))}>
+          <div :for={
+            {section, idx} <- Enum.with_index(Providers.instructions_for(@provider, :system))
+          }>
             <h4 class="font-semibold text-base-content">
               {idx + 1}. {section.title}
             </h4>

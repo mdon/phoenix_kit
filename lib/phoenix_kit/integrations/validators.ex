@@ -30,6 +30,7 @@ defmodule PhoenixKit.Integrations.Validators do
 
   alias PhoenixKit.AWS.CredentialsVerifier
   alias PhoenixKit.Integrations.Probe
+  alias PhoenixKit.Integrations.Telegram
   alias PhoenixKit.Mailer.SmtpTransport
   alias PhoenixKit.Modules.Storage.Endpoint
   alias PhoenixKit.Utils.Number
@@ -917,7 +918,9 @@ defmodule PhoenixKit.Integrations.Validators do
   end
 
   defp request_telegram(token) do
-    case Req.get("https://api.telegram.org/bot#{token}/getMe", receive_timeout: @http_timeout) do
+    url = "https://api.telegram.org/bot#{token}/getMe"
+
+    case Req.get(url, [receive_timeout: @http_timeout] ++ Telegram.req_options()) do
       {:ok, %{status: 200, body: body}} ->
         case telegram_username(body) do
           nil -> :ok

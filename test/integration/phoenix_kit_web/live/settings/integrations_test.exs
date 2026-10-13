@@ -494,4 +494,18 @@ defmodule PhoenixKitWeb.Live.Settings.IntegrationsTest do
       assert preserved == "sk-test-preserve-on-empty-test"
     end
   end
+
+  describe "telegram edit page" do
+    setup :setup_admin
+
+    test "does not promise chat linking it cannot do", %{conn: conn} do
+      {:ok, %{uuid: uuid}} = Integrations.add_connection("telegram", "site bot")
+      {:ok, _} = Integrations.save_setup(uuid, %{"bot_token" => "123:ABC"})
+
+      {:ok, _view, html} = live(conn, Routes.path("/admin/settings/integrations/#{uuid}"))
+
+      assert html =~ "not used for user notifications"
+      refute html =~ "Link the chats the bot will message"
+    end
+  end
 end
