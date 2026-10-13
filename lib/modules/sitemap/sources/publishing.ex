@@ -628,10 +628,7 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Publishing do
 
   # Get default language from the Languages module
   defp get_default_language do
-    case Languages.get_default_language() do
-      %{code: code} -> Languages.DialectMapper.extract_base(code)
-      nil -> "en"
-    end
+    Languages.DialectMapper.extract_base(Languages.primary_language_code())
   end
 
   # Get the display code for a language, matching the controller's canonical URL logic.

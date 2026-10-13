@@ -1371,6 +1371,12 @@ defmodule PhoenixKitWeb.Users.Auth do
     current_base = socket.assigns[:current_locale_base]
 
     cond do
+      # A single-language site renders every URL in its primary language —
+      # the HTTP plug's `process_valid_locale/2` does the same on the dead
+      # render, so the two never disagree.
+      single_language?() ->
+        maybe_update_locale_from_params(socket, %{})
+
       # Full-dialect URL (/en-GB/): the HTTP plug accepts these via the
       # enabled-languages list, so the LiveView lifecycle must too — a
       # base-only guard made live navigation ignore them and snapped a
@@ -3393,6 +3399,10 @@ defmodule PhoenixKitWeb.Users.Auth do
   - Full dialect codes (en-US, es-MX) are redirected to base codes (302)
   - User preferences determine which dialect variant to use for translations
   - Translation system uses full dialect codes internally
+  - A single-language site (multi-language support off) has no locale segment
+    at all: a non-admin request carrying one is redirected to the same path
+    without it (302; 307 for anything but GET/HEAD, so a POST keeps its body),
+    an admin URL renders as typed under the primary language
 
   ## Data Flow
 
@@ -3419,7 +3429,8 @@ defmodule PhoenixKitWeb.Users.Auth do
   ## Default-locale redirect
 
   With `default_language_no_prefix` on, `/<default>/...` redirects to the
-  prefixless URL with a 302. A host that wants search engines to see a
+  prefixless URL with a 302 — and so does a locale segment on a
+  single-language site. A host that wants search engines to see a
   permanent redirect opts in:
 
       config :phoenix_kit, :default_locale_redirect, status: 301, max_age: 86_400
@@ -3800,21 +3811,51 @@ defmodule PhoenixKitWeb.Users.Auth do
   # prefixless shape by default. We honor whichever URL shape the user
   # typed; both shapes resolve into the same `live_session
   # :phoenix_kit_admin`, so there is no boundary to canonicalize away.
+  #
+  # A single-language site serves no locale segment at all: a non-admin URL
+  # carrying one (`/en/cart` emitted before the site's links went clean, or
+  # any other code) is redirected to the same path without it, and an admin
+  # URL renders as-is — both admin shapes route — under the primary language.
   defp process_valid_locale(conn, locale) do
-    if locale == Routes.get_default_admin_locale() and not admin_request?(conn) and
-         prefixless_primary?() do
-      redirect_default_locale_to_clean_url(conn, locale)
-    else
-      # URL-driven dialect — no user (see `process_as_default_locale/1`
-      # for the rationale matching the LV mount path).
-      full_dialect = resolve_active_dialect(locale)
+    single_language? = single_language?()
 
-      put_gettext_locale(full_dialect)
+    cond do
+      single_language? and not admin_request?(conn) ->
+        conn
+        |> keep_method_on_redirect()
+        |> redirect_default_locale_to_clean_url(locale)
 
-      conn
-      |> assign(:current_locale_base, locale)
-      |> assign(:current_locale, full_dialect)
+      single_language? ->
+        assign_default_locale(conn)
+
+      locale == Routes.get_default_admin_locale() and not admin_request?(conn) and
+          prefixless_primary?() ->
+        redirect_default_locale_to_clean_url(conn, locale)
+
+      true ->
+        process_served_locale(conn, locale)
     end
+  end
+
+  # A 302 is replayed by the browser as a GET and drops a POST body; the
+  # localized auth endpoints (`post "/:locale/users/log-in"`) pass through
+  # here, so anything but GET/HEAD gets a 307, which keeps method and body —
+  # the same reasoning as `process_as_default_locale/1`.
+  defp keep_method_on_redirect(%Plug.Conn{method: method} = conn) when method in ["GET", "HEAD"],
+    do: conn
+
+  defp keep_method_on_redirect(conn), do: put_status(conn, :temporary_redirect)
+
+  defp process_served_locale(conn, locale) do
+    # URL-driven dialect — no user (see `process_as_default_locale/1`
+    # for the rationale matching the LV mount path).
+    full_dialect = resolve_active_dialect(locale)
+
+    put_gettext_locale(full_dialect)
+
+    conn
+    |> assign(:current_locale_base, locale)
+    |> assign(:current_locale, full_dialect)
   end
 
   # Reads the site-wide `default_language_no_prefix` setting. When ON,
@@ -3825,7 +3866,14 @@ defmodule PhoenixKitWeb.Users.Auth do
   # must NOT be redirected — a redirect would discard any POST body.
   # Defers to the canonical boot-safe wrapper on `Languages` so this
   # plug + `Routes` share one rescue policy.
-  defp prefixless_primary?, do: PhoenixKit.Modules.Languages.prefixless_primary_safe?()
+  #
+  # A single-language site is prefixless throughout, so the invalid-locale
+  # redirect strips the segment there rather than swapping in the primary.
+  defp prefixless_primary? do
+    single_language?() or PhoenixKit.Modules.Languages.prefixless_primary_safe?()
+  end
+
+  defp single_language?, do: Languages.single_language_safe?()
 
   # Check if the request path is an admin path. Used by
   # `process_valid_locale/2` to skip the default-locale-redirect so
@@ -4084,8 +4132,9 @@ defmodule PhoenixKitWeb.Users.Auth do
   Takes the current URL path and replaces the invalid locale segment so
   the redirect target matches the rest of the app's URL emission:
 
-  - With `default_language_no_prefix?` ON → strip the segment entirely
-    (the canonical primary shape is prefixless, e.g. `/phoenix_kit/admin`).
+  - On a single-language site, or with `default_language_no_prefix?` ON →
+    strip the segment entirely (the canonical primary shape is prefixless,
+    e.g. `/phoenix_kit/admin`).
   - With the setting OFF (default) → swap the invalid segment for the
     primary base code so the canonical prefixed shape is preserved
     (e.g. `/phoenix_kit/xx/admin` → `/phoenix_kit/en/admin`).

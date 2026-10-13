@@ -336,24 +336,65 @@ defmodule PhoenixKit.Integrations.ProvidersTest do
   end
 
   describe "telegram provider instructions" do
+    defp telegram_steps(scope) do
+      "telegram"
+      |> Providers.get()
+      |> Providers.instructions_for(scope)
+      |> Enum.flat_map(& &1.steps)
+      |> Enum.map_join(" ", fn {text, _} -> text end)
+    end
+
     test "tell the operator how to link a chat, not only how to make a bot" do
       # A token alone delivers nothing: until a chat is linked the channel has
       # nowhere to send. The instructions used to stop at "paste the token".
-      steps =
-        Providers.get("telegram").instructions
-        |> Enum.flat_map(& &1.steps)
-        |> Enum.map_join(" ", fn {text, _} -> text end)
-
-      assert steps =~ "/start"
+      assert telegram_steps(:personal) =~ "/start"
     end
 
     test "cover linking a group, which needs a command the bot can see" do
-      steps =
-        Providers.get("telegram").instructions
-        |> Enum.flat_map(& &1.steps)
-        |> Enum.map_join(" ", fn {text, _} -> text end)
+      assert telegram_steps(:personal) =~ "group"
+    end
 
-      assert steps =~ "group"
+    test "do not tell the website form to link chats: that form cannot" do
+      # The website form only checks the token. "Send /start, then press Test"
+      # there did nothing, while reading as if notifications would now arrive.
+      refute telegram_steps(:system) =~ "/start"
+    end
+
+    test "say on the website form that this connection does not deliver user notifications" do
+      assert telegram_steps(:system) =~ "not used for user notifications"
+    end
+
+    test "both scopes still explain how to make a bot and copy its token" do
+      for scope <- [:system, :personal] do
+        assert telegram_steps(scope) =~ "BotFather"
+      end
+    end
+  end
+
+  describe "instructions_for/2" do
+    test "a section without scopes shows in every scope" do
+      provider = %{instructions: [%{title: "Shared", steps: []}]}
+
+      assert [%{title: "Shared"}] = Providers.instructions_for(provider, :system)
+      assert [%{title: "Shared"}] = Providers.instructions_for(provider, :personal)
+    end
+
+    test "a scoped section shows only in its scopes" do
+      provider = %{instructions: [%{title: "Mine", scopes: [:personal], steps: []}]}
+
+      assert [] = Providers.instructions_for(provider, :system)
+      assert [%{title: "Mine"}] = Providers.instructions_for(provider, :personal)
+    end
+
+    test "a section that sets scopes to nil shows in every scope" do
+      provider = %{instructions: [%{title: "Shared", scopes: nil, steps: []}]}
+
+      assert [%{title: "Shared"}] = Providers.instructions_for(provider, :system)
+      assert [%{title: "Shared"}] = Providers.instructions_for(provider, :personal)
+    end
+
+    test "a provider without instructions has none in any scope" do
+      assert [] = Providers.instructions_for(%{}, :system)
     end
   end
 end

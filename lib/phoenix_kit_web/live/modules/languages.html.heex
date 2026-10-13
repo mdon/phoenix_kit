@@ -51,6 +51,68 @@
       </div>
     </div>
 
+    <%!-- Primary language and URL policy. Shown with the switch off too: a
+         single-language site needs its language, and this is the one place to
+         set it. Settings → General links here. --%>
+    <div id="primary-language-card" class="card bg-base-100 shadow-xl mb-6">
+      <div class="card-body">
+        <h2 class="card-title text-xl">{gettext("Primary language & URLs")}</h2>
+        <p class="text-sm text-base-content/70">
+          {gettext(
+            "The language the site is written in: its content, its interface, and the language every URL falls back to."
+          )}
+        </p>
+
+        <form id="primary-language-form" phx-change="set_primary_language" class="mt-2 max-w-md">
+          <.select
+            id="primary-language-select"
+            name="code"
+            label={gettext("Primary language")}
+            value={@primary_language_code}
+            options={@primary_language_options}
+          />
+        </form>
+
+        <div
+          :if={@ml_enabled}
+          class="flex items-center justify-between gap-4 p-4 bg-base-200 rounded-lg mt-4"
+        >
+          <div class="flex items-center gap-3">
+            <.icon name="hero-link" class="w-5 h-5 text-base-content/70" />
+            <div>
+              <p class="font-medium">
+                {gettext("Primary language without prefix")}
+              </p>
+              <p class="text-xs text-base-content/60">
+                {gettext(
+                  "When on, the primary language drops its locale segment in every URL (e.g. /admin/users instead of /en/admin/users, /blog/post instead of /en/blog/post). Other languages always keep their prefix."
+                )}
+              </p>
+            </div>
+          </div>
+          <input
+            id="default-language-no-prefix-toggle"
+            type="checkbox"
+            class="toggle toggle-primary shrink-0"
+            checked={@default_language_no_prefix}
+            phx-click="toggle_default_language_no_prefix"
+            aria-label={gettext("Primary language without prefix")}
+          />
+        </div>
+
+        <p
+          :if={not @ml_enabled}
+          id="single-language-urls"
+          class="text-sm text-base-content/70 mt-4"
+        >
+          <.icon name="hero-link" class="w-4 h-4 inline" />
+          {gettext(
+            "Single-language site: no URL carries a language segment (/cart, not /en/cart). Old public links with a segment redirect to the clean URL; admin pages open as they are."
+          )}
+        </p>
+      </div>
+    </div>
+
     <%!-- Summary Section --%>
     <div :if={@ml_enabled} class="card bg-base-100 shadow-xl mb-6">
       <div class="card-body">
@@ -220,7 +282,10 @@
         <%!-- Languages List grouped by Continent -> Country --%>
         <div class="space-y-4">
           <%= for {continent, countries} <- filter_grouped_languages(@grouped_languages, @search_query) do %>
-            <details class="collapse collapse-arrow bg-base-300 rounded-lg">
+            <details
+              class="collapse collapse-arrow bg-base-300 rounded-lg"
+              phx-mounted={Phoenix.LiveView.JS.ignore_attributes(["open"])}
+            >
               <summary class="collapse-title font-bold text-lg py-3">
                 <span class="ml-2">{continent}</span>
                 <span class="badge badge-ghost badge-sm ml-2">
@@ -232,7 +297,10 @@
               <div class="collapse-content px-2 pb-2">
                 <div class="space-y-2">
                   <%= for {country, country_flag, languages} <- countries do %>
-                    <details class="collapse collapse-arrow bg-base-200 rounded-lg">
+                    <details
+                      class="collapse collapse-arrow bg-base-200 rounded-lg"
+                      phx-mounted={Phoenix.LiveView.JS.ignore_attributes(["open"])}
+                    >
                       <summary class="collapse-title font-medium py-2">
                         <span class="text-lg">{country_flag}</span>
                         <span class="ml-2">{country}</span>
@@ -306,40 +374,6 @@
           <p>• Toggle languages on/off to enable or disable them for your application</p>
           <p>• The default language cannot be disabled and serves as the fallback</p>
           <p>• Click "Set Default" on any enabled language to make it the default</p>
-        </div>
-      </div>
-    </div>
-
-    <%!-- URL Behavior Section --%>
-    <div :if={@ml_enabled} class="card bg-base-100 shadow-xl mt-6">
-      <div class="card-body">
-        <h2 class="card-title text-xl mb-2">{gettext("URL Behavior")}</h2>
-        <p class="text-base-content/70 mb-4">
-          {gettext(
-            "Controls how the primary language appears in URLs across the site — admin pages, public pages, sitemap, and redirects."
-          )}
-        </p>
-
-        <div class="flex items-center justify-between p-4 bg-base-200 rounded-lg">
-          <div class="flex items-center gap-3">
-            <.icon name="hero-link" class="w-5 h-5 text-base-content/70" />
-            <div>
-              <p class="font-medium">
-                {gettext("Default Language Without Prefix")}
-              </p>
-              <p class="text-xs text-base-content/60">
-                {gettext(
-                  "When on, the primary language drops its locale segment in every URL (e.g. /admin/users instead of /en/admin/users, /blog/post instead of /en/blog/post). Other languages always keep their prefix."
-                )}
-              </p>
-            </div>
-          </div>
-          <input
-            type="checkbox"
-            class="toggle toggle-primary"
-            checked={@default_language_no_prefix}
-            phx-click="toggle_default_language_no_prefix"
-          />
         </div>
       </div>
     </div>

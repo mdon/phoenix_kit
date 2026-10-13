@@ -3026,7 +3026,12 @@ if (typeof window.Chart === "undefined") {
   //   data-closeable   "false" → Escape + backdrop click are no-ops (modal still
   //                    closable only via an explicit action button). Default:
   //                    closeable.
-  //   data-close-guard "input" → while a submittable form (`form[phx-submit]`)
+  //   data-close-guard "confirm" (what `<.modal>` renders by default) → once a
+  //                    submittable form inside THIS dialog has been typed
+  //                    into, the first Escape or backdrop click is refused
+  //                    with a nudge of the box and only a second one within
+  //                    a few seconds closes. See "Unsaved input" above.
+  //                    "input" → while a submittable form (`form[phx-submit]`)
   //                    inside THIS dialog holds a field that differs from its
   //                    default value, Escape + backdrop are no-ops on the
   //                    client — before the server hears of the edit; a
@@ -3597,6 +3602,266 @@ if (typeof window.Chart === "undefined") {
     module.exports.isDialogOpenInBrowser = isDialogOpenInBrowser;
   }
 
+  // True when a click on a dialog is a click on its backdrop: the press AND
+  // the release must both land on the <dialog> element itself. The browser
+  // dispatches a click to the nearest common ancestor of the two, so a drag
+  // that starts inside the box and is let go past its edge — selecting the
+  // text of a field, pulling a textarea's resize grip — also arrives with the
+  // dialog as its target, and closed the modal under the user's cursor with
+  // whatever they had typed. So does the opposite drag, from the backdrop
+  // into the box, which is why the click's own target proves nothing and the
+  // release is checked separately.
+  function backdropClick(dialog, pressTarget, releaseTarget, clickTarget) {
+    return !!dialog && pressTarget === dialog && releaseTarget === dialog && clickTarget === dialog;
+  }
+
+  // Keeps the size a user dragged a <textarea> to. The resize grip writes
+  // inline `height`/`width`, which the server never rendered, so the next
+  // LiveView patch drops the `style` attribute and the field snaps back to
+  // its default size mid-edit. A press on a textarea that leaves its inline
+  // size changed is a resize; from then on the size is put back whenever a
+  // patch takes it away. Bound once on the document, so every textarea is
+  // covered — core's components, a module's own markup, inside a dialog or
+  // not — with nothing to opt into.
+  function textareaSizeChanged(before, after) {
+    return !!before && !!after && (before.height !== after.height || before.width !== after.width);
+  }
+
+  function inlineSize(el) {
+    return { height: el.style.height || "", width: el.style.width || "" };
+  }
+
+  // Sizes by element id, for a textarea that is REPLACED rather than patched
+  // — a language switch re-mounts every translatable field. The replacement
+  // carries the same id and takes the size its predecessor was dragged to.
+  // The document is only watched once something has actually been resized.
+  const keptSizesById = {};
+  let replacementObserver = null;
+
+  function adoptKeptSize(el) {
+    if (!el || el.tagName !== "TEXTAREA" || !el.id || el._pkKeptSize) return;
+    const size = keptSizesById[el.id];
+    if (!size) return;
+    el.style.height = size.height;
+    el.style.width = size.width;
+    keepTextareaSize(el, size);
+  }
+
+  function watchForReplacements() {
+    if (replacementObserver || typeof MutationObserver !== "function" || !document.body) return;
+    replacementObserver = new MutationObserver(function(records) {
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (node.nodeType !== 1) continue;
+          if (node.tagName === "TEXTAREA") adoptKeptSize(node);
+          else if (node.querySelectorAll) node.querySelectorAll("textarea[id]").forEach(adoptKeptSize);
+        }
+      }
+    });
+    replacementObserver.observe(document.body, { childList: true, subtree: true });
+  }
+
+  function keepTextareaSize(el, size) {
+    el._pkKeptSize = size;
+    if (el.id) {
+      keptSizesById[el.id] = size;
+      watchForReplacements();
+    }
+    if (el._pkSizeObserver || typeof MutationObserver !== "function") return;
+    el._pkSizeObserver = new MutationObserver(function() {
+      const kept = el._pkKeptSize;
+      // Mid-drag the browser is the one writing the style; leave it alone.
+      if (!kept || el._pkResizing) return;
+      if (el.style.height !== kept.height) el.style.height = kept.height;
+      if (el.style.width !== kept.width) el.style.width = kept.width;
+    });
+    el._pkSizeObserver.observe(el, { attributes: true, attributeFilter: ["style"] });
+  }
+
+  if (typeof document !== "undefined" && document.addEventListener && !window.__pkTextareaSizeBound) {
+    window.__pkTextareaSizeBound = true;
+    document.addEventListener("pointerdown", function(e) {
+      const el = e.target;
+      if (!el || el.tagName !== "TEXTAREA") return;
+      const before = inlineSize(el);
+      el._pkResizing = true;
+      const done = function() {
+        window.removeEventListener("pointerup", done, true);
+        window.removeEventListener("pointercancel", done, true);
+        window.removeEventListener("pointermove", released, true);
+        el._pkResizing = false;
+        const after = inlineSize(el);
+        if (textareaSizeChanged(before, after)) keepTextareaSize(el, after);
+      };
+      // A button let go outside the window may never deliver its pointerup.
+      // The first move that reports no button down ends the press instead, or
+      // the field would stay "mid-drag" and the next patch would take its size.
+      const released = function(move) { if (move.buttons === 0) done(); };
+      window.addEventListener("pointerup", done, true);
+      window.addEventListener("pointercancel", done, true);
+      window.addEventListener("pointermove", released, true);
+    }, true);
+  }
+
+  // The same drag, caught for everything that is not a PkDialog. A press that
+  // begins in a text field and is released outside it — a selection dragged
+  // past the field's edge — is dispatched as a click on their common ancestor:
+  // a wrapper carrying `phx-click` (a hand-rolled modal's backdrop, a row or
+  // card that opens something) then fires and takes the half-typed text with
+  // it. Nobody means that gesture as a click on the ancestor, so it is
+  // stopped before any handler sees it. Only pointer clicks count: a keyboard
+  // activation reports `detail` 0 and has no press to compare against.
+  function textEntryField(el) {
+    if (!el || !el.tagName) return false;
+    if (el.isContentEditable) return true;
+    if (el.tagName === "TEXTAREA") return true;
+    if (el.tagName !== "INPUT") return false;
+    const type = (el.type || "text").toLowerCase();
+    return ["text", "search", "email", "url", "tel", "password", "number"].indexOf(type) !== -1;
+  }
+
+  function strayFieldClick(pressTarget, clickTarget, detail) {
+    if (!pressTarget || !clickTarget || !detail) return false;
+    if (pressTarget === clickTarget) return false;
+    if (!textEntryField(pressTarget)) return false;
+    return typeof clickTarget.contains === "function" && clickTarget.contains(pressTarget);
+  }
+
+  if (typeof document !== "undefined" && document.addEventListener && !window.__pkStrayClickBound) {
+    window.__pkStrayClickBound = true;
+    let pressedOn = null;
+    document.addEventListener("pointerdown", function(e) { pressedOn = e.target; }, true);
+    document.addEventListener("click", function(e) {
+      const pressed = pressedOn;
+      pressedOn = null;
+      if (strayFieldClick(pressed, e.target, e.detail)) e.stopPropagation();
+    }, true);
+  }
+
+  // --- Unsaved input -------------------------------------------------------
+  //
+  // A modal holding a form the user has typed into does not close on the
+  // first Escape or backdrop click: the attempt is refused with a nudge of
+  // the box, and only a second one within a few seconds goes through. One
+  // stray click or key no longer costs a filled-in form, and nobody is ever
+  // trapped — the modal's own Cancel / ✕ / Save are untouched, and so is a
+  // deliberate second try.
+  //
+  // "Typed into" is a flag set by a real input/change event in a submittable
+  // form, not a comparison with the rendered values: a form with `phx-change`
+  // is re-rendered with what was typed after every keystroke, and would read
+  // clean again the moment the server answered.
+  const DISCARD_WINDOW_MS = 4000;
+  // The same Escape reaches a stacked dialog twice (its own cancel and the
+  // parent's relay); anything this close to the refusal is that same attempt.
+  const SAME_ATTEMPT_MS = 250;
+
+  function discardAttempt(lastRefusedAt, now) {
+    if (!lastRefusedAt) return "refuse";
+    const since = now - lastRefusedAt;
+    if (since < SAME_ATTEMPT_MS) return "same";
+    return since <= DISCARD_WINDOW_MS ? "allow" : "refuse";
+  }
+
+  function nudgeBox(box) {
+    if (!box || typeof box.animate !== "function") return;
+    const still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const frames = still
+      ? [{ opacity: 1 }, { opacity: 0.6 }, { opacity: 1 }]
+      : [
+          { transform: "translateX(0)" },
+          { transform: "translateX(-8px)" },
+          { transform: "translateX(8px)" },
+          { transform: "translateX(-4px)" },
+          { transform: "translateX(0)" }
+        ];
+    box.animate(frames, { duration: 220, easing: "ease-in-out" });
+  }
+
+  // Refuses or allows one close attempt on `holder`, an object carrying the
+  // `_pkTouched` / `_pkRefusedAt` state. True means: do not close.
+  function refuseUnsavedClose(holder, box) {
+    if (!holder || !holder._pkTouched) return false;
+    const verdict = discardAttempt(holder._pkRefusedAt, Date.now());
+    if (verdict === "allow") {
+      holder._pkTouched = false;
+      holder._pkRefusedAt = 0;
+      return false;
+    }
+    if (verdict === "refuse") {
+      holder._pkRefusedAt = Date.now();
+      nudgeBox(box);
+    }
+    return true;
+  }
+
+  // The same protection for a modal that is NOT a PkDialog: daisyUI's
+  // class-driven shape, `.modal.modal-open` around a `.modal-box` and a
+  // `.modal-backdrop`, closed by a `phx-click` on the backdrop and often a
+  // `phx-window-keydown` for Escape. Those are plain LiveView bindings, so the
+  // attempt is stopped here, in the capture phase, before LiveView's own
+  // window listeners hear it.
+  function classModalOf(el) {
+    if (!el || typeof el.closest !== "function") return null;
+    const modal = el.closest(".modal-open");
+    if (!modal || modal.getAttribute("phx-hook") === "PkDialog") return null;
+    return modal;
+  }
+
+  function submittableField(target) {
+    if (!target || typeof target.closest !== "function") return false;
+    if (target.type === "search" || target.closest("form[role=search]")) return false;
+    return !!target.closest("form[phx-submit]");
+  }
+
+  if (typeof document !== "undefined" && document.addEventListener && !window.__pkUnsavedGuardBound) {
+    window.__pkUnsavedGuardBound = true;
+    const touch = function(e) {
+      if (e.isTrusted === false || !submittableField(e.target)) return;
+      const modal = classModalOf(e.target);
+      if (modal) modal._pkTouched = true;
+    };
+    document.addEventListener("input", touch, true);
+    document.addEventListener("change", touch, true);
+    // A submitted form is no longer unsaved; typing again arms it again.
+    document.addEventListener("submit", function(e) {
+      const modal = classModalOf(e.target);
+      if (modal) modal._pkTouched = false;
+    }, true);
+    document.addEventListener("click", function(e) {
+      const backdrop = e.target && e.target.closest && e.target.closest(".modal-backdrop");
+      if (!backdrop) return;
+      const modal = classModalOf(backdrop);
+      if (modal && refuseUnsavedClose(modal, modal.querySelector(".modal-box"))) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+    }, true);
+    document.addEventListener("keydown", function(e) {
+      if (e.key !== "Escape") return;
+      // Escape that only dismisses an input method's candidate list is not a
+      // request to close anything; a `phx-window-keydown` binding cannot tell.
+      if (e.isComposing) { e.stopPropagation(); return; }
+      const open = document.querySelectorAll(".modal-open");
+      for (let i = open.length - 1; i >= 0; i--) {
+        const modal = open[i];
+        if (modal.getAttribute("phx-hook") === "PkDialog" || !modal._pkTouched) continue;
+        if (refuseUnsavedClose(modal, modal.querySelector(".modal-box"))) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
+        return;
+      }
+    }, true);
+  }
+
+  if (typeof module === "object" && module.exports) {
+    module.exports.backdropClick = backdropClick;
+    module.exports.textareaSizeChanged = textareaSizeChanged;
+    module.exports.strayFieldClick = strayFieldClick;
+    module.exports.discardAttempt = discardAttempt;
+  }
+
   // ---------------------------------------------------------------------------
   // TableLocalSearch Hook
   // ---------------------------------------------------------------------------
@@ -3785,6 +4050,16 @@ if (typeof window.Chart === "undefined") {
       if (this._guardTripped) return false;
       return this.el.dataset.closeable !== "false";
     },
+    // data-close-guard="confirm" (the default): true when this Escape or
+    // backdrop click is the first attempt on a form that has been typed into.
+    _refuseUnsaved() {
+      if (this.el.dataset.closeGuard !== "confirm") return false;
+      return refuseUnsavedClose(this.el, this.el.querySelector(".modal-box"));
+    },
+    _forgetUnsaved() {
+      this.el._pkTouched = false;
+      this.el._pkRefusedAt = 0;
+    },
     // A dialog in the top layer whose `open` attribute has gone missing still
     // LOOKS open but behaves as closed: the Escape close steps and `close()`
     // both return early, so no `close` event fires and `_onClose` never pushes
@@ -3839,6 +4114,7 @@ if (typeof window.Chart === "undefined") {
         !isOpenForBrowser &&
         typeof this.el.showModal === "function"
       ) {
+        this._forgetUnsaved();
         this.el.showModal();
       } else if (wantOpen && isOpenForBrowser) {
         // Dialog is in the top layer but the `open` attribute may have
@@ -3862,6 +4138,7 @@ if (typeof window.Chart === "undefined") {
         // Mark the close as LV-initiated so _onClose skips the echo
         // push (LV already knows data-show=false).
         this._closeFromLV = true;
+        this._forgetUnsaved();
         this.el.close();
       }
     },
@@ -3901,6 +4178,8 @@ if (typeof window.Chart === "undefined") {
         if (stacked.length > 0) {
           e.preventDefault();
           const top = stacked[stacked.length - 1];
+          // The child holds unsaved input of its own: its guard decides.
+          if (top._pkRefuseUnsaved && top._pkRefuseUnsaved()) return;
           // Drive the child's SERVER close directly (its data-close-event
           // to its owning component by CID) and close its element for the
           // instant visual — relying on the child's own 'close' echo
@@ -3942,6 +4221,8 @@ if (typeof window.Chart === "undefined") {
         // the modal is open — re-opening it on the next patch. Push here,
         // and stamp the element so a `close` that DOES arrive (an explicit
         // close() from the backdrop path, or destroyed()) skips the echo.
+        if (self._refuseUnsaved()) { e.preventDefault(); return; }
+        self._forgetUnsaved();
         self.el._pkStackClosePushedAt = Date.now();
         self._pushClose();
       };
@@ -3959,6 +4240,7 @@ if (typeof window.Chart === "undefined") {
           self.el._pkStackClosePushedAt &&
           Date.now() - self.el._pkStackClosePushedAt < 1000;
         if (!self._closeFromLV && !stackPushed) self._pushClose();
+        self._forgetUnsaved();
         // Reset both now that the close event has been fully processed. The
         // next user-initiated close (Esc, backdrop) will fall through to the
         // echo push as intended.
@@ -3969,8 +4251,23 @@ if (typeof window.Chart === "undefined") {
       // (rather than a descendant) means the user clicked outside the
       // modal-box on the ::backdrop surface. Children stop propagation
       // naturally because event.target lands on them, not on the dialog.
+      // The press and the release must both have landed there too — see
+      // `backdropClick`. A release outside the dialog never reaches these
+      // listeners, which leaves the release unset and the click refused.
+      self._pressTarget = null;
+      self._releaseTarget = null;
+      self._onPointerDown = function(e) {
+        self._pressTarget = e.target;
+        self._releaseTarget = null;
+      };
+      self._onPointerUp = function(e) { self._releaseTarget = e.target; };
       self._onClick = function(e) {
-        if (e.target !== self.el || !self._isCloseable()) return;
+        const pressTarget = self._pressTarget;
+        const releaseTarget = self._releaseTarget;
+        self._pressTarget = null;
+        self._releaseTarget = null;
+        if (!backdropClick(self.el, pressTarget, releaseTarget, e.target) || !self._isCloseable()) return;
+        if (self._refuseUnsaved()) return;
         // Same reason as the Escape path: `close()` is a no-op, and fires no
         // `close` event, on a top-layer dialog whose `open` attribute is gone.
         self._restoreOpenAttr();
@@ -3978,6 +4275,19 @@ if (typeof window.Chart === "undefined") {
       };
       this.el.addEventListener("cancel", self._onCancel);
       this.el.addEventListener("close", self._onClose);
+      this.el.addEventListener("pointerdown", self._onPointerDown);
+      this.el.addEventListener("pointerup", self._onPointerUp);
+
+      // data-close-guard="confirm": remember that a submittable form of THIS
+      // dialog was typed into. Kept on the element so a stacked parent's
+      // Escape relay can ask the child (`_pkRefuseUnsaved`).
+      self._onTouch = function(e) {
+        if (e.isTrusted === false) return;
+        if (guardedInput(self.el, e.target)) self.el._pkTouched = true;
+      };
+      this.el.addEventListener("input", self._onTouch);
+      this.el.addEventListener("change", self._onTouch);
+      this.el._pkRefuseUnsaved = function() { return self._refuseUnsaved(); };
       this.el.addEventListener("click", self._onClick);
 
       // data-close-guard="input": see the header comment. Local state only —
@@ -4051,6 +4361,12 @@ if (typeof window.Chart === "undefined") {
       if (this._onCancel) this.el.removeEventListener("cancel", this._onCancel);
       if (this._onClose) this.el.removeEventListener("close", this._onClose);
       if (this._onClick) this.el.removeEventListener("click", this._onClick);
+      if (this._onPointerDown) this.el.removeEventListener("pointerdown", this._onPointerDown);
+      if (this._onPointerUp) this.el.removeEventListener("pointerup", this._onPointerUp);
+      if (this._onTouch) {
+        this.el.removeEventListener("input", this._onTouch);
+        this.el.removeEventListener("change", this._onTouch);
+      }
       if (this._onShowEvent) this.el.removeEventListener("pk:dialog-show", this._onShowEvent);
       if (this._onInput) this.el.removeEventListener("input", this._onInput);
     }
@@ -4165,6 +4481,15 @@ if (typeof window.Chart === "undefined") {
     },
 
     updated() {
+      // The server closed the modal on a live connection — saved, cancelled
+      // or dismissed. The draft is finished with: left in place, the next
+      // reconnect would hand it back and reopen a modal the user had closed,
+      // or one whose contents were already saved. After a reconnect the flag
+      // also reads "false", but that is the re-mount, and the draft is
+      // exactly what `_maybeRestore` is about to use.
+      if (!pkWasDisconnected && this.el.dataset.draftActive !== "true") {
+        delete pkDialogDrafts[this.el.id];
+      }
       this._maybeRestore();
     },
 

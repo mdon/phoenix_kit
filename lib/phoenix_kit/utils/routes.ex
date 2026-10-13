@@ -13,8 +13,6 @@ defmodule PhoenixKit.Utils.Routes do
   alias PhoenixKit.Modules.Languages.DialectMapper
   alias PhoenixKit.Users.Auth.Scope
 
-  @default_locale Config.default_locale()
-
   # List of path prefixes that should NEVER have a locale added.
   # This should be kept in sync with @reserved_segments in LocaleExtractor plug.
   @reserved_prefixes ~w(/api /webhooks /assets /static /files /images /fonts /js /css /sitemap)
@@ -411,7 +409,7 @@ defmodule PhoenixKit.Utils.Routes do
     # segment is emitted: the default language on a
     # `default_language_no_prefix: true` site lives at `/`, not `/en`.
     candidates =
-      if is_binary(locale) and not (default_locale?(locale) and prefixless_primary?()),
+      if is_binary(locale) and not prefixless_locale?(locale),
         do: ["/" <> locale, "/"],
         else: ["/"]
 
@@ -758,7 +756,7 @@ defmodule PhoenixKit.Utils.Routes do
   end
 
   defp insert_locale_segment(served_path, locale) do
-    if default_locale?(locale) and prefixless_primary?() do
+    if prefixless_locale?(locale) do
       served_path
     else
       {prefix, rest} = split_served_prefix(served_path)
@@ -829,7 +827,7 @@ defmodule PhoenixKit.Utils.Routes do
   def locale_aware_user_settings_path(assigns) do
     locale =
       assigns[:current_locale_base] ||
-        DialectMapper.extract_base(assigns[:current_locale] || @default_locale)
+        DialectMapper.extract_base(assigns[:current_locale] || Config.default_locale())
 
     user_settings_path(locale: locale)
   end
@@ -1106,7 +1104,7 @@ defmodule PhoenixKit.Utils.Routes do
   defp build_path_with_locale(base_path, url_path, :none), do: "#{base_path}#{url_path}"
 
   defp build_path_with_locale(base_path, url_path, locale_value) do
-    if default_locale?(locale_value) and prefixless_primary?() do
+    if prefixless_locale?(locale_value) do
       "#{base_path}#{url_path}"
     else
       locale_prefixed_path(base_path, locale_value, url_path)
@@ -1235,7 +1233,7 @@ defmodule PhoenixKit.Utils.Routes do
   defp build_admin_path(base_path, url_path, :none), do: "#{base_path}#{url_path}"
 
   defp build_admin_path(base_path, url_path, locale) when is_binary(locale) do
-    if default_locale?(locale) and prefixless_primary?() do
+    if prefixless_locale?(locale) do
       "#{base_path}#{url_path}"
     else
       "#{base_path}/#{locale}#{url_path}"
@@ -1243,6 +1241,14 @@ defmodule PhoenixKit.Utils.Routes do
   end
 
   defp build_admin_path(base_path, url_path, _), do: "#{base_path}#{url_path}"
+
+  # Whether `locale` is emitted without a locale segment: every locale on a
+  # single-language site (there is nothing to switch to, so the segment means
+  # nothing), and the primary language on a multilingual site that serves it
+  # prefixless.
+  defp prefixless_locale?(locale) do
+    Languages.single_language_safe?() or (default_locale?(locale) and prefixless_primary?())
+  end
 
   # Reads the site-wide setting controlled by the Languages admin page.
   # Defers to the canonical boot-safe wrapper on `Languages` so all
@@ -1273,25 +1279,25 @@ defmodule PhoenixKit.Utils.Routes do
   defp get_default_language_base do
     # During mix tasks (like phoenix_kit.install), the database may not have
     # the settings table yet. We detect this by checking if we're in a mix task
-    # context and fall back to "en" to avoid database errors.
+    # context and fall back to the configured default locale to avoid database
+    # errors.
     if mix_task_context?() do
-      "en"
+      fallback_language_base()
     else
-      case Languages.get_default_language() do
-        %{code: code} when is_binary(code) -> DialectMapper.extract_base(code)
-        _ -> "en"
-      end
+      DialectMapper.extract_base(Languages.primary_language_code())
     end
   rescue
-    _ -> "en"
+    _ -> fallback_language_base()
   catch
     # A connection-pool failure EXITS rather than raising, so `rescue` alone
     # never delivered the "path building works without a reachable database"
     # guarantee above. Seen as a flaky suite failure: the settings read is
     # ETS-cached, so a DB-less test only reached the pool on a cache miss —
     # which another test's settings write could cause at any time.
-    :exit, _ -> "en"
+    :exit, _ -> fallback_language_base()
   end
+
+  defp fallback_language_base, do: DialectMapper.extract_base(Config.default_locale())
 
   # Detect if we're running in a mix task context where the database
   # may not be fully set up yet
@@ -1305,8 +1311,9 @@ defmodule PhoenixKit.Utils.Routes do
   end
 
   @doc """
-  Returns a locale-aware admin path. For non-primary locales the locale
-  segment is always emitted. For the primary locale the shape follows
+  Returns a locale-aware admin path. On a single-language site (multi-language
+  support off) no locale segment is emitted for any locale. Otherwise, for
+  non-primary locales the locale segment is always emitted. For the primary locale the shape follows
   the site-wide `default_language_no_prefix` setting
   (`Languages.default_language_no_prefix?/0`): prefixless when the
   setting is on, prefixed when off.
@@ -1341,7 +1348,7 @@ defmodule PhoenixKit.Utils.Routes do
     base_prefix = if url_prefix == "/", do: "", else: url_prefix
     url_path = apply_admin_segment(url_path)
 
-    if default_locale?(locale) and prefixless_primary?() do
+    if prefixless_locale?(locale) do
       "#{base_prefix}#{url_path}"
     else
       "#{base_prefix}/#{locale}#{url_path}"
@@ -1363,7 +1370,7 @@ defmodule PhoenixKit.Utils.Routes do
     # Prefer base code, fall back to extracting from full dialect
     locale =
       assigns[:current_locale_base] ||
-        DialectMapper.extract_base(assigns[:current_locale] || @default_locale)
+        DialectMapper.extract_base(assigns[:current_locale] || Config.default_locale())
 
     path(url_path, locale: locale)
   end
@@ -1376,7 +1383,7 @@ defmodule PhoenixKit.Utils.Routes do
   def locale_aware_home_path(assigns, context) do
     locale =
       assigns[:current_locale_base] ||
-        DialectMapper.extract_base(assigns[:current_locale] || @default_locale)
+        DialectMapper.extract_base(assigns[:current_locale] || Config.default_locale())
 
     home_path(context, locale)
   end
@@ -1384,8 +1391,9 @@ defmodule PhoenixKit.Utils.Routes do
   @doc """
   Returns the default locale (base code) from the Languages module.
 
-  Extracts the base code from the default language (e.g., "en-US" becomes "en").
-  Falls back to "en" if no default language is configured.
+  The base code of `Languages.primary_language_code/0` (e.g., "en-US" becomes
+  "en") — the site's primary language whether or not multi-language support is
+  on.
 
   ## Examples
 

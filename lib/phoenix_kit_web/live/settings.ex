@@ -8,6 +8,7 @@ defmodule PhoenixKitWeb.Live.Settings do
   use Gettext, backend: PhoenixKitWeb.Gettext
 
   alias PhoenixKit.Config.EndpointUrlSync
+  alias PhoenixKit.Modules.Languages
   alias PhoenixKit.Modules.Storage.URLSigner
   alias PhoenixKit.Settings
   alias PhoenixKit.Settings.Events, as: SettingsEvents
@@ -76,12 +77,22 @@ defmodule PhoenixKitWeb.Live.Settings do
       |> assign(:media_selector_target, nil)
       # Resolved when the selector opens — the host hook may create a folder.
       |> assign(:branding_scope_folder, nil)
+      |> assign(:primary_language_name, primary_language_name())
       |> assign(
         :project_title,
         merged_settings["project_title"] || PhoenixKit.Config.get(:project_title, "PhoenixKit")
       )
 
     {:ok, socket}
+  end
+
+  defp primary_language_name do
+    code = Languages.primary_language_code()
+
+    case Languages.get_predefined_language(code) do
+      %{name: name} when is_binary(name) -> name
+      _ -> code
+    end
   end
 
   # The tab lives in the URL (`?tab=sessions`); see `UrlTabs`.

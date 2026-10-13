@@ -69,9 +69,11 @@ defmodule PhoenixKitWeb.Live.Modules.LanguagesSwitchTest do
       {:ok, _view, html} = mount_as_admin(conn)
 
       refute html =~ "Languages Enabled"
-      refute html =~ "URL Behavior"
       refute html =~ "Frontend Language Switcher"
-      refute html =~ "Default Language Without Prefix"
+      # The primary-language card stays (a single-language site needs it), but
+      # the prefix toggle is for a multilingual site only.
+      assert html =~ "Primary language &amp; URLs"
+      refute html =~ "Primary language without prefix"
     end
 
     test "turning it on persists, seeds English and reveals the configuration", %{conn: conn} do
@@ -83,7 +85,7 @@ defmodule PhoenixKitWeb.Live.Modules.LanguagesSwitchTest do
       assert [%{code: "en-US"}] = Languages.get_enabled_languages()
       assert switch_checked?(view)
       assert html =~ "Languages Enabled"
-      assert html =~ "URL Behavior"
+      assert html =~ "Primary language without prefix"
       refute html =~ "the site is served in its default language only"
     end
   end
@@ -99,7 +101,7 @@ defmodule PhoenixKitWeb.Live.Modules.LanguagesSwitchTest do
 
       assert switch_checked?(view)
       assert html =~ "Languages Enabled"
-      assert html =~ "URL Behavior"
+      assert html =~ "Primary language without prefix"
     end
 
     test "turning it off hides the configuration and keeps the languages", %{conn: conn} do
@@ -110,7 +112,7 @@ defmodule PhoenixKitWeb.Live.Modules.LanguagesSwitchTest do
 
       refute Languages.enabled?()
       refute switch_checked?(view)
-      refute html =~ "URL Behavior"
+      refute html =~ "Primary language without prefix"
       assert html =~ "the site is served in its default language only"
 
       # Off hides every language from the site, but the configuration is kept.
@@ -208,6 +210,9 @@ defmodule PhoenixKitWeb.Live.Modules.LanguagesSwitchTest do
   end
 
   describe "an open page after another admin turns languages off" do
+    # Mounts the page once per configuration event, each behind a full
+    # enable_system; on a loaded machine that outruns the 60 s default.
+    @tag timeout: 180_000
     test "configuration events leave the saved settings alone and refresh the page", %{conn: conn} do
       for {event, params} <- [
             {"toggle_language_availability", %{"code" => "ja"}},
@@ -226,7 +231,7 @@ defmodule PhoenixKitWeb.Live.Modules.LanguagesSwitchTest do
         assert Settings.get_json_setting("languages_config") == before
         assert Languages.default_language_no_prefix?() == prefix_before
         refute Languages.enabled?()
-        refute html =~ "URL Behavior"
+        refute html =~ "Primary language without prefix"
         refute switch_checked?(view)
       end
     end

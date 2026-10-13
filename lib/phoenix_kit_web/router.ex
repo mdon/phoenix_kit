@@ -58,8 +58,8 @@ defmodule PhoenixKitWeb.Router do
       # inside one live_session — see PresenceProbeLive's moduledoc.
       live "/__test/presence-probe/:page", PresenceProbeLive
       # Under the (default test) `/phoenix_kit` prefix + `/admin` so the admin
-      # layout draws its chrome — see AdminLayoutProbeLive's moduledoc.
-      live "/phoenix_kit/admin/__test/admin-layout-probe", AdminLayoutProbeLive
+      # layout draws its chrome — see AdminEditProbeLive's moduledoc.
+      live "/phoenix_kit/admin/__test/admin-edit-probe", AdminEditProbeLive
     end
   end
 

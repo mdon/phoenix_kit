@@ -2083,10 +2083,14 @@ defmodule PhoenixKit.Settings do
   Gets the site content language.
 
   This represents the primary language of website content (not UI language).
-  Falls back to "en" if not configured or Languages module is disabled.
-
-  This function uses batch caching for optimal performance when called
-  alongside other settings queries.
+  A configured primary language is returned as stored — `"uk"`, or the dialect
+  `"en-US"` — whether or not multi-language support is on
+  (`PhoenixKit.Modules.Languages.configured_primary_language_code/0`). With
+  none configured it is the BASE of `config :phoenix_kit, default_locale`:
+  `"en"` for the default `en-US`, `"de"` for a host that sets `de-DE`. That is
+  what it was before a single-language site could choose one (a literal
+  `"en"`), so content keyed by it on a site with no configuration keeps
+  resolving.
 
   ## Examples
 
@@ -2094,25 +2098,17 @@ defmodule PhoenixKit.Settings do
       "en"
 
       iex> PhoenixKit.Settings.get_content_language()
-      "es"  # if configured as Spanish
+      "uk"  # a site whose primary language is Ukrainian
   """
   def get_content_language do
-    # Use the default language from Languages module if enabled
-    if Code.ensure_loaded?(Languages) and Languages.enabled?() do
-      case Languages.get_default_language() do
-        %{code: code} -> code
-        nil -> "en"
-      end
-    else
-      # Languages module disabled - default to "en"
-      "en"
-    end
+    Languages.configured_primary_language_code() || default_locale_base()
   end
 
   @doc """
   Gets content language with full details.
 
-  Returns a map with code, name, and native name if Languages module is enabled.
+  `from_languages_module` is true while multi-language support is on and
+  supplies a default language — the same meaning it always had.
 
   ## Examples
 
@@ -2125,35 +2121,20 @@ defmodule PhoenixKit.Settings do
       }
   """
   def get_content_language_details do
-    # Use the default language from Languages module directly
-    if Code.ensure_loaded?(Languages) and Languages.enabled?() do
-      case Languages.get_default_language() do
-        %{code: code, name: name} = lang ->
-          %{
-            code: code,
-            name: name,
-            native: lang.native || name,
-            from_languages_module: true
-          }
+    default = Languages.get_default_language()
+    code = get_content_language()
 
-        nil ->
-          # No default language set - return English
-          %{
-            code: "en",
-            name: "English",
-            native: "English",
-            from_languages_module: false
-          }
-      end
-    else
-      # Languages module disabled - return English
-      %{
-        code: "en",
-        name: "English",
-        native: "English",
-        from_languages_module: false
-      }
+    case default || Languages.get_predefined_language(code) do
+      %{name: name} = lang when is_binary(name) ->
+        %{code: code, name: name, native: lang.native || name, from_languages_module: !!default}
+
+      _ ->
+        %{code: code, name: code, native: code, from_languages_module: false}
     end
+  end
+
+  defp default_locale_base do
+    PhoenixKit.Config.default_locale() |> Languages.DialectMapper.extract_base()
   end
 
   ## Settings Form Functions
