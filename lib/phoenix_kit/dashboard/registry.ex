@@ -247,6 +247,33 @@ defmodule PhoenixKit.Dashboard.Registry do
   end
 
   @doc """
+  User-level tabs offered in the avatar dropdown for `scope` — top-level
+  tabs with a path whose `:user_menu` answers true (`Tab.user_menu?/2`),
+  after the same enabled/permission/visibility filtering as the sidebar.
+
+  External tabs are left out (the dropdown links are in-app, locale-aware
+  paths), and so is a missing scope: the dropdown is for signed-in visitors,
+  and an unscoped lookup would skip the permission filtering altogether.
+  """
+  @spec get_user_menu_tabs(map() | nil) :: [Tab.t()]
+  def get_user_menu_tabs(nil), do: []
+
+  def get_user_menu_tabs(scope) do
+    # Rendered on every page that carries a dropdown, so an uninitialised
+    # registry (a host test, boot) answers empty without get_tabs/1's warning.
+    if initialized?() do
+      [scope: scope]
+      |> get_user_tabs()
+      |> Enum.filter(fn tab ->
+        is_nil(tab.parent) and not tab.external and is_binary(tab.path) and tab.path != "" and
+          Tab.user_menu?(tab, scope)
+      end)
+    else
+      []
+    end
+  end
+
+  @doc """
   Updates an existing tab's attributes.
 
   ## Examples
@@ -1001,31 +1028,18 @@ defmodule PhoenixKit.Dashboard.Registry do
     # Clear existing phoenix_kit namespace tabs first
     clear_namespace_tabs(:phoenix_kit)
 
-    # Default PhoenixKit tabs (relative paths, resolved to /dashboard/*)
+    # Default PhoenixKit tabs (relative paths, resolved to /dashboard/*).
+    # Only while the user dashboard is routed: `PhoenixKitWeb.Integration`
+    # compiles `/dashboard` and `/dashboard/settings` out under the default
+    # `user_dashboard_enabled: false`, and a module's own user tab (billing's
+    # "My Orders") still renders this sidebar — so registering these
+    # unconditionally offered two links straight into a NoRouteError.
     defaults =
-      [
-        Tab.new!(
-          id: :dashboard_home,
-          label: "Dashboard",
-          icon: "hero-home",
-          path: "",
-          priority: 100,
-          match: :exact,
-          group: :main,
-          gettext_backend: PhoenixKitWeb.Gettext
-        ),
-        Tab.new!(
-          id: :dashboard_settings,
-          label: "Settings",
-          icon: "hero-cog-6-tooth",
-          path: "settings",
-          priority: 900,
-          match: :prefix,
-          group: :account,
-          gettext_backend: PhoenixKitWeb.Gettext
-        )
-      ]
-      |> Enum.map(&Tab.resolve_path(&1, :user_dashboard))
+      if PhoenixKit.Config.user_dashboard_enabled?() do
+        default_dashboard_tabs()
+      else
+        []
+      end
 
     # Add user dashboard tabs from enabled modules via registry
     module_tabs = enabled_user_dashboard_tabs()
@@ -1044,6 +1058,32 @@ defmodule PhoenixKit.Dashboard.Registry do
     end)
 
     :ets.insert(@ets_table, {:groups, groups})
+  end
+
+  defp default_dashboard_tabs do
+    [
+      Tab.new!(
+        id: :dashboard_home,
+        label: "Dashboard",
+        icon: "hero-home",
+        path: "",
+        priority: 100,
+        match: :exact,
+        group: :main,
+        gettext_backend: PhoenixKitWeb.Gettext
+      ),
+      Tab.new!(
+        id: :dashboard_settings,
+        label: "Settings",
+        icon: "hero-cog-6-tooth",
+        path: "settings",
+        priority: 900,
+        match: :prefix,
+        group: :account,
+        gettext_backend: PhoenixKitWeb.Gettext
+      )
+    ]
+    |> Enum.map(&Tab.resolve_path(&1, :user_dashboard))
   end
 
   defp load_from_config_internal do

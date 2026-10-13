@@ -109,6 +109,13 @@ defmodule PhoenixKit.Dashboard.Tab do
 
   @type subtab_display :: :when_active | :always
 
+  @typedoc """
+  Whether a user-level tab is also offered in the avatar dropdown: `true`,
+  `false`, or a function of the scope answering the same question at render
+  time (e.g. "only while the shop module is enabled").
+  """
+  @type user_menu :: boolean() | (map() -> boolean())
+
   @type subtab_animation :: :none | :slide | :fade | :collapse
 
   @type level :: :user | :admin | :all
@@ -235,6 +242,17 @@ defmodule PhoenixKit.Dashboard.Tab do
     deliberately instead of looking like an omission — `ModuleRegistry` warns
     about permission-less tabs precisely because forgetting one is the common
     mistake. Reaching admin chrome at all is still gated.
+  - `:user_menu` - Also list this user-level tab in the avatar dropdown
+    (`PhoenixKitWeb.Components.UserDashboardNav.user_dropdown/1` and the admin
+    top bar's), between Settings and the language switcher. `true`, or a
+    function `(scope -> boolean)` evaluated at render time — a module whose
+    page only makes sense beside another module gates on that module here.
+    Only top-level, in-app tabs with a path are offered (not subtabs, not
+    `external: true` ones). With the user dashboard
+    deprecated, this is how a shopper reaches "My Orders" from anywhere
+    (default: false). Stored under `metadata[:user_menu]` rather than as a
+    struct field — the struct sits at the 31-field mark past which the BEAM
+    stops storing a map flat — so read it through `user_menu?/2`
   - `:badge` - Badge struct or map for displaying indicators (optional)
   - `:tooltip` - Hover text for the tab (optional)
   - `:external` - Whether this links to an external site (default: false)
@@ -295,12 +313,18 @@ defmodule PhoenixKit.Dashboard.Tab do
       new_tab: get_attr(attrs, :new_tab) || false,
       attention: parse_attention(get_attr(attrs, :attention)),
       live_view: get_attr(attrs, :live_view),
-      metadata: get_attr(attrs, :metadata) || %{},
+      metadata: put_user_menu(get_attr(attrs, :metadata) || %{}, get_attr(attrs, :user_menu)),
       inserted_at: UtilsDate.utc_now(),
       gettext_backend: get_attr(attrs, :gettext_backend),
       gettext_domain: get_attr(attrs, :gettext_domain) || "default"
     }
   end
+
+  defp put_user_menu(metadata, fun) when is_function(fun, 1),
+    do: Map.put(metadata, :user_menu, fun)
+
+  defp put_user_menu(metadata, true), do: Map.put(metadata, :user_menu, true)
+  defp put_user_menu(metadata, _), do: metadata
 
   defp get_attr(attrs, key) do
     cond do
@@ -579,6 +603,25 @@ defmodule PhoenixKit.Dashboard.Tab do
   end
 
   def visible?(_, _), do: true
+
+  @doc """
+  Whether the tab is offered in the avatar dropdown for `scope` — see the
+  `:user_menu` option. A raising gate answers `false`: the dropdown renders on
+  every page, so one broken module must not take the menu down with it —
+  whether the gate raises or exits (a call into a stopped process).
+  """
+  @spec user_menu?(t(), map() | nil) :: boolean()
+  def user_menu?(%__MODULE__{metadata: %{user_menu: true}}, _scope), do: true
+
+  def user_menu?(%__MODULE__{metadata: %{user_menu: fun}}, scope) when is_function(fun, 1) do
+    fun.(scope) == true
+  rescue
+    _ -> false
+  catch
+    :exit, _ -> false
+  end
+
+  def user_menu?(_, _), do: false
 
   @doc """
   Whether `path` contains router parameter segments (`:uuid`, `*splat`).

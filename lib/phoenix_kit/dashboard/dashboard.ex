@@ -228,6 +228,12 @@ defmodule PhoenixKit.Dashboard do
   defdelegate get_user_tabs(opts \\ []), to: Registry
 
   @doc """
+  User-level tabs offered in the avatar dropdown (`Tab` option `:user_menu`).
+  """
+  @spec get_user_menu_tabs(map() | nil) :: [Tab.t()]
+  defdelegate get_user_menu_tabs(scope), to: Registry
+
+  @doc """
   Registers admin tabs for an application namespace.
 
   Automatically sets `level: :admin` on all tabs.
