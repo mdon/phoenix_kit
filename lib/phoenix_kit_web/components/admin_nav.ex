@@ -283,6 +283,13 @@ defmodule PhoenixKitWeb.Components.AdminNav do
             </.link>
           </li>
 
+          <%!-- Module tabs registered with `user_menu:` (My Orders, My Cart). --%>
+          <PhoenixKitWeb.Components.UserDashboardNav.user_menu_tab_links
+            scope={@scope}
+            current_path={@current_path}
+            current_locale={@current_locale}
+          />
+
           <%!-- Language Switcher (Admin Languages) --%>
           <%= if @show_language_divider do %>
             <div class="divider my-0"></div>

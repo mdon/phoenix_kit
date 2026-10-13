@@ -364,4 +364,52 @@ defmodule PhoenixKit.Dashboard.TabTest do
       refute Tab.matches_path?(tab, "/admin/other?path=/admin/modules/catalogue")
     end
   end
+
+  describe "user_menu (avatar dropdown)" do
+    test "defaults to off and round-trips through new/1" do
+      refute Tab.user_menu?(Tab.new!(id: :um_default, label: "X", path: "/x"), nil)
+      assert Tab.user_menu?(Tab.new!(id: :um_true, label: "X", path: "/x", user_menu: true), nil)
+
+      gate = fn _scope -> true end
+      tab = Tab.new!(id: :um_fn, label: "X", path: "/x", user_menu: gate)
+      assert tab.metadata.user_menu == gate
+    end
+
+    test "is kept beside caller metadata, not over it" do
+      tab = Tab.new!(id: :um_meta, label: "X", path: "/x", metadata: %{a: 1}, user_menu: true)
+      assert tab.metadata == %{a: 1, user_menu: true}
+    end
+
+    test "anything but true or a 1-arity function reads as off" do
+      for value <- ["true", :yes, 1, fn -> true end, nil] do
+        tab = Tab.new!(id: :um_junk, label: "X", path: "/x", user_menu: value)
+        refute Map.has_key?(tab.metadata, :user_menu)
+        refute Tab.user_menu?(tab, nil)
+      end
+    end
+
+    test "user_menu?/2 evaluates a gate against the scope" do
+      tab = Tab.new!(id: :um_gate, label: "X", path: "/x", user_menu: &(&1 == :shop_on))
+
+      assert Tab.user_menu?(tab, :shop_on)
+      refute Tab.user_menu?(tab, :shop_off)
+      refute Tab.user_menu?(Tab.new!(id: :um_off, label: "X", path: "/x"), :shop_on)
+    end
+
+    test "a raising or non-boolean gate answers false instead of breaking the menu" do
+      raising =
+        Tab.new!(id: :um_raise, label: "X", path: "/x", user_menu: fn _ -> raise "boom" end)
+
+      truthy = Tab.new!(id: :um_truthy, label: "X", path: "/x", user_menu: fn _ -> "yes" end)
+
+      refute Tab.user_menu?(raising, nil)
+      refute Tab.user_menu?(truthy, nil)
+    end
+
+    test "a gate that exits (a call into a stopped process) answers false too" do
+      exiting = Tab.new!(id: :um_exit, label: "X", path: "/x", user_menu: fn _ -> exit(:boom) end)
+
+      refute Tab.user_menu?(exiting, nil)
+    end
+  end
 end

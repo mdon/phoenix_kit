@@ -197,6 +197,7 @@ Separately, PhoenixKit normalizes the **incoming request path** for matching —
   group: :farm,          # Group ID for organization
   match: :prefix,        # :exact, :prefix, {:regex, ~r/.../}, or function
   visible: fn scope -> scope.user.has_farm? end,  # Conditional visibility
+  user_menu: true,       # Also list in the avatar dropdown (or fn scope -> boolean)
   badge: %{
     type: :count,        # :count, :dot, :status, :new, :text
     value: 0,
@@ -211,6 +212,38 @@ Separately, PhoenixKit normalizes the **incoming request path** for matching —
   attention: nil         # :pulse, :bounce, :shake, :glow
 }
 ```
+
+### Avatar Dropdown Entries
+
+The user dashboard (`/dashboard`) is deprecated and off by default, so a
+signed-in visitor's own pages — their orders, their cart — need a way in from
+every page. A user-level tab with `user_menu:` is also listed in the avatar
+dropdown (both the user one and the admin top bar's), after Settings:
+
+```elixir
+Tab.new!(id: :dashboard_cart, label: "My Cart", path: "/cart", user_menu: true)
+
+# Gate it at render time — e.g. billing lists "My Orders" only beside a shop:
+Tab.new!(
+  id: :dashboard_orders,
+  label: "My Orders",
+  path: "billing-orders",
+  user_menu: &MyModule.shop_enabled?/1
+)
+```
+
+Only top-level, in-app tabs with a path are offered (no subtabs, no
+`external: true` ones), after the same permission, module-enabled and
+visibility filtering as the sidebar. A host that wants them out of
+`UserDashboardNav.user_dropdown/1` drops `:user_menu_tabs` from its
+`authenticated_links`; the admin top bar's dropdown has no such option. A core
+older than the option ignores the key, so a module can set it without raising
+its core floor. The value lives in `metadata[:user_menu]` (the struct is at its
+flat-map field limit); read it
+with `Tab.user_menu?/2`.
+
+The default "Dashboard" and "Settings" user tabs are registered only while
+`user_dashboard_enabled: true` — without it their routes do not exist.
 
 ## Tab Groups
 
@@ -1057,11 +1090,12 @@ PhoenixKit provides these default tabs:
 
 1. **Dashboard** (id: `:dashboard_home`, priority: 100)
    - Path: `/dashboard`
-   - Always shown
+   - Only registered while `user_dashboard_enabled: true` (its route does not
+     exist otherwise)
 
 2. **Settings** (id: `:dashboard_settings`, priority: 900)
    - Path: `/dashboard/settings`
-   - Always shown
+   - Only registered while `user_dashboard_enabled: true`, like Dashboard
 
 3. **My Tickets** (id: `:dashboard_tickets`, priority: 800)
    - Path: `/dashboard/tickets`

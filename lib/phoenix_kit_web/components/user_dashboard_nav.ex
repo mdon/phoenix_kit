@@ -6,6 +6,8 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
 
   use PhoenixKitWeb, :html
 
+  alias PhoenixKit.Dashboard.Registry, as: TabRegistry
+  alias PhoenixKit.Dashboard.Tab
   alias PhoenixKit.Modules.Languages
   alias PhoenixKit.Modules.Languages.DialectMapper
   alias PhoenixKit.Settings
@@ -68,7 +70,7 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
       gated by the `allow_registration` / `magic_link_login_enabled` settings, so
       this list can only narrow, never force-enable a disabled feature.
     * `:authenticated_links` — which authenticated-menu entries may appear, e.g.
-      `[:admin, :dashboard, :settings, :logout]` (default: all). Same narrowing
+      `[:admin, :dashboard, :settings, :user_menu_tabs, :logout]` (default: all). Same narrowing
       rule as `:guest_links` — `:admin` still requires `Scope.can_access_admin_area?/1` to be
       true, so listing it can't grant an entry a non-admin shouldn't see. Use
       this to hide entries a host app's own navigation already covers.
@@ -80,6 +82,10 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
       can compile out with `user_dashboard_enabled: false` — leaving this menu
       offering a 404. The key name is kept so hosts passing an explicit list
       need no edit.
+
+      `:user_menu_tabs` is every module tab registered with `user_menu:`
+      (`PhoenixKit.Dashboard.Tab`) — billing's "My Orders", the shop's
+      "My Cart" — listed after Settings; see `user_menu_tab_links/1`.
   """
   attr(:scope, :any, default: nil)
   attr(:current_path, :string, default: "")
@@ -88,7 +94,10 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
   attr(:admin_edit_label, :string, default: nil)
   attr(:show_language_switcher, :boolean, default: true)
   attr(:guest_links, :list, default: [:login, :register, :reset, :magic_link])
-  attr(:authenticated_links, :list, default: [:admin, :dashboard, :settings, :logout])
+
+  attr(:authenticated_links, :list,
+    default: [:admin, :dashboard, :settings, :user_menu_tabs, :logout]
+  )
 
   def user_dropdown(assigns) do
     user = Scope.user(assigns.scope)
@@ -170,6 +179,13 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
               <span>{gettext("Settings")}</span>
             </.link>
           </li>
+
+          <.user_menu_tab_links
+            :if={:user_menu_tabs in @authenticated_links}
+            scope={@scope}
+            current_path={@current_path}
+            current_locale={@current_locale}
+          />
 
           <.language_menu_section
             :if={@show_language_switcher}
@@ -664,6 +680,54 @@ defmodule PhoenixKitWeb.Components.UserDashboardNav do
       do: AdminLabel.text(),
       else: gettext("My Account")
   end
+
+  @doc """
+  Renders the module tabs offered in the avatar dropdown — one `<li>` per tab
+  `PhoenixKit.Dashboard.Registry.get_user_menu_tabs/1` returns for `scope`,
+  in tab priority order. Meant to sit inside a dropdown `<ul class="menu">`;
+  renders nothing when no tab opts in, so a dropdown can always include it.
+
+  Both avatar dropdowns use it (this module's `user_dropdown/1` and
+  `PhoenixKitWeb.Components.AdminNav.admin_user_dropdown/1`): with the user
+  dashboard deprecated, the dropdown is the one place a signed-in visitor can
+  reach their orders or cart from on every page.
+  """
+  attr(:scope, :any, default: nil)
+  attr(:current_path, :string, default: "")
+  attr(:current_locale, :string, default: "en")
+
+  def user_menu_tab_links(assigns) do
+    assigns = assign(assigns, :tabs, TabRegistry.get_user_menu_tabs(assigns.scope))
+
+    ~H"""
+    <li :for={tab <- @tabs}>
+      <.link
+        navigate={Routes.locale_aware_path(assigns, tab.path)}
+        class={[
+          "flex items-center gap-3",
+          tab_active?(tab, @current_path) && "bg-primary text-primary-content"
+        ]}
+      >
+        <.icon :if={tab.icon} name={tab.icon} class="w-4 h-4" />
+        <span>{Tab.localized_label(tab)}</span>
+      </.link>
+    </li>
+    """
+  end
+
+  # Same canonicalisation as active_path?/2, then the tab's own match rule —
+  # a `:prefix` tab ("/cart") stays highlighted on its sub-pages.
+  defp tab_active?(tab, current_path) when is_binary(current_path) do
+    clean_path =
+      current_path
+      |> remove_phoenix_kit_prefix()
+      |> remove_locale_prefix()
+      |> Routes.canonical_admin_path()
+
+    Tab.matches_path?(tab, clean_path)
+  end
+
+  defp tab_active?(_tab, _current_path), do: false
 
   # Check if current path matches the given path
   defp active_path?(current_path, path) when is_binary(current_path) and is_binary(path) do
