@@ -57,6 +57,9 @@ defmodule PhoenixKitWeb.Router do
       # Dynamic segment: lets a test `push_patch` across two distinct paths
       # inside one live_session — see PresenceProbeLive's moduledoc.
       live "/__test/presence-probe/:page", PresenceProbeLive
+      # Under the (default test) `/phoenix_kit` prefix + `/admin` so the admin
+      # layout draws its chrome — see AdminLayoutProbeLive's moduledoc.
+      live "/phoenix_kit/admin/__test/admin-layout-probe", AdminLayoutProbeLive
     end
   end
 

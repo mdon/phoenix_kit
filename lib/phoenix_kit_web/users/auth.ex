@@ -642,6 +642,17 @@ defmodule PhoenixKitWeb.Users.Auth do
       and redirects to the home page if not.
       Redirects to login page if there's no logged user.
 
+    * `:phoenix_kit_admin_layout` - **Fail-open: authorizes nothing, layout
+      only.** Mounts the scope and, when it can reach the admin area and passes
+      the account gate, renders the view inside `{PhoenixKitWeb.Layouts, :admin}`
+      (sidebar, header, account menu). For a host or plugin view that gates
+      itself and wants the admin chrome without `:phoenix_kit_ensure_admin`'s
+      permission-mapping check. The hook itself never redirects or 403s: a
+      visitor who cannot reach the admin area gets the view without the chrome,
+      so the view MUST carry its own gate (pair it with
+      `{:phoenix_kit_require, {:module, key}}`). See "Admin layout without the
+      admin gate" below.
+
     * `:phoenix_kit_redirect_if_user_is_authenticated` - Authenticates the user from the session.
       Redirects to signed_in_path if there's a logged user.
 
@@ -686,6 +697,60 @@ defmodule PhoenixKitWeb.Users.Auth do
   once — but mounting twice does the work twice, so prefer the pairing above.
   The website access gate runs before every hook, including the check-only
   one.
+
+  ## Admin layout without the admin gate
+
+  `:phoenix_kit_ensure_admin` does two jobs: it admits only admins (checking the
+  view against the permission map, which 403s a host view that has no mapping
+  for a non-Owner admin) and it puts external views into the admin layout. A
+  host view that gates itself — an entity record page checking `entities`
+  access, say — wants the second job without the first.
+
+  **`:phoenix_kit_admin_layout` is fail-open: it authorizes nothing.** It is a
+  layout decision, not a gate, and a view that stops at this hook is open to
+  everyone who can reach its route. Pair it with a requirement that actually
+  admits the people you mean — for a module page,
+  `{:phoenix_kit_require, {:module, "<key>"}}` (admin area **and** that module
+  key), not `:authenticated`, which any signed-in account passes:
+
+      defmodule MyAppWeb.RecordShowLive do
+        use MyAppWeb, :live_view
+
+        on_mount {PhoenixKitWeb.Users.Auth, :phoenix_kit_admin_layout}
+        on_mount {PhoenixKitWeb.Users.Auth, {:phoenix_kit_require, {:module, "entities"}}}
+        # ...and any finer per-record check, in mount/3
+      end
+
+  Declare the `require` **after** `:phoenix_kit_admin_layout`:
+  `{:phoenix_kit_require, _}` mounts nothing and raises without a scope, and
+  this hook is the one that mounts it. Hooks run in declaration order.
+
+  What the hook does:
+
+    * it applies the admin layout only for a scope that can reach the admin area
+      (`Scope.can_access_admin_area?/1`) **and** passes the account gate (email
+      confirmed where confirmation is required, referral code entered). An
+      admin with an unconfirmed email gets the view bare: the chrome is not
+      shown ahead of the page that would ask them to confirm;
+    * the layout goes onto ANY view module, not just external ones, since the
+      opt-in is explicit;
+    * for anyone else (anonymous, no permission, account gate pending) it leaves
+      the layout alone. That is a rendering choice, not a denial: they still
+      mount the view.
+
+  What it does not take over from the hooks around it:
+
+    * the website access gate runs before every hook, this one included, and can
+      still send a visitor to the password page;
+    * mounting the scope applies maintenance mode: while it is on, a non-admin
+      is shown the maintenance layout in place of the view, and this hook leaves
+      that layout in place; an admin bypasses it and gets the admin layout.
+
+  The layout draws the admin chrome only for a URL under the admin segment
+  (`Routes.admin_area_path?/1`); elsewhere it falls through to the host layout,
+  as it does for every page rendered through `app_layout`. Like the `ensure_*`
+  hooks it mounts the scope itself, so stacking it on a `live_session` that
+  already mounted one does that work twice — the pairing table above applies.
 
   ## Examples
 
@@ -785,6 +850,24 @@ defmodule PhoenixKitWeb.Users.Auth do
   defp mount_hook(:phoenix_kit_ensure_admin, params, session, socket) do
     socket = mount_phoenix_kit_current_scope(socket, session, params)
     require_scope(:admin, socket, socket.assigns.phoenix_kit_current_scope)
+  end
+
+  # Layout only — see "Admin layout without the admin gate" in the on_mount/4
+  # docs. Deliberately returns {:cont, _} on every path: gating belongs to the
+  # view. The chrome needs the admin area AND a passing `account_gate/1`, so an
+  # unconfirmed admin is not shown navigation ahead of the page that would ask
+  # them to confirm. Reuses `prepare_admin_mount/3`, the one place an admitted
+  # admin mount is assembled, so it cannot drift from what
+  # `:phoenix_kit_ensure_admin` does.
+  defp mount_hook(:phoenix_kit_admin_layout, params, session, socket) do
+    socket = mount_phoenix_kit_current_scope(socket, session, params)
+    scope = socket.assigns.phoenix_kit_current_scope
+
+    if Scope.can_access_admin_area?(scope) and account_gate(scope) == :ok do
+      {:cont, prepare_admin_mount(socket, true, true)}
+    else
+      {:cont, attach_locale_hook(socket)}
+    end
   end
 
   defp mount_hook({:phoenix_kit_ensure_module_access, module_key}, params, session, socket) do
@@ -1030,21 +1113,26 @@ defmodule PhoenixKitWeb.Users.Auth do
   # Subscribing them would put every signed-in user of the application on that
   # topic for the lifetime of the socket.
   #
-  # `maybe_apply_plugin_layout/1` is a no-op for the landing view (it only
+  # `maybe_apply_plugin_layout/2` is a no-op for the landing view (it only
   # rewrites the layout for views outside the `PhoenixKitWeb.*` and
   # core-`PhoenixKit.Modules.*` namespaces), so both clauses can run it and the
   # difference between them stays exactly the one line it should be.
-  defp prepare_admin_mount(socket, true) do
+  #
+  # `force_layout?` is for the explicit `:phoenix_kit_admin_layout` opt-in: the
+  # layout is applied to any view, where the default only rewrites external ones.
+  defp prepare_admin_mount(socket, admin_area?, force_layout? \\ false)
+
+  defp prepare_admin_mount(socket, true, force_layout?) do
     socket
     |> attach_locale_hook()
     |> maybe_subscribe_to_module_events()
-    |> maybe_apply_plugin_layout()
+    |> maybe_apply_plugin_layout(force_layout?)
   end
 
-  defp prepare_admin_mount(socket, false) do
+  defp prepare_admin_mount(socket, false, force_layout?) do
     socket
     |> attach_locale_hook()
-    |> maybe_apply_plugin_layout()
+    |> maybe_apply_plugin_layout(force_layout?)
   end
 
   # The admin-area rejection: authenticated, past the account gate, but holding
@@ -1750,7 +1838,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   end
 
   # The landing is the one admin page a visitor can be sitting on WITHOUT the
-  # modules subscription: `prepare_admin_mount/2` deliberately skips it for a
+  # modules subscription: `prepare_admin_mount/3` deliberately skips it for a
   # visitor who is shown no admin navigation. Being granted a permission
   # mid-session gives them that navigation, so from this moment they have a
   # sidebar that must re-render when an Owner toggles a module. Every other
@@ -1868,10 +1956,10 @@ defmodule PhoenixKitWeb.Users.Auth do
   # handle layout via LayoutWrapper in their templates. External plugin views
   # (from extracted packages like :phoenix_kit_ecommerce, or parent app views)
   # need it applied at the session level so plugin authors don't need to wrap anything.
-  defp maybe_apply_plugin_layout(socket) do
+  defp maybe_apply_plugin_layout(socket, force?) do
     view = socket.view
 
-    if external_plugin_view?(view) do
+    if force? or external_plugin_view?(view) do
       put_in(socket.private[:live_layout], {PhoenixKitWeb.Layouts, :admin})
     else
       socket
