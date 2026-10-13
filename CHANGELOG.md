@@ -1,3 +1,23 @@
+## 2.62.1 - 2026-10-13
+
+**No migration** (still V217). Ships PR #930's website Telegram bot, plus two crash fixes from Claude's review of it.
+
+### Added
+
+- **A website Telegram bot for user notifications.** An admin ticks **Deliver user notifications through this bot** on a
+  website Telegram connection (`Telegram.SiteBot`, setting `telegram_notifications_connection`; one bot at a time, the
+  form warns when the bot has a webhook). Each user then links their own chat from Profile → Notifications with one tap:
+  a one-time `t.me/<bot>?start=<token>` link (`Telegram.Linking`, 15 minutes, hashed, single-use, private chats only)
+  that the card completes by reading the bot's updates while a link is pending. A user's own bot still wins; a site-bot
+  failure that is not about the chat (revoked token, deleted connection) is transient and switches nobody off.
+- `Telegram.get_me/2`, `Telegram.get_webhook_info/2`, and a `:limit` option on `Telegram.get_updates/2`.
+
+### Fixed
+
+- **Disconnecting Telegram no longer crashes the settings page** when the write fails (`:ok = Linking.unlink/1` is now a
+  `case` with an error message).
+- **`Linking.create_token/2` returns `{:error, _}`** on a failed insert instead of raising from inside its transaction.
+
 ## 2.62.0 - 2026-10-13
 
 **No migration** (still V217). Ships a primary language that outlives the multi-language switch (a single-language site

@@ -82,7 +82,10 @@ defmodule PhoenixKit.Integrations.Telegram.Linking do
           from t in UserToken, where: t.user_uuid == ^user_uuid and t.context == @context
         )
 
-        repo.insert!(%{row | sent_to: connection_uuid})
+        case repo.insert(%{row | sent_to: connection_uuid}) do
+          {:ok, inserted} -> inserted
+          {:error, changeset} -> repo.rollback(changeset)
+        end
       end)
 
     case result do

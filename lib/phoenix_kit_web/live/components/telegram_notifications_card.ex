@@ -163,13 +163,22 @@ defmodule PhoenixKitWeb.Live.Components.TelegramNotificationsCard do
   end
 
   def handle_event("disconnect", _params, socket) do
-    :ok = Linking.unlink(socket.assigns.fresh_user)
+    case Linking.unlink(socket.assigns.fresh_user) do
+      :ok ->
+        {:noreply,
+         socket
+         |> assign(:link, nil)
+         |> assign(:message, {:info, gettext("Telegram disconnected.")})
+         |> refresh()}
 
-    {:noreply,
-     socket
-     |> assign(:link, nil)
-     |> assign(:message, {:info, gettext("Telegram disconnected.")})
-     |> refresh()}
+      {:error, _} ->
+        {:noreply,
+         assign(
+           socket,
+           :message,
+           {:error, gettext("Telegram is not available right now. Please try again later.")}
+         )}
+    end
   end
 
   def handle_event("save_types", params, socket) do
