@@ -460,7 +460,7 @@ config :phoenix_kit, :admin_dashboard_tabs, [
 
 **Never** declare `live` routes for PhoenixKit admin LiveViews in your parent app's `router.ex`. Always go through the tab system (`live_view:` field) or a plugin route module. Hand-writing the route breaks two things:
 
-1. **The admin layout disappears.** The sidebar and header are applied by the `:phoenix_kit_ensure_admin` on_mount hook (`lib/phoenix_kit_web/users/auth.ex`), which calls `maybe_apply_plugin_layout/1`. That hook only runs inside PhoenixKit's `live_session :phoenix_kit_admin`. A route declared in your own router sits in a different (or unnamed) live_session and never gets the layout.
+1. **The admin layout disappears.** The sidebar and header are applied by the `:phoenix_kit_ensure_admin` on_mount hook (`lib/phoenix_kit_web/users/auth.ex`), which calls `maybe_apply_plugin_layout/2`. That hook only runs inside PhoenixKit's `live_session :phoenix_kit_admin`. A route declared in your own router sits in a different (or unnamed) live_session and never gets the layout from it — unless the view opts in itself with [`:phoenix_kit_admin_layout`](#a-view-that-gates-itself-phoenix_kit_admin_layout), which applies the layout and nothing else.
 2. **Cross-`live_session` navigation crashes the socket.** Phoenix LiveView refuses to `push_navigate` across live_session boundaries — the server logs `navigate event to <url> failed because you are redirecting across live_sessions. A full page reload will be performed instead`, the WebSocket is torn down, and the user gets a full page reload every time they click from another admin page into yours.
 
 **Note on `:phoenix_kit_ensure_admin`.** It is an **`on_mount` hook**, not a Plug. You cannot put it in a `pipe_through` list. It only functions when attached to a `live_session` block via `on_mount: [{PhoenixKitWeb.Users.Auth, :phoenix_kit_ensure_admin}]`.
@@ -513,6 +513,39 @@ Use the route-module `admin_routes/0` / `admin_locale_routes/0` pattern when:
 - You want to mix both patterns in one module — `phoenix_kit_ai` is a good reference: it uses `admin_tabs/0` for sidebar structure plus a route module for supplementary CRUD form routes. See `phoenix_kit_ai/lib/phoenix_kit_ai/routes.ex`.
 
 Other reference implementations: `phoenix_kit_entities/lib/phoenix_kit_entities/routes.ex` (admin `live` routes + public form submission routes via `generate/1`), `phoenix_kit_publishing/lib/phoenix_kit_publishing/routes.ex` (admin `live` routes via `admin_locale_routes/0` + public controller routes via `public_routes/1`).
+
+### A view that gates itself: `:phoenix_kit_admin_layout`
+
+> ⚠️ **`:phoenix_kit_admin_layout` is fail-open: it authorizes nothing.** It only decides the layout. Whoever may open the route can mount the view, so the view must be gated by a requirement hook or a check of its own.
+
+Some host or plugin views are not admin pages but want the admin chrome around them — a record page an admin opens from a public link, with its own access rule. `:phoenix_kit_ensure_admin` is the wrong tool for those: besides the layout it checks the view against the permission map and 403s a view that has no mapping for a non-Owner admin. For this case there is an `on_mount` hook that does the layout and nothing else. Pair it with `{:phoenix_kit_require, {:module, "<key>"}}` — admin area **and** that module's key — not with `:authenticated`, which every signed-in account passes:
+
+```elixir
+defmodule MyAppWeb.RecordShowLive do
+  use MyAppWeb, :live_view
+
+  on_mount {PhoenixKitWeb.Users.Auth, :phoenix_kit_admin_layout}
+  on_mount {PhoenixKitWeb.Users.Auth, {:phoenix_kit_require, {:module, "entities"}}}
+
+  def mount(%{"id" => id}, _session, socket) do
+    # ...any finer per-record check here, redirecting as you see fit
+  end
+end
+```
+
+Declare the `require` **after** `:phoenix_kit_admin_layout`. The check-only hook mounts nothing and raises without a scope; `:phoenix_kit_admin_layout` is the one that mounts it, and hooks run in declaration order.
+
+What `:phoenix_kit_admin_layout` does:
+
+- **Admin-area scope that passes the account gate** (`Scope.can_access_admin_area?/1`, email confirmed where confirmation is required, referral code entered): the view is rendered inside `{PhoenixKitWeb.Layouts, :admin}` — sidebar, header, account menu — whatever module the view lives in. An admin whose email is still unconfirmed gets the view without the chrome.
+- **Anyone else** (anonymous, signed in with no permission, account gate pending): the layout is left alone and the view mounts as usual. This is a rendering choice, not a denial.
+
+What it does not do, and does not stop:
+
+- It does not move the view into `live_session :phoenix_kit_admin`, so navigating between it and the core admin pages is still a full page load (see above).
+- The chrome is drawn only for a URL under the admin segment (`Routes.admin_area_path?/1`); at any other URL the view falls through to the host layout.
+- The website access gate still runs before it and can send a visitor to the password page, and mounting the scope still applies maintenance mode: while it is on, a non-admin sees the maintenance layout in place of the view (the hook leaves it alone), and an admin bypasses it.
+- It mounts the scope itself, like the `ensure_*` hooks — in a `live_session` that already ran `:phoenix_kit_mount_current_scope` that work is done twice, which is harmless.
 
 ---
 

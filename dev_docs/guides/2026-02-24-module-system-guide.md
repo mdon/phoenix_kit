@@ -1499,6 +1499,8 @@ PhoenixKit provides `on_mount` hooks that handle authentication and authorizatio
 | `:phoenix_kit_ensure_admin` | Requires admin role (Owner or Admin) |
 | `:phoenix_kit_ensure_owner` | Requires Owner role specifically |
 | `:phoenix_kit_ensure_module_access` | Checks module permission via tab `:permission` field |
+| `:phoenix_kit_admin_layout` | Applies the admin layout only; fail-open, authorizes nothing — pair it with `{:phoenix_kit_require, {:module, key}}` declared after it |
+| `{:phoenix_kit_require, requirement}` | Check-only: `:authenticated`, `:owner`, `:admin` or `{:module, key}`; mounts nothing, needs a scope mounted earlier |
 
 ### How admin LiveViews use hooks
 
