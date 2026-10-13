@@ -41,6 +41,9 @@ defmodule PhoenixKit.Modules.Storage.HdrResize do
   @doc """
   Writes a copy of the gain-map JPEG at `source` to `dest`, `width` pixels wide
   (never larger than the source), at JPEG `:quality` (default 85).
+
+  Width and the returned dimensions are measured as displayed, after EXIF
+  orientation. The stored pixels retain the camera's orientation tag.
   """
   @spec resize(Path.t(), Path.t(), pos_integer(), keyword()) :: result() | {:error, term()}
   def resize(source, dest, width, opts \\ []) do
@@ -49,19 +52,25 @@ defmodule PhoenixKit.Modules.Storage.HdrResize do
 
     with {:ok, bin} <- File.read(source),
          {:ok, parts} <- split(bin),
-         {:ok, {src_w, _src_h}} <- sof_dims(parts.primary),
-         {:ok, {gm_w, _gm_h}} <- sof_dims(parts.gain),
-         new_w = min(width, src_w),
-         {:ok, primary_core} <- resized_core(parts.primary, new_w, quality),
+         {:ok, {src_w, src_h}} <- sof_dims(parts.primary),
+         {:ok, {gm_w, gm_h}} <- sof_dims(parts.gain),
+         orientation = orientation(parts),
+         box = width_box(width, {src_w, src_h}, orientation),
+         {:ok, primary_core} <- resized_core(parts.primary, box, quality),
          {:ok, {out_w, out_h}} <- sof_dims(primary_core),
-         gm_target = max(round(gm_w * out_w / src_w), 1),
+         gm_target =
+           if(orientation in 5..8,
+             do: {nil, max(round(gm_h * out_h / src_h), 1)},
+             else: {max(round(gm_w * out_w / src_w), 1), nil}
+           ),
          {:ok, gain_core} <- resized_core(parts.gain, gm_target, @gain_map_quality) do
+      {shown_out_w, shown_out_h} = shown_size({out_w, out_h}, orientation)
       gain = assemble_gain(parts.gain_segments, gain_core, strip?)
       primary = assemble_primary(parts, primary_core, byte_size(gain), strip?)
 
       case File.write(dest, primary <> gain) do
         :ok ->
-          {:ok, %{width: out_w, height: out_h, gain_map_bytes: byte_size(gain)}}
+          {:ok, %{width: shown_out_w, height: shown_out_h, gain_map_bytes: byte_size(gain)}}
 
         {:error, reason} ->
           {:error, reason}
@@ -113,7 +122,7 @@ defmodule PhoenixKit.Modules.Storage.HdrResize do
 
       case File.write(dest, primary <> gain) do
         :ok ->
-          {:ok, %{width: out_w, height: out_h, gain_map_bytes: byte_size(gain)}}
+          {:ok, %{width: elem(box, 0), height: elem(box, 1), gain_map_bytes: byte_size(gain)}}
 
         {:error, reason} ->
           {:error, reason}
@@ -141,6 +150,11 @@ defmodule PhoenixKit.Modules.Storage.HdrResize do
   # Orientations 5..8 turn the picture a quarter, so it is shown with its sides swapped.
   defp shown_size({w, h}, n) when n in 5..8, do: {h, w}
   defp shown_size(size, _), do: size
+
+  # Display width is stored height for a quarter turn. Resize that axis
+  # directly so a thin photo cannot round its other target axis down to zero.
+  defp width_box(width, {_w, h}, n) when n in 5..8, do: {nil, min(width, h)}
+  defp width_box(width, {w, _h}, _n), do: {min(width, w), nil}
 
   defp stored_box({w, h}, n) when n in 5..8, do: {h, w}
   defp stored_box(box, _), do: box
@@ -349,16 +363,16 @@ defmodule PhoenixKit.Modules.Storage.HdrResize do
 
   # ── resizing ──────────────────────────────────────────────────
 
-  # `bin` resized to `width`, as the JPEG image data alone (from its first DQT on):
+  # `bin` resized along the requested axis, as JPEG image data alone (from its first DQT on):
   # ImageMagick's own marker segments are not wanted, the originals are carried over.
-  defp resized_core(bin, width, quality) do
+  defp resized_core(bin, {width, height}, quality) do
     input = temp(".jpg")
     output = temp(".jpg")
 
     try do
       with :ok <- File.write(input, bin),
            {:ok, _} <-
-             ImageProcessor.resize(input, output, width, nil, quality: quality, format: "jpg"),
+             ImageProcessor.resize(input, output, width, height, quality: quality, format: "jpg"),
            {:ok, out} <- File.read(output) do
         {_segments, core_at} = segments(out)
         {:ok, binary_part(out, core_at, byte_size(out) - core_at)}

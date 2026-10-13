@@ -42,4 +42,32 @@ defmodule PhoenixKit.Integrations.TelegramReqOptionsTest do
 
     assert Telegram.req_options() == [plug: {Req.Test, __MODULE__}]
   end
+
+  test "the default update peek does not discard updates or change the bot's subscription" do
+    stub_updates(%{})
+
+    assert {:ok, []} = Telegram.get_updates_with_token("test-token")
+  end
+
+  test "an explicitly requested offset and subscription are sent" do
+    stub_updates(%{"offset" => -1, "allowed_updates" => ["message"], "timeout" => 0})
+
+    assert {:ok, []} =
+             Telegram.get_updates_with_token("test-token",
+               offset: -1,
+               allowed_updates: ["message"],
+               timeout: 0
+             )
+  end
+
+  defp stub_updates(expected) do
+    Application.put_env(:phoenix_kit, :telegram_req_options, plug: {Req.Test, __MODULE__})
+
+    Req.Test.expect(__MODULE__, fn conn ->
+      assert conn.request_path == "/bottest-token/getUpdates"
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      assert Jason.decode!(body) == expected
+      Req.Test.json(conn, %{"ok" => true, "result" => []})
+    end)
+  end
 end

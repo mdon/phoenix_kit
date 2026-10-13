@@ -201,8 +201,6 @@ defmodule PhoenixKitWeb.Components.MediaBrowserReadonlyViewerTest do
       |> element("[phx-click='click_file'][phx-value-file-uuid='#{file.uuid}']")
       |> render_click()
 
-      cid = viewer_cid(view, file)
-
       html = render(view)
       form_id = "media-meta-form-#{file.uuid}"
 

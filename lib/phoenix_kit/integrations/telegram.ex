@@ -61,9 +61,11 @@ defmodule PhoenixKit.Integrations.Telegram do
   Reads recent updates for the bot — the one-shot primitive the chat-linking
   flow uses to discover a user's `chat_id` after they `/start` the bot.
 
-  Defaults to `offset: -1` (peek only the latest update, WITHOUT confirming it,
-  so a bot that also has its own update consumer isn't disturbed). Returns
-  `{:ok, [update]}` or `{:error, reason}`.
+  Omits `offset` by default, so pending updates are read without confirming
+  or discarding them. A negative offset discards older updates in Telegram;
+  pass one only when that is intended. `allowed_updates` is also omitted
+  unless supplied, preserving the bot's existing update subscription.
+  Returns `{:ok, [update]}` or `{:error, reason}`.
   """
   @spec get_updates(String.t(), keyword()) :: {:ok, [map()]} | {:error, term()}
   def get_updates(uuid, opts \\ []) when is_binary(uuid) do
@@ -74,8 +76,8 @@ defmodule PhoenixKit.Integrations.Telegram do
   @spec get_updates_with_token(String.t(), keyword()) :: {:ok, [map()]} | {:error, term()}
   def get_updates_with_token(token, opts \\ []) when is_binary(token) do
     %{}
-    |> maybe_put(:offset, Keyword.get(opts, :offset, -1))
-    |> maybe_put(:allowed_updates, opts[:allowed_updates] || ["message"])
+    |> maybe_put(:offset, opts[:offset])
+    |> maybe_put(:allowed_updates, opts[:allowed_updates])
     |> maybe_put(:timeout, opts[:timeout])
     |> then(&request(token, "getUpdates", &1))
   end

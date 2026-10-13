@@ -42,6 +42,10 @@ config :phoenix_kit, PhoenixKit.Test.Repo,
   database: pg_test_db,
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: pg_test_pool,
+  # Parallel rendition workers share one sandbox connection. Their transactions
+  # include object checks, so the default 50 ms queue target drops valid work
+  # under load; a larger pool cannot give that sandbox another connection.
+  queue_target: 1_000,
   priv: "test/support/postgres"
 
 # Wire repo for library code that calls PhoenixKit.Config.get(:repo)

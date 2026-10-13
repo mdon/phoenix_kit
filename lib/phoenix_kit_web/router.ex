@@ -60,6 +60,7 @@ defmodule PhoenixKitWeb.Router do
       # Under the (default test) `/phoenix_kit` prefix + `/admin` so the admin
       # layout draws its chrome — see AdminEditProbeLive's moduledoc.
       live "/phoenix_kit/admin/__test/admin-edit-probe", AdminEditProbeLive
+      live "/phoenix_kit/admin/__test/admin-layout-probe", AdminLayoutProbeLive
     end
   end
 

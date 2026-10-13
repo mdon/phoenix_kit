@@ -3803,6 +3803,8 @@ if (typeof window.Chart === "undefined") {
   // window listeners hear it.
   function classModalOf(el) {
     if (!el || typeof el.closest !== "function") return null;
+    const dialog = el.closest("dialog");
+    if (dialog && dialog.getAttribute("phx-hook") === "PkDialog") return null;
     const modal = el.closest(".modal-open");
     if (!modal || modal.getAttribute("phx-hook") === "PkDialog") return null;
     return modal;
@@ -3823,11 +3825,27 @@ if (typeof window.Chart === "undefined") {
     };
     document.addEventListener("input", touch, true);
     document.addEventListener("change", touch, true);
-    // A submitted form is no longer unsaved; typing again arms it again.
-    document.addEventListener("submit", function(e) {
-      const modal = classModalOf(e.target);
-      if (modal) modal._pkTouched = false;
+    // Submission may fail validation or persistence. Only a confirmed save
+    // clears the guard: an add-another flow can dispatch this on its modal
+    // after the server reports success, for either modal implementation.
+    document.addEventListener("pk:dialog-saved", function(e) {
+      const target = e.target;
+      if (!target || typeof target.closest !== "function") return;
+      const modal = target.closest("dialog") || classModalOf(target);
+      if (modal) {
+        modal._pkTouched = false;
+        modal._pkRefusedAt = 0;
+      }
     }, true);
+    window.addEventListener("phx:pk:dialog-saved", function(e) {
+      const id = e.detail && e.detail.id;
+      if (typeof id !== "string" || !id) return;
+      const modal = document.getElementById(id);
+      if (modal) {
+        modal._pkTouched = false;
+        modal._pkRefusedAt = 0;
+      }
+    });
     document.addEventListener("click", function(e) {
       const backdrop = e.target && e.target.closest && e.target.closest(".modal-backdrop");
       if (!backdrop) return;
@@ -3842,6 +3860,9 @@ if (typeof window.Chart === "undefined") {
       // Escape that only dismisses an input method's candidate list is not a
       // request to close anything; a `phx-window-keydown` binding cannot tell.
       if (e.isComposing) { e.stopPropagation(); return; }
+      // A native dialog lives above every CSS modal in the browser's top
+      // layer, and need not carry .modal-open. Its own cancel handler decides.
+      if (Array.from(document.querySelectorAll("dialog")).some(isDialogOpenInBrowser)) return;
       // Only the topmost modal answers an Escape. A touched modal underneath an
       // untouched (or PkDialog) one must not swallow the key meant to close the
       // one on top.

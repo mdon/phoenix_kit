@@ -173,6 +173,31 @@ defmodule PhoenixKit.Modules.Storage.HdrVariantsTest do
     assert make.("small") == "Cam"
   end
 
+  test "a turned HDR crop records the dimensions viewers display", ctx do
+    import Ecto.Query
+    alias PhoenixKit.Modules.Storage.{Dimension, ImageProcessor, VariantSets}
+    alias PhoenixKit.Test.ExifFixture
+
+    crop =
+      Repo.one!(
+        from d in Dimension,
+          where: d.name == "small_square" and d.variant_set_uuid == ^VariantSets.default_uuid()
+      )
+
+    {:ok, _} = Storage.update_dimension(crop, %{keep_hdr: true, width: 300, height: 100})
+
+    path = Path.join(ctx.tmp, "turned.jpg")
+    GainMapJpeg.build(path, exif: ExifFixture.segment(%{orientation: 6}))
+    file = upload!(ctx, path)
+    output = stored(ctx, file, "small_square")
+
+    assert %{"gain_map" => true} = Hdr.read(output)
+    assert {:ok, {300, 100, _}} = ImageProcessor.oriented_info(output)
+
+    assert %{width: 300, height: 100} =
+             Storage.get_file_instance_by_name(file.uuid, "small_square")
+  end
+
   test "a plain photo's renditions are as they always were", ctx do
     path = Path.join(ctx.tmp, "plain.jpg")
     {_, 0} = System.cmd("convert", ["-size", "2400x1800", "gradient:white-black", path])

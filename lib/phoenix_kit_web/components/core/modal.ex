@@ -74,6 +74,12 @@ defmodule PhoenixKitWeb.Components.Core.Modal do
   - `placement` - `:center` (default) or `:end` — a full-height drawer sliding in from the right edge, for forms opened over the page they belong to
   - `close_guard` - what Esc and the backdrop do once the user has typed into a submittable form inside the dialog: `:confirm` (default) refuses the first attempt and closes on a second within a few seconds; `:input` makes them no-ops on the client for as long as a field differs from its rendered default; `nil` turns the guard off
 
+  A form that saves and keeps its modal open can clear the `:confirm` guard
+  after a successful save with
+  `push_event(socket, "pk:dialog-saved", %{id: "my-modal-id"})`. This also
+  works for class-driven modals. Submission alone does not clear it: a
+  validation or persistence failure still leaves unsaved input.
+
   ## Slots
 
   - `title` - Optional title slot, rendered in a header with proper styling

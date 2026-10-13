@@ -30,6 +30,7 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
 
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.Dimension
+  alias PhoenixKit.Modules.Storage.Exif
   alias PhoenixKit.Modules.Storage.FocalPoint
   alias PhoenixKit.Modules.Storage.Hdr
   alias PhoenixKit.Modules.Storage.HdrResize
@@ -461,8 +462,7 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
   defp get_variant_file_stats(variant_path) do
     with {:ok, stat} <- File.stat(variant_path) do
       checksum = calculate_file_checksum(variant_path)
-      width = get_width_from_file(variant_path)
-      height = get_height_from_file(variant_path)
+      {width, height} = displayed_dimensions(variant_path)
       {:ok, %{size: stat.size, checksum: checksum, width: width, height: height}}
     end
   end
@@ -1005,12 +1005,19 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
     |> Base.encode16(case: :lower)
   end
 
-  defp get_width_from_file(file_path) do
-    ImageProcessor.get_width(file_path)
-  end
+  # HDR keeps the camera's orientation tag instead of turning its pixels.
+  # Rendition dimensions describe what viewers display, including the full
+  # canvas of an optimized animation, rather than the JPEG's stored axes.
+  defp displayed_dimensions(file_path) do
+    case ImageProcessor.extract_dimensions(file_path) do
+      {:ok, {width, height}} ->
+        if Exif.read(file_path)["Orientation"] in ~w(5 6 7 8),
+          do: {height, width},
+          else: {width, height}
 
-  defp get_height_from_file(file_path) do
-    ImageProcessor.get_height(file_path)
+      {:error, _} ->
+        {nil, nil}
+    end
   end
 
   defp process_pdf_variant(input_path, output_path, dimension) do

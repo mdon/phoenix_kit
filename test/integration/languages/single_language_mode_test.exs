@@ -11,6 +11,7 @@ defmodule PhoenixKit.Integration.Languages.SingleLanguageModeTest do
 
   import Phoenix.ConnTest
 
+  alias PhoenixKit.Config
   alias PhoenixKit.Modules.Languages
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
@@ -97,6 +98,54 @@ defmodule PhoenixKit.Integration.Languages.SingleLanguageModeTest do
       conn = Auth.validate_and_set_locale(locale_conn("/phoenix_kit/en/cart", "en"), [])
 
       assert conn.status == 302
+    end
+
+    test "full dialects and invalid locales preserve non-GET methods and reach the clean URL" do
+      for method <- [:post, :put, :delete], locale <- ["en-US", "de-DE", "xx"] do
+        conn =
+          build_conn(method, "/phoenix_kit/#{locale}/users/log-in?return_to=%2Fadmin")
+          |> Map.put(:path_params, %{"locale" => locale})
+          |> Auth.validate_and_set_locale([])
+
+        assert conn.halted
+        assert redirected_to(conn, 307) == "/phoenix_kit/users/log-in?return_to=%2Fadmin"
+      end
+    end
+
+    test "a renamed admin area renders under the primary language, including encoded segments" do
+      previous = Application.fetch_env(:phoenix_kit, :admin_path)
+      Application.put_env(:phoenix_kit, :admin_path, "/backoffice")
+      Config.clear_admin_path_cache()
+
+      try do
+        {:ok, _} = Languages.set_primary_language("uk")
+
+        for admin <- ["backoffice", "%62ackoffice"], locale <- ["de", "de-DE"] do
+          conn =
+            Auth.validate_and_set_locale(
+              locale_conn("/phoenix_kit/#{locale}/#{admin}/users", locale),
+              []
+            )
+
+          refute conn.halted
+          assert conn.assigns.current_locale_base == "uk"
+        end
+      after
+        case previous do
+          {:ok, value} -> Application.put_env(:phoenix_kit, :admin_path, value)
+          :error -> Application.delete_env(:phoenix_kit, :admin_path)
+        end
+
+        Config.clear_admin_path_cache()
+      end
+    end
+
+    test "an admin segment inside a content URL does not exempt it from canonicalization" do
+      conn =
+        Auth.validate_and_set_locale(locale_conn("/phoenix_kit/de/shop/admin/items", "de"), [])
+
+      assert conn.halted
+      assert redirected_to(conn) == "/phoenix_kit/shop/admin/items"
     end
 
     test "an invalid segment is stripped rather than swapped for the primary" do

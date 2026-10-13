@@ -15,6 +15,11 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const noop = () => {};
+const documentListeners = {};
+const windowListeners = {};
+let savedDialog = null;
+let classModals = [];
+let nativeDialogs = [];
 
 function stubElement() {
   return {
@@ -39,10 +44,10 @@ global.document = {
   body: stubElement(),
   createElement: stubElement,
   createTextNode: () => ({}),
-  getElementById: () => null,
+  getElementById: (id) => id === "saved-dialog" ? savedDialog : null,
   querySelector: () => null,
-  querySelectorAll: () => [],
-  addEventListener: noop,
+  querySelectorAll: (selector) => selector === ".modal-open" ? classModals : selector === "dialog" ? nativeDialogs : [],
+  addEventListener: (name, fn) => { (documentListeners[name] ||= []).push(fn); },
   removeEventListener: noop,
   cookie: "",
 };
@@ -50,7 +55,7 @@ global.document = {
 const storage = { getItem: () => null, setItem: noop, removeItem: noop };
 
 global.window = {
-  addEventListener: noop,
+  addEventListener: (name, fn) => { (windowListeners[name] ||= []).push(fn); },
   removeEventListener: noop,
   matchMedia: () => ({ matches: false, addEventListener: noop, removeEventListener: noop }),
   localStorage: storage,
@@ -169,4 +174,83 @@ test("the same key reaching a stacked dialog twice is one attempt", () => {
 
 test("an attempt long after the refusal is a first attempt again", () => {
   assert.equal(discardAttempt(10_000, 30_000), "refuse");
+});
+
+function escape() {
+  const event = { key: "Escape", stopped: false, prevented: false,
+    stopPropagation() { this.stopped = true; }, preventDefault() { this.prevented = true; } };
+  for (const listener of documentListeners.keydown || []) listener(event);
+  return event;
+}
+
+function classModal(touched) {
+  return { _pkTouched: touched, getAttribute: () => null, querySelector: () => null };
+}
+
+test("an untouched class modal above a touched one owns Escape", () => {
+  const underneath = classModal(true);
+  classModals = [underneath, classModal(false)];
+  nativeDialogs = [];
+  assert.equal(escape().prevented, false);
+  assert.equal(underneath._pkRefusedAt, undefined);
+});
+
+test("a native top-layer dialog owns Escape above every class modal", () => {
+  const underneath = classModal(true);
+  classModals = [underneath];
+  nativeDialogs = [{ matches: (selector) => selector === ":modal" }];
+  assert.equal(escape().prevented, false);
+  assert.equal(underneath._pkRefusedAt, undefined);
+  nativeDialogs = [];
+});
+
+test("a closed native dialog does not bypass the class modal's guard", () => {
+  classModals = [classModal(true)];
+  nativeDialogs = [{ matches: () => false }];
+  assert.equal(escape().prevented, true);
+  nativeDialogs = [];
+});
+
+test("submitting a form keeps its protection while the server may still reject it", () => {
+  const modal = classModal(true);
+  const form = { closest: (selector) => selector === ".modal-open" ? modal : null };
+  for (const listener of documentListeners.submit || []) listener({ target: form });
+  assert.equal(modal._pkTouched, true);
+});
+
+test("a confirmed save clears the guard and its previous refusal for either modal", () => {
+  for (const native of [true, false]) {
+    const modal = classModal(true);
+    modal._pkRefusedAt = 12345;
+    const target = { closest: (selector) =>
+      selector === (native ? "dialog" : ".modal-open") ? modal : null };
+    for (const listener of documentListeners["pk:dialog-saved"] || []) listener({ target });
+    assert.equal(modal._pkTouched, false);
+    assert.equal(modal._pkRefusedAt, 0);
+  }
+});
+
+test("typing in a native child dialog never arms the class modal underneath", () => {
+  const underneath = classModal(false);
+  const dialog = { getAttribute: () => "PkDialog" };
+  const field = { closest: (selector) => ({
+    "dialog": dialog, ".modal-open": underneath, "form[phx-submit]": {},
+  })[selector] || null };
+  for (const listener of documentListeners.input || []) listener({ target: field });
+  assert.equal(underneath._pkTouched, false);
+});
+
+test("the server's successful-save event clears only the named modal", () => {
+  savedDialog = classModal(true);
+  savedDialog._pkRefusedAt = 12345;
+  const dispatch = (detail) => {
+    for (const listener of windowListeners["phx:pk:dialog-saved"] || []) listener({ detail });
+  };
+  dispatch({});
+  dispatch({ id: "other-dialog" });
+  assert.equal(savedDialog._pkTouched, true);
+  dispatch({ id: "saved-dialog" });
+  assert.equal(savedDialog._pkTouched, false);
+  assert.equal(savedDialog._pkRefusedAt, 0);
+  savedDialog = null;
 });

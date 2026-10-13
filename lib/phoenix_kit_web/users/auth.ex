@@ -3472,6 +3472,12 @@ defmodule PhoenixKitWeb.Users.Auth do
           locale in @reserved_path_segments ->
             process_as_default_locale(conn)
 
+          # Strip every locale directly on a single-language public surface.
+          # Going through the dialect/invalid-locale redirects first would
+          # replay a POST as a GET before this branch could preserve its body.
+          single_language?() ->
+            process_single_language_locale(conn, locale)
+
           # An ENABLED full dialect ("en-gb"/"en-GB" with en-GB enabled) is a
           # real localized URL — publishing's sibling-dialect URLs (two
           # enabled dialects of one base, the non-primary one addressed by
@@ -3817,23 +3823,21 @@ defmodule PhoenixKitWeb.Users.Auth do
   # any other code) is redirected to the same path without it, and an admin
   # URL renders as-is — both admin shapes route — under the primary language.
   defp process_valid_locale(conn, locale) do
-    single_language? = single_language?()
+    if locale == Routes.get_default_admin_locale() and not admin_request?(conn) and
+         prefixless_primary?() do
+      redirect_default_locale_to_clean_url(conn, locale)
+    else
+      process_served_locale(conn, locale)
+    end
+  end
 
-    cond do
-      single_language? and not admin_request?(conn) ->
-        conn
-        |> keep_method_on_redirect()
-        |> redirect_default_locale_to_clean_url(locale)
-
-      single_language? ->
-        assign_default_locale(conn)
-
-      locale == Routes.get_default_admin_locale() and not admin_request?(conn) and
-          prefixless_primary?() ->
-        redirect_default_locale_to_clean_url(conn, locale)
-
-      true ->
-        process_served_locale(conn, locale)
+  defp process_single_language_locale(conn, locale) do
+    if admin_request?(conn) and DialectMapper.valid_base_code?(DialectMapper.extract_base(locale)) do
+      assign_default_locale(conn)
+    else
+      conn
+      |> keep_method_on_redirect()
+      |> redirect_default_locale_to_clean_url(locale)
     end
   end
 
@@ -3875,30 +3879,13 @@ defmodule PhoenixKitWeb.Users.Auth do
 
   defp single_language?, do: Languages.single_language_safe?()
 
-  # Check if the request path is an admin path. Used by
-  # `process_valid_locale/2` to skip the default-locale-redirect so
-  # both `/phoenix_kit/admin/*` and `/phoenix_kit/<default>/admin/*`
-  # render whichever shape the user typed.
-  # Whether this request targets the admin area.
-  #
-  # Matches "admin" as a whole PATH SEGMENT, not as a substring. The old
-  # `String.contains?(request_path, "/admin")` classified any URL with
-  # those characters anywhere in it — a storefront product at
-  # `/shop/product/admin-tools`, a blog post at `/news/admin-changes` — as
-  # an admin request, which then skipped default-locale canonicalisation
-  # for those pages.
-  #
-  # Segment-wise matching also means a genuine admin URL still matches
-  # under any mount prefix and any locale segment, since we only care
-  # whether "admin" appears as its own segment.
-  #
-  # Decoded, for the reason spelled out on `locale_segment_path/3`:
-  # Phoenix binds routes against a decoded copy of the path but leaves
-  # `conn.path_info` encoded, so `/<prefix>/en/%61dmin/users` reaches the
-  # admin route while a raw comparison reports "not admin" and hands the
-  # request to the default-locale canonicaliser.
+  # Router-relative and decoded, like Phoenix's route matching: a forward
+  # mount is in script_name, and a percent-encoded admin segment still routes.
+  # The shared predicate handles the configured segment and its position,
+  # so a content path containing /admin further down is not exempted.
   defp admin_request?(conn) do
-    Enum.any?(conn.path_info, &(URI.decode(&1) == "admin"))
+    path = "/" <> Enum.map_join(conn.path_info, "/", &URI.decode/1)
+    Routes.admin_area_path?(path)
   end
 
   # Redirects default language URLs to clean URLs (no locale prefix)

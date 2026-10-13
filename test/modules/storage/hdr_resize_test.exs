@@ -9,6 +9,7 @@ defmodule PhoenixKit.Modules.Storage.HdrResizeTest do
   alias PhoenixKit.Modules.Storage.Hdr
   alias PhoenixKit.Modules.Storage.HdrResize
   alias PhoenixKit.Modules.Storage.ImageProcessor
+  alias PhoenixKit.Test.ExifFixture
   alias PhoenixKit.TestSupport.GainMapJpeg
 
   @moduletag :tmp_dir
@@ -88,6 +89,36 @@ defmodule PhoenixKit.Modules.Storage.HdrResizeTest do
     assert %{"gain_map" => true} = Hdr.read(dest)
   end
 
+  for orientation <- 5..8 do
+    test "a quarter-turned photo fixes its displayed width (orientation #{orientation})", ctx do
+      src =
+        source(ctx,
+          width: 2400,
+          height: 1800,
+          exif: ExifFixture.segment(%{orientation: unquote(orientation)})
+        )
+
+      dest = Path.join(ctx.tmp_dir, "turned-resize.jpg")
+      assert {:ok, %{width: 800, height: 1067}} = HdrResize.resize(src, dest, 800)
+      assert {:ok, {800, 1067, _}} = ImageProcessor.oriented_info(dest)
+      assert %{"gain_map" => true} = Hdr.read(dest)
+    end
+  end
+
+  test "a very thin turned photo and its map can shrink to one displayed pixel", ctx do
+    src =
+      source(ctx,
+        width: 4,
+        height: 400,
+        exif: ExifFixture.segment(%{orientation: 6})
+      )
+
+    dest = Path.join(ctx.tmp_dir, "thin.jpg")
+    assert {:ok, %{width: 1, height: 1}} = HdrResize.resize(src, dest, 1)
+    assert {:ok, {1, 1, _}} = ImageProcessor.oriented_info(dest)
+    assert %{"gain_map" => true} = Hdr.read(dest)
+  end
+
   test "a rewritten XMP packet too large for a JPEG segment is refused", ctx do
     xml = """
     <x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
@@ -116,8 +147,6 @@ defmodule PhoenixKit.Modules.Storage.HdrResizeTest do
   end
 
   describe "crop/4" do
-    alias PhoenixKit.Test.ExifFixture
-
     # The mean brightness (0..1) of a picture, after `ops`.
     defp mean(path, ops \\ []) do
       {out, 0} =
@@ -210,7 +239,8 @@ defmodule PhoenixKit.Modules.Storage.HdrResizeTest do
         src = source(ctx, exif: ExifFixture.segment(%{orientation: orientation}))
         dest = Path.join(ctx.tmp_dir, "out.jpg")
 
-        assert {:ok, _} = HdrResize.crop(src, dest, {bw, bh}, focal: focal)
+        assert {:ok, %{width: ^bw, height: ^bh}} =
+                 HdrResize.crop(src, dest, {bw, bh}, focal: focal)
 
         # What was asked, on the photo as shown
         {shown_w, shown_h} = if orientation in 5..8, do: {1200, 1600}, else: {1600, 1200}
