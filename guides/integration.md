@@ -327,6 +327,26 @@ layout unconditionally. Pass `variant={:menu_item}` to render it as a
 daisyUI `menu` `<li>` instead of a standalone button, for dropping into an
 existing dropdown menu.
 
+In the admin chrome you do not render anything yourself: a LiveView shown
+through `PhoenixKitWeb.Layouts.admin` (every plugin view, and a host view that
+opts in) gets the pair threaded in by the layout, and the account menu shows
+the entry first. A view that calls `LayoutWrapper.app_layout/1` directly is
+not covered — a function component cannot see its caller's assigns — so it
+must pass the attrs itself:
+
+```heex
+<PhoenixKitWeb.Components.LayoutWrapper.app_layout
+  admin_edit_url={assigns[:admin_edit_url]}
+  admin_edit_label={assigns[:admin_edit_label]}
+  ...
+>
+```
+
+A host layout (`config :phoenix_kit, :layout`) receives the same pair as
+top-level assigns. Only `assign_admin_edit/3` checks the module permission;
+a value placed in `module_assigns` by hand skips that check, and the chrome
+backs it up with the admin-area test alone.
+
 ### User Registration
 
 ```elixir

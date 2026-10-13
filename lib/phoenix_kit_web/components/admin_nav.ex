@@ -191,6 +191,8 @@ defmodule PhoenixKitWeb.Components.AdminNav do
   attr(:current_locale, :string, default: "en")
   attr(:accounts, :list, default: [])
   attr(:multi_session_allowed?, :boolean, default: false)
+  attr(:admin_edit_url, :string, default: nil)
+  attr(:admin_edit_label, :string, default: nil)
 
   def admin_user_dropdown(assigns) do
     user = Scope.user(assigns.scope)
@@ -239,6 +241,7 @@ defmodule PhoenixKitWeb.Components.AdminNav do
 
         <%!-- Dropdown Menu --%>
         <ul
+          id="pk-admin-account-menu"
           tabindex="0"
           class="dropdown-content menu bg-base-100 rounded-box z-[60] w-64 p-2 shadow-xl border border-base-300 mt-3 max-h-[calc(100vh-5rem)] overflow-y-auto overflow-x-hidden flex-nowrap"
         >
@@ -253,6 +256,17 @@ defmodule PhoenixKitWeb.Components.AdminNav do
               </div>
             </div>
           </li>
+
+          <%!-- "Edit" into this page's admin counterpart, when the page declared
+               one (`AdminEditHelper.assign_admin_edit/3`, which holds the
+               permission gate). First, as in the dashboard menu. The scope
+               check here is only a backstop for an assign set by hand. --%>
+          <PhoenixKitWeb.Components.Core.AdminEditLink.admin_edit_link
+            :if={PhoenixKit.Users.Auth.Scope.can_access_admin_area?(@scope)}
+            url={@admin_edit_url}
+            label={@admin_edit_label}
+            variant={:menu_item}
+          />
 
           <%!-- Settings Link. Not gated on `user_dashboard_enabled?` any --%>
           <%!-- more: the account page it points at is routed              --%>
