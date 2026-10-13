@@ -37,7 +37,7 @@ defmodule PhoenixKit.Modules.Sitemap.Web.Settings do
       PubSubManager.subscribe("sitemap:settings")
     end
 
-    locale = params["locale"] || "en"
+    locale = params["locale"] || Routes.get_default_admin_locale()
     project_title = Settings.get_project_title()
     site_url = Settings.get_setting("site_url", "")
     config = Sitemap.get_config()
