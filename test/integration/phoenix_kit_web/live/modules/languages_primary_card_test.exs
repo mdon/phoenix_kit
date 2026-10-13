@@ -98,6 +98,35 @@ defmodule PhoenixKitWeb.Live.Modules.LanguagesPrimaryCardTest do
     end
   end
 
+  describe "the LiveView lifecycle with the switch off" do
+    # The HTTP plug renders an admin URL with a language segment under the
+    # primary language; the live navigation must agree, or the dead render and
+    # the connected mount would disagree about the language.
+    test "an admin URL carrying another language renders under the primary one", %{conn: conn} do
+      {:ok, _} = Languages.set_primary_language("uk")
+
+      {:ok, view, _html} = live(conn, localized_languages_path("de"))
+
+      assigns = :sys.get_state(view.pid).socket.assigns
+      assert assigns.current_locale_base == "uk"
+      assert assigns.current_locale == "uk"
+    end
+
+    test "with the switch on, the segment is the language", %{conn: conn} do
+      {:ok, _} = Languages.enable_system()
+      {:ok, _} = Languages.add_language("de-DE")
+
+      {:ok, view, _html} = live(conn, localized_languages_path("de"))
+
+      assert :sys.get_state(view.pid).socket.assigns.current_locale_base == "de"
+    end
+  end
+
+  # The `/:locale/admin/...` shape, which `Routes.path/2` no longer emits on a
+  # single-language site but the router still serves.
+  defp localized_languages_path(locale),
+    do: Routes.url_prefix() <> "/#{locale}/admin/settings/languages"
+
   test "Settings → General names the primary language and links to the card", %{conn: conn} do
     {:ok, _} = Languages.set_primary_language("uk")
 
