@@ -3311,6 +3311,10 @@ defmodule PhoenixKitWeb.Users.Auth do
   - Full dialect codes (en-US, es-MX) are redirected to base codes (302)
   - User preferences determine which dialect variant to use for translations
   - Translation system uses full dialect codes internally
+  - A single-language site (multi-language support off) has no locale segment
+    at all: a non-admin request carrying one is redirected to the same path
+    without it (302; 307 for anything but GET/HEAD, so a POST keeps its body),
+    an admin URL renders as typed under the primary language
 
   ## Data Flow
 
@@ -3337,7 +3341,8 @@ defmodule PhoenixKitWeb.Users.Auth do
   ## Default-locale redirect
 
   With `default_language_no_prefix` on, `/<default>/...` redirects to the
-  prefixless URL with a 302. A host that wants search engines to see a
+  prefixless URL with a 302 — and so does a locale segment on a
+  single-language site. A host that wants search engines to see a
   permanent redirect opts in:
 
       config :phoenix_kit, :default_locale_redirect, status: 301, max_age: 86_400
@@ -3728,7 +3733,9 @@ defmodule PhoenixKitWeb.Users.Auth do
 
     cond do
       single_language? and not admin_request?(conn) ->
-        redirect_default_locale_to_clean_url(conn, locale)
+        conn
+        |> keep_method_on_redirect()
+        |> redirect_default_locale_to_clean_url(locale)
 
       single_language? ->
         assign_default_locale(conn)
@@ -3741,6 +3748,15 @@ defmodule PhoenixKitWeb.Users.Auth do
         process_served_locale(conn, locale)
     end
   end
+
+  # A 302 is replayed by the browser as a GET and drops a POST body; the
+  # localized auth endpoints (`post "/:locale/users/log-in"`) pass through
+  # here, so anything but GET/HEAD gets a 307, which keeps method and body —
+  # the same reasoning as `process_as_default_locale/1`.
+  defp keep_method_on_redirect(%Plug.Conn{method: method} = conn) when method in ["GET", "HEAD"],
+    do: conn
+
+  defp keep_method_on_redirect(conn), do: put_status(conn, :temporary_redirect)
 
   defp process_served_locale(conn, locale) do
     # URL-driven dialect — no user (see `process_as_default_locale/1`
@@ -4028,8 +4044,9 @@ defmodule PhoenixKitWeb.Users.Auth do
   Takes the current URL path and replaces the invalid locale segment so
   the redirect target matches the rest of the app's URL emission:
 
-  - With `default_language_no_prefix?` ON → strip the segment entirely
-    (the canonical primary shape is prefixless, e.g. `/phoenix_kit/admin`).
+  - On a single-language site, or with `default_language_no_prefix?` ON →
+    strip the segment entirely (the canonical primary shape is prefixless,
+    e.g. `/phoenix_kit/admin`).
   - With the setting OFF (default) → swap the invalid segment for the
     primary base code so the canonical prefixed shape is preserved
     (e.g. `/phoenix_kit/xx/admin` → `/phoenix_kit/en/admin`).

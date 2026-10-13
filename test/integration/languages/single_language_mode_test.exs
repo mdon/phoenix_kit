@@ -81,6 +81,24 @@ defmodule PhoenixKit.Integration.Languages.SingleLanguageModeTest do
       assert redirected_to(conn) == "/phoenix_kit/users/log-in"
     end
 
+    test "a POST keeps its method and body: 307, not a 302 that replays it as a GET" do
+      conn =
+        build_conn(:post, "/phoenix_kit/en/users/log-in")
+        |> Plug.Conn.fetch_query_params()
+        |> Map.put(:path_params, %{"locale" => "en"})
+        |> Auth.validate_and_set_locale([])
+
+      assert conn.halted
+      assert conn.status == 307
+      assert redirected_to(conn, 307) == "/phoenix_kit/users/log-in"
+    end
+
+    test "a GET is a plain 302" do
+      conn = Auth.validate_and_set_locale(locale_conn("/phoenix_kit/en/cart", "en"), [])
+
+      assert conn.status == 302
+    end
+
     test "an invalid segment is stripped rather than swapped for the primary" do
       conn = Auth.validate_and_set_locale(locale_conn("/phoenix_kit/xx/users/log-in", "xx"), [])
 
