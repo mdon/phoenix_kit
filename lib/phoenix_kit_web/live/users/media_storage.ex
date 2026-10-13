@@ -580,12 +580,19 @@ defmodule PhoenixKitWeb.Live.Users.MediaStorage do
   def result_badge({:error, _reason}), do: {"badge-error", gettext("Could not read")}
 
   @doc false
+  # The rendition as the site serves it: opened in the browser, where a picture or a
+  # video is looked at.
+  def view_url(%FileInstance{} = instance, file) do
+    URLSigner.signed_url(file.uuid, instance.variant_name,
+      version: instance,
+      private: Libraries.private_file?(file)
+    )
+  end
+
+  @doc false
+  # The same, asking to be saved instead of shown.
   def download_url(%FileInstance{} = instance, file) do
-    url =
-      URLSigner.signed_url(file.uuid, instance.variant_name,
-        version: instance,
-        private: Libraries.private_file?(file)
-      )
+    url = view_url(instance, file)
 
     url <> if(String.contains?(url, "?"), do: "&", else: "?") <> "dl=1"
   end

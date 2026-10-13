@@ -62,10 +62,10 @@ defmodule PhoenixKitWeb.Components.Core.ModalPlacementTest do
     assert html =~ ~s(data-close-event="close_top_modal")
   end
 
-  test "close_guard arms the hook's client-side input guard; absent by default" do
+  test "close_guard defaults to the confirm guard; :input and nil are opt-ins" do
     assigns = %{}
 
-    guarded =
+    strict =
       rendered_to_string(~H"""
       <.modal show={true} on_close="close" close_guard={:input}>body</.modal>
       """)
@@ -75,8 +75,14 @@ defmodule PhoenixKitWeb.Components.Core.ModalPlacementTest do
       <.modal show={true} on_close="close">body</.modal>
       """)
 
-    assert guarded =~ ~s(data-close-guard="input")
-    refute plain =~ "data-close-guard"
+    off =
+      rendered_to_string(~H"""
+      <.modal show={true} on_close="close" close_guard={nil}>body</.modal>
+      """)
+
+    assert strict =~ ~s(data-close-guard="input")
+    assert plain =~ ~s(data-close-guard="confirm")
+    refute off =~ "data-close-guard"
   end
 
   describe "content max-height" do

@@ -822,7 +822,12 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationForm do
 
           <%!-- Danger Zone (edit mode only). Personal connections have no
                OAuth to disconnect — just permanent removal. --%>
-          <details :if={@live_action == :edit} class="card bg-base-100 border-2 border-error/30">
+          <details
+            :if={@live_action == :edit}
+            id="my-integration-danger-zone"
+            phx-mounted={Phoenix.LiveView.JS.ignore_attributes(["open"])}
+            class="card bg-base-100 border-2 border-error/30"
+          >
             <summary class="card-body py-3 cursor-pointer flex-row items-center gap-2 select-none">
               <.icon name="hero-exclamation-triangle" class="w-4 h-4 text-error" />
               <h3 class="font-semibold text-error text-base">

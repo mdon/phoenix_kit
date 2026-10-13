@@ -412,7 +412,12 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationsUI do
       assign(assigns, :sections, Providers.instructions_for(assigns.provider, assigns.scope))
 
     ~H"""
-    <details :if={@sections != []} class="card bg-base-200/50" open={@open}>
+    <details
+      :if={Map.get(@provider, :instructions, []) != []}
+      class="card bg-base-200/50"
+      open={@open}
+      phx-mounted={Phoenix.LiveView.JS.ignore_attributes(["open"])}
+    >
       <summary class="card-body cursor-pointer flex-row items-center gap-2 select-none">
         <.icon name="hero-book-open" class="w-4 h-4" />
         <h3 class="font-semibold text-base-content text-base">
