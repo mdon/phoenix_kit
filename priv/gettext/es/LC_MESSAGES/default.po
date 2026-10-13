@@ -1789,8 +1789,8 @@ msgstr "SWIFT/BIC"
 #: lib/modules/sitemap/web/settings.html.heex:495
 #: lib/modules/storage/web/libraries_component.ex:426
 #: lib/modules/storage/web/library_page.html.heex:75
-#: lib/modules/storage/web/library_page.html.heex:297
-#: lib/modules/storage/web/library_page.html.heex:328
+#: lib/modules/storage/web/library_page.html.heex:305
+#: lib/modules/storage/web/library_page.html.heex:337
 #: lib/modules/storage/web/renditions_component.ex:410
 #: lib/phoenix_kit_web/comments_gettext_manifest.ex:67
 #: lib/phoenix_kit_web/components/core/markdown_editor.ex:356
@@ -5224,8 +5224,8 @@ msgstr "Noindex"
 msgid "Not installed"
 msgstr "No instalado"
 
-#: lib/modules/storage/web/library_page.html.heex:293
-#: lib/modules/storage/web/library_page.html.heex:323
+#: lib/modules/storage/web/library_page.html.heex:299
+#: lib/modules/storage/web/library_page.html.heex:332
 #: lib/phoenix_kit_web/live/modules.html.heex:116
 #: lib/phoenix_kit_web/live/settings.html.heex:500
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:330
@@ -5233,8 +5233,8 @@ msgstr "No instalado"
 msgid "Off"
 msgstr "Desactivado"
 
-#: lib/modules/storage/web/library_page.html.heex:293
-#: lib/modules/storage/web/library_page.html.heex:322
+#: lib/modules/storage/web/library_page.html.heex:299
+#: lib/modules/storage/web/library_page.html.heex:331
 #: lib/phoenix_kit_web/live/modules.html.heex:116
 #: lib/phoenix_kit_web/live/settings.html.heex:499
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:330
@@ -6004,7 +6004,7 @@ msgstr "Nueva carpeta"
 #: lib/modules/storage/web/bucket_page.html.heex:563
 #: lib/modules/storage/web/bucket_page.html.heex:608
 #: lib/modules/storage/web/history_component.ex:288
-#: lib/modules/storage/web/library_page.html.heex:372
+#: lib/modules/storage/web/library_page.html.heex:381
 #: lib/phoenix_kit_web/components/core/preview_card.ex:210
 #: lib/phoenix_kit_web/components/media_browser.html.heex:2618
 #: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:148
@@ -6767,7 +6767,7 @@ msgstr "Vista previa"
 #: lib/modules/storage/web/bucket_page.html.heex:551
 #: lib/modules/storage/web/bucket_page.html.heex:596
 #: lib/modules/storage/web/history_component.ex:275
-#: lib/modules/storage/web/library_page.html.heex:360
+#: lib/modules/storage/web/library_page.html.heex:369
 #: lib/phoenix_kit_web/components/core/preview_card.ex:201
 #: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:137
 #, elixir-autogen, elixir-format
@@ -10048,7 +10048,7 @@ msgstr "No se pudo contactar con el servidor SMTP"
 msgid "Could not rotate the image."
 msgstr "No se pudo rotar la imagen."
 
-#: lib/modules/storage/web/library_page.ex:199
+#: lib/modules/storage/web/library_page.ex:207
 #: lib/modules/storage/web/renditions_component.ex:183
 #: lib/modules/storage/web/renditions_component.ex:222
 #: lib/modules/storage/web/renditions_component.ex:229
@@ -15133,7 +15133,7 @@ msgstr "Biblioteca eliminada"
 #: lib/modules/storage/web/libraries_component.ex:211
 #: lib/modules/storage/web/libraries_component.ex:274
 #: lib/modules/storage/web/libraries_component.ex:277
-#: lib/modules/storage/web/library_page.ex:381
+#: lib/modules/storage/web/library_page.ex:389
 #, elixir-autogen, elixir-format
 msgid "Library name"
 msgstr "Nombre de la biblioteca"
@@ -15151,7 +15151,7 @@ msgstr "Solo se puede eliminar una biblioteca vacía, y nunca la predeterminada.
 
 #: lib/modules/storage/web/library_page.ex:78
 #: lib/modules/storage/web/library_page.ex:108
-#: lib/modules/storage/web/library_page.ex:247
+#: lib/modules/storage/web/library_page.ex:255
 #: lib/phoenix_kit_web/live/users/libraries.ex:140
 #: lib/phoenix_kit_web/live/users/media.ex:89
 #, elixir-autogen, elixir-format
@@ -15681,7 +15681,7 @@ msgid "The reconciler is queued. Refresh to see its progress."
 msgstr "El reconciliador está en cola. Actualice la página para ver su progreso."
 
 #: lib/modules/storage/web/health_component.ex:120
-#: lib/modules/storage/web/library_page.ex:366
+#: lib/modules/storage/web/library_page.ex:374
 #: lib/modules/storage/web/library_sync.ex:110
 #: lib/phoenix_kit_web/live/users/media_storage.html.heex:171
 #: lib/phoenix_kit_web/live/users/media_storage.html.heex:218
@@ -15703,7 +15703,7 @@ msgid "Users may choose it for their own libraries"
 msgstr "Los usuarios pueden elegirlo para sus propias bibliotecas"
 
 #: lib/modules/storage/web/health_component.ex:129
-#: lib/modules/storage/web/library_page.ex:369
+#: lib/modules/storage/web/library_page.ex:377
 #: lib/modules/storage/web/library_sync.ex:113
 #, elixir-autogen, elixir-format
 msgid "Waiting"
@@ -16933,7 +16933,7 @@ msgstr "Cuando un archivo está en varios buckets, lo sirve el de número más b
 msgid "How many copies of each file are kept, and where:"
 msgstr "Cuántas copias de cada archivo se guardan y dónde:"
 
-#: lib/modules/storage/web/library_page.ex:196
+#: lib/modules/storage/web/library_page.ex:204
 #, elixir-autogen, elixir-format
 msgid "Library setting saved"
 msgstr "Ajuste de la biblioteca guardado"
@@ -17034,7 +17034,7 @@ msgstr "Finalizada"
 
 #: lib/modules/storage/web/bucket_page.html.heex:574
 #: lib/modules/storage/web/history_component.ex:195
-#: lib/modules/storage/web/library_page.html.heex:338
+#: lib/modules/storage/web/library_page.html.heex:347
 #: lib/modules/storage/web/settings.ex:128
 #: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:250
 #, elixir-autogen, elixir-format
@@ -17063,7 +17063,7 @@ msgstr "Ninguna pasada del sweeper en los últimos 15 minutos"
 
 #: lib/modules/storage/web/bucket_page.html.heex:586
 #: lib/modules/storage/web/history_component.ex:263
-#: lib/modules/storage/web/library_page.html.heex:350
+#: lib/modules/storage/web/library_page.html.heex:359
 #: lib/phoenix_kit_web/components/core/activity_list.ex:46
 #: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:253
 #, elixir-autogen, elixir-format
@@ -17073,7 +17073,7 @@ msgstr "Aún no se ha registrado nada."
 #: lib/modules/storage/web/bucket_page.html.heex:554
 #: lib/modules/storage/web/bucket_page.html.heex:599
 #: lib/modules/storage/web/history_component.ex:278
-#: lib/modules/storage/web/library_page.html.heex:363
+#: lib/modules/storage/web/library_page.html.heex:372
 #: lib/phoenix_kit_web/live/modules/jobs/index.html.heex:140
 #, elixir-autogen, elixir-format
 msgid "Page %{page} of %{pages}"
@@ -17095,7 +17095,7 @@ msgstr "Pausa solicitada"
 msgid "Pause requested — the current batch is finishing"
 msgstr "Pausa solicitada: el lote actual está terminando"
 
-#: lib/modules/storage/web/library_page.ex:368
+#: lib/modules/storage/web/library_page.ex:376
 #: lib/modules/storage/web/library_sync.ex:112
 #: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:296
 #: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:350
@@ -17308,7 +17308,7 @@ msgstr "Un lote lleva diez minutos esperando y desde entonces no se ha ejecutado
 msgid "Check now"
 msgstr "Comprobar ahora"
 
-#: lib/modules/storage/web/library_page.ex:370
+#: lib/modules/storage/web/library_page.ex:378
 #: lib/modules/storage/web/library_sync.ex:114
 #: lib/phoenix_kit_web/live/users/media_storage.html.heex:492
 #, elixir-autogen, elixir-format
@@ -17325,7 +17325,7 @@ msgstr "Hay ejecuciones esperando una cola que no funciona: %{queues}"
 msgid "Storage runs"
 msgstr "Ejecuciones de almacenamiento"
 
-#: lib/modules/storage/web/library_page.ex:367
+#: lib/modules/storage/web/library_page.ex:375
 #: lib/modules/storage/web/library_sync.ex:111
 #, elixir-autogen, elixir-format
 msgid "Syncing"
@@ -17446,35 +17446,35 @@ msgstr "Usado por"
 
 #: lib/modules/storage/web/bucket_page.ex:437
 #: lib/modules/storage/web/bucket_usage.ex:89
-#: lib/modules/storage/web/library_page.ex:386
+#: lib/modules/storage/web/library_page.ex:394
 #, elixir-autogen, elixir-format
 msgid "backup"
 msgstr "copia de seguridad"
 
 #: lib/modules/storage/web/bucket_page.ex:442
 #: lib/modules/storage/web/bucket_usage.ex:93
-#: lib/modules/storage/web/library_page.ex:391
+#: lib/modules/storage/web/library_page.ex:399
 #, elixir-autogen, elixir-format
 msgid "draining"
 msgstr "en vaciado"
 
 #: lib/modules/storage/web/bucket_page.ex:435
 #: lib/modules/storage/web/bucket_usage.ex:87
-#: lib/modules/storage/web/library_page.ex:384
+#: lib/modules/storage/web/library_page.ex:392
 #, elixir-autogen, elixir-format
 msgid "primary"
 msgstr "principal"
 
 #: lib/modules/storage/web/bucket_page.ex:441
 #: lib/modules/storage/web/bucket_usage.ex:92
-#: lib/modules/storage/web/library_page.ex:390
+#: lib/modules/storage/web/library_page.ex:398
 #, elixir-autogen, elixir-format
 msgid "read only"
 msgstr "solo lectura"
 
 #: lib/modules/storage/web/bucket_page.ex:436
 #: lib/modules/storage/web/bucket_usage.ex:88
-#: lib/modules/storage/web/library_page.ex:385
+#: lib/modules/storage/web/library_page.ex:393
 #, elixir-autogen, elixir-format
 msgid "replica"
 msgstr "réplica"
@@ -17720,7 +17720,7 @@ msgid "Writes, reads and deletes a small test object. Not run when the page open
 msgstr "Escribe, lee y elimina un pequeño objeto de prueba. No se ejecuta al abrir la página."
 
 #: lib/modules/storage/web/bucket_page.ex:440
-#: lib/modules/storage/web/library_page.ex:389
+#: lib/modules/storage/web/library_page.ex:397
 #, elixir-autogen, elixir-format
 msgid "active"
 msgstr "activo"
@@ -18090,13 +18090,13 @@ msgstr "%{profile} · %{set}"
 msgid "A library is a separate space in Media with its own folders. Everything uploaded so far is in the default library. The Media page shows a library switcher once there are two or more. Open a library to rename it or see where its files are."
 msgstr "Una biblioteca es un espacio separado en Medios con sus propias carpetas. Todo lo subido hasta ahora está en la biblioteca predeterminada. La página de Medios muestra un selector de bibliotecas cuando hay dos o más. Abra una biblioteca para cambiarle el nombre o ver dónde están sus archivos."
 
-#: lib/modules/storage/web/library_page.html.heex:302
-#: lib/modules/storage/web/library_page.html.heex:316
+#: lib/modules/storage/web/library_page.html.heex:311
+#: lib/modules/storage/web/library_page.html.heex:325
 #, elixir-autogen, elixir-format
 msgid "Annotated thumbnails"
 msgstr "Miniaturas con anotaciones"
 
-#: lib/modules/storage/web/library_page.html.heex:304
+#: lib/modules/storage/web/library_page.html.heex:313
 #, elixir-autogen, elixir-format
 msgid "Bake annotation shapes into a file's grid thumbnail. This follows the site setting (Settings → Media → Configuration) unless the library chooses otherwise. A change applies to a file the next time its annotations change; existing thumbnails are not regenerated, so a library can hold both kinds."
 msgstr "Incrusta las formas de anotación en la miniatura de la cuadrícula. Sigue el ajuste del sitio (Ajustes → Medios → Configuración) salvo que la biblioteca elija otra cosa. Un cambio se aplica a un archivo la próxima vez que cambien sus anotaciones; las miniaturas existentes no se regeneran, así que una biblioteca puede tener de ambos tipos."
@@ -18152,12 +18152,12 @@ msgstr "Los objetos son lo que se almacena: un original y cada tamaño generado 
 msgid "Open in Media"
 msgstr "Abrir en Medios"
 
-#: lib/modules/storage/web/library_page.html.heex:320
+#: lib/modules/storage/web/library_page.html.heex:329
 #, elixir-autogen, elixir-format
 msgid "Site setting (off)"
 msgstr "Ajuste del sitio (desactivado)"
 
-#: lib/modules/storage/web/library_page.html.heex:319
+#: lib/modules/storage/web/library_page.html.heex:328
 #, elixir-autogen, elixir-format
 msgid "Site setting (on)"
 msgstr "Ajuste del sitio (activado)"
@@ -18177,7 +18177,7 @@ msgstr "Dónde están sus archivos"
 msgid "Which buckets keep this library's files. Chosen now; it does not change afterwards."
 msgstr "Qué buckets guardan los archivos de esta biblioteca. Se elige ahora y no cambia después."
 
-#: lib/modules/storage/web/library_page.html.heex:341
+#: lib/modules/storage/web/library_page.html.heex:350
 #, elixir-autogen, elixir-format
 msgid "Who created, renamed or changed this library. These entries are kept permanently."
 msgstr "Quién creó, renombró o cambió esta biblioteca. Estas entradas se conservan de forma permanente."
@@ -18265,7 +18265,7 @@ msgid "Create renditions automatically after an upload"
 msgstr "Crear variantes automáticamente tras una subida"
 
 #: lib/modules/storage/web/library_page.html.heex:278
-#: lib/modules/storage/web/library_page.html.heex:292
+#: lib/modules/storage/web/library_page.html.heex:298
 #, elixir-autogen, elixir-format
 msgid "Deep zoom"
 msgstr "Zoom profundo"
@@ -19888,3 +19888,13 @@ msgstr "Animación"
 #, elixir-autogen, elixir-format
 msgid "Keep the animation"
 msgstr "Conservar la animación"
+
+#: lib/modules/storage/web/library_page.ex:187
+#, elixir-autogen, elixir-format
+msgid "Deep zoom is locked while we redo how it works."
+msgstr "El zoom profundo está bloqueado mientras rehacemos su funcionamiento."
+
+#: lib/modules/storage/web/library_page.html.heex:288
+#, elixir-autogen, elixir-format
+msgid "We are redoing how deep zoom works, so this switch is locked for now."
+msgstr "Estamos rehaciendo cómo funciona el zoom profundo, así que este interruptor está bloqueado por ahora."

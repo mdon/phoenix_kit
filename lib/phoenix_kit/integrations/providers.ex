@@ -114,6 +114,22 @@ defmodule PhoenixKit.Integrations.Providers do
   end
 
   @doc """
+  The setup-instruction sections a provider shows on one surface — `:system`
+  (the website form) or `:personal` (a user's own form).
+
+  A section without `:scopes` shows on both. One that names its scopes shows
+  only there: a step the other form cannot carry out reads as a promise it
+  breaks (the website Telegram form used to say "send /start, then press
+  Test", which links nothing there).
+  """
+  @spec instructions_for(map(), :system | :personal) :: [map()]
+  def instructions_for(provider, scope) when scope in [:system, :personal] do
+    provider
+    |> Map.get(:instructions, [])
+    |> Enum.filter(&(scope in (Map.get(&1, :scopes) || [:system, :personal])))
+  end
+
+  @doc """
   Returns all providers (built-in + external) that declare the given capability.
 
   Lets consumers discover providers by what they can do rather than by a
@@ -1287,8 +1303,10 @@ defmodule PhoenixKit.Integrations.Providers do
         },
         # A valid token delivers nothing on its own: Telegram forbids a bot from
         # messaging first, so every destination has to be linked explicitly.
+        # Only the personal form links chats, so only it shows this.
         %{
           title: gettext("Link the chats the bot will message"),
+          scopes: [:personal],
           steps: [
             {gettext("Send **/start** to your bot in Telegram, then press **Test Connection**"),
              nil},
@@ -1296,6 +1314,20 @@ defmodule PhoenixKit.Integrations.Providers do
                "For a group: add the bot to the group, send **/start@yourbotname** there, then press **Test Connection** — a bot cannot read ordinary group messages, only commands addressed to it"
              ), nil},
             {gettext("A chat id you already know can be typed into **Link a chat by ID**"), nil}
+          ]
+        },
+        # The notification channel reads personal connections only, and this
+        # form links no chats — say so rather than let a working token look
+        # like working notifications.
+        %{
+          title: gettext("What this connection is for"),
+          scopes: [:system],
+          steps: [
+            {gettext(
+               "This website connection is **not used for user notifications**. Each user who wants notifications in Telegram adds their own Telegram integration under **Profile → Settings → Integrations** and links their chat there"
+             ), nil},
+            {gettext("Code that sends through this connection must name the chat to send to"),
+             nil}
           ]
         }
       ]

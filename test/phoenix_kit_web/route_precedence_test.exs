@@ -306,6 +306,9 @@ defmodule PhoenixKitWeb.RoutePrecedenceTest do
       admin_routes =
         PhoenixKitWeb.Router.__routes__()
         |> Enum.filter(&admin_surface_path?(&1.path))
+        # Test-support probes (`test/support/*_probe_live.ex`) sit under /admin
+        # so the admin chrome draws, outside the live_session on purpose.
+        |> Enum.reject(&String.contains?(&1.path, "/__test/"))
 
       assert length(admin_routes) > 20,
              "expected the admin surface to hold its route table, found #{length(admin_routes)}"

@@ -92,8 +92,19 @@ defmodule PhoenixKit.Integrations.Telegram do
     end
   end
 
+  @doc false
+  # Extra `Req` options for every Bot API call — tests route them through
+  # `Req.Test` with `config :phoenix_kit, :telegram_req_options, plug: ...`.
+  # Unset in production.
+  @spec req_options() :: keyword()
+  def req_options do
+    :phoenix_kit |> Application.get_env(:telegram_req_options, []) |> Keyword.take([:plug])
+  end
+
   defp request(token, method, body) do
-    case Req.post("#{@api_base}/bot#{token}/#{method}", json: body, receive_timeout: @timeout) do
+    url = "#{@api_base}/bot#{token}/#{method}"
+
+    case Req.post(url, [json: body, receive_timeout: @timeout] ++ req_options()) do
       {:ok, %{status: 200, body: %{"ok" => true, "result" => result}}} ->
         {:ok, result}
 

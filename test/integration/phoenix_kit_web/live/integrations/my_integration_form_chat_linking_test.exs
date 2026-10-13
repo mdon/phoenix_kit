@@ -145,6 +145,97 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationFormChatLinkingTest do
     end
   end
 
+  describe "Test in \"Only me\" mode when several people messaged the bot" do
+    @stub __MODULE__.Telegram
+
+    # The Test press runs getMe and getUpdates inside the LiveView process.
+    setup {Req.Test, :set_req_test_to_shared}
+
+    setup do
+      Application.put_env(:phoenix_kit, :telegram_req_options, plug: {Req.Test, @stub})
+      on_exit(fn -> Application.delete_env(:phoenix_kit, :telegram_req_options) end)
+
+      Req.Test.stub(@stub, fn conn ->
+        if String.ends_with?(conn.request_path, "/getMe") do
+          Req.Test.json(conn, %{"ok" => true, "result" => %{"username" => "shop_bot"}})
+        else
+          Req.Test.json(conn, %{"ok" => true, "result" => pending_updates()})
+        end
+      end)
+
+      :ok
+    end
+
+    # A, then B, then C sent /start — the order the issue's repro uses.
+    defp pending_updates do
+      for {update_id, chat_id} <- [{1, 5_550_001}, {2, 5_550_002}, {3, 5_550_003}] do
+        %{
+          "update_id" => update_id,
+          "message" => %{"chat" => %{"id" => chat_id, "type" => "private"}, "text" => "/start"}
+        }
+      end
+    end
+
+    test "links no chat, instead of whoever messaged last", %{conn: conn, uuid: uuid, user: user} do
+      {:ok, view, _html} = live(conn, edit_path(uuid))
+
+      render_click(view, "validate_connection", %{})
+      html = render(view)
+
+      assert linked_ids(uuid, user) == []
+      assert html =~ "Several people have messaged this bot"
+    end
+
+    test "does not show the strangers' chats", %{conn: conn, uuid: uuid} do
+      {:ok, view, _html} = live(conn, edit_path(uuid))
+
+      render_click(view, "validate_connection", %{})
+      html = render(view)
+
+      for id <- ~w(5550001 5550002 5550003), do: refute(html =~ id)
+    end
+  end
+
+  describe "Test in \"Only me\" mode when exactly one person messaged the bot" do
+    @one_stub __MODULE__.OneChatTelegram
+
+    setup {Req.Test, :set_req_test_to_shared}
+
+    setup do
+      Application.put_env(:phoenix_kit, :telegram_req_options, plug: {Req.Test, @one_stub})
+      on_exit(fn -> Application.delete_env(:phoenix_kit, :telegram_req_options) end)
+
+      Req.Test.stub(@one_stub, fn conn ->
+        if String.ends_with?(conn.request_path, "/getMe") do
+          Req.Test.json(conn, %{"ok" => true, "result" => %{"username" => "shop_bot"}})
+        else
+          update = %{
+            "update_id" => 1,
+            "message" => %{
+              "chat" => %{"id" => 5_550_001, "type" => "private"},
+              "text" => "/start"
+            }
+          }
+
+          Req.Test.json(conn, %{"ok" => true, "result" => [update]})
+        end
+      end)
+
+      :ok
+    end
+
+    test "links that chat and says so", %{conn: conn, uuid: uuid, user: user} do
+      {:ok, view, _html} = live(conn, edit_path(uuid))
+
+      render_click(view, "validate_connection", %{})
+      html = render(view)
+
+      assert linked_ids(uuid, user) == ["5550001"]
+      assert html =~ "Linked 1 chat(s)"
+      refute html =~ "Several people have messaged this bot"
+    end
+  end
+
   describe "the group is discoverable at all" do
     test "the card tells the operator the command that links a group", %{conn: conn, uuid: uuid} do
       # Telegram privacy mode means plain chatter in a group never reaches the
@@ -153,6 +244,13 @@ defmodule PhoenixKitWeb.Live.Integrations.MyIntegrationFormChatLinkingTest do
       {:ok, _view, html} = live(conn, edit_path(uuid))
 
       assert html =~ "/start@"
+    end
+
+    test "the personal form keeps the chat-linking instructions", %{conn: conn, uuid: uuid} do
+      {:ok, _view, html} = live(conn, edit_path(uuid))
+
+      assert html =~ "Link the chats the bot will message"
+      refute html =~ "not used for user notifications"
     end
   end
 end

@@ -111,7 +111,6 @@ defmodule PhoenixKit.Modules.Languages do
 
   @config_key "languages_config"
   @default_language_no_prefix_key "default_language_no_prefix"
-  @default_locale Config.default_locale()
   @enabled_key "languages_enabled"
   @module_name "languages"
 
@@ -318,8 +317,12 @@ defmodule PhoenixKit.Modules.Languages do
   @doc """
   Switches multi-language support on and creates the default configuration.
 
-  Creates the initial module configuration with English as the default language.
-  If a previous configuration exists, it will be restored instead of reset.
+  Creates the initial configuration with the site's own language as the default
+  (the language `config :phoenix_kit, default_locale` names, English unless set).
+  If a previous configuration exists, it is restored instead of reset — a
+  primary language chosen while the switch was off included. The first time
+  the configuration is created it also turns `default_language_no_prefix` on
+  (unless that was saved before), so a site that served clean URLs keeps them.
   Updates both the enabled flag and the JSON configuration.
 
   Returns `{:ok, config}` on success, `{:error, reason}` on failure.
@@ -335,7 +338,13 @@ defmodule PhoenixKit.Modules.Languages do
       {:ok, _setting} ->
         # Check if a previous configuration exists to preserve languages
         existing_config = Settings.get_json_setting(@config_key, nil)
-        config_to_save = if is_nil(existing_config), do: @default_config, else: existing_config
+
+        config_to_save =
+          if is_nil(existing_config) do
+            first_enable_defaults()
+          else
+            existing_config
+          end
 
         # Save the configuration (either existing or new default)
         case Settings.update_json_setting_with_module(@config_key, config_to_save, @module_name) do
@@ -345,6 +354,37 @@ defmodule PhoenixKit.Modules.Languages do
 
       {:error, changeset} ->
         {:error, changeset}
+    end
+  end
+
+  # A first switch-on starts from the language the site already runs in.
+  defp first_enable_defaults do
+    seed_prefixless_primary()
+
+    case get_predefined_language(Config.default_locale()) do
+      %Language{} = language -> single_language_config(language)
+      nil -> @default_config
+    end
+  end
+
+  defp single_language_config(%Language{code: code, name: name}) do
+    %{
+      "languages" => [
+        %{"code" => code, "name" => name, "is_default" => true, "is_enabled" => true}
+      ]
+    }
+  end
+
+  # Called whenever the language configuration is created from nothing — a
+  # first switch-on, or a single-language site picking its language. Such a
+  # site has only ever served clean URLs (no locale segment while the switch
+  # is off), so its primary language stays prefixless once it goes
+  # multilingual. A `default_language_no_prefix` value an admin saved, either
+  # way, is left alone; so is a site that was multilingual before (it already
+  # has a configuration, and URLs in the shape the setting gave it).
+  defp seed_prefixless_primary do
+    if is_nil(Settings.get_setting(@default_language_no_prefix_key)) do
+      set_default_language_no_prefix(true)
     end
   end
 
@@ -503,6 +543,127 @@ defmodule PhoenixKit.Modules.Languages do
     else
       nil
     end
+  end
+
+  @doc """
+  The site's primary language code (`"uk"`, `"en-US"`), whether or not
+  multi-language support is on — the language of a single-language site.
+
+  Resolution, first hit wins:
+
+    1. while the switch is on, `get_default_language/0` (the request-scoped
+       override, then the configured default);
+    2. the default language stored in `languages_config` — kept while the
+       switch is off, and what `set_primary_language/1` writes;
+    3. the runtime `config :phoenix_kit, default_locale` (default `"en-US"`).
+
+  Steps 1-2 are `configured_primary_language_code/0`. Unlike `get_default_language/0` it never returns nil, so callers do not
+  invent their own fallback (they used to hardcode `"en"`).
+  """
+  @spec primary_language_code() :: String.t()
+  def primary_language_code do
+    configured_primary_language_code() || Config.default_locale()
+  end
+
+  @doc """
+  The primary language an admin (or the install) actually configured, or nil
+  when none is: `primary_language_code/0` without its last fallback, the
+  runtime `default_locale`.
+
+  For a caller that treats "configured" and "assumed" differently — the content
+  language of a site with nothing configured is the BASE of `default_locale`
+  (`"en"`, as it always was), where a configured `en-US` stays `en-US`.
+  """
+  @spec configured_primary_language_code() :: String.t() | nil
+  def configured_primary_language_code do
+    case get_default_language() do
+      %{code: code} when is_binary(code) -> code
+      _ -> stored_default_code()
+    end
+  end
+
+  defp stored_default_code do
+    case Settings.get_json_setting_cached(@config_key, nil) do
+      %{"languages" => languages} when is_list(languages) ->
+        Enum.find_value(languages, fn
+          %{"is_default" => true, "code" => code} when is_binary(code) -> code
+          _ -> nil
+        end)
+
+      _ ->
+        nil
+    end
+  end
+
+  @doc """
+  Makes `code` the primary language, whether or not multi-language support is
+  on. Adds it to the configuration first when it is not there yet.
+
+  With nothing configured, the configuration becomes just this language — a
+  single-language site picking its language does not inherit the English
+  default that a first switch-on would otherwise start from.
+  """
+  @spec set_primary_language(String.t()) :: {:ok, map()} | {:error, term()}
+  def set_primary_language(code) when is_binary(code) do
+    case Settings.get_json_setting(@config_key, nil) do
+      %{"languages" => languages} when is_list(languages) ->
+        # A disabled language cannot be the default (the Languages page
+        # refuses to disable the default one), so enable it too.
+        with {:ok, _} <- ensure_configured(languages, code) do
+          update_language(code, %{"is_default" => true, "is_enabled" => true})
+        end
+
+      _ ->
+        case get_predefined_language(code) do
+          nil ->
+            {:error, "Language not found in available languages"}
+
+          %Language{} = language ->
+            config = single_language_config(language)
+
+            case Settings.update_json_setting_with_module(@config_key, config, @module_name) do
+              {:ok, _setting} ->
+                seed_prefixless_primary()
+                {:ok, config}
+
+              {:error, changeset} ->
+                {:error, changeset}
+            end
+        end
+    end
+  end
+
+  defp ensure_configured(languages, code) do
+    if Enum.any?(languages, &(&1["code"] == code)),
+      do: {:ok, :present},
+      else: add_language(code)
+  end
+
+  @doc """
+  Whether the site is single-language: multi-language support is off.
+
+  A single-language site emits no locale segment in any URL, and a locale
+  segment in a request is redirected away (see `PhoenixKit.Utils.Routes.path/2`
+  and `PhoenixKitWeb.Users.Auth.validate_and_set_locale/2`).
+  """
+  @spec single_language?() :: boolean()
+  def single_language?, do: not enabled?()
+
+  @doc """
+  Boot- and mix-task-safe `single_language?/0`, for URL emission.
+
+  Answers `false` (multilingual — today's URL shapes) during a mix task and
+  when the read raises or exits, the same failure policy as
+  `prefixless_primary_safe?/0`: a prefixed URL still routes on a site of
+  either kind.
+  """
+  @spec single_language_safe?() :: boolean()
+  def single_language_safe? do
+    if mix_task_context?(), do: false, else: single_language?()
+  rescue
+    _ -> false
+  catch
+    :exit, _ -> false
   end
 
   # Only an enabled language can be a request-scoped default; the override
@@ -745,7 +906,8 @@ defmodule PhoenixKit.Modules.Languages do
   Gets enabled language codes for locale-based routing.
 
   Returns a list of enabled language codes that can be used in URL routing.
-  Falls back to ["en"] when the language module is disabled.
+  Falls back to the primary language (`primary_language_code/0`) when
+  multi-language support is off.
 
   ## Examples
 
@@ -761,10 +923,10 @@ defmodule PhoenixKit.Modules.Languages do
     # Admin navbar languages are managed separately in settings
     if enabled?() do
       codes = get_enabled_language_codes()
-      # Ensure we always have at least the default locale as a fallback
-      if Enum.empty?(codes), do: [@default_locale], else: codes
+      # Ensure we always have at least the primary language as a fallback
+      if Enum.empty?(codes), do: [primary_language_code()], else: codes
     else
-      [@default_locale]
+      [primary_language_code()]
     end
   end
 

@@ -281,16 +281,9 @@ defmodule PhoenixKit.Modules.Sitemap.Sources.Shop do
   defp build_canonical(path, _language, _is_default), do: path
 
   defp default_language do
-    if Languages.enabled?() do
-      case Languages.get_default_language() do
-        %{code: code} -> Languages.DialectMapper.extract_base(code)
-        _ -> "en"
-      end
-    else
-      "en"
-    end
+    Languages.DialectMapper.extract_base(Languages.primary_language_code())
   rescue
-    _ -> "en"
+    _ -> Languages.DialectMapper.extract_base(PhoenixKit.Config.default_locale())
   end
 
   # Build full URL: if the path from Shop.*_url already includes the base,

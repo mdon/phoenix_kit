@@ -29,6 +29,7 @@ defmodule PhoenixKit.Utils.AdminSegmentTest do
 
   alias PhoenixKit.Config
   alias PhoenixKit.Dashboard.Tab
+  alias PhoenixKit.Test.LanguageSettings
   alias PhoenixKit.Utils.Routes
 
   @renamed "/backoffice"
@@ -243,6 +244,9 @@ defmodule PhoenixKit.Utils.AdminSegmentTest do
     end
 
     test "Routes.admin_path/2 emits the configured segment with the locale kept" do
+      # A locale segment only exists on a multilingual site.
+      LanguageSettings.multilingual!()
+
       with_segment(@renamed, fn ->
         assert Routes.admin_path("/admin/users", "uk") == "/phoenix_kit/uk/backoffice/users"
       end)

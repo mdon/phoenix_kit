@@ -203,17 +203,20 @@ defmodule PhoenixKitWeb.Live.LibraryPageTest do
       assert render(view) =~ "Library setting saved"
     end
 
-    test "deep zoom is the library's own switch, off until it is turned on", ctx do
+    test "deep zoom is locked while it is redone", ctx do
       view = open(ctx.conn, ctx.library)
       refute VariantSets.deep_zoom_for_library?(ctx.library.uuid)
 
-      view |> form("#library-deep-zoom", %{"deep_zoom" => "on"}) |> render_submit()
+      html = render(view)
+      assert html =~ "library-deep-zoom-locked"
+      assert html =~ ~r/id="library-deep-zoom-choice"[^>]*disabled/
 
-      assert Libraries.setting(ctx.library.uuid, :deep_zoom) == true
-      assert VariantSets.deep_zoom_for_library?(ctx.library.uuid)
+      # A stale page that still submits changes nothing.
+      html = render_submit(view, "deep_zoom", %{"deep_zoom" => "on"})
 
-      view |> form("#library-deep-zoom", %{"deep_zoom" => "off"}) |> render_submit()
-      assert Libraries.setting(ctx.library.uuid, :deep_zoom) == false
+      assert html =~ "Deep zoom is locked"
+      assert Libraries.setting(ctx.library.uuid, :deep_zoom) == nil
+      refute VariantSets.deep_zoom_for_library?(ctx.library.uuid)
     end
 
     test "the rendition profile links to its tab", ctx do

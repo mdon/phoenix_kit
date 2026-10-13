@@ -60,10 +60,11 @@ defmodule PhoenixKit.ModuleDiscovery do
   `iex -S mix` / code-reloader VM recompiles against a changing disk and has to
   see it.
 
-  The cache is dropped by `clear_cache/0` and rebuilt by `refresh_cache/0`.
-  `PhoenixKit.ModuleRegistry` refreshes it at boot and on `rescan/0` and drops it
-  on `register/1` / `unregister/1`. Concurrent cold readers share one scan. The
-  cache also reflects `config :phoenix_kit, :modules` as of the scan.
+  The cache is dropped by `clear_cache/0` and rebuilt by `refresh_cache/0` or
+  `current_external_modules/0`. `PhoenixKit.ModuleRegistry` keeps it current at
+  boot and on `rescan/0` and drops it on `register/1` / `unregister/1`. Concurrent
+  cold readers share one scan. The cache also reflects
+  `config :phoenix_kit, :modules` as of the scan.
   """
   @spec cached_external_modules() :: [module()]
   def cached_external_modules do
@@ -90,12 +91,65 @@ defmodule PhoenixKit.ModuleDiscovery do
   end
 
   @doc """
-  Scans the disk now (`discover_external_modules/0`), stores the result for
-  `cached_external_modules/0` and returns it.
+  Scans the disk now — same answer as `discover_external_modules/0` — stores the
+  result for `cached_external_modules/0` and returns it. The scan is also
+  remembered for `current_external_modules/0` and `module_hash_fast/0` (or the
+  remembered one dropped, when a file it read is too fresh to trust).
   """
   @spec refresh_cache() :: [module()]
   def refresh_cache do
-    modules = discover_external_modules()
+    put_cache(scan_now())
+  end
+
+  @doc """
+  The external modules on disk now, reading the beams only when something the scan
+  depends on changed since the last scan.
+
+  Same answer as `discover_external_modules/0`. It checks the disk with `stat`
+  alone (the fingerprint `module_hash_fast/0` uses) and answers from the last scan
+  when the fingerprint matches; otherwise it scans — every beam of every
+  phoenix_kit-dependent dep — and remembers the result. Either way the runtime
+  cache of `cached_external_modules/0` holds the answer afterwards.
+
+  For a VM's boot, which needs the list several times in a row
+  (`PhoenixKit.ModuleRegistry.static_children/0`, the registry's `init/1`, then
+  `rescan/0` from `PhoenixKit.boot/1`): only the first reads the beams, unless a
+  dep was added, removed or rebuilt in between. The same caveats as
+  `module_hash_fast/0` apply: nothing is remembered while a file the scan reads is
+  newer than #{@settled_after_seconds} seconds, and a file replaced by one of the
+  same size and mtime is not seen — `refresh_cache/0` always rescans. The ORDER
+  of the code path is not part of the fingerprint (a dev VM reorders it on every
+  recompile); a remembered answer is assembled in the current order.
+  """
+  @spec current_external_modules() :: [module()]
+  def current_external_modules do
+    modules =
+      case remembered_scan() do
+        {:ok, _hash, modules} -> modules
+        :miss -> scan_now()
+      end
+
+    put_cache(modules)
+  end
+
+  # A full scan that is also remembered for `remembered_scan/0`. The caller at boot
+  # is the supervision tree, so a bug in the inventory path falls back to
+  # `discover_external_modules/0` (which logs and answers `[]` when the scan
+  # itself fails), the path `refresh_cache/0` always took.
+  defp scan_now do
+    {_hash, modules} = rescan_disk()
+    modules
+  rescue
+    error ->
+      Logger.debug(
+        "[ModuleDiscovery] the remembered scan failed, scanning without it: " <>
+          Exception.message(error)
+      )
+
+      discover_external_modules()
+  end
+
+  defp put_cache(modules) do
     :persistent_term.put(@cache_key, modules)
     modules
   end
@@ -117,10 +171,7 @@ defmodule PhoenixKit.ModuleDiscovery do
   """
   @spec module_hash() :: binary()
   def module_hash do
-    discover_external_modules()
-    |> Enum.sort()
-    |> :erlang.term_to_binary()
-    |> then(&:erlang.md5/1)
+    discover_external_modules() |> hash_modules()
   end
 
   @doc """
@@ -146,23 +197,28 @@ defmodule PhoenixKit.ModuleDiscovery do
   same mtime (`cp -p`, `rsync -t` from an older build) is not seen — use
   `module_hash/0` where that matters.
 
+  The order of the code path is not part of the fingerprint, only the set of
+  directories: the hash does not depend on it, and a dev VM reorders the path on
+  every recompile.
+
   A miss costs one scan plus the `stat`s of the fingerprint (it builds the hash
   from the same directory listings the fingerprint needs, so nothing is listed or
-  read twice); the first call of a VM is always a miss. Any error falls back to
-  `module_hash/0`.
+  read twice). The remembered scan is shared with `current_external_modules/0`
+  and `refresh_cache/0`, so a VM whose registry has booted starts warm. Any error
+  falls back to `module_hash/0`.
   """
   @spec module_hash_fast() :: binary()
   def module_hash_fast do
-    with {fingerprint, hash, %{app_files: _, beam_files: _} = inventory} <-
-           :persistent_term.get(@hash_memo_key, nil),
-         {^fingerprint, _newest} <- scan_fingerprint(inventory, candidate_ebin_dirs()) do
-      hash
-    else
-      _ -> recompute_module_hash()
+    case remembered_scan() do
+      {:ok, hash, _modules} ->
+        hash
+
+      :miss ->
+        {hash, _modules} = rescan_disk()
+        hash
     end
   rescue
-    # A memo of another shape (module reloaded with a different layout) or a
-    # failing stat must never take a Mix compile down; the honest answer exists.
+    # A failing scan must never take a Mix compile down; the honest answer exists.
     # Logged, because a bug in the fast path otherwise looks like a slow one.
     error ->
       Logger.debug(
@@ -173,27 +229,61 @@ defmodule PhoenixKit.ModuleDiscovery do
       module_hash()
   end
 
-  # Order matters: the fingerprint is taken BEFORE the scan, so a change landing
-  # in between leaves a stale fingerprint (one more scan next time), never a
-  # fresh one paired with an old hash. The code path is read ONCE, so the
-  # inventory and the fingerprint describe the same directories.
-  defp recompute_module_hash do
+  # The last scan's `{:ok, hash, modules}` while the disk still fingerprints the
+  # same, `stat` only; `:miss` otherwise (or with nothing remembered).
+  defp remembered_scan do
+    dirs = candidate_ebin_dirs()
+
+    with {fingerprint, hash, %{app_files: _, beam_files: _} = inventory, %{} = by_dir} <-
+           :persistent_term.get(@hash_memo_key, nil),
+         {^fingerprint, _newest} <- scan_fingerprint(inventory, dirs) do
+      {:ok, hash, assemble(by_dir, dirs)}
+    else
+      _ -> :miss
+    end
+  rescue
+    # A memo of another shape (this module reloaded with a different layout) is a
+    # plain mismatch above; this is a failing `stat` or a bug — logged, because a
+    # broken fast path otherwise looks like a slow one.
+    error ->
+      Logger.debug(
+        "[ModuleDiscovery] the remembered scan could not be checked, scanning again: " <>
+          Exception.message(error)
+      )
+
+      :miss
+  end
+
+  # One full scan → `{hash, modules}`, remembered with the fingerprint it was
+  # taken under. The code path is read ONCE, so the inventory and the fingerprint
+  # describe the same directories.
+  #
+  # The clock is read FIRST. The listings and `.app` files are read before the
+  # fingerprint, the beams after it, and the whole scan can take seconds on a busy
+  # host: a file written at any point during it carries an mtime of at least
+  # `started`, so the "settled" test below rejects the scan instead of pairing a
+  # fingerprint that holds the change with an answer that does not. A clock read
+  # after the scan would let a write in its first seconds pass as settled.
+  defp rescan_disk do
+    started = System.os_time(:second)
     dirs = candidate_ebin_dirs()
     inventory = scan_inventory(dirs)
     {fingerprint, newest} = scan_fingerprint(inventory, dirs)
-    hash = hash_from_inventory(inventory)
+    by_dir = scanned_by_dir(inventory)
+    modules = assemble(by_dir, dirs)
+    hash = hash_modules(modules)
 
-    if newest < System.os_time(:second) - @settled_after_seconds do
-      :persistent_term.put(@hash_memo_key, {fingerprint, hash, inventory})
+    if newest < started - @settled_after_seconds do
+      :persistent_term.put(@hash_memo_key, {fingerprint, hash, inventory, by_dir})
     else
       :persistent_term.erase(@hash_memo_key)
     end
 
-    hash
+    {hash, modules}
   end
 
   @doc false
-  # Drops the remembered `module_hash_fast/0` fingerprint. For tests.
+  # Drops the scan `module_hash_fast/0` and `current_external_modules/0` remember. For tests.
   @spec clear_hash_memo() :: :ok
   def clear_hash_memo do
     :persistent_term.erase(@hash_memo_key)
@@ -202,7 +292,7 @@ defmodule PhoenixKit.ModuleDiscovery do
 
   # What the fingerprint stats: the `.app` files of every code-path dir, and the
   # beams of the dependent apps. Lists each directory once — slow path only —
-  # and is what `hash_from_inventory/1` computes the hash from.
+  # and is what `rescan_disk/0` computes the hash from.
   defp scan_inventory(dirs) do
     app_files = Map.new(dirs, &{&1, files_with_extension(&1, ".app")})
 
@@ -230,24 +320,38 @@ defmodule PhoenixKit.ModuleDiscovery do
     _ -> false
   end
 
-  # `module_hash/0`, from the listings already in hand instead of walking the
-  # disk again. Bit-for-bit the same value (a test compares them).
-  defp hash_from_inventory(%{beam_files: beam_files}) do
+  # The marked modules of each dependent dir, its beams in sorted order (as
+  # `Path.wildcard/1` returns them), from the listings already in hand. Kept per
+  # dir, so a remembered scan can answer in the code-path order of the moment.
+  defp scanned_by_dir(%{beam_files: beam_files}) do
+    Map.new(beam_files, fn {dir, names} ->
+      {dir,
+       names
+       |> Enum.map(&beam_phoenix_kit_module(Path.join(dir, &1)))
+       |> Enum.reject(&is_nil/1)}
+    end)
+  end
+
+  # `discover_external_modules/0` from a per-dir scan: dependent dirs in the
+  # code-path order of `dirs` (already unique), then the `:modules` config. The
+  # same list, in the same order — tests compare them. One edge differs: a
+  # code-path directory whose name holds glob metacharacters (`dep[1]`) is listed
+  # here but matches nothing in `Path.wildcard/1`.
+  defp assemble(by_dir, dirs) do
     scanned =
-      beam_files
-      |> Enum.flat_map(fn {dir, names} ->
-        Enum.map(names, &beam_phoenix_kit_module(Path.join(dir, &1)))
-      end)
-      |> Enum.reject(&is_nil/1)
+      dirs
+      |> Enum.flat_map(&Map.get(by_dir, &1, []))
       |> Enum.uniq()
 
-    (scanned ++ Application.get_env(:phoenix_kit, :modules, []))
-    |> Enum.uniq()
+    Enum.uniq(scanned ++ Application.get_env(:phoenix_kit, :modules, []))
+  end
+
+  # `module_hash/0` of a discovered list. Bit-for-bit the same value.
+  defp hash_modules(modules) do
+    modules
     |> Enum.sort()
     |> :erlang.term_to_binary()
     |> then(&:erlang.md5/1)
-  rescue
-    _ -> module_hash()
   end
 
   # Names with `extension`, sorted, excluding dotfiles exactly as the
@@ -270,9 +374,16 @@ defmodule PhoenixKit.ModuleDiscovery do
   # changed code path never matches — and such a fingerprint is never
   # remembered (its newest mtime is reported as `:infinity`; an atom sorts after
   # every number, so the "settled" comparison is false).
+  #
+  # The dirs are taken in sorted order: the code path's ORDER is not part of what
+  # the scan finds (a remembered scan is reassembled in the current order), and a
+  # dev VM reorders it — recompiling moves the `consolidated` protocols dir — which
+  # would otherwise read as a change and rescan every beam after each compile.
   defp scan_fingerprint(%{app_files: app_files, beam_files: beam_files}, dirs) do
     app_stats =
-      Enum.map(dirs, fn dir ->
+      dirs
+      |> Enum.sort()
+      |> Enum.map(fn dir ->
         case app_files do
           %{^dir => names} -> dir_stats(dir, names)
           _ -> {dir, :unknown}

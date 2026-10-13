@@ -18,6 +18,8 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationsUI do
 
   import PhoenixKitWeb.Components.Core.Icon, only: [icon: 1]
 
+  alias PhoenixKit.Integrations.Providers
+
   # ── Display helpers ──────────────────────────────────────────────────
 
   @doc "Maps a connection status string to `{daisyUI badge class, label}`."
@@ -397,18 +399,24 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationsUI do
   @doc """
   Collapsible provider setup instructions (from the provider definition).
   `open` defaults closed; callers pass `open={@name == nil}` to keep it open
-  during first-time setup.
+  during first-time setup. `scope` picks the sections meant for that surface
+  (`Providers.instructions_for/2`).
   """
   attr :provider, :map, required: true
+  attr :scope, :atom, default: :personal, values: [:system, :personal]
   attr :redirect_uri, :string, default: nil
   attr :open, :boolean, default: false
 
   def setup_instructions(assigns) do
+    assigns =
+      assign(assigns, :sections, Providers.instructions_for(assigns.provider, assigns.scope))
+
     ~H"""
     <details
       :if={Map.get(@provider, :instructions, []) != []}
       class="card bg-base-200/50"
       open={@open}
+      phx-mounted={Phoenix.LiveView.JS.ignore_attributes(["open"])}
     >
       <summary class="card-body cursor-pointer flex-row items-center gap-2 select-none">
         <.icon name="hero-book-open" class="w-4 h-4" />
@@ -418,7 +426,7 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationsUI do
         <.icon name="hero-chevron-down" class="w-4 h-4 ml-auto text-base-content/40" />
       </summary>
       <div class="card-body pt-0 text-sm text-base-content/70 space-y-4">
-        <div :for={{section, idx} <- Enum.with_index(Map.get(@provider, :instructions, []))}>
+        <div :for={{section, idx} <- Enum.with_index(@sections)}>
           <h4 class="font-semibold text-base-content">
             {idx + 1}. {section.title}
           </h4>

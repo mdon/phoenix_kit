@@ -383,8 +383,14 @@
            collapse by default to save vertical space. In /new mode
            keep it open so the operator following the steps doesn't
            have to expand it first. --%>
+      <%!-- `open` is the reader's from the first render on: every patch of
+           this page (a field edit on a provider with dynamic setup) would
+           otherwise put the attribute back to what the server rendered and
+           fold or unfold the section under them. --%>
       <details
         :if={Map.get(@provider, :instructions, []) != []}
+        id="integration-setup-instructions"
+        phx-mounted={Phoenix.LiveView.JS.ignore_attributes(["open"])}
         class="card bg-base-200/50"
         open={@name == nil}
       >
@@ -396,7 +402,9 @@
           <.icon name="hero-chevron-down" class="w-4 h-4 ml-auto text-base-content/40" />
         </summary>
         <div class="card-body pt-0 text-sm text-base-content/70 space-y-4">
-          <div :for={{section, idx} <- Enum.with_index(Map.get(@provider, :instructions, []))}>
+          <div :for={
+            {section, idx} <- Enum.with_index(Providers.instructions_for(@provider, :system))
+          }>
             <h4 class="font-semibold text-base-content">
               {idx + 1}. {section.title}
             </h4>
@@ -432,7 +440,12 @@
            Both confirm via `data-confirm` browser dialog before
            firing. The Delete handler push_navigates back to the
            list on success. --%>
-      <details :if={@name != nil} class="card bg-base-100 border-2 border-error/30">
+      <details
+        :if={@name != nil}
+        id="integration-danger-zone"
+        phx-mounted={Phoenix.LiveView.JS.ignore_attributes(["open"])}
+        class="card bg-base-100 border-2 border-error/30"
+      >
         <summary class="card-body py-3 cursor-pointer flex-row items-center gap-2 select-none">
           <.icon name="hero-exclamation-triangle" class="w-4 h-4 text-error" />
           <h3 class="font-semibold text-error text-base">

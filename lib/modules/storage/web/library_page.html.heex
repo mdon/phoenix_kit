@@ -281,6 +281,12 @@
               "Lets large images be zoomed in to full detail in the viewer, from tiles cut the first time someone zooms. Turning it off stops serving tiles; the ones already made stay stored and are used again if you turn it on. Needs ImageMagick."
             )}
           </p>
+          <%!-- Locked while deep zoom is being redone — the plan is in
+               dev_docs/plans/2026-10-12-deep-zoom-rework.md. The `deep_zoom`
+               event refuses too, so a stale page cannot change it. --%>
+          <p id="library-deep-zoom-locked" class="text-sm text-warning">
+            {gettext("We are redoing how deep zoom works, so this switch is locked for now.")}
+          </p>
           <form
             id="library-deep-zoom"
             phx-submit="deep_zoom"
@@ -293,8 +299,11 @@
               options={[{gettext("On"), "on"}, {gettext("Off"), "off"}]}
               value={if @deep_zoom?, do: "on", else: "off"}
               class="select-sm"
+              disabled
             />
-            <button type="submit" class="btn btn-sm btn-primary">{gettext("Save")}</button>
+            <button type="submit" class="btn btn-sm btn-primary" disabled>
+              {gettext("Save")}
+            </button>
           </form>
         </div>
 

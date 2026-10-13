@@ -176,8 +176,16 @@ defmodule PhoenixKitWeb.Live.Modules.Storage.LibraryPage do
   defp handle_library_event("annotated", %{"annotated" => choice}, socket, library, stats),
     do: put_viewing(:annotated_thumbnails, choice, socket, library, stats)
 
-  defp handle_library_event("deep_zoom", %{"deep_zoom" => choice}, socket, library, stats),
-    do: put_viewing(:deep_zoom, choice, socket, library, stats)
+  # Locked while deep zoom is redone (dev_docs/plans/2026-10-12-deep-zoom-rework.md):
+  # the form is disabled, and a stale page that still submits changes nothing.
+  defp handle_library_event("deep_zoom", _params, socket, _library, _stats),
+    do:
+      {:noreply,
+       put_flash(
+         socket,
+         :error,
+         gettext("Deep zoom is locked while we redo how it works.")
+       )}
 
   defp put_viewing(key, choice, socket, library, stats) do
     value =

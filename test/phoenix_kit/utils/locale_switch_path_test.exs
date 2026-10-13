@@ -108,8 +108,10 @@ defmodule PhoenixKit.Utils.LocaleSwitchPathTest do
     test "turning languages off does not turn the preview defaults into locales" do
       PhoenixKit.Cache.put(:settings, "languages_enabled", "false")
 
+      # A single-language site emits no locale segment at all, and `nl` is not
+      # one of its locales either, so the host segment is kept.
       assert Routes.locale_switch_path("/phoenix_kit/nl/products", "en") ==
-               "/phoenix_kit/en/nl/products"
+               "/phoenix_kit/nl/products"
     end
 
     test "a disabled language is kept unless explicitly identified as the current locale" do

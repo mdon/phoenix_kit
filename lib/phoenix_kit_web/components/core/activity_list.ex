@@ -80,7 +80,11 @@ defmodule PhoenixKitWeb.Components.Core.ActivityList do
             <td class="text-sm">{subject(entry)}</td>
             <td class="text-xs text-base-content/70">
               {summarize_details(entry.metadata) || "—"}
-              <details :if={fields(entry.metadata) != []} id={@id && "#{@id}-#{entry.uuid}-fields"}>
+              <details
+                :if={fields(entry.metadata) != []}
+                id={@id && "#{@id}-#{entry.uuid}-fields"}
+                phx-mounted={Phoenix.LiveView.JS.ignore_attributes(["open"])}
+              >
                 <summary class="cursor-pointer text-primary">{gettext("Show every field")}</summary>
                 <dl class="mt-1 space-y-0.5">
                   <div :for={{label, value} <- fields(entry.metadata)} class="flex gap-2">

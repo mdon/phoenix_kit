@@ -137,6 +137,15 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   attr :from_layout, :boolean, default: false
   attr :pk_pending_invitations, :list, default: []
 
+  attr :admin_edit_url, :string,
+    default: nil,
+    doc:
+      "Where this page's admin counterpart lives — the `:admin_edit_url` that `PhoenixKitWeb.AdminEditHelper.assign_admin_edit/3` sets on a socket or conn (that call is the permission gate; this attr only carries the result). Shown as the first entry of the account menu in the admin chrome, and handed to a host layout as `assigns[:admin_edit_url]`. `layouts/admin.html.heex` threads it from the LiveView's assigns by itself; a view calling `app_layout/1` directly passes `admin_edit_url={assigns[:admin_edit_url]}`. A value in `module_assigns` wins over this one, and is NOT run through `assign_admin_edit/3`'s permission gate: whoever fills `module_assigns` owns that check, and the admin chrome only backstops it with the admin-area test (`Scope.can_access_admin_area?/1`) — no module-permission check."
+
+  attr :admin_edit_label, :string,
+    default: nil,
+    doc: "Label for `admin_edit_url` (the gettext \"Edit\" when `nil`). Travels with the URL."
+
   attr :module_assigns, :map,
     default: %{},
     doc:
@@ -237,6 +246,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
     # Handle both inner_content (Phoenix 1.7-) and inner_block (Phoenix 1.8+)
     assigns = normalize_content_assigns(assigns)
 
+    assigns = resolve_admin_edit(assigns)
+
     # For admin pages, render simplified layout without parent headers
     if admin_page?(assigns) do
       if get_layout_config() do
@@ -258,6 +269,24 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   end
 
   ## Private Implementation
+
+  # The Edit target is declared once, by `assign_admin_edit/3`, as a pair of
+  # plain assigns. Two routes reach here: the `admin_edit_url`/`_label` attrs
+  # (the admin layout threads them from the LiveView's assigns) and an explicit
+  # `module_assigns` entry. The explicit one wins — and the pair moves together,
+  # so a module's URL never gets the page's label. Resolved up front so the
+  # admin chrome and a host layout (which reads the top-level assign) agree.
+  defp resolve_admin_edit(assigns) do
+    case assigns[:module_assigns] do
+      %{admin_edit_url: url} = module_assigns when is_binary(url) ->
+        assigns
+        |> assign(:admin_edit_url, url)
+        |> assign(:admin_edit_label, module_assigns[:admin_edit_label])
+
+      _ ->
+        assigns
+    end
+  end
 
   # Normalize content assigns to handle both inner_content and inner_block
   defp normalize_content_assigns(assigns) do
@@ -805,6 +834,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
       page_crumbs: assigns[:page_crumbs] || [],
       page_title_switcher: assigns[:page_title_switcher],
       page_action: assigns[:page_action],
+      admin_edit_url: assigns[:admin_edit_url],
+      admin_edit_label: assigns[:admin_edit_label],
       # The slots travel here as ordinary keys; `assigns[:action]` is
       # `nil` for every caller that does not pass one, and the render
       # compares against `[]`.
@@ -1193,6 +1224,8 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                     current_locale={@current_locale}
                     accounts={@phoenix_kit_session_accounts}
                     multi_session_allowed?={@phoenix_kit_multi_session_allowed?}
+                    admin_edit_url={@admin_edit_url}
+                    admin_edit_label={@admin_edit_label}
                   />
                 </div>
               </div>
