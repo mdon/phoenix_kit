@@ -220,7 +220,10 @@
         <%!-- Languages List grouped by Continent -> Country --%>
         <div class="space-y-4">
           <%= for {continent, countries} <- filter_grouped_languages(@grouped_languages, @search_query) do %>
-            <details class="collapse collapse-arrow bg-base-300 rounded-lg">
+            <details
+              class="collapse collapse-arrow bg-base-300 rounded-lg"
+              phx-mounted={Phoenix.LiveView.JS.ignore_attributes(["open"])}
+            >
               <summary class="collapse-title font-bold text-lg py-3">
                 <span class="ml-2">{continent}</span>
                 <span class="badge badge-ghost badge-sm ml-2">
@@ -232,7 +235,10 @@
               <div class="collapse-content px-2 pb-2">
                 <div class="space-y-2">
                   <%= for {country, country_flag, languages} <- countries do %>
-                    <details class="collapse collapse-arrow bg-base-200 rounded-lg">
+                    <details
+                      class="collapse collapse-arrow bg-base-200 rounded-lg"
+                      phx-mounted={Phoenix.LiveView.JS.ignore_attributes(["open"])}
+                    >
                       <summary class="collapse-title font-medium py-2">
                         <span class="text-lg">{country_flag}</span>
                         <span class="ml-2">{country}</span>
