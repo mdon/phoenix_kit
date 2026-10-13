@@ -87,7 +87,10 @@ defmodule PhoenixKit.Utils.SingleLanguageRoutesTest do
       # Content keyed by "en" (publishing, email keys) keeps resolving; the
       # primary language itself stays the dialect.
       assert Settings.get_content_language() == "en"
-      assert Settings.get_content_language_details().code == "en"
+
+      assert %{code: "en", name: "English (United States)", from_languages_module: false} =
+               Settings.get_content_language_details()
+
       assert Languages.primary_language_code() == "en-US"
       assert Languages.configured_primary_language_code() == nil
     end

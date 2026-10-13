@@ -413,7 +413,7 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationsUI do
 
     ~H"""
     <details
-      :if={Map.get(@provider, :instructions, []) != []}
+      :if={@sections != []}
       class="card bg-base-200/50"
       open={@open}
       phx-mounted={Phoenix.LiveView.JS.ignore_attributes(["open"])}

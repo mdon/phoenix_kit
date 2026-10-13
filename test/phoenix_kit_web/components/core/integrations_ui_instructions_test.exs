@@ -37,4 +37,13 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationsUIInstructionsTest do
     assert html =~ "For everyone"
     refute html =~ "For the user"
   end
+
+  test "renders no card when every section is for the other surface" do
+    provider = %{instructions: [%{title: "Admin only", scopes: [:system], steps: []}]}
+
+    html = render_component(&IntegrationsUI.setup_instructions/1, provider: provider)
+
+    refute html =~ "<details"
+    refute html =~ "Admin only"
+  end
 end

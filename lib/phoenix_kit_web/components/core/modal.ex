@@ -72,7 +72,7 @@ defmodule PhoenixKitWeb.Components.Core.Modal do
   - `backdrop_class` - Additional CSS classes for the backdrop
   - `closeable` - Whether the modal can be closed via backdrop/escape (default: true)
   - `placement` - `:center` (default) or `:end` — a full-height drawer sliding in from the right edge, for forms opened over the page they belong to
-  - `close_guard` - `:input` makes the dialog non-closeable (Esc/backdrop) on the client from the first keystroke in a submittable form inside it, until the server sets `closeable` back to true
+  - `close_guard` - what Esc and the backdrop do once the user has typed into a submittable form inside the dialog: `:confirm` (default) refuses the first attempt and closes on a second within a few seconds; `:input` makes them no-ops on the client for as long as a field differs from its rendered default; `nil` turns the guard off
 
   ## Slots
 

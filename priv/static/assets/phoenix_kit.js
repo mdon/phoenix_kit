@@ -3842,15 +3842,15 @@ if (typeof window.Chart === "undefined") {
       // Escape that only dismisses an input method's candidate list is not a
       // request to close anything; a `phx-window-keydown` binding cannot tell.
       if (e.isComposing) { e.stopPropagation(); return; }
+      // Only the topmost modal answers an Escape. A touched modal underneath an
+      // untouched (or PkDialog) one must not swallow the key meant to close the
+      // one on top.
       const open = document.querySelectorAll(".modal-open");
-      for (let i = open.length - 1; i >= 0; i--) {
-        const modal = open[i];
-        if (modal.getAttribute("phx-hook") === "PkDialog" || !modal._pkTouched) continue;
-        if (refuseUnsavedClose(modal, modal.querySelector(".modal-box"))) {
-          e.stopPropagation();
-          e.preventDefault();
-        }
-        return;
+      const modal = open[open.length - 1];
+      if (!modal || modal.getAttribute("phx-hook") === "PkDialog" || !modal._pkTouched) return;
+      if (refuseUnsavedClose(modal, modal.querySelector(".modal-box"))) {
+        e.stopPropagation();
+        e.preventDefault();
       }
     }, true);
   }

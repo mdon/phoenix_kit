@@ -388,7 +388,7 @@
            otherwise put the attribute back to what the server rendered and
            fold or unfold the section under them. --%>
       <details
-        :if={Map.get(@provider, :instructions, []) != []}
+        :if={Providers.instructions_for(@provider, :system) != []}
         id="integration-setup-instructions"
         phx-mounted={Phoenix.LiveView.JS.ignore_attributes(["open"])}
         class="card bg-base-200/50"

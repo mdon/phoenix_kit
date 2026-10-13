@@ -2124,13 +2124,22 @@ defmodule PhoenixKit.Settings do
     default = Languages.get_default_language()
     code = get_content_language()
 
-    case default || Languages.get_predefined_language(code) do
+    case default || predefined_content_language(code) do
       %{name: name} = lang when is_binary(name) ->
         %{code: code, name: name, native: lang.native || name, from_languages_module: !!default}
 
       _ ->
         %{code: code, name: code, native: code, from_languages_module: false}
     end
+  end
+
+  # `get_predefined_language/1` knows full locales ("en-US", "uk"), not the bare
+  # base of an unconfigured site's `default_locale` ("en"), so that one is looked
+  # up under the locale it was derived from — otherwise its name reads "en".
+  defp predefined_content_language(code) do
+    Languages.get_predefined_language(code) ||
+      if code == default_locale_base(),
+        do: Languages.get_predefined_language(PhoenixKit.Config.default_locale())
   end
 
   defp default_locale_base do
