@@ -802,7 +802,9 @@ defmodule PhoenixKit.ModuleRegistry do
     # `PhoenixKit.boot/1` — and each used to re-read every beam of every dependent
     # dep. `current_external_modules/0` reads them once and answers the later calls
     # from that scan while a `stat` fingerprint of the disk is unchanged, so a dep
-    # added or rebuilt in between is still found. It also leaves the runtime scan
+    # added or rebuilt in between is still found. A scan that saw a file younger
+    # than two seconds (a boot right after a compile) is not remembered, and the
+    # next call scans again. It also leaves the runtime scan
     # cache warm, so the admin pages never pay for a cold scan; nothing after this
     # in either path may clear it.
     external = PhoenixKit.ModuleDiscovery.current_external_modules()

@@ -200,10 +200,13 @@ defmodule PhoenixKit.ModuleDiscoveryCurrentTest do
         assert reads.() > 0, "a memo of another shape must not be trusted"
       end)
 
-      assert {^fingerprint, ^hash, ^inventory, %{}} = :persistent_term.get(@memo_key)
+      assert {^fingerprint, ^hash, ^inventory, by_dir} = :persistent_term.get(@memo_key)
+      assert is_map(by_dir)
     end
   end
 
+  # The registry's `init/1` loads its modules through the same `load_modules/0`
+  # as `rescan/0`; it runs once per VM and is not restarted here.
   test "the boot sequence reads the beams once", %{tmp_dir: tmp_dir} do
     mod = aged_dep(tmp_dir, :current_scan_fixture_boot)
     on_exit(fn -> ModuleRegistry.unregister(mod) end)
