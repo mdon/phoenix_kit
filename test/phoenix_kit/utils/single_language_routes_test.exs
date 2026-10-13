@@ -72,13 +72,33 @@ defmodule PhoenixKit.Utils.SingleLanguageRoutesTest do
       try do
         assert Languages.primary_language_code() == "et-EE"
         assert Routes.get_default_admin_locale() == "et"
-        assert Settings.get_content_language() == "et-EE"
+        assert Settings.get_content_language() == "et"
         assert Languages.enabled_locale_codes() == ["et-EE"]
       after
         if previous,
           do: Application.put_env(:phoenix_kit, :default_locale, previous),
           else: Application.delete_env(:phoenix_kit, :default_locale)
       end
+    end
+
+    test "a site with nothing configured keeps its content language: the base of default_locale" do
+      LanguageSettings.single_language!()
+
+      # Content keyed by "en" (publishing, email keys) keeps resolving; the
+      # primary language itself stays the dialect.
+      assert Settings.get_content_language() == "en"
+      assert Settings.get_content_language_details().code == "en"
+      assert Languages.primary_language_code() == "en-US"
+      assert Languages.configured_primary_language_code() == nil
+    end
+
+    test "a configured primary language is returned as stored, dialect or not" do
+      LanguageSettings.single_language!(languages: ~w(en-US))
+      assert Settings.get_content_language() == "en-US"
+
+      LanguageSettings.put_languages(~w(uk))
+      assert Settings.get_content_language() == "uk"
+      assert Settings.get_content_language_details().code == "uk"
     end
 
     test "get_default_language/0 keeps its nil-while-off contract" do

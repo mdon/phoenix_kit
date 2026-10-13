@@ -199,9 +199,7 @@ defmodule PhoenixKitWeb.Live.Settings.EmailPreviewTest do
 
     view |> element("#email-preview-item-failed_login_alert") |> render_click()
 
-    # The site's primary language with nothing configured is the runtime
-    # `default_locale` ("en-US"), on a single-language site as on any other.
-    assert_patch(view, at("failed_login_alert", "en-US"))
+    assert_patch(view, at("failed_login_alert"))
     assert has_element?(view, "#email-preview-subject", "Failed sign-in attempts")
   end
 

@@ -317,8 +317,12 @@ defmodule PhoenixKit.Modules.Languages do
   @doc """
   Switches multi-language support on and creates the default configuration.
 
-  Creates the initial module configuration with English as the default language.
-  If a previous configuration exists, it will be restored instead of reset.
+  Creates the initial configuration with the site's own language as the default
+  (the language `config :phoenix_kit, default_locale` names, English unless set).
+  If a previous configuration exists, it is restored instead of reset — a
+  primary language chosen while the switch was off included. The first time
+  the configuration is created it also turns `default_language_no_prefix` on
+  (unless that was saved before), so a site that served clean URLs keeps them.
   Updates both the enabled flag and the JSON configuration.
 
   Returns `{:ok, config}` on success, `{:error, reason}` on failure.
@@ -553,14 +557,28 @@ defmodule PhoenixKit.Modules.Languages do
        switch is off, and what `set_primary_language/1` writes;
     3. the runtime `config :phoenix_kit, default_locale` (default `"en-US"`).
 
-  Unlike `get_default_language/0` it never returns nil, so callers do not
+  Steps 1-2 are `configured_primary_language_code/0`. Unlike `get_default_language/0` it never returns nil, so callers do not
   invent their own fallback (they used to hardcode `"en"`).
   """
   @spec primary_language_code() :: String.t()
   def primary_language_code do
+    configured_primary_language_code() || Config.default_locale()
+  end
+
+  @doc """
+  The primary language an admin (or the install) actually configured, or nil
+  when none is: `primary_language_code/0` without its last fallback, the
+  runtime `default_locale`.
+
+  For a caller that treats "configured" and "assumed" differently — the content
+  language of a site with nothing configured is the BASE of `default_locale`
+  (`"en"`, as it always was), where a configured `en-US` stays `en-US`.
+  """
+  @spec configured_primary_language_code() :: String.t() | nil
+  def configured_primary_language_code do
     case get_default_language() do
       %{code: code} when is_binary(code) -> code
-      _ -> stored_default_code() || Config.default_locale()
+      _ -> stored_default_code()
     end
   end
 

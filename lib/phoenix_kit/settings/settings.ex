@@ -2082,21 +2082,26 @@ defmodule PhoenixKit.Settings do
   @doc """
   Gets the site content language.
 
-  This represents the primary language of website content (not UI language):
-  `PhoenixKit.Modules.Languages.primary_language_code/0`, which also answers
-  while multi-language support is off — a single-language site's content is in
-  its primary language, not in a hardcoded English.
+  This represents the primary language of website content (not UI language).
+  A configured primary language is returned as stored — `"uk"`, or the dialect
+  `"en-US"` — whether or not multi-language support is on
+  (`PhoenixKit.Modules.Languages.configured_primary_language_code/0`). With
+  none configured it is the BASE of `config :phoenix_kit, default_locale`:
+  `"en"` for the default `en-US`, `"de"` for a host that sets `de-DE`. That is
+  what it was before a single-language site could choose one (a literal
+  `"en"`), so content keyed by it on a site with no configuration keeps
+  resolving.
 
   ## Examples
 
       iex> PhoenixKit.Settings.get_content_language()
-      "en-US"
+      "en"
 
       iex> PhoenixKit.Settings.get_content_language()
       "uk"  # a site whose primary language is Ukrainian
   """
   def get_content_language do
-    Languages.primary_language_code()
+    Languages.configured_primary_language_code() || default_locale_base()
   end
 
   @doc """
@@ -2109,15 +2114,15 @@ defmodule PhoenixKit.Settings do
 
       iex> PhoenixKit.Settings.get_content_language_details()
       %{
-        code: "en-US",
-        name: "English (United States)",
-        native: "English (US)",
+        code: "en",
+        name: "English",
+        native: "English",
         from_languages_module: false
       }
   """
   def get_content_language_details do
     default = Languages.get_default_language()
-    code = Languages.primary_language_code()
+    code = get_content_language()
 
     case default || Languages.get_predefined_language(code) do
       %{name: name} = lang when is_binary(name) ->
@@ -2126,6 +2131,10 @@ defmodule PhoenixKit.Settings do
       _ ->
         %{code: code, name: code, native: code, from_languages_module: false}
     end
+  end
+
+  defp default_locale_base do
+    PhoenixKit.Config.default_locale() |> Languages.DialectMapper.extract_base()
   end
 
   ## Settings Form Functions
