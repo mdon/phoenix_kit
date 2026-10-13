@@ -1,3 +1,65 @@
+## 2.62.0 - 2026-10-13
+
+**No migration** (still V217). Ships a primary language that outlives the multi-language switch (a single-language site
+emits no locale segment), an admin-layout `on_mount` hook, an Edit link in the admin account menu, animated GIF/WebP
+renditions, HDR gain maps on cropped renditions, a modal unsaved-input guard, and a Telegram linking fix, plus the
+post-merge fixes from Claude's and Codex's checks of them.
+
+### Added
+
+- **A primary language that outlives the multi-language switch** (`Languages.primary_language_code/0`,
+  `configured_primary_language_code/0`, `set_primary_language/1`, `single_language?/0`). A "Primary language & URLs" card
+  on Settings → Languages stays visible with the switch off. The first switch-on starts from the site's own language and
+  turns `default_language_no_prefix` on, so a site that served clean URLs keeps them. See `guides/locale-routing.md`.
+- **Single-language sites emit no locale segment** for any locale. A request carrying one is redirected to the clean path
+  (302; 307 for anything but GET/HEAD so a POST keeps its body); an admin URL renders as typed under the primary language.
+  Sitemap sources, `Multilang` and the content language use the primary language where they hardcoded `"en"`.
+- **`:phoenix_kit_admin_layout` on_mount hook:** puts any view in the admin layout and authorizes nothing (fail-open by
+  design; pair it with `{:phoenix_kit_require, {:module, key}}`). See `guides/custom-admin-pages.md`.
+- **The page's Edit link in the admin account menu:** `admin_edit_url` / `admin_edit_label` from
+  `AdminEditHelper.assign_admin_edit/3` are threaded by the admin layout into the menu, first entry, and handed to a host
+  layout as assigns.
+- **Animated GIF and WebP renditions.** A rendition that keeps the picture's proportions stays animated; crops stay
+  stills. Per-size "Keep the animation" option (default on, in the existing options JSON) and the `animated_renditions`
+  config switch; animations over 300 frames or 150 million frame-pixels fall back to a still. The file records its frame
+  count and duration (shown on the storage details page); an animated file is no longer offered to the image editor.
+- **HDR gain maps on cropped renditions:** picture and map are cut to the same part of the photo, a turned photo is cut
+  where it is shown, and a box larger than the photo shrinks to fit.
+- **A View button beside Download** on a file's storage page, opening a rendition in a new tab.
+- **Media grids add columns as the window widens** from the `xl` breakpoint up.
+- **Modals guard unsaved input.** `<.modal>`'s `close_guard` defaults to `:confirm`: the first Esc/backdrop attempt on a
+  typed-into form is refused with a nudge, a second within a few seconds closes. It also covers daisyUI class-driven
+  modals. A modal that saves and stays open clears the guard with `push_event(socket, "pk:dialog-saved", %{id: id})`.
+- **`Providers.instructions_for/2` and per-section `:scopes`** for provider setup instructions, so the website Telegram
+  form no longer promises chat linking it cannot do.
+
+### Changed
+
+- **Boot reads every module beam once, not three times.** `ModuleDiscovery.current_external_modules/0` answers from the
+  last scan while a `stat` fingerprint of the code path is unchanged; `ModuleRegistry.rescan/1` takes a timeout (default
+  one minute).
+- **The Deep zoom switch on the library page is locked** while the feature is reworked (serving and stored settings are
+  unchanged).
+- **`Telegram.get_updates/2` no longer defaults to `offset: -1` or `allowed_updates: ["message"]`:** a negative offset
+  discards older updates in Telegram, and `allowed_updates` overrode the bot's own subscription. Pass either explicitly.
+
+### Fixed
+
+- **Telegram "Only me" linked whoever messaged the bot last.** It now links a private chat only when it is the only one in
+  the peek and says so otherwise, without naming any chat.
+- **Dialogs closing on a drag released over the backdrop** (in either direction), **textareas losing a dragged size**,
+  and **fold-out sections folding on a patch** (`<details>` keep the reader's `open`).
+- **Escape on stacked class modals** is answered by the topmost modal only, and by an open native dialog first.
+- **Locale redirects and renamed admin paths:** the single-language redirect runs before the dialect redirects (a POST
+  keeps its body), and the admin-request test follows the configured admin segment instead of matching `admin` anywhere.
+- **The content language of an unconfigured site named itself `"en"`** in `Settings.get_content_language_details/0`
+  instead of English.
+- **An empty "Setup instructions" card** no longer renders when all of a provider's sections belong to the other surface.
+- **HDR crops and resizes of turned photos:** a quarter-turned crop recorded reversed dimensions, and a proportional resize
+  fixed the stored width instead of the displayed one.
+- **Animated GIF sizes and focus crops:** the size read from an optimised GIF was its first frame's crop rather than the
+  canvas, and a focus crop of an orientation-7 photo returned the whole picture.
+
 ## 2.61.0 - 2026-10-11
 
 **Migration V217.** Ships HDR renditions, a per-rendition "remove the camera's metadata" option, HDR gain-map
