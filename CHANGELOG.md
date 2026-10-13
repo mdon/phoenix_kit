@@ -1,3 +1,24 @@
+## 2.62.2 - 2026-10-13
+
+**No migration** (still V217). Ships PR #931 (avatar-menu module tabs, no more dead dashboard links), plus one crash fix from Claude's review of it.
+
+### Added
+
+- **`user_menu:` Tab option.** A user-level tab flagged `user_menu: true` (or `fn scope -> boolean`, evaluated at render
+  time) is also listed in the avatar dropdown — the user one and the admin top bar's — after Settings, so a signed-in
+  visitor reaches "My Orders" or "My Cart" from every page. `Registry.get_user_menu_tabs/1`, `Tab.user_menu?/2`,
+  `UserDashboardNav.user_menu_tab_links/1`; a host opts out of the user dropdown with `authenticated_links` minus
+  `:user_menu_tabs`.
+
+### Fixed
+
+- **The default "Dashboard" and "Settings" user tabs are registered only while `user_dashboard_enabled: true`.** Their
+  routes are compiled out otherwise, so a module's own user tab (billing's "My Orders") rendered a sidebar with two links
+  into a `NoRouteError` (#914).
+- **A user-menu tab with a relative path no longer crashes the avatar dropdown.** `Routes.path/2` raises on a path that
+  does not start with `/`, so one badly registered tab took down every page carrying the dropdown; such tabs are now left
+  out of it.
+
 ## 2.62.1 - 2026-10-13
 
 **No migration** (still V217). Ships PR #930's website Telegram bot, plus two crash fixes from Claude's review of it.

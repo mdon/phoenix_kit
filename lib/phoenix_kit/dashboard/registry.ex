@@ -265,7 +265,7 @@ defmodule PhoenixKit.Dashboard.Registry do
       [scope: scope]
       |> get_user_tabs()
       |> Enum.filter(fn tab ->
-        is_nil(tab.parent) and not tab.external and is_binary(tab.path) and tab.path != "" and
+        is_nil(tab.parent) and not tab.external and in_app_path?(tab.path) and
           Tab.user_menu?(tab, scope)
       end)
     else
@@ -1059,6 +1059,12 @@ defmodule PhoenixKit.Dashboard.Registry do
 
     :ets.insert(@ets_table, {:groups, groups})
   end
+
+  # `Routes.path/2` raises on anything but an absolute path, and the avatar
+  # dropdown renders on every page — a tab registered with a relative path
+  # (never run through `Tab.resolve_path/2`) must not take the menu down.
+  defp in_app_path?("/" <> _), do: true
+  defp in_app_path?(_), do: false
 
   defp default_dashboard_tabs do
     [

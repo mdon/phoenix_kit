@@ -148,6 +148,18 @@ defmodule PhoenixKit.Integration.Dashboard.UserMenuTabsTest do
       assert Enum.map(Registry.get_user_menu_tabs(scope!()), & &1.id) == [:um_in_app]
     end
 
+    test "leaves out a tab whose path is not absolute, which would raise in every dropdown" do
+      start_registry!()
+
+      :ok =
+        Registry.register(:user_menu_rel_test, [
+          Tab.new!(id: :um_absolute, label: "Absolute", path: "/test-absolute", user_menu: true),
+          Tab.new!(id: :um_relative, label: "Relative", path: "test-relative", user_menu: true)
+        ])
+
+      assert Enum.map(Registry.get_user_menu_tabs(scope!()), & &1.id) == [:um_absolute]
+    end
+
     test "answers empty for a missing scope instead of skipping the permission filter" do
       start_registry!()
       register_menu_tabs!()
