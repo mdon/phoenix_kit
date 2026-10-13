@@ -47,6 +47,11 @@ defmodule PhoenixKit.ModuleRegistry do
 
   @pterm_key {PhoenixKit, :registered_modules}
 
+  # A rescan that does have to read the disk reads every beam of every
+  # phoenix_kit-dependent dep; on a cold disk or a CPU-starved host that outlives
+  # GenServer's 5 s default, and at boot the caller is `Application.start/2`.
+  @rescan_timeout :timer.minutes(1)
+
   # ============================================================================
   # Client API
   # ============================================================================
@@ -83,10 +88,16 @@ defmodule PhoenixKit.ModuleRegistry do
 
   Also useful in dev for hot-reload recovery after recompiling a module
   package, or in tests that dynamically load fixture modules.
+
+  Cheap when nothing changed: the disk is checked with `stat` and the beams are
+  read only when a dep was added, removed or rebuilt since the last scan
+  (`PhoenixKit.ModuleDiscovery.current_external_modules/0`). `timeout` bounds the
+  call for the case where it does have to scan (default one minute).
   """
   @spec rescan() :: {:ok, [module()]}
-  def rescan do
-    GenServer.call(__MODULE__, :rescan)
+  @spec rescan(timeout()) :: {:ok, [module()]}
+  def rescan(timeout \\ @rescan_timeout) do
+    GenServer.call(__MODULE__, :rescan, timeout)
   end
 
   @doc "Returns all registered module atoms."
@@ -786,10 +797,17 @@ defmodule PhoenixKit.ModuleRegistry do
 
   defp load_modules do
     internal = internal_modules()
-    # A real scan that also refreshes the runtime scan cache. Boot and `rescan/0`
-    # both come through here, so the admin pages find it warm and never pay for
-    # a cold scan; nothing after this in either path may clear it.
-    external = PhoenixKit.ModuleDiscovery.refresh_cache()
+    # A boot needs this three times in a row — `static_children/0` while
+    # `PhoenixKit.Supervisor` builds its children, `init/1`, then `rescan/0` from
+    # `PhoenixKit.boot/1` — and each used to re-read every beam of every dependent
+    # dep. `current_external_modules/0` reads them once and answers the later calls
+    # from that scan while a `stat` fingerprint of the disk is unchanged, so a dep
+    # added or rebuilt in between is still found. A scan that saw a file younger
+    # than two seconds (a boot right after a compile) is not remembered, and the
+    # next call scans again. It also leaves the runtime scan
+    # cache warm, so the admin pages never pay for a cold scan; nothing after this
+    # in either path may clear it.
+    external = PhoenixKit.ModuleDiscovery.current_external_modules()
     (internal ++ external) |> Enum.uniq()
   end
 
