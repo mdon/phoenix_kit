@@ -210,6 +210,9 @@ defmodule PhoenixKitWeb.Live.Modules.LanguagesSwitchTest do
   end
 
   describe "an open page after another admin turns languages off" do
+    # Mounts the page once per configuration event, each behind a full
+    # enable_system; on a loaded machine that outruns the 60 s default.
+    @tag timeout: 180_000
     test "configuration events leave the saved settings alone and refresh the page", %{conn: conn} do
       for {event, params} <- [
             {"toggle_language_availability", %{"code" => "ja"}},
