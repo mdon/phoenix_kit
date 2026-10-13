@@ -685,7 +685,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
 
       {:noreply,
        socket
-       |> assign(:burn_canvas, burn_canvas(url, w, h))
+       |> assign(:burn_canvas, burn_canvas(url, w, h, socket.assigns.file))
        |> assign(:burn_version, URLSigner.version(instance))}
     else
       _ -> {:noreply, socket}
@@ -1733,7 +1733,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
   defp build_burn_canvas(file) when is_map(file) do
     with %{variant: variant, w: w, h: h} when w > 0 and h > 0 <- Map.get(file, :burn_size),
          src when is_binary(src) and src != "" <- file.urls[variant] do
-      burn_canvas(src, w, h)
+      burn_canvas(src, w, h, file)
     else
       _ -> nil
     end
@@ -1741,16 +1741,39 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
 
   defp build_burn_canvas(_file), do: nil
 
-  defp burn_canvas(src, w, h) do
-    Fresco.Canvas.new(width: w, height: h)
+  # Laid out in the ORIGINAL's pixels, not the stored copy's. Fresco's zoom
+  # percentage (`actual_size`) counts canvas units, so a canvas the size of
+  # the 1920px `burned_large` read 64% on a photo that was really showing at
+  # 14%, and its 100% was a pixel of the copy, not of the photo. The live
+  # and clean canvases are already in original pixels; this keeps the
+  # number the same when the pencil switches between them.
+  defp burn_canvas(src, w, h, file) do
+    k = burn_scale(w, h, file)
+    cw = round(w * k)
+    ch = round(h * k)
+
+    Fresco.Canvas.new(width: cw, height: ch)
     |> Fresco.Canvas.add_image(%{
       src: src,
       x: 0,
       y: 0,
-      width: w,
+      width: cw,
       natural_width: w,
       natural_height: h
     })
+  end
+
+  # Original pixels per pixel of the stored burn. A burn is composed at the
+  # original's resolution — plus whatever ink spills past the picture — and
+  # then shrunk to fit its slot, never enlarged. The spill is not recorded,
+  # so this is the larger of the two axis ratios: exact when at least one
+  # axis has no spill (the usual case, no spill at all, included), and at
+  # worst a little low. A file with no recorded size keeps the copy's own.
+  defp burn_scale(w, h, file) do
+    case pixel_dimensions(file || %{}) do
+      {ow, oh} -> Enum.max([1.0, ow / w, oh / h])
+      nil -> 1.0
+    end
   end
 
   # Zoom ladder for the picture canvases (the live layer and the eye's
