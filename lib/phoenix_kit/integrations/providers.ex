@@ -1316,18 +1316,21 @@ defmodule PhoenixKit.Integrations.Providers do
             {gettext("A chat id you already know can be typed into **Link a chat by ID**"), nil}
           ]
         },
-        # The notification channel reads personal connections only, and this
-        # form links no chats — say so rather than let a working token look
-        # like working notifications.
+        # The website form links no chats itself: users do, from their own
+        # notification settings, once the admin ticks the delivery box.
         %{
-          title: gettext("What this connection is for"),
+          title: gettext("Notify your users in Telegram"),
           scopes: [:system],
           steps: [
             {gettext(
-               "This website connection is **not used for user notifications**. Each user who wants notifications in Telegram adds their own Telegram integration under **Profile → Settings → Integrations** and links their chat there"
+               "Tick **Deliver user notifications through this bot** below. Each user then links their own chat under **Profile → Notifications** with one tap — no token to copy"
              ), nil},
-            {gettext("Code that sends through this connection must name the chat to send to"),
-             nil}
+            {gettext(
+               "Without the tick this connection is **not used for user notifications**; code that sends through it must name the chat itself"
+             ), nil},
+            {gettext(
+               "Use a bot only this website uses: linking reads and clears the bot's incoming messages, so a second program reading the same bot would miss them"
+             ), nil}
           ]
         }
       ]
