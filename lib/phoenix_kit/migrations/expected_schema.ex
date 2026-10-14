@@ -202,6 +202,14 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # access to; the real-database integration suite re-ran clean against a DB
   # migrated through V196, which is the property s7/s8 exist to prove.
   #
+  # V220 (2026-10-11, the dangerous-operation flow of the shop API) DECLARES 43
+  # objects, built by the `v220_*` helpers under `raw_objects/0`: the tables
+  # `phoenix_kit_api_confirmations` (19 columns, pkey, two foreign keys, three CHECKs,
+  # three indexes) and `phoenix_kit_api_idempotency` (9 columns, pkey, one CHECK, a
+  # unique and a plain index). Kept honest by `PhoenixKit.Migrations.Postgres.V220Test`,
+  # which runs the repair differ over every `since: 220` object of a freshly migrated
+  # database. `chain_hash` restamped over the shipped files.
+  #
   # V219 (2026-10-11, API keys and service users) DECLARES 24 objects:
   # `column:phoenix_kit_users.api_only` (boolean NOT NULL DEFAULT false) and the 23 of
   # `phoenix_kit_api_keys` (table, 15 columns, pkey, two user FKs, a CHECK on `prefix`, a
@@ -598,7 +606,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "974f10fde659e0ccbc5f4ccf8db275e73a114104a2e1eb604facd501865d1c19"
+  @chain_hash "4f441b0ceab5ffc6be6328f7c5ce57f96d2e29c7853b84d8a4f36d526546fd3f"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -76838,7 +76846,234 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         presence: :required,
         backfill: nil
       }
-    ]
+    ] ++ v220_objects()
+  end
+
+  # --- V220: the dangerous-operation flow (built, not typed; see the header) ---
+
+  defp v220_objects do
+    conf = "phoenix_kit_api_confirmations"
+    idem = "phoenix_kit_api_idempotency"
+    ts = "timestamp(0) without time zone"
+    jsonb_empty = "'{}'::jsonb"
+    kinds = ~w(token approval)
+    statuses = ~w(unused used expired pending approved executing executed failed rejected stale)
+
+    [v220_table(conf)] ++
+      [
+        v220_column(conf, "uuid", 1, "uuid",
+          default: "__SCHEMA__.uuid_generate_v7()",
+          not_null: true
+        ),
+        v220_column(conf, "kind", 2, "character varying(16)", not_null: true),
+        v220_column(conf, "tool", 3, "character varying(120)", not_null: true),
+        v220_column(conf, "input_hash", 4, "character varying(64)", not_null: true),
+        v220_column(conf, "fingerprint", 5, "character varying(64)", not_null: true),
+        v220_column(conf, "input", 6, "jsonb"),
+        v220_column(conf, "context", 7, "jsonb", default: jsonb_empty, not_null: true),
+        v220_column(conf, "actor_key_uuid", 8, "uuid"),
+        v220_column(conf, "cart_token_hash", 9, "character varying(64)"),
+        v220_column(conf, "preview", 10, "jsonb", default: jsonb_empty, not_null: true),
+        v220_column(conf, "status", 11, "character varying(16)", not_null: true),
+        v220_column(conf, "expires_at", 12, ts, not_null: true),
+        v220_column(conf, "used_at", 13, ts),
+        v220_column(conf, "decided_by_uuid", 14, "uuid"),
+        v220_column(conf, "decided_at", 15, ts),
+        v220_column(conf, "result", 16, "jsonb"),
+        v220_column(conf, "notified_at", 17, ts),
+        v220_column(conf, "inserted_at", 18, ts, default: "now()", not_null: true),
+        v220_column(conf, "updated_at", 19, ts, default: "now()", not_null: true),
+        v220_constraint(conf, "phoenix_kit_api_confirmations_pkey", "PRIMARY KEY (uuid)", "p", [
+          "uuid"
+        ]),
+        v220_constraint(
+          conf,
+          "phoenix_kit_api_confirmations_actor_key_uuid_fkey",
+          "FOREIGN KEY (actor_key_uuid) REFERENCES __SCHEMA__.phoenix_kit_api_keys(uuid) ON DELETE CASCADE",
+          "f",
+          ["actor_key_uuid"],
+          foreign_table: "phoenix_kit_api_keys",
+          foreign_columns: ["uuid"],
+          on_delete: "c"
+        ),
+        v220_constraint(
+          conf,
+          "phoenix_kit_api_confirmations_decided_by_uuid_fkey",
+          "FOREIGN KEY (decided_by_uuid) REFERENCES __SCHEMA__.phoenix_kit_users(uuid) ON DELETE SET NULL",
+          "f",
+          ["decided_by_uuid"],
+          foreign_table: "phoenix_kit_users",
+          foreign_columns: ["uuid"],
+          on_delete: "n"
+        ),
+        v220_constraint(
+          conf,
+          "phoenix_kit_api_confirmations_kind_check",
+          v220_in_check("kind", kinds),
+          "c",
+          ["kind"]
+        ),
+        v220_constraint(
+          conf,
+          "phoenix_kit_api_confirmations_status_check",
+          v220_in_check("status", statuses),
+          "c",
+          ["status"]
+        ),
+        v220_constraint(
+          conf,
+          "phoenix_kit_api_confirmations_actor_check",
+          "CHECK (((actor_key_uuid IS NOT NULL) OR (cart_token_hash IS NOT NULL)))",
+          "c",
+          ["actor_key_uuid", "cart_token_hash"]
+        ),
+        v220_index(
+          conf,
+          "phoenix_kit_api_confirmations_actor_status_index",
+          ["actor_key_uuid", "status"],
+          ["uuid_ops", "text_ops"]
+        ),
+        v220_index(conf, "phoenix_kit_api_confirmations_expires_at_index", ["expires_at"], [
+          "timestamp_ops"
+        ]),
+        v220_index(
+          conf,
+          "phoenix_kit_api_confirmations_decided_by_uuid_index",
+          ["decided_by_uuid"],
+          ["uuid_ops"]
+        ),
+        v220_table(idem),
+        v220_column(idem, "uuid", 1, "uuid",
+          default: "__SCHEMA__.uuid_generate_v7()",
+          not_null: true
+        ),
+        v220_column(idem, "scope_ref", 2, "character varying(64)", not_null: true),
+        v220_column(idem, "key", 3, "character varying(128)", not_null: true),
+        v220_column(idem, "request_hash", 4, "character varying(64)", not_null: true),
+        v220_column(idem, "state", 5, "character varying(16)", not_null: true),
+        v220_column(idem, "locked_at", 6, "timestamp without time zone", not_null: true),
+        v220_column(idem, "response", 7, "text"),
+        v220_column(idem, "expires_at", 8, ts, not_null: true),
+        v220_column(idem, "inserted_at", 9, ts, default: "now()", not_null: true),
+        v220_constraint(idem, "phoenix_kit_api_idempotency_pkey", "PRIMARY KEY (uuid)", "p", [
+          "uuid"
+        ]),
+        v220_constraint(
+          idem,
+          "phoenix_kit_api_idempotency_state_check",
+          v220_in_check("state", ~w(in_progress done)),
+          "c",
+          ["state"]
+        ),
+        v220_index(
+          idem,
+          "phoenix_kit_api_idempotency_scope_key_index",
+          ["scope_ref", "key"],
+          ["text_ops", "text_ops"],
+          unique: true
+        ),
+        v220_index(idem, "phoenix_kit_api_idempotency_expires_at_index", ["expires_at"], [
+          "timestamp_ops"
+        ])
+      ]
+  end
+
+  defp v220_table(name) do
+    %{
+      id: "table:#{name}",
+      owner: :core,
+      check: {:catalog, %{name: name, kind: :table}},
+      create: "CREATE TABLE IF NOT EXISTS __SCHEMA__.#{name} ()",
+      since: 220,
+      class: :table,
+      revisions: [{220, %{}}],
+      presence: :required,
+      backfill: nil
+    }
+  end
+
+  defp v220_column(table, name, pos, type, opts \\ []) do
+    default = Keyword.get(opts, :default)
+    not_null = Keyword.get(opts, :not_null, false)
+
+    ddl =
+      "ALTER TABLE __SCHEMA__.#{table} ADD COLUMN IF NOT EXISTS \"#{name}\" #{type}" <>
+        if(default, do: " DEFAULT #{default}", else: "") <>
+        if(not_null, do: " NOT NULL", else: "")
+
+    %{
+      id: "column:#{table}.#{name}",
+      owner: :core,
+      check: {:catalog, %{table: table, column: name, kind: :column}},
+      create: ddl,
+      since: 220,
+      class: :column,
+      revisions: [{220, %{default: default, type: type, pos: pos, not_null: not_null}}],
+      presence: :required,
+      backfill: nil
+    }
+  end
+
+  defp v220_in_check(column, values) do
+    list = Enum.map_join(values, ", ", &"'#{&1}'::character varying")
+    "CHECK (((#{column})::text = ANY ((ARRAY[#{list}])::text[])))"
+  end
+
+  defp v220_constraint(table, name, definition, type, columns, opts \\ []) do
+    %{
+      id: "constraint:#{table}.#{name}",
+      owner: :core,
+      check: {:catalog, %{name: name, table: table, kind: :constraint}},
+      create:
+        "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = '#{name}'\n      AND t.relname = '#{table}'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.#{table} ADD CONSTRAINT #{name} #{definition};\n  END IF;\nEND\n$$",
+      since: 220,
+      class: :constraint,
+      revisions: [
+        {220,
+         %{
+           type: type,
+           definition: definition,
+           name_template: nil,
+           columns: columns,
+           foreign_table: Keyword.get(opts, :foreign_table),
+           foreign_columns: Keyword.get(opts, :foreign_columns),
+           on_delete: Keyword.get(opts, :on_delete),
+           on_update: if(type == "f", do: "a")
+         }}
+      ],
+      presence: :required,
+      backfill: nil
+    }
+  end
+
+  defp v220_index(table, name, keys, opclasses, opts \\ []) do
+    unique = Keyword.get(opts, :unique, false)
+    head = if unique, do: "CREATE UNIQUE INDEX", else: "CREATE INDEX"
+    tail = "ON __SCHEMA__.#{table} USING btree (#{Enum.join(keys, ", ")})"
+
+    %{
+      id: "index:#{name}",
+      owner: :core,
+      check: {:catalog, %{name: name, table: table, kind: :index}},
+      create: "#{head} IF NOT EXISTS #{name} #{tail}",
+      since: 220,
+      class: :index,
+      revisions: [
+        {220,
+         %{
+           table: table,
+           keys: keys,
+           unique: unique,
+           method: "btree",
+           definition: "#{head} #{name} #{tail}",
+           predicate: nil,
+           opclasses: opclasses,
+           name_template: nil
+         }}
+      ],
+      presence: :required,
+      backfill: nil
+    }
   end
 
   defp raw_data_invariants do

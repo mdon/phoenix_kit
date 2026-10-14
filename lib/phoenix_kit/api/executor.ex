@@ -112,7 +112,9 @@ defmodule PhoenixKit.API.Executor do
 
   alias PhoenixKit.Activity
   alias PhoenixKit.API.Actor
+  alias PhoenixKit.API.Confirm.Confirmation
   alias PhoenixKit.API.ControlFields
+  alias PhoenixKit.API.Flow
   alias PhoenixKit.API.LogSafe
   alias PhoenixKit.API.OutputShape
   alias PhoenixKit.API.Problem
@@ -193,8 +195,12 @@ defmodule PhoenixKit.API.Executor do
          {:ok, state} <- take_scopes(state),
          {:ok, state} <- check_scope(state),
          {:ok, state} <- charge_after_lookup(state),
+         {:ok, state} <- Flow.merge_header(state),
          {:ok, state} <- validate(state),
+         {:ok, state} <- Flow.split_control(state),
+         {:ok, state} <- Flow.idempotency(state),
          {:ok, state} <- resolve_request_context(state),
+         {:ok, state} <- Flow.gate(state),
          {:ok, state} <- run(state) do
       complete(state)
     else
@@ -584,6 +590,7 @@ defmodule PhoenixKit.API.Executor do
   # carries the `idempotent-replayed` header.
   defp complete(%{body: body, result: result} = state) do
     log_write(state, state.outcome || "ok", nil)
+    Flow.finish(state)
 
     {:ok, %{result: result, json: body}, replay_headers(state)}
   end
@@ -591,6 +598,7 @@ defmodule PhoenixKit.API.Executor do
   # A refused or failed request releases its idempotency claim, so the same
   # key can be retried.
   defp failed(state, code, detail, context) do
+    Flow.release(state)
     log_write(state, "error", code)
 
     {:error, code, detail, context, state.headers}
@@ -843,8 +851,19 @@ defmodule PhoenixKit.API.Executor do
     kind, reason -> crashed(state, "#{kind}: #{LogSafe.shape(reason)}")
   end
 
-  defp preview_result(state, preview, fingerprint),
-    do: {:ok, %{state | preview: %{data: json_safe!(preview), fingerprint: fingerprint}}}
+  # The fingerprint is kept in a confirmation code or an approval, so one the row cannot hold
+  # is a failed handler here, not an exception (or a refused row) further on.
+  defp preview_result(state, preview, fingerprint) do
+    if Confirmation.fingerprint_valid?(fingerprint) do
+      {:ok, %{state | preview: %{data: json_safe!(preview), fingerprint: fingerprint}}}
+    else
+      crashed(
+        state,
+        "answered a dry run with a fingerprint the store cannot hold " <>
+          "(#{byte_size(fingerprint)} bytes; it must be 1 to #{Confirmation.fingerprint_max()} bytes of UTF-8)"
+      )
+    end
+  end
 
   # The preview as the client will read it: encoded and decoded again under the rescue of
   # `run_preview/1`, so a value JSON cannot hold (a tuple, a struct without an encoder, a

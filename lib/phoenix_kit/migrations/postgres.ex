@@ -7,7 +7,14 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V219 - API keys and service users ⚡ LATEST
+  ### V220 - The dangerous-operation flow of the shop API ⚡ LATEST
+
+  `phoenix_kit_api_confirmations`: confirmation codes and approval requests of
+  dangerous API operations (arguments, preview, status, who decided).
+  `phoenix_kit_api_idempotency`: the `Idempotency-Key` store (claim, lease, stored
+  response). No row is created.
+
+  ### V219 - API keys and service users
 
   `phoenix_kit_users.api_only` (default false): a service user owns API keys and never
   signs in on the web. `phoenix_kit_api_keys`: one row per bearer key (owner, scopes,
@@ -996,7 +1003,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 219
+  @current_version 220
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

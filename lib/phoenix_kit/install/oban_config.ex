@@ -313,6 +313,9 @@ if Code.ensure_loaded?(Igniter) do
              {"*/5 * * * *", PhoenixKit.Jobs.SweepWorker},
              {"15 4 * * *", PhoenixKit.Jobs.PruneWorker},
              {"20 4 * * *", PhoenixKit.Modules.Storage.Workers.BucketLogPruneWorker},
+             {"35 4 * * *", PhoenixKit.API.Idempotency.PruneWorker},
+             {"*/5 * * * *", PhoenixKit.API.Confirm.ExpiryWorker},
+             {"40 4 * * *", PhoenixKit.API.Confirm.PruneWorker},
              {"0 * * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "hourly"}},
              {"0 */12 * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "12h"}},
              {"0 6 * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "daily"}},
@@ -1561,7 +1564,13 @@ if Code.ensure_loaded?(Igniter) do
       {"15 4 * * *", "PhoenixKit.Jobs.PruneWorker"},
       # The bucket log (V208). Without the prune the table grows for the life
       # of the install.
-      {"20 4 * * *", "PhoenixKit.Modules.Storage.Workers.BucketLogPruneWorker"}
+      {"20 4 * * *", "PhoenixKit.Modules.Storage.Workers.BucketLogPruneWorker"},
+      # The dangerous-operation flow of the shop API (V220). Without the prune the idempotency
+      # and confirmation tables grow for the life of the install, and without the expiry
+      # worker a pending approval is never expired and an interrupted one never failed.
+      {"35 4 * * *", "PhoenixKit.API.Idempotency.PruneWorker"},
+      {"*/5 * * * *", "PhoenixKit.API.Confirm.ExpiryWorker"},
+      {"40 4 * * *", "PhoenixKit.API.Confirm.PruneWorker"}
     ]
 
     @doc """
@@ -2054,6 +2063,9 @@ if Code.ensure_loaded?(Igniter) do
                {"*/5 * * * *", PhoenixKit.Jobs.SweepWorker},
                {"15 4 * * *", PhoenixKit.Jobs.PruneWorker},
                {"20 4 * * *", PhoenixKit.Modules.Storage.Workers.BucketLogPruneWorker},
+               {"35 4 * * *", PhoenixKit.API.Idempotency.PruneWorker},
+               {"*/5 * * * *", PhoenixKit.API.Confirm.ExpiryWorker},
+               {"40 4 * * *", PhoenixKit.API.Confirm.PruneWorker},
                {"0 * * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "hourly"}},
                {"0 */12 * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "12h"}},
                {"0 6 * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "daily"}},

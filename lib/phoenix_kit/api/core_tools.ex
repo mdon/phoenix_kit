@@ -4,9 +4,11 @@ defmodule PhoenixKit.API.CoreTools do
 
   They need no module and no scope: every valid key may call them.
   `system.get_identity` answers "who am I and what may I do" and is the first
-  thing to call when setting a key up.
+  thing to call when setting a key up; `system.get_approval` follows an
+  operation that waits for a person's approval.
   """
 
+  alias PhoenixKit.API.Approvals
   alias PhoenixKit.API.Keys
   alias PhoenixKit.API.Registry
   alias PhoenixKit.API.Tool
@@ -29,6 +31,29 @@ defmodule PhoenixKit.API.CoreTools do
         input_schema: %{"type" => "object", "properties" => %{}, "additionalProperties" => false},
         output_schema: output_schema(),
         handler: {__MODULE__, :get_identity},
+        annotations: %{read_only: true, destructive: false, idempotent: true, open_world: false}
+      ),
+      Tool.new!(
+        name: "system.get_approval",
+        audience: :admin,
+        scope: nil,
+        permission: nil,
+        title: "Get approval",
+        description:
+          "Returns the state of an operation that was queued for a person's approval: " <>
+            "pending, approved, executing, executed (with its result), failed (with the error " <>
+            "and the partial results), rejected, stale (the values changed, nothing was written) " <>
+            "or expired. Only the approvals of the calling key can be read.",
+        input_schema: %{
+          "type" => "object",
+          "required" => ["approval_id"],
+          "properties" => %{
+            "approval_id" => %{"type" => "string", "minLength" => 1, "maxLength" => 64}
+          },
+          "additionalProperties" => false
+        },
+        output_schema: approval_output_schema(),
+        handler: {__MODULE__, :get_approval},
         annotations: %{read_only: true, destructive: false, idempotent: true, open_world: false}
       )
     ]
@@ -54,6 +79,47 @@ defmodule PhoenixKit.API.CoreTools do
        "scopes" => scopes,
        "tools" => tool_info(audience, scopes)
      }}
+  end
+
+  @doc """
+  Handler of `system.get_approval`: the state of one of the calling key's approvals
+  (`PhoenixKit.API.Approvals.status_view/1`), or `not_found` for an id that does not
+  exist, is malformed, belongs to another key, or is not an approval.
+  """
+  @spec get_approval(map(), map()) :: {:ok, map()} | {:error, atom(), String.t(), map()}
+  def get_approval(%{"approval_id" => approval_id}, %{actor: actor}) do
+    case Approvals.get_for_key(approval_id, actor.key_uuid) do
+      nil -> {:error, :not_found, "No approval with that id belongs to this key.", %{}}
+      approval -> {:ok, Approvals.status_view(approval)}
+    end
+  end
+
+  defp approval_output_schema do
+    %{
+      "type" => "object",
+      "required" => ["approval_id", "status", "tool"],
+      "properties" => %{
+        "approval_id" => %{"type" => "string"},
+        "status" => %{
+          "type" => "string",
+          "enum" => [
+            "pending",
+            "approved",
+            "executing",
+            "executed",
+            "failed",
+            "rejected",
+            "stale",
+            "expired"
+          ]
+        },
+        "tool" => %{"type" => "string"},
+        "preview" => %{"type" => "object"},
+        "result" => %{"type" => "object"},
+        "error" => %{"type" => "object"},
+        "partial" => %{}
+      }
+    }
   end
 
   defp key_info(nil, actor), do: %{"prefix" => actor.key_prefix}

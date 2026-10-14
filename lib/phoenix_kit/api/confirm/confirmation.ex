@@ -1,0 +1,113 @@
+defmodule PhoenixKit.API.Confirm.Confirmation do
+  @moduledoc """
+  One confirmation code or approval request of a dangerous API operation (table
+  `phoenix_kit_api_confirmations`).
+
+    * `kind` - `"token"` (a one-time code returned with a preview) or
+      `"approval"` (a request that waits for a person).
+    * `tool`, `input_hash`, `fingerprint` - what the row is bound to: the tool, a
+      canonical hash of the arguments (control fields excluded) and a hash of the
+      current values the operation would touch.
+    * `input` - the arguments of an approval; `nil` for a code, and cleared when an
+      approval is decided or expires.
+    * `context` - language, currency, hosts, base URL and request id of the original
+      request (an approval runs without a request).
+    * `actor_key_uuid` / `cart_token_hash` - who it belongs to.
+    * `preview` - what the person sees.
+    * `status` - codes: `unused | used | expired`. Approvals: `pending | approved |
+      executing | executed | failed | rejected | stale | expired`.
+    * `result` - an approval's result, error and partial results.
+
+  The flow is in `PhoenixKit.API.Confirm` and `PhoenixKit.API.Approvals`.
+  """
+  use Ecto.Schema
+  use PhoenixKit.SchemaPrefix
+
+  import Ecto.Changeset
+
+  @type t :: %__MODULE__{}
+
+  @primary_key {:uuid, UUIDv7, autogenerate: true}
+
+  @kinds ~w(token approval)
+  @statuses ~w(unused used expired pending approved executing executed failed rejected stale)
+
+  # `fingerprint` is a `varchar(64)`: the one definition of what it may hold.
+  @fingerprint_max 64
+
+  schema "phoenix_kit_api_confirmations" do
+    field :kind, :string
+    field :tool, :string
+    field :input_hash, :string
+    field :fingerprint, :string
+    field :input, :map
+    field :context, :map, default: %{}
+    field :actor_key_uuid, UUIDv7
+    field :cart_token_hash, :string
+    field :preview, :map, default: %{}
+    field :status, :string
+    field :expires_at, :utc_datetime
+    field :used_at, :utc_datetime
+    field :decided_by_uuid, UUIDv7
+    field :decided_at, :utc_datetime
+    field :result, :map
+    field :notified_at, :utc_datetime
+
+    timestamps(type: :utc_datetime)
+  end
+
+  @doc "All statuses a row can have."
+  @spec statuses() :: [String.t()]
+  def statuses, do: @statuses
+
+  @doc "The longest fingerprint, in bytes."
+  @spec fingerprint_max() :: pos_integer()
+  def fingerprint_max, do: @fingerprint_max
+
+  @doc "Whether the column can hold `fingerprint`: 1 to `fingerprint_max/0` bytes of UTF-8."
+  @spec fingerprint_valid?(term()) :: boolean()
+  def fingerprint_valid?(fingerprint) when is_binary(fingerprint),
+    do: byte_size(fingerprint) in 1..@fingerprint_max and String.valid?(fingerprint)
+
+  def fingerprint_valid?(_fingerprint), do: false
+
+  @doc """
+  The changeset the flow inserts rows with. Internal: nothing user-supplied is cast
+  through it.
+  """
+  @spec changeset(t(), map()) :: Ecto.Changeset.t()
+  def changeset(%__MODULE__{} = row, attrs) do
+    row
+    |> cast(attrs, [
+      :kind,
+      :tool,
+      :input_hash,
+      :fingerprint,
+      :input,
+      :context,
+      :actor_key_uuid,
+      :cart_token_hash,
+      :preview,
+      :status,
+      :expires_at
+    ])
+    |> validate_required([:kind, :tool, :input_hash, :fingerprint, :status, :expires_at])
+    |> validate_inclusion(:kind, @kinds)
+    |> validate_inclusion(:status, @statuses)
+    |> validate_length(:tool, max: 120)
+    |> validate_change(:fingerprint, fn :fingerprint, fingerprint ->
+      if fingerprint_valid?(fingerprint),
+        do: [],
+        else: [fingerprint: "must be 1 to #{@fingerprint_max} bytes of UTF-8"]
+    end)
+    |> validate_actor()
+  end
+
+  defp validate_actor(changeset) do
+    if get_field(changeset, :actor_key_uuid) || get_field(changeset, :cart_token_hash) do
+      changeset
+    else
+      add_error(changeset, :actor_key_uuid, "or a cart token hash is required")
+    end
+  end
+end

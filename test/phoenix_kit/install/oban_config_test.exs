@@ -627,7 +627,10 @@ defmodule PhoenixKit.Install.ObanConfigTest do
              {"45 4 * * *", PhoenixKit.Users.LoginAttemptsPruneWorker},
              {"*/5 * * * *", PhoenixKit.Jobs.SweepWorker},
              {"15 4 * * *", PhoenixKit.Jobs.PruneWorker},
-             {"20 4 * * *", PhoenixKit.Modules.Storage.Workers.BucketLogPruneWorker}
+             {"20 4 * * *", PhoenixKit.Modules.Storage.Workers.BucketLogPruneWorker},
+             {"35 4 * * *", PhoenixKit.API.Idempotency.PruneWorker},
+             {"*/5 * * * *", PhoenixKit.API.Confirm.ExpiryWorker},
+             {"40 4 * * *", PhoenixKit.API.Confirm.PruneWorker}
            ]}
         ]
       """
