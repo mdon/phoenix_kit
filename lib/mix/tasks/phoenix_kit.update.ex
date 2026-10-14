@@ -193,6 +193,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
         |> BootHook.add_boot_hook()
         |> MailerConfig.repair_runtime_import_order()
         |> EndpointIntegration.add_pdfjs_static_mount()
+        |> EndpointIntegration.add_body_guard()
         |> perform_igniter_update(opts)
       end
     end

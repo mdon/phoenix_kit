@@ -202,6 +202,7 @@ defmodule PhoenixKitTest do
       assert "secret" in filter
       assert "token" in filter
       assert "api_key" in filter
+      assert "idempotency_key" in filter
     end
 
     # `aws_access_key_id` names neither half a keypair by convention — it
@@ -219,6 +220,21 @@ defmodule PhoenixKitTest do
 
       for key <- PhoenixKit.Settings.restricted_setting_keys() do
         assert key in filter, "#{key} is restricted but not in :phoenix, :filter_parameters"
+      end
+    end
+
+    # The API refuses these names in a URL with 400 token_in_url, but the request
+    # line is logged at :debug first; the filter must cover every one of them.
+    test "also covers every credential name the API refuses in a URL" do
+      Application.delete_env(:phoenix, :filter_parameters)
+
+      PhoenixKit.boot({:ok, self()})
+
+      filter = Application.get_env(:phoenix, :filter_parameters)
+
+      for name <- PhoenixKit.API.Auth.credential_params() do
+        assert Enum.any?(filter, &String.contains?(name, &1)),
+               "#{name} is refused in a URL but not covered by :phoenix, :filter_parameters"
       end
     end
 

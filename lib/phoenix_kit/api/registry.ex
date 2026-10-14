@@ -22,6 +22,7 @@ defmodule PhoenixKit.API.Registry do
   """
 
   alias PhoenixKit.API.Config
+  alias PhoenixKit.API.CoreTools
   alias PhoenixKit.API.Tool
   alias PhoenixKit.ModuleRegistry
 
@@ -80,7 +81,7 @@ defmodule PhoenixKit.API.Registry do
   end
 
   defp callable_tools(hidden) do
-    ModuleRegistry.all_api_tools()
+    (ModuleRegistry.all_api_tools() ++ CoreTools.tools())
     |> Enum.reject(&MapSet.member?(hidden, &1.name))
   end
 

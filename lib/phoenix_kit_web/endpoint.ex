@@ -33,6 +33,11 @@ defmodule PhoenixKitWeb.Endpoint do
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 
+  # Bounds and parses the body of shop API requests (and only those) before
+  # Plug.Parsers can, so an oversized or malformed body is a problem+json
+  # answer. `mix phoenix_kit.update` puts the same line into host endpoints.
+  plug PhoenixKit.API.BodyGuard
+
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
