@@ -35,6 +35,25 @@ defmodule PhoenixKit.Activity do
 
   @pubsub_topic "phoenix_kit:activity"
 
+  # `log_many/2` is one INSERT, and Postgres takes at most 65 535 parameters
+  # per statement: ten columns a row leave room for ~6 500 rows.
+  @max_batch 1_000
+
+  # How many dropped entries one `log_many/2` error line spells out.
+  @max_logged_drops 20
+
+  @row_fields [
+    :action,
+    :module,
+    :mode,
+    :actor_uuid,
+    :resource_type,
+    :resource_uuid,
+    :target_uuid,
+    :metadata,
+    :permanent
+  ]
+
   @doc """
   Logs an activity.
 
@@ -79,6 +98,156 @@ defmodule PhoenixKit.Activity do
     kind, reason when kind in [:exit, :throw] ->
       Logger.warning("Activity logging error: #{inspect(kind)} #{inspect(reason)}")
       {:error, reason}
+  end
+
+  @doc """
+  Logs many activities with one `INSERT` and one broadcast.
+
+  For a bulk write (a 500-row API call, a catalogue batch) that must not cost
+  500 inserts and 500 admin-page refreshes. Each element is what `log/1`
+  takes: a map with `:action` and, optionally, `:module`, `:mode`,
+  `:actor_uuid`, `:resource_type`, `:resource_uuid`, `:target_uuid`,
+  `:metadata` and `permanent: true`.
+
+  Every element is validated like `log/1` validates its one (action length,
+  module length, ... `permanent` only as the atom key with `true`). An invalid
+  element is dropped with an error log line that names its position and the
+  rule it broke (never a value), and the rest are inserted: the returned list
+  is shorter than the input, in input order. A value that passes validation but that the database refuses (a
+  `metadata` holding a tuple, which is not JSON) fails the whole insert with
+  `{:error, exception}`, and nothing is stored.
+
+  Returns `{:ok, entries}`, `{:ok, []}` for an empty input, or
+  `{:error, :too_many_entries}` over #{@max_batch} elements. Like `log/1` it
+  never raises into the caller.
+
+  ## After the insert
+
+    * ONE `{:activity_logged, entry}` message goes out on the activity topic,
+      carrying the last entry: the admin Activity page reloads on any such
+      message, so one is enough, and it is the message shape every subscriber
+      already handles.
+    * Entries with a `target_uuid` get their notification fan-out, as with
+      `log/1`.
+
+  ## Options
+
+    * `:broadcast` - `false` stores the entries and announces nothing, for a
+      caller that inserts inside its own transaction. After the commit it calls
+      `broadcast/1` with the last entry (and with any entry that has a
+      `target_uuid`, to notify). Default `true`.
+  """
+  @spec log_many([map()], keyword()) :: {:ok, [Entry.t()]} | {:error, term()}
+  def log_many(entries, opts \\ []) when is_list(entries) and is_list(opts) do
+    if length(entries) > @max_batch do
+      {:error, :too_many_entries}
+    else
+      insert_many(entries, opts)
+    end
+  end
+
+  defp insert_many(entries, opts) do
+    case valid_rows(entries) do
+      [] ->
+        {:ok, []}
+
+      rows ->
+        {_count, inserted} = repo().insert_all(Entry, rows, returning: true)
+        stored = Enum.sort_by(inserted, & &1.inserted_at, DateTime)
+        if Keyword.get(opts, :broadcast, true), do: announce_many(stored)
+        {:ok, stored}
+    end
+  rescue
+    # The message of a database or encoding error may print the value it
+    # choked on (a metadata term): only the exception's module is logged.
+    e ->
+      Logger.warning("Activity logging error: ** (#{inspect(e.__struct__)})")
+      {:error, e}
+  catch
+    kind, reason when kind in [:exit, :throw] ->
+      Logger.warning("Activity logging error: #{kind}: #{shape(reason)}")
+      {:error, reason}
+  end
+
+  # What the log learns about a term it must not print.
+  defp shape(value) when is_atom(value), do: inspect(value)
+  defp shape(value) when is_tuple(value), do: "a tuple of size #{tuple_size(value)}"
+  defp shape(_value), do: "a value of another type"
+
+  # One row per valid element, stamped a microsecond apart so that the
+  # entries of a batch sort in the order they were given. The dropped elements
+  # are reported in ONE `:error` line per call: how many of how many, and the
+  # position and reason of each (the first `@max_logged_drops`), never a value.
+  defp valid_rows(entries) do
+    now = DateTime.utc_now()
+
+    {rows, drops} =
+      entries
+      |> Enum.with_index()
+      |> Enum.map(fn {attrs, index} -> to_row(attrs, index, now) end)
+      |> Enum.split_with(&match?({:ok, _row}, &1))
+
+    log_drops(drops, length(entries))
+    Enum.map(rows, fn {:ok, row} -> row end)
+  end
+
+  defp to_row(attrs, index, now) when is_map(attrs) do
+    case validate_entry(attrs) do
+      {:ok, entry} ->
+        {:ok,
+         entry
+         |> Map.take(@row_fields)
+         |> Map.put(:inserted_at, DateTime.add(now, index, :microsecond))}
+
+      {:error, reason} ->
+        {:drop, index, reason}
+    end
+  end
+
+  defp to_row(_other, index, _now), do: {:drop, index, "not a map"}
+
+  defp log_drops([], _total), do: :ok
+
+  defp log_drops(drops, total) do
+    {shown, rest} = Enum.split(drops, @max_logged_drops)
+
+    listed =
+      Enum.map_join(shown, "; ", fn {:drop, index, reason} ->
+        "dropped entry #{index}: #{reason}"
+      end)
+
+    more = if rest == [], do: "", else: "; and #{length(rest)} more"
+
+    Logger.error(
+      "Activity.log_many dropped #{length(drops)} of #{total} entries: #{listed}#{more}"
+    )
+  end
+
+  # The changeset `log/1` inserts, applied instead of inserted. A map that mixes
+  # atom and string keys cannot be cast at all; it is one invalid element, not
+  # a reason to lose the batch. The reason names the fields and the rules they
+  # broke, never the values (they may hold personal data).
+  defp validate_entry(attrs) do
+    case attrs |> entry_changeset() |> Ecto.Changeset.apply_action(:insert) do
+      {:ok, entry} -> {:ok, entry}
+      {:error, changeset} -> {:error, error_reasons(changeset)}
+    end
+  rescue
+    Ecto.CastError -> {:error, "map with mixed keys"}
+  end
+
+  defp error_reasons(changeset) do
+    Enum.map_join(changeset.errors, ", ", fn {field, {message, _opts}} ->
+      "#{field} #{message}"
+    end)
+  end
+
+  defp announce_many(entries) do
+    broadcast_activity(List.last(entries))
+
+    entries
+    |> Enum.reject(&(attempt?(&1) or is_nil(&1.target_uuid)))
+    |> Enum.each(&maybe_notify/1)
   end
 
   defp attempt?(%Entry{metadata: %{"db_pending" => true}}), do: true
