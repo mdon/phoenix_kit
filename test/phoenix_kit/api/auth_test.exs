@@ -150,10 +150,12 @@ defmodule PhoenixKit.API.AuthTest do
   describe "an unexpected exception during authentication" do
     test "is a generic 500 problem with the request id; the log names the exception and the request, not its message",
          %{token: token, key: key} do
-      # A non-row in the key cache makes `Keys.verify/2` raise.
-      # Wait for the cache process to drain its invalidation messages first.
+      # A struct that is not a key row makes `Keys.verify/2` raise `KeyError` on
+      # every Elixir version (a bare binary raises `BadMapError` on 1.19 and
+      # `KeyError` on 1.18). Wait for the cache process to drain its
+      # invalidation messages first.
       _ = :sys.get_state(Keys.Cache)
-      :ok = PhoenixKit.Cache.put(:api_keys, key.prefix, "secret-cache-detail")
+      :ok = PhoenixKit.Cache.put(:api_keys, key.prefix, %URI{path: "secret-cache-detail"})
 
       log =
         capture_log(fn ->
@@ -171,7 +173,7 @@ defmodule PhoenixKit.API.AuthTest do
 
       assert log =~ "authentication failed unexpectedly"
       assert log =~ request_id
-      assert log =~ "BadMapError"
+      assert log =~ "KeyError"
       refute log =~ "secret-cache-detail"
       refute log =~ token
     end
