@@ -108,13 +108,14 @@ defmodule PhoenixKit.API.Keys.CIDR do
 
   defp prefix_length([], address), do: {:ok, width(family(address))}
 
+  # Digits only: `Integer.parse/1` also takes a sign, so `/+8` and `/-0` would pass.
   defp prefix_length([length_text], address) do
-    case Integer.parse(length_text) do
-      {bits, ""} when bits >= 0 ->
-        if bits <= width(family(address)), do: {:ok, bits}, else: :error
-
-      _ ->
-        :error
+    with true <- Regex.match?(~r/\A\d+\z/, length_text),
+         {bits, ""} <- Integer.parse(length_text),
+         true <- bits <= width(family(address)) do
+      {:ok, bits}
+    else
+      _ -> :error
     end
   end
 
