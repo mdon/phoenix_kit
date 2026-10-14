@@ -119,6 +119,8 @@ defmodule PhoenixKit.Module do
   - `job_kinds/0` - Kinds of job run this module contributes (modules
     implementing `PhoenixKit.Jobs.Kind`), for the admin Jobs page
     (default: `[]`).
+  - `api_tools/0` - `PhoenixKit.API.Tool` structs this module offers through the
+    shop/admin API (default: `[]`).
   """
 
   @typedoc """
@@ -656,6 +658,48 @@ defmodule PhoenixKit.Module do
   """
   @callback job_kinds() :: [module()]
 
+  @doc """
+  Returns the API tools this module offers (`PhoenixKit.API.Tool`).
+
+  A tool is one operation (`"ecommerce.set_prices"`): its audience (`:admin` needs a key,
+  `:public` needs none), the scope and role permission it requires, a JSON Schema for its
+  input and a `{module, function}` handler. Core builds the REST surface (and later MCP)
+  from them, so validation, permission checks, rate limits and the shape of the response
+  are done once, in core. Details: `PhoenixKit.API.Tool`, `PhoenixKit.API.Registry`.
+
+  Collected from **enabled** modules by `PhoenixKit.ModuleRegistry.all_api_tools/0`: a
+  disabled module's tools cannot be called.
+  `PhoenixKit.ModuleRegistry.disabled_api_tool?/2` asks the switched-off modules, so the API
+  can answer "module disabled" instead of "no such tool".
+
+  Build every tool with `PhoenixKit.API.Tool.new!/1`. A tool that fails
+  `PhoenixKit.API.Tool.validate/1` is ignored, with one warning per module. So is a tool
+  named `system.*`: that namespace is core's own and skips the scope and permission checks.
+
+  ## Example
+
+      @impl PhoenixKit.Module
+      def api_tools do
+        [
+          PhoenixKit.API.Tool.new!(
+            name: "catalogue.list_products",
+            audience: :admin,
+            scope: "catalogue.products:read",
+            permission: "catalogue",
+            title: "List products",
+            handler: {MyModule.API, :list_products},
+            annotations: %{read_only: true}
+          )
+        ]
+      end
+
+  A module that must also compile against an older core, which has no such callback,
+  defines `api_tools/0` without `@impl` (with `@impl` that compile warns).
+
+  Modules with no API skip this callback — the default is `[]`.
+  """
+  @callback api_tools() :: [PhoenixKit.API.Tool.t()]
+
   @optional_callbacks [
     get_config: 0,
     permission_metadata: 0,
@@ -683,7 +727,8 @@ defmodule PhoenixKit.Module do
     email_settings_sections: 0,
     email_templates: 0,
     media_reorganizer: 0,
-    job_kinds: 0
+    job_kinds: 0,
+    api_tools: 0
   ]
 
   defmacro __using__(_opts) do
@@ -774,6 +819,9 @@ defmodule PhoenixKit.Module do
       @impl PhoenixKit.Module
       def job_kinds, do: []
 
+      @impl PhoenixKit.Module
+      def api_tools, do: []
+
       defoverridable get_config: 0,
                      permission_metadata: 0,
                      admin_tabs: 0,
@@ -799,7 +847,8 @@ defmodule PhoenixKit.Module do
                      email_settings_sections: 0,
                      email_templates: 0,
                      media_reorganizer: 0,
-                     job_kinds: 0
+                     job_kinds: 0,
+                     api_tools: 0
     end
   end
 end

@@ -1,0 +1,174 @@
+defmodule PhoenixKit.API.Config do
+  @moduledoc """
+  Settings accessors for the shop API.
+
+  Every function reads a core setting through `PhoenixKit.Settings` and applies a
+  safe default. The API is **off by default and fails closed**: a switch is on
+  only when its setting reads exactly `"true"`, so a missing row, an unreadable
+  database, an unexpected value or a Settings error all count as off.
+
+  ## Settings
+
+  | Key | Default |
+  |---|---|
+  | `api_admin_enabled` | `false` |
+  | `api_public_enabled` | `false` |
+  | `api_disabled_tools` | `""` (newline separated tool names) |
+  | `api_mcp_allowed_origins` | `""` (newline separated origins) |
+  | `api_admin_preauth_fail_per_min` | `20` |
+  | `api_admin_rate_per_min` | `600` |
+  | `api_public_cart_rate_per_min` | `120` |
+  | `api_public_ip_rate_per_min` | `300` |
+  | `api_public_cart_rows_per_ip_hour` | `120` |
+  | `api_public_cart_rows_global_hour` | `2000` |
+
+  List settings are stored as newline-separated strings: `PhoenixKit.Settings`
+  has no list setter and a JSON setting cannot hold a bare list. Use
+  `encode_list/1` when writing one and `parse_list/1` when reading one.
+  """
+
+  alias PhoenixKit.Settings
+
+  @max_body_bytes 2_097_152
+
+  @rate_defaults [
+    preauth_fail_per_min: {"api_admin_preauth_fail_per_min", 20},
+    admin_per_min: {"api_admin_rate_per_min", 600},
+    public_cart_per_min: {"api_public_cart_rate_per_min", 120},
+    public_ip_per_min: {"api_public_ip_rate_per_min", 300},
+    cart_rows_ip_hour: {"api_public_cart_rows_per_ip_hour", 120},
+    cart_rows_global_hour: {"api_public_cart_rows_global_hour", 2000}
+  ]
+
+  @doc "Whether the admin API (`/api/admin/v1`) is switched on. Fails closed."
+  @spec admin_enabled?() :: boolean()
+  def admin_enabled?, do: flag("api_admin_enabled")
+
+  @doc "Whether the public API (`/api/shop/v1`, MCP) is switched on. Fails closed."
+  @spec public_enabled?() :: boolean()
+  def public_enabled?, do: flag("api_public_enabled")
+
+  @doc """
+  Tool names the install has hidden (`api_disabled_tools`). For display only: a list that
+  cannot be read is `[]` here, so request paths (`PhoenixKit.API.Registry`) use
+  `fetch_disabled_tools/0`, which does not treat it as "nothing is hidden".
+  """
+  @spec disabled_tools() :: [String.t()]
+  def disabled_tools do
+    case fetch_disabled_tools() do
+      {:ok, names} -> names
+      :unreadable -> []
+    end
+  end
+
+  @doc """
+  Tool names the install has hidden (`api_disabled_tools`), telling a list that is empty
+  from one that could not be read at all (a read that raises or exits).
+
+  The tool registry fails closed on `:unreadable`: a tool the admin switched off must not
+  come back because of a settings problem. This is the one reader of the setting.
+  """
+  @spec fetch_disabled_tools() :: {:ok, [String.t()]} | :unreadable
+  def fetch_disabled_tools, do: fetch_list("api_disabled_tools")
+
+  @doc "Extra origins allowed to call the MCP endpoint (`api_mcp_allowed_origins`)."
+  @spec mcp_allowed_origins() :: [String.t()]
+  def mcp_allowed_origins, do: list("api_mcp_allowed_origins")
+
+  @doc """
+  Reads an integer setting.
+
+  Returns `default` when the setting is missing, is not a whole number (`"12abc"` and
+  `"1.5"` are not read by their prefix), is zero or negative, or cannot be read. Every API
+  integer setting is a positive limit, and a zero limit would silently refuse every
+  request, so a non-positive value is treated as unset.
+  """
+  @spec int(String.t(), integer()) :: integer()
+  def int(key, default) when is_binary(key) and is_integer(default) do
+    case key |> Settings.get_setting_cached(nil) |> whole_number() do
+      value when is_integer(value) and value > 0 -> value
+      _ -> default
+    end
+  rescue
+    _ -> default
+  catch
+    :exit, _ -> default
+  end
+
+  @doc "Largest request body the API accepts, in bytes (2 MB)."
+  @spec max_body_bytes() :: 2_097_152
+  def max_body_bytes, do: @max_body_bytes
+
+  @doc """
+  The rate-limit settings as one map.
+
+  `*_per_min` limits count over a 60 second window and `*_hour` limits over a
+  one hour window (see `PhoenixKit.API.RateLimit`).
+  """
+  @spec rate_limits() :: %{
+          preauth_fail_per_min: pos_integer(),
+          admin_per_min: pos_integer(),
+          public_cart_per_min: pos_integer(),
+          public_ip_per_min: pos_integer(),
+          cart_rows_ip_hour: pos_integer(),
+          cart_rows_global_hour: pos_integer()
+        }
+  def rate_limits do
+    Map.new(@rate_defaults, fn {name, {key, default}} -> {name, int(key, default)} end)
+  end
+
+  @doc """
+  Splits a newline-separated setting value into a list.
+
+  Lines are trimmed; blank lines and duplicates are dropped. `nil` is `[]`.
+  """
+  @spec parse_list(String.t() | nil) :: [String.t()]
+  def parse_list(value) when is_binary(value) do
+    value
+    |> String.split(["\r\n", "\n"])
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq()
+  end
+
+  def parse_list(_), do: []
+
+  @doc "Joins a list into the newline-separated form the list settings are stored in."
+  @spec encode_list([String.t()]) :: String.t()
+  def encode_list(items) when is_list(items), do: Enum.join(items, "\n")
+
+  defp flag(key) do
+    Settings.get_boolean_setting(key, false)
+  rescue
+    _ -> false
+  catch
+    :exit, _ -> false
+  end
+
+  defp list(key) do
+    case fetch_list(key) do
+      {:ok, items} -> items
+      :unreadable -> []
+    end
+  end
+
+  defp whole_number(value) when is_binary(value) do
+    case value |> String.trim() |> Integer.parse() do
+      {number, ""} -> number
+      _ -> nil
+    end
+  end
+
+  defp whole_number(_value), do: nil
+
+  # `Settings.get_setting_cached/2` itself answers its default when the database is
+  # unreachable, so that case still reads as an empty list; `:unreadable` covers a read that
+  # raises or exits.
+  defp fetch_list(key) do
+    {:ok, key |> Settings.get_setting_cached("") |> parse_list()}
+  rescue
+    _ -> :unreadable
+  catch
+    :exit, _ -> :unreadable
+  end
+end
