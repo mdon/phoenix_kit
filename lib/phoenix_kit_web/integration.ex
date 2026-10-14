@@ -628,6 +628,10 @@ defmodule PhoenixKitWeb.Integration do
       live "/admin/settings/integrations/new", Live.Settings.IntegrationForm, :new
       live "/admin/settings/integrations/:uuid", Live.Settings.IntegrationForm, :edit
 
+      # API keys, service users and the shop API switches (gated by "api").
+      live "/admin/settings/api", Live.Settings.Api, :index
+      live "/admin/settings/api/approvals", Live.Settings.ApiApprovals, :index
+
       # "email-sending", not "emails" — the optional emails module registers its
       # own routable "Emails" settings tab at /admin/settings/emails (via
       # settings_tabs/0 + the module route generator below). A5 will collapse

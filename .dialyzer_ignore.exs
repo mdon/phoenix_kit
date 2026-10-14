@@ -119,6 +119,19 @@
   # from, so it builds one with Scope.for_user/1 and passes it straight to
   # Scope.holds_all_enabled_permissions?/1.
   {"lib/phoenix_kit/users/referrals.ex", :call_without_opaque},
+  # Same inheritance: the API key code builds the owner's scope with
+  # Scope.for_user/2, asks Scope.can?/2 about the permission of each tool and
+  # turns Scope.accessible_modules/1 into a list.
+  # The three API entries below are regexes on file, warning and the called function
+  # (not file-wide, so a new opaque misuse in these files still shows; not by line,
+  # which shifts).
+  ~r{^lib/phoenix_kit/api/keys\.ex:\d+(:\d+)?:call_without_opaque .* in to_list\.},
+  # Same class: Access.fresh_scope/1 re-checks a person's rights from the database on
+  # every event of the Settings -> API pages (Scope.for_user/2, Scope.can?/2).
+  ~r{^lib/phoenix_kit/api/access\.ex:\d+(:\d+)?:call_without_opaque .* in can\?\.},
+  # Same class: the approval queue builds a scope for each person who may decide an
+  # approval with Scope.for_user/2 and asks Scope.can?/2 and Scope.owner?/1 about it.
+  ~r{^lib/phoenix_kit/api/approvals\.ex:\d+(:\d+)?:call_without_opaque .* in decider\?\.},
   # Same class: these consume Scope.accessible_modules/1, whose result is a
   # MapSet built either from the struct field or MapSet.new(all_module_keys())
   # (the "*" superadmin branch). Dialyzer can't prove opaqueness through that

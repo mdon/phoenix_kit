@@ -2046,6 +2046,7 @@ defmodule PhoenixKitWeb.Users.Auth do
     # Integrations" moved to /profile/settings/integrations) — a holder of
     # only that key falls through to the skip_admin default below instead.
     {"integrations_system", "/admin/settings/integrations"},
+    {"api", "/admin/settings/api"},
     # Settings sub-pages (lower priority landing pages)
     {"languages", "/admin/settings/languages"},
     {"crawlers", "/admin/settings/crawlers"},
@@ -2473,6 +2474,10 @@ defmodule PhoenixKitWeb.Users.Auth do
     # their own independent `integrations_system` key (grantable on its own).
     PhoenixKitWeb.Live.Settings.Integrations => "integrations_system",
     PhoenixKitWeb.Live.Settings.IntegrationForm => "integrations_system",
+    # API keys and switches. `api` is opt-in for Admin, so this page is the one
+    # place where "Admin" alone is not enough.
+    PhoenixKitWeb.Live.Settings.Api => "api",
+    PhoenixKitWeb.Live.Settings.ApiApprovals => "api",
     # Personal per-user integrations moved to /profile/settings/integrations
     # (the :phoenix_kit_authenticated session, not this admin gate) — each
     # LiveView checks the `integrations` permission itself in mount/3 now,
