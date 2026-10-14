@@ -392,3 +392,20 @@ test("the same drawing is not burned twice over one session end", () => {
   });
   assert.strictEqual(changed.planned.taken, 1, "it takes the plan while the overlay is there");
 });
+
+test("a selected shape's fading look is not read mid-fade: transitions are off for the read", () => {
+  // A text's selection box eases its stroke out over 120ms. Removing the
+  // selected class and reading styles in the same frame read the first
+  // frame of that fade — the blue box — and a text selected when the
+  // session ended was stored with it drawn round it.
+  const plan = src.slice(src.indexOf("function burnCapturePlan"), src.indexOf("svgText: new XMLSerializer()"));
+  const still = plan.indexOf('svg.classList.add("pk-burn-still")');
+  const suspend = plan.indexOf('svg.querySelectorAll("." + BURN_STATE.join(", ."))');
+  const read = plan.indexOf("getComputedStyle(live[i])");
+  const off = plan.indexOf('svg.classList.remove("pk-burn-still")');
+  assert.ok(still > -1 && suspend > still, "transitions go off before the looks are suspended");
+  assert.ok(read > suspend && off > read, "and stay off until the styles are read");
+  assert.match(plan, /\.pk-burn-still, \.pk-burn-still \* \{ transition: none !important; \}/);
+  assert.match(plan, /if \(stillStyle\.parentNode\) stillStyle\.parentNode\.removeChild\(stillStyle\);/,
+    "the rule does not outlive the read");
+});

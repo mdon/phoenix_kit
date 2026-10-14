@@ -4780,6 +4780,16 @@ if (typeof window.Chart === "undefined") {
     var minX = Math.floor(ink.minX), minY = Math.floor(ink.minY);
     var maxX = Math.ceil(ink.maxX), maxY = Math.ceil(ink.maxY);
 
+    // Transitions off for the read. The selected and hovered looks fade
+    // out (a text's box, for one, eases its stroke over 120ms), so with
+    // them running the styles read below would be the look's first frame
+    // of fading — and a text that happened to be selected when the session
+    // ended was stored with its blue selection box drawn round it.
+    var stillStyle = document.createElement("style");
+    stillStyle.textContent = ".pk-burn-still, .pk-burn-still * { transition: none !important; }";
+    document.head.appendChild(stillStyle);
+    svg.classList.add("pk-burn-still");
+
     var suspended = [];
     svg.querySelectorAll("." + BURN_STATE.join(", .")).forEach(function(el) {
       var had = BURN_STATE.filter(function(c) { return el.classList.contains(c); });
@@ -4805,6 +4815,8 @@ if (typeof window.Chart === "undefined") {
     suspended.forEach(function(pair) {
       pair[1].forEach(function(c) { pair[0].classList.add(c); });
     });
+    svg.classList.remove("pk-burn-still");
+    if (stillStyle.parentNode) stillStyle.parentNode.removeChild(stillStyle);
     BURN_CHROME.forEach(function(sel) {
       live.forEach(function(el, idx) {
         if (el.matches && el.matches(sel) && copy[idx] && copy[idx].remove) copy[idx].remove();
