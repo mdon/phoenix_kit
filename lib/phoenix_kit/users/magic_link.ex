@@ -95,7 +95,7 @@ defmodule PhoenixKit.Users.MagicLink do
     case RateLimiter.check_magic_link_rate_limit(email, ip_address) do
       :ok ->
         case Auth.get_user_by_email(email) do
-          %User{} = user ->
+          %User{api_only: false} = user ->
             # Revoke any existing magic link tokens for this user
             revoke_magic_links(user)
 
@@ -110,7 +110,9 @@ defmodule PhoenixKit.Users.MagicLink do
                 {:error, changeset}
             end
 
-          nil ->
+          _no_account_or_service_user ->
+            # No such account, or a service user (`api_only`, no web sign-in): the same
+            # answer and the same work for both, so nothing tells them apart.
             # Perform a fake token generation to prevent timing attacks
             # This takes similar time as real token generation
             _fake_token = :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
@@ -156,7 +158,8 @@ defmodule PhoenixKit.Users.MagicLink do
               token.token == ^hashed_token and
                 token.context == ^@magic_link_context and
                 token.inserted_at > ago(^expiry_minutes, "minute") and
-                token.sent_to == user.email,
+                token.sent_to == user.email and
+                user.api_only == false,
             select: {user, token}
 
         case repo().one(query) do

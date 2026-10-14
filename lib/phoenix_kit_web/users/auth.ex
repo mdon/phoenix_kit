@@ -142,6 +142,19 @@ defmodule PhoenixKitWeb.Users.Auth do
     |> halt()
   end
 
+  # A service user (`api_only`) acts through API keys and never signs in on the web.
+  # Password login, magic link, QR code and OAuth all end here, so the refusal is on the
+  # shared funnel as well as in each door's own check. The message is the one a wrong
+  # password gets: the page must not say that such an account exists.
+  def log_in_user(conn, %Auth.User{api_only: true} = user, _params) do
+    Logger.warning("PhoenixKit: refused sign-in for API-only user #{user.uuid}")
+
+    conn
+    |> Phoenix.Controller.put_flash(:error, gettext("Invalid email/username or password"))
+    |> Phoenix.Controller.redirect(to: Routes.path("/users/log-in"))
+    |> halt()
+  end
+
   def log_in_user(conn, user, params) do
     # Create session fingerprint if enabled
     opts =

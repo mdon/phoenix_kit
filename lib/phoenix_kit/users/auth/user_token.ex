@@ -150,6 +150,11 @@ defmodule PhoenixKit.Users.Auth.UserToken do
       from token in by_token_and_context_query(token, "session"),
         join: user in assoc(token, :user),
         where: token.inserted_at > ago(@session_validity_in_days, "day"),
+        # A service user (`api_only`) has no web session, whatever a token row says: this
+        # query is how every plug, LiveView mount and multi-account read resolves a
+        # session, so a token minted before the flag was set, or by a door nobody guarded,
+        # reads as "nobody is signed in".
+        where: user.api_only == false,
         select: user,
         select_merge: %{active_role_uuid: token.active_role_uuid}
 
@@ -233,7 +238,9 @@ defmodule PhoenixKit.Users.Auth.UserToken do
         query =
           from token in by_token_and_context_query(hashed_token, context),
             join: user in assoc(token, :user),
-            where: token.inserted_at > ago(^amount, ^unit) and token.sent_to == user.email,
+            where:
+              token.inserted_at > ago(^amount, ^unit) and token.sent_to == user.email and
+                user.api_only == false,
             select: user
 
         {:ok, query}

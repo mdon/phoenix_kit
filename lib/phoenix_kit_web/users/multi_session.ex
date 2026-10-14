@@ -222,7 +222,7 @@ defmodule PhoenixKitWeb.Users.MultiSession do
              password,
              IpAddress.extract_from_conn(conn)
            ) do
-        {:ok, %Auth.User{is_active: true} = user} ->
+        {:ok, %Auth.User{is_active: true, api_only: false} = user} ->
           if already_in_stack?(stack, user) do
             {:error, :already_in_stack}
           else
@@ -270,7 +270,9 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   """
   def add_authenticated_user(conn, user, opts \\ [])
 
-  def add_authenticated_user(conn, %Auth.User{is_active: true} = user, opts) do
+  # A service user (`api_only`) falls through to the last clause with a deactivated one:
+  # neither can be added to a browser session, by password, OAuth or impersonation.
+  def add_authenticated_user(conn, %Auth.User{is_active: true, api_only: false} = user, opts) do
     session = get_session(conn)
     stack = stack_tokens(session)
 
@@ -429,7 +431,7 @@ defmodule PhoenixKitWeb.Users.MultiSession do
 
   def impersonable?(nil, %Auth.User{}), do: false
 
-  def impersonable?(%Auth.User{} = actor, %Auth.User{is_active: true} = target) do
+  def impersonable?(%Auth.User{} = actor, %Auth.User{is_active: true, api_only: false} = target) do
     decide_impersonation(
       actor.uuid,
       actor_roles(actor),
@@ -464,7 +466,7 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   def impersonable_uuids(%Auth.User{} = actor, users) when is_list(users) do
     actor_roles = actor_roles(actor)
 
-    for %Auth.User{is_active: true} = user <- users,
+    for %Auth.User{is_active: true, api_only: false} = user <- users,
         decide_impersonation(actor.uuid, actor_roles, user.uuid, role_names(user)) == :ok,
         into: MapSet.new(),
         do: user.uuid
