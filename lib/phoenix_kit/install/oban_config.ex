@@ -27,6 +27,9 @@ if Code.ensure_loaded?(Igniter) do
     @dialyzer {:nowarn_function, ensure_digest_cron_entries: 2}
     @dialyzer {:nowarn_function, add_digest_entries_to_crontab: 3}
     @dialyzer {:nowarn_function, ensure_worker_cron_entries: 2}
+    @dialyzer {:nowarn_function, ensure_module_cron_entries: 3}
+    @dialyzer {:nowarn_function, declared_module_crons: 0}
+    @dialyzer {:nowarn_function, ensure_cron_entries: 4}
     @dialyzer {:nowarn_function, add_worker_entries_to_crontab: 3}
     @dialyzer {:nowarn_function, ensure_pruner_max_age: 2}
     @dialyzer {:nowarn_function, ensure_lifeline_plugin: 2}
@@ -237,7 +240,44 @@ if Code.ensure_loaded?(Igniter) do
           "\n  prefix: \"#{prefix}\","
         end
 
-      oban_config = """
+      try do
+        Igniter.update_file(igniter, "config/config.exs", fn source ->
+          content = Rewrite.Source.get(source, :content)
+
+          # Check if Oban config already exists (with more robust detection)
+          if oban_config_already_exists?(content, app_name) do
+            # Update existing config to add posts queue and cron plugin
+            update_existing_oban_config(source, content, app_name)
+          else
+            # Find insertion point before import_config statements
+            oban_config = fresh_oban_config(app_name, repo_module, prefix_line)
+            insertion_point = find_import_config_location(content)
+
+            updated_content =
+              case insertion_point do
+                {:before_import, before_content, after_content} ->
+                  # Insert before import_config
+                  before_content <> oban_config <> "\n" <> after_content
+
+                :append_to_end ->
+                  # No import_config found, append to end
+                  content <> oban_config
+              end
+
+            Rewrite.Source.update(source, :content, updated_content)
+          end
+        end)
+      rescue
+        e ->
+          IO.warn("Failed to add Oban configuration: #{inspect(e)}")
+          add_manual_config_notice(igniter, repo_module)
+      end
+    end
+
+    # Built only for a config that does not exist yet: it asks the installed modules for
+    # their queues and crons, and an update of an existing block has no use for either.
+    defp fresh_oban_config(app_name, repo_module, prefix_line) do
+      """
 
       # Configure Oban for PhoenixKit background jobs.
       # Queues come from PhoenixKit and the installed modules (their
@@ -276,42 +316,10 @@ if Code.ensure_loaded?(Igniter) do
              {"0 * * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "hourly"}},
              {"0 */12 * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "12h"}},
              {"0 6 * * *", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "daily"}},
-             {"0 6 * * 1", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "weekly"}}
+             {"0 6 * * 1", PhoenixKit.Notifications.DigestWorker, args: %{cadence: "weekly"}}#{generated_module_cron_lines()}
            ]}
         ]
       """
-
-      try do
-        Igniter.update_file(igniter, "config/config.exs", fn source ->
-          content = Rewrite.Source.get(source, :content)
-
-          # Check if Oban config already exists (with more robust detection)
-          if oban_config_already_exists?(content, app_name) do
-            # Update existing config to add posts queue and cron plugin
-            update_existing_oban_config(source, content, app_name)
-          else
-            # Find insertion point before import_config statements
-            insertion_point = find_import_config_location(content)
-
-            updated_content =
-              case insertion_point do
-                {:before_import, before_content, after_content} ->
-                  # Insert before import_config
-                  before_content <> oban_config <> "\n" <> after_content
-
-                :append_to_end ->
-                  # No import_config found, append to end
-                  content <> oban_config
-              end
-
-            Rewrite.Source.update(source, :content, updated_content)
-          end
-        end)
-      rescue
-        e ->
-          IO.warn("Failed to add Oban configuration: #{inspect(e)}")
-          add_manual_config_notice(igniter, repo_module)
-      end
     end
 
     # Update existing Oban configuration to add posts/sitemap queues and cron plugin
@@ -395,6 +403,7 @@ if Code.ensure_loaded?(Igniter) do
         |> ensure_cron_plugin(app_name)
         |> ensure_digest_cron_entries(app_name)
         |> ensure_worker_cron_entries(app_name)
+        |> ensure_module_cron_entries(app_name)
       end
     end
 
@@ -496,6 +505,33 @@ if Code.ensure_loaded?(Igniter) do
         comma = if index == last, do: "", else: ","
         "    #{spec.name}: #{spec.limit}#{comma}" <> queue_comment(spec)
       end)
+    end
+
+    @doc false
+    # The crontab lines of the cron entries installed modules declare
+    # (`PhoenixKit.ObanCrons`), each led by the comma that joins it to the entry above.
+    # They sit at the indentation of the entries around them in the generated heredoc
+    # (interpolated text keeps its spaces, the heredoc's own lines lose six).
+    # `declared` is injectable for tests.
+    @spec generated_module_cron_lines([{String.t(), module()}] | nil) :: String.t()
+    def generated_module_cron_lines(declared \\ nil) do
+      declared = declared || declared_module_crons()
+
+      Enum.map_join(declared, "", fn {cron, worker} ->
+        ",\n       {#{inspect(cron)}, #{inspect(worker)}}"
+      end)
+    end
+
+    # The declared entries, with the modules that disagree reported on the error channel
+    # (install and update both come through here).
+    defp declared_module_crons do
+      {declared, conflicts} = PhoenixKit.ObanCrons.declared()
+
+      Enum.each(conflicts, fn conflict ->
+        Mix.shell().error("  ⚠️  " <> PhoenixKit.ObanCrons.describe_conflict(conflict))
+      end)
+
+      declared
     end
 
     defp queue_comment(%{owner: owner, kind: kind}) do
@@ -1454,11 +1490,16 @@ if Code.ensure_loaded?(Igniter) do
     defp probe_mask({:module, _}), do: [strings: true]
     defp probe_mask({:digest, _}), do: []
 
+    # A module name is matched whole: `Mod.Workers.Sync` is not found inside
+    # `Mod.Workers.SyncAll`, `Mod.Workers.Sync.Child` or `Other.Mod.Workers.Sync`
+    # (module authors now choose the names, so one may be the prefix of another).
+    defp probe_matches?({:module, mod}, code) do
+      Regex.match?(~r/(?<![A-Za-z0-9_.])#{Regex.escape(mod)}(?![A-Za-z0-9_]|\.[A-Z])/, code)
+    end
+
     # One tuple at a time: `[^{}]*` cannot cross a tuple's own braces, so
     # `cadence: "daily"` of one entry is never credited to another's
     # DigestWorker — and a worker reformatted over several lines still counts.
-    defp probe_matches?({:module, mod}, code), do: String.contains?(code, mod)
-
     defp probe_matches?({:digest, cadence}, code) do
       Regex.match?(~r/DigestWorker[^{}]*%\{[^{}]*cadence:\s*"#{Regex.escape(cadence)}"/, code)
     end
@@ -1544,8 +1585,39 @@ if Code.ensure_loaded?(Igniter) do
     """
     @spec ensure_worker_cron_entries(String.t(), atom() | String.t()) :: String.t()
     def ensure_worker_cron_entries(content, app_name) do
+      ensure_cron_entries(content, app_name, @worker_cron_entries, "PhoenixKit worker")
+    end
+
+    @doc """
+    Ensures the cron entries installed modules declare with
+    `c:PhoenixKit.Module.oban_crons/0` (`PhoenixKit.ObanCrons`) exist in a host's crontab.
+
+    Same rules as `ensure_worker_cron_entries/2`, which this shares its machinery with: an
+    entry whose worker is already scheduled is left as it is (the host's schedule wins),
+    one that is only commented out is declined and never offered again, a crontab that is
+    not a literal list gets a manual step instead of an edit. Conflicting declarations are
+    reported and the first one wins.
+
+    Public so it can be unit-tested against content strings; `declared` (a list of
+    `{cron, worker_module}`) is injectable for the same reason.
+    """
+    @spec ensure_module_cron_entries(
+            String.t(),
+            atom() | String.t(),
+            [{String.t(), module()}] | nil
+          ) :: String.t()
+    def ensure_module_cron_entries(content, app_name, declared \\ nil) do
+      declared = declared || declared_module_crons()
+      entries = Enum.map(declared, fn {cron, worker} -> {cron, inspect(worker)} end)
+
+      ensure_cron_entries(content, app_name, entries, "module")
+    end
+
+    # The shared backfill: `entries` are `{cron, "Module.Name"}`; `label` names them in
+    # the one line printed when something is added.
+    defp ensure_cron_entries(content, app_name, entries, label) do
       states =
-        Enum.map(@worker_cron_entries, fn {_cron, mod} = entry ->
+        Enum.map(entries, fn {_cron, mod} = entry ->
           {entry, crontab_state(content, app_name, {:module, mod})}
         end)
 
@@ -1556,7 +1628,7 @@ if Code.ensure_loaded?(Igniter) do
       if missing == [] do
         content
       else
-        Mix.shell().info("  ➕ Adding PhoenixKit worker cron entries...")
+        Mix.shell().info("  ➕ Adding #{label} cron entries...")
         add_worker_entries_to_crontab(content, missing, app_name)
       end
     end

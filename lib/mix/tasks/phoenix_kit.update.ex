@@ -2517,7 +2517,9 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       notice = """
       #{headline}
          Any queue PhoenixKit or an installed module declares was added if it
-         was missing (existing limits are never changed).
+         was missing (existing limits are never changed). Cron entries that
+         installed modules declare were added the same way; an entry you
+         commented out of the crontab is left out.
          IMPORTANT: If your server is running, restart it to apply changes.
       """
 

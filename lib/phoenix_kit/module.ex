@@ -111,6 +111,8 @@ defmodule PhoenixKit.Module do
     Transactional settings page (default: `[]`).
   - `email_templates/0` - Emails this module sends, for the admin email preview
     (default: `[]`).
+  - `oban_crons/0` - Scheduled Oban workers as `{cron, worker}` pairs, written into the
+    host's crontab by `mix phoenix_kit.install` / `mix phoenix_kit.update` (default: `[]`).
   - `media_reorganizer/0` - Module implementing
     `PhoenixKit.Modules.Storage.Reorganizer.Source` for this module's own
     records (default: `nil`).
@@ -427,6 +429,35 @@ defmodule PhoenixKit.Module do
   @callback oban_queues() :: keyword(pos_integer() | keyword())
 
   @doc """
+  Returns the Oban cron jobs this module needs, as `{cron, worker}` pairs.
+
+  `mix phoenix_kit.install` and `mix phoenix_kit.update` write the entries a host's Oban
+  crontab is missing, the way they do for core's own workers. Details:
+  `PhoenixKit.ObanCrons`.
+
+    * `cron` - a five-field cron expression (`"0 3 * * *"`) or a nickname such as
+      `"@hourly"`.
+    * `worker` - an `Oban.Worker` module of this package.
+
+  **One entry per worker.** The installer decides whether an entry is already there by the
+  worker's name, so a worker has one schedule and no `args`.
+
+  The entry goes into the host's config whether or not the module is enabled; the worker
+  itself should do nothing while its module is off. The worker's queue must exist: use a
+  core queue (`default`, ...) or declare it in `c:oban_queues/0`, otherwise
+  `mix phoenix_kit.doctor` warns. A schedule the host wrote is never changed, and an entry
+  the host commented out of its crontab is left out.
+
+  ## Example
+
+      @impl PhoenixKit.Module
+      def oban_crons, do: [{"0 3 * * *", MyModule.Workers.NightlyRebuild}]
+
+  Modules with no scheduled jobs skip this callback — the default is `[]`.
+  """
+  @callback oban_crons() :: [{String.t(), module()}]
+
+  @doc """
   Returns top-level route path segments this module owns for its own
   LiveViews/controllers (e.g. a host app declares `live "/legal", LegalLive`
   and this module IS the "legal" feature).
@@ -646,6 +677,7 @@ defmodule PhoenixKit.Module do
     js_sources: 0,
     sitemap_sources: 0,
     oban_queues: 0,
+    oban_crons: 0,
     reserved_route_prefixes: 0,
     migrate_legacy: 0,
     email_settings_sections: 0,
@@ -722,6 +754,9 @@ defmodule PhoenixKit.Module do
       def oban_queues, do: []
 
       @impl PhoenixKit.Module
+      def oban_crons, do: []
+
+      @impl PhoenixKit.Module
       def reserved_route_prefixes, do: []
 
       @impl PhoenixKit.Module
@@ -758,6 +793,7 @@ defmodule PhoenixKit.Module do
                      js_sources: 0,
                      sitemap_sources: 0,
                      oban_queues: 0,
+                     oban_crons: 0,
                      reserved_route_prefixes: 0,
                      migrate_legacy: 0,
                      email_settings_sections: 0,
