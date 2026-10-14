@@ -22,7 +22,7 @@ defmodule PhoenixKitWeb.Components.Core.EmptyState do
   - `title` — Required heading text.
   - `icon` — Optional Heroicon name shown above the title.
   - `description` — Optional sub-text below the title.
-  - `variant` — `"compact"` (default) or `"featured"`.
+  - `variant` — `"compact"` (default), `"card"` or `"featured"`.
   - `class` — Extra classes on the wrapper. `compact` defaults to
     `py-16` when this is `nil`; pass `"py-10"` etc. to override.
 

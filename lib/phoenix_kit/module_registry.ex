@@ -8,9 +8,10 @@ defmodule PhoenixKit.ModuleRegistry do
 
   ## External Module Registration
 
-  External hex packages are auto-discovered. Just add the dep:
+  External hex packages are auto-discovered. Just add the dep, at the
+  package's current release:
 
-      {:phoenix_kit_hello_world, "~> 0.1.0"}
+      {:phoenix_kit_hello_world, "~> X.Y"}
 
   For explicit registration (backwards compatible):
 
