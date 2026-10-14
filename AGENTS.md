@@ -136,7 +136,7 @@ Full reference: `dev_docs/guides/2026-07-28-login-and-registration.md`. All sett
 - **Active role** (`PhoenixKit.Users.ActiveRole`, opt-in `role_switcher_enabled`): a user with 2+ switchable roles acts as one **per session**, and `Scope.for_user/1` narrows `cached_roles`/`cached_permissions` to it. Default = first held role in role order (`/admin/users/roles`). Guide: `dev_docs/guides/2026-09-13-active-role.md`.
   - ⚠️ **The active role lives on the session token** (`phoenix_kit_users_tokens.active_role_uuid`) and reaches `for_user/1` only through `%User{active_role_uuid: _}`, a virtual field that only the token loader fills. The refresh reloads through `phoenix_kit_session_token`, never by uuid — a by-uuid reload or a session/assign copy silently changes the role.
   - Access decisions read the scope; rules protecting against a user's REAL roles read `Scope.held_roles/1`. `Roles.*`/`User.get_roles` DB reads ignore the active role. Removing a role signs out the sessions acting as it (`Sessions.revoke_user_sessions_in_role/2`).
-  - ⚠️ **Internal `custom_fields` keys: `Auth.merge_user_custom_fields/3`, never a whole-map replace from a struct held in assigns** — a stale replace restores every other key's old value.
+  - ⚠️ **Internal `custom_fields` keys: `Auth.merge_user_custom_fields/3`, never a whole-map replace from a struct held in assigns** — a stale replace restores every other key's old value. The other way round, `custom_fields` passed to `Auth.update_user_profile/2` / `User.profile_changeset/3` is the account holder's input: only defined, user-accessible fields are kept (`CustomFields.cast_user_input/2`), so system code never writes its keys through it.
 
 ## Languages
 
@@ -159,7 +159,7 @@ Track business-level actions via `PhoenixKit.Activity.log/1` (`action: "resource
 
 - ⚠️ Notifications fan out via `Notifications.maybe_create_from_activity/1` when `target_uuid != actor_uuid` — **never insert `phoenix_kit_notifications` rows directly**. Kill switch: `notifications_enabled`.
 - ⚠️ `DigestWorker` runs ONLY from cron, so `mix phoenix_kit.update` must **backfill those entries into existing hosts** (`ObanConfig.ensure_digest_cron_entries/2`) — a digest cadence suppresses the per-event inbox row, so a missing entry drops the notification entirely.
-- **External modules** — call `PhoenixKit.Activity.log/3` (module key, action, options; never raises, so no guard or rescue) and read the actor with `PhoenixKitWeb.Actor`, never from assigns by hand. ⚠️ Both are absent from core ≤ 2.37.5 and modules stay on the open `~> 2.0` pin, so feature-detect (`function_exported?(PhoenixKit.Activity, :log, 3)` after `Code.ensure_loaded?/1`; same for `PhoenixKitWeb.Actor`) and keep the old path as the fallback until the module's floor is raised.
+- **External modules** — call `PhoenixKit.Activity.log/3` (module key, action, options; never raises, so no guard or rescue) and read the actor with `PhoenixKitWeb.Actor`, never from assigns by hand. ⚠️ Both are absent from core ≤ 2.37.5. A module declares its core floor as a compound requirement in `mix.exs` (`">= 2.38.0 and < 3.0.0"`) and calls them directly when that floor is 2.38.0 or later; a module on a lower floor feature-detects (`function_exported?(PhoenixKit.Activity, :log, 3)` after `Code.ensure_loaded?/1`; same for `PhoenixKitWeb.Actor`) and keeps the old path as the fallback.
 - **Cleanup:** `activity_retention_days` / `notifications_retention_days` (default 90); daily PruneWorkers via Oban.
 
 ## External Module Packages

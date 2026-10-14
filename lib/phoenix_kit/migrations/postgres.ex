@@ -7,7 +7,13 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V217 - Renditions that keep HDR ⚡ LATEST
+  ### V218 - Sync requests per minute default to 600 ⚡ LATEST
+
+  `phoenix_kit_sync_connections.rate_limit_requests_per_minute` defaults to 600
+  (was 60, which nothing enforced). Connections still at 60, the old default, are
+  raised to 600; any other value is kept. A rollback restores the default only.
+
+  ### V217 - Renditions that keep HDR
 
   `phoenix_kit_storage_dimensions.options` (`jsonb`, default `{}`) holds the rendition's
   crop mode, fixed side, shape and HDR choice. The three former option columns are
@@ -983,7 +989,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 217
+  @current_version 218
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

@@ -1311,7 +1311,7 @@ end
 
 ### Versioned migrations
 
-See the hello_world README for a complete migration coordinator example with V01, V02, install task, and upgrade workflow.
+See the hello_world README ("Versioned migrations") for the migration coordinator template and the upgrade workflow. A module has no install task of its own: `mix phoenix_kit.update` finds the coordinator through `migration_module/0` and generates the host migration.
 
 Key rules:
 - Version modules are immutable — never edit a shipped V01

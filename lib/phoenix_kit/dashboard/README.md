@@ -1344,7 +1344,7 @@ separator: false    # Disable separator entirely
 
 ## Localizing Tab and Group Labels
 
-PhoenixKit 1.8+ supports optional gettext-driven translation of tab and group labels via two new fields: `gettext_backend` and `gettext_domain`.
+Tab and group labels can be translated through gettext via two optional fields: `gettext_backend` and `gettext_domain`.
 
 ### Fields
 

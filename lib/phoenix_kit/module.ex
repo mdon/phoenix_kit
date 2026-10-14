@@ -90,9 +90,23 @@ defmodule PhoenixKit.Module do
   - `migration_module/0` - Module implementing versioned migrations (default: `nil`).
     When set, `mix phoenix_kit.update` will automatically run this module's migrations
     alongside the core PhoenixKit migrations.
+  - `required_modules/0` - Keys of the modules this one needs enabled (default: `[]`)
   - `required_integrations/0` - Integration provider keys this module needs (default: `[]`).
     Used by the Integrations settings page to show relevant providers.
   - `integration_providers/0` - Additional provider definitions this module contributes (default: `[]`).
+  - `notification_types/0` - Notification types this module contributes (default: `[]`)
+  - `notification_channels/0` - Modules implementing `PhoenixKit.Notifications.Channel`
+    this module contributes (default: `[]`)
+  - `before_user_delete/1` - Hook called before a user row is deleted. No default:
+    it is called only on a module that defines it.
+  - `resource_links/0` - How this module's resource types deep-link to their pages
+    (default: `%{}`). See `PhoenixKit.ResourceLinks`.
+  - `css_sources/0` - Tailwind CSS source roots to scan (default: `[]`)
+  - `js_sources/0` - JavaScript hook bundles for the host's `LiveSocket` (default: `[]`)
+  - `sitemap_sources/0` - Sitemap source modules this module contributes (default: `[]`)
+  - `oban_queues/0` - Oban queues this module's jobs run in (default: `[]`)
+  - `reserved_route_prefixes/0` - Top-level route segments this module owns (default: `[]`)
+  - `migrate_legacy/0` - One-shot legacy data migrations this module owns (default: `:ok`)
   - `email_settings_sections/0` - Sections this module contributes to the core Emails
     Transactional settings page (default: `[]`).
   - `email_templates/0` - Emails this module sends, for the admin email preview
@@ -454,7 +468,7 @@ defmodule PhoenixKit.Module do
   - Be idempotent — safe to call on every host-app boot. Use cheap
     short-circuit guards (a "completed_at" setting, "no rows need
     migration" check, etc.) so repeat runs do nothing.
-  - Log activity (`PhoenixKit.Activity.log/1`) for every record actually
+  - Log activity (`PhoenixKit.Activity.log/3`) for every record actually
     migrated, with `mode: "auto"`. Operators can audit the migration
     via the activity feed.
   - Never raise — wrap risky paths in `try/rescue` and return

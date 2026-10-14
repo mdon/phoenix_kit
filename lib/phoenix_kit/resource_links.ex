@@ -4,19 +4,32 @@ defmodule PhoenixKit.ResourceLinks do
   the underlying resource — the record an action happened on or a comment is
   attached to.
 
-  Two-tier resolution, tried in order per `resource_type`:
+  Three-tier resolution, tried in order per `resource_type`; the first tier
+  that returns anything wins:
 
   1. **Handler modules** — a module registered for the type that exports
      `resolve_comment_resources/1`, returning `%{uuid => %{title, path, thumb_url?}}`
      with a **raw** phoenix_kit path (`Routes.path/1` is applied once at render
      time — pre-applying it would double-prefix under a non-root `url_prefix`).
-     Auto-registered when the module is loaded: `"post" => PhoenixKitPosts`,
-     `"file" => PhoenixKit.Annotations`, `"user" => PhoenixKit.Users.CommentResources`.
-     Hosts add more via `config :phoenix_kit, :comment_resource_handlers`.
+     The registry (`handlers/0`) merges, in increasing precedence: the core
+     defaults, auto-registered when the module is loaded (`"post" => PhoenixKitPosts`,
+     `"file" => PhoenixKit.Annotations`,
+     `"integration" => PhoenixKit.Integrations.ResourceLinks`,
+     `"user" => PhoenixKit.Users.CommentResources`); the entries of every
+     discovered module's `c:PhoenixKit.Module.resource_links/0` callback whose
+     value is a module; and the host's
+     `config :phoenix_kit, :comment_resource_handlers`.
 
-  2. **String path templates** — the `comment_resource_paths` setting, a no-code
-     JSON map (`%{"shoes" => "/order/shoes/:uuid"}`) with `:uuid` / `:prefix` /
-     `:metadata.<key>` placeholders.
+  2. **Module path templates** — the `c:PhoenixKit.Module.resource_links/0`
+     entries whose value is a string or a `%{"path" => ..., "title" => ...}`
+     map. They name internal phoenix_kit routes, so the result is `prefixed: true`.
+
+  3. **Host path templates** — the `comment_resource_paths` setting, a no-code
+     JSON map (`%{"shoes" => "/order/shoes/:uuid"}`). The result is
+     `prefixed: false`.
+
+  Both template tiers take the `:uuid` / `:prefix` / `:metadata.<key>`
+  placeholders.
 
   Shared by the Comments moderation admin (`PhoenixKitComments` delegates here)
   and the Activity feed. The handler contract and setting name keep the

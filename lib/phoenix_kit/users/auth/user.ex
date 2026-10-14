@@ -25,6 +25,7 @@ defmodule PhoenixKit.Users.Auth.User do
   import Ecto.Changeset
 
   alias PhoenixKit.Modules.Languages
+  alias PhoenixKit.Users.CustomFields
   alias PhoenixKit.Users.Roles
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Slug
@@ -491,6 +492,17 @@ defmodule PhoenixKit.Users.Auth.User do
       using this changeset for validations on a LiveView form before
       submitting the form), this option can be set to `false`.
       Defaults to `true`.
+
+  ## Custom fields
+
+  `attrs` here is what a profile form posted, so a `custom_fields` entry is
+  treated as the account holder's input and never cast as a whole map:
+  `PhoenixKit.Users.CustomFields.cast_user_input/2` keeps the keys that are
+  defined, user-accessible custom fields, validates their values, and the
+  result is merged over the stored map. Every other stored key keeps its
+  value, and no other key can be written this way. System code writes its own
+  keys through `PhoenixKit.Users.Auth.merge_user_custom_fields/3` or
+  `update_user_custom_fields/3`.
   """
   def profile_changeset(user, attrs, opts \\ []) do
     user
@@ -501,7 +513,6 @@ defmodule PhoenixKit.Users.Auth.User do
       :google_email,
       :username,
       :user_timezone,
-      :custom_fields,
       :organization_name
     ])
     |> validate_names()
@@ -509,8 +520,43 @@ defmodule PhoenixKit.Users.Auth.User do
     |> validate_google_email()
     |> validate_username(opts)
     |> validate_user_timezone()
-    |> validate_custom_fields()
+    |> cast_user_custom_fields(attrs)
   end
+
+  defp cast_user_custom_fields(changeset, attrs) do
+    case submitted_custom_fields(attrs) do
+      nil ->
+        changeset
+
+      submitted when is_map(submitted) ->
+        stored = changeset.data.custom_fields || %{}
+        {accepted, errors} = CustomFields.cast_user_input(stored, submitted)
+
+        changeset =
+          Enum.reduce(errors, changeset, fn {key, {message, error_opts}}, acc ->
+            add_error(acc, :custom_fields, message, [field: key] ++ error_opts)
+          end)
+
+        if map_size(accepted) == 0 do
+          changeset
+        else
+          put_change(changeset, :custom_fields, Map.merge(stored, accepted))
+        end
+
+      _other ->
+        add_error(changeset, :custom_fields, "must be a valid map")
+    end
+  end
+
+  defp submitted_custom_fields(%{} = attrs) do
+    case attrs do
+      %{"custom_fields" => submitted} -> submitted
+      %{custom_fields: submitted} -> submitted
+      _ -> nil
+    end
+  end
+
+  defp submitted_custom_fields(_attrs), do: nil
 
   @doc """
   A user changeset for updating active status.
