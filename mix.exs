@@ -453,7 +453,6 @@ defmodule PhoenixKit.MixProject do
       main: "PhoenixKit",
       extras: [
         "README.md",
-        "CHANGELOG.md",
         "guides/integration.md",
         "guides/oauth-and-magic-link-setup.md",
         "guides/aws-email-setup.md",
@@ -472,14 +471,84 @@ defmodule PhoenixKit.MixProject do
         Guides: ~r/(guides\/.*|ADMIN_README)/
       ],
       groups_for_modules: [],
-      # CHANGELOG is a historical record — entries cite functions/
-      # modules that may have since been renamed, made private, or
-      # extracted to another package (e.g. external Ecto modules
-      # referenced by code spans). Don't fail the docs build over
-      # stale historical references; module-level docs still get
-      # full reference checking.
-      skip_undefined_reference_warnings_on: ["CHANGELOG.md"]
+      filter_modules: &doc_module?/2,
+      skip_code_autolink_to: &skip_autolink?/1
     ]
+  end
+
+  # Namespaces kept off HexDocs. hex.pm's search index keeps every version of
+  # every package, and a release that documents ~700 modules (~8,000 entries)
+  # got HexDocs search disabled for this package. Everything below is either
+  # internal plumbing (migration chain, installer, LiveViews, workers) or the
+  # feature modules, whose own packages/guides document them. A top-level
+  # module of a hidden namespace (e.g. `PhoenixKit.Email`) stays documented;
+  # only its submodules are filtered. Prefer `@moduledoc false` on new
+  # internal modules; this list is for whole subtrees.
+  @undocumented_prefixes ~w(
+    PhoenixKit.Migrations.
+    PhoenixKit.Modules.
+    PhoenixKit.Install.
+    PhoenixKit.Jobs.
+    PhoenixKit.ScheduledJobs.
+    PhoenixKit.Email.
+    PhoenixKit.Integrations.
+    PhoenixKit.Notifications.
+    PhoenixKit.Mentions.
+    PhoenixKit.WebsiteAccess.
+    PhoenixKit.Annotations.
+    PhoenixKit.AuditLog.
+    PhoenixKit.AWS.
+    PhoenixKit.Admin.
+    PhoenixKit.Config.
+    PhoenixKit.Settings.
+    PhoenixKit.Users.Auth.UserNotifier
+    PhoenixKit.Users.OAuth
+    PhoenixKit.Users.QrLogin
+    PhoenixKit.Users.MagicLinkRegistration
+    PhoenixKit.Users.Referrals
+    PhoenixKit.Users.LoginAttempt
+    PhoenixKit.Users.LoginAlerts
+    PhoenixKit.Users.TimeZoneAlert
+    PhoenixKit.Users.ViewPref
+    PhoenixKit.Users.TableColumns
+    PhoenixKit.Users.WelcomeEmail
+    PhoenixKit.Users.AvatarCrop
+    PhoenixKit.Users.CommentResources
+    PhoenixKit.Users.AdminNote
+    PhoenixKit.Users.ScopeNotifier
+    PhoenixKit.Users.OrganizationInvitation
+    PhoenixKit.Users.RateLimiter.
+    PhoenixKit.Users.CustomFields.
+    PhoenixKit.Utils.CountryData
+    PhoenixKit.Dashboard.Presence
+    PhoenixKit.Dashboard.TabHelpers
+    PhoenixKit.Dashboard.AdminTabs
+    PhoenixKit.Workers.
+    PhoenixKit.Conformance
+    PhoenixKit.TestSupport
+    PhoenixKit.Supervisor
+    PhoenixKit.Application
+    PhoenixKitWeb.Live.
+    PhoenixKitWeb.Users.
+    PhoenixKitWeb.Plugs.
+    PhoenixKitWeb.Components.Core.
+    PhoenixKitWeb.Components.Dashboard.
+  )
+
+  # ExDoc `:filter_modules` callback. Also hides Ecto schemas and Oban/queue
+  # workers: both are reached through their context module, never called.
+  defp doc_module?(module, _metadata) do
+    name = inspect(module)
+
+    not (Enum.any?(@undocumented_prefixes, &String.starts_with?(name, &1)) or
+           String.ends_with?(name, "Worker") or
+           (module != PhoenixKit.Users.Auth.User and function_exported?(module, :__schema__, 1)))
+  end
+
+  # Silences "reference to a filtered module" for backticked mentions of the
+  # namespaces above: they stay plain code spans instead of dead links.
+  defp skip_autolink?(reference) do
+    Enum.any?(@undocumented_prefixes, &String.starts_with?(reference, &1))
   end
 
   # Development aliases
