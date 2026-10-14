@@ -35,6 +35,23 @@ defmodule PhoenixKitWeb.Components.Core.DateNav do
 
   The date is written with `PhoenixKit.Utils.Date.short_with_year/1`, in
   the viewer's language.
+
+  ## A week at a time, and views with no URL
+
+  `step` is how many days one press moves, and `label` what stands between
+  the arrows in the date's place. A view that cannot patch — a LiveView
+  nested in another page — passes `event` instead of `path`: the arrows and
+  the way back to today then send it with `%{"date" => "YYYY-MM-DD"}`.
+
+      <.date_nav
+        id="timesheet-week"
+        date={@week}
+        today={@this_week}
+        step={7}
+        label={"\#{short(@week)} – \#{short(Date.add(@week, 6))}"}
+        today_label={gettext("This week")}
+        event="sheet_week"
+      />
   """
 
   use Phoenix.Component
@@ -45,8 +62,36 @@ defmodule PhoenixKitWeb.Components.Core.DateNav do
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
   attr :date, Date, required: true
-  attr :path, :any, required: true, doc: "1-arity function: `Date.t()` → the URL for that date"
+
+  attr :path, :any,
+    default: nil,
+    doc: "1-arity function: `Date.t()` → the URL for that date. Required unless `event` is set."
+
+  attr :event, :string,
+    default: nil,
+    doc:
+      "Instead of patch links: the buttons send this event with `%{\"date\" => \"YYYY-MM-DD\"}`. " <>
+        "For a view with no URL of its own — a LiveView nested in another page, a tab."
+
+  attr :target, :any, default: nil, doc: "`phx-target` for `event`."
+
+  attr :step, :integer,
+    default: 1,
+    doc: "Days one press moves: `7` steps a week at a time (`date` is then the week's first day)."
+
+  attr :label, :string,
+    default: nil,
+    doc:
+      "What stands between the arrows instead of the date (and the picker): " <>
+        "\"Oct 12 – Oct 18\" for a week."
+
   attr :today, Date, default: nil, doc: "The viewer's today (default: UTC today)"
+
+  attr :today_label, :string,
+    default: nil,
+    doc:
+      "The word for the way back to `today` (default \"Today\"; \"This week\" with `step={7}`)."
+
   attr :min, Date, default: nil
   attr :max, Date, default: nil
   attr :picker, :boolean, default: true
@@ -57,38 +102,39 @@ defmodule PhoenixKitWeb.Components.Core.DateNav do
 
   def date_nav(assigns) do
     today = assigns.today || Date.utc_today()
-    prev = Date.add(assigns.date, -1)
-    next = Date.add(assigns.date, 1)
+    step = max(assigns.step, 1)
+    prev = Date.add(assigns.date, -step)
+    next = Date.add(assigns.date, step)
 
     assigns =
       assigns
       |> assign(:today_date, today)
       |> assign(:prev, if(before_min?(prev, assigns.min), do: nil, else: prev))
       |> assign(:next, if(after_max?(next, assigns.max), do: nil, else: next))
+      |> assign(
+        :prev_label,
+        if(step == 1, do: gettext("Previous day"), else: gettext("Previous"))
+      )
+      |> assign(:next_label, if(step == 1, do: gettext("Next day"), else: gettext("Next")))
+      |> assign(:today_word, assigns.today_label || gettext("Today"))
+      # A label replaces the date between the arrows, and with it the picker:
+      # a native date input picks a day, which is not what a week is.
+      |> assign(:show_picker?, assigns.picker and is_nil(assigns.label))
 
     ~H"""
     <div id={@id} class={["flex flex-wrap items-center gap-2", @class]} {@rest}>
       <div class="join">
-        <.link
-          :if={@prev}
-          patch={@path.(@prev)}
-          class="btn btn-sm join-item"
-          aria-label={gettext("Previous day")}
-          title={gettext("Previous day")}
-        >
-          <.icon name="hero-chevron-left" class="w-4 h-4" />
-        </.link>
-        <span
-          :if={is_nil(@prev)}
-          class="btn btn-sm join-item btn-disabled"
-          aria-disabled="true"
-          aria-label={gettext("Previous day")}
-        >
-          <.icon name="hero-chevron-left" class="w-4 h-4" />
-        </span>
+        <.step_button
+          to={@prev}
+          path={@path}
+          event={@event}
+          target={@target}
+          label={@prev_label}
+          icon="hero-chevron-left"
+        />
 
         <form
-          :if={@picker}
+          :if={@show_picker?}
           id={"#{@id}-picker"}
           phx-change={@pick_event}
           class="join-item"
@@ -104,43 +150,80 @@ defmodule PhoenixKitWeb.Components.Core.DateNav do
             class="input input-sm join-item rounded-none w-38"
           />
         </form>
-        <span :if={!@picker} class="btn btn-sm join-item pointer-events-none font-normal">
-          {UtilsDate.short_with_year(@date)}
+        <span :if={!@show_picker?} class="btn btn-sm join-item pointer-events-none font-normal">
+          {@label || UtilsDate.short_with_year(@date)}
         </span>
 
-        <.link
-          :if={@next}
-          patch={@path.(@next)}
-          class="btn btn-sm join-item"
-          aria-label={gettext("Next day")}
-          title={gettext("Next day")}
-        >
-          <.icon name="hero-chevron-right" class="w-4 h-4" />
-        </.link>
-        <span
-          :if={is_nil(@next)}
-          class="btn btn-sm join-item btn-disabled"
-          aria-disabled="true"
-          aria-label={gettext("Next day")}
-        >
-          <.icon name="hero-chevron-right" class="w-4 h-4" />
-        </span>
+        <.step_button
+          to={@next}
+          path={@path}
+          event={@event}
+          target={@target}
+          label={@next_label}
+          icon="hero-chevron-right"
+        />
       </div>
 
-      <.link
-        :if={
-          @date != @today_date and not after_max?(@today_date, @max) and
-            not before_min?(@today_date, @min)
-        }
-        patch={@path.(@today_date)}
-        class="btn btn-sm btn-ghost"
-      >
-        {gettext("Today")}
-      </.link>
+      <%= if @date != @today_date and not after_max?(@today_date, @max) and not before_min?(@today_date, @min) do %>
+        <button
+          :if={@event}
+          type="button"
+          phx-click={@event}
+          phx-value-date={Date.to_iso8601(@today_date)}
+          phx-target={@target}
+          class="btn btn-sm btn-ghost"
+        >
+          {@today_word}
+        </button>
+        <.link :if={!@event} patch={@path.(@today_date)} class="btn btn-sm btn-ghost">
+          {@today_word}
+        </.link>
+      <% end %>
       <span :if={@date == @today_date} class="text-sm text-base-content/60">
-        {gettext("Today")}
+        {@today_word}
       </span>
     </div>
+    """
+  end
+
+  attr :to, Date, default: nil
+  attr :path, :any, default: nil
+  attr :event, :string, default: nil
+  attr :target, :any, default: nil
+  attr :label, :string, required: true
+  attr :icon, :string, required: true
+
+  # One arrow: a patch link, a button sending `event`, or — at `min` / `max`
+  # — the same shape, disabled.
+  defp step_button(%{to: nil} = assigns) do
+    ~H"""
+    <span class="btn btn-sm join-item btn-disabled" aria-disabled="true" aria-label={@label}>
+      <.icon name={@icon} class="w-4 h-4" />
+    </span>
+    """
+  end
+
+  defp step_button(%{event: event} = assigns) when is_binary(event) do
+    ~H"""
+    <button
+      type="button"
+      phx-click={@event}
+      phx-value-date={Date.to_iso8601(@to)}
+      phx-target={@target}
+      class="btn btn-sm join-item"
+      aria-label={@label}
+      title={@label}
+    >
+      <.icon name={@icon} class="w-4 h-4" />
+    </button>
+    """
+  end
+
+  defp step_button(assigns) do
+    ~H"""
+    <.link patch={@path.(@to)} class="btn btn-sm join-item" aria-label={@label} title={@label}>
+      <.icon name={@icon} class="w-4 h-4" />
+    </.link>
     """
   end
 

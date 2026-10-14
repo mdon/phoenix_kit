@@ -43,7 +43,10 @@ defmodule PhoenixKitWeb.Components.Core.Select do
       <%!-- Required marker, kept in sync with `<.input>` — a `required` select
            whose label came from the caller used to lose the red asterisk the
            hand-rolled markup had. --%>
-      <.label :if={@label && @label != ""} for={@id} class="block" required={!!@rest[:required]}>
+      <%!-- No extra class: `block` here made a select's label a different
+           box from the `<.input>` label beside it (24px tall against 16px),
+           so a row of mixed fields sat on two baselines. --%>
+      <.label :if={@label && @label != ""} for={@id} required={!!@rest[:required]}>
         {@label}
       </.label>
 

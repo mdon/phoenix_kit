@@ -179,4 +179,38 @@ defmodule PhoenixKitWeb.Components.Core.SearchPickerTest do
       assert html =~ ~s(inputmode="search")
     end
   end
+
+  describe "chosen" do
+    test "a picked value is drawn in the input's place, with a clear button" do
+      assigns = %{}
+
+      html =
+        render(~H"""
+        <.search_picker
+          id="task"
+          dropdown_id="task-list"
+          chosen="Cut the panels"
+          clear_event="unpick"
+          clear_label="Clear task"
+          class="input input-sm w-full"
+        />
+        """)
+
+      assert html =~ "Cut the panels"
+      assert html =~ "data-picker-chosen"
+      assert html =~ ~s(phx-click="unpick")
+      assert html =~ ~s(phx-value-id="task")
+      assert html =~ ~s(aria-label="Clear task")
+      # Same box as the input it replaces; no search hook while chosen.
+      assert html =~ "input input-sm w-full"
+      refute html =~ ~s(phx-hook="SearchPicker")
+    end
+
+    test "nothing chosen is the ordinary picker" do
+      assigns = %{}
+      html = render(~H|<.search_picker id="task" dropdown_id="task-list" chosen={nil} />|)
+      assert html =~ ~s(phx-hook="SearchPicker")
+      refute html =~ "data-picker-chosen"
+    end
+  end
 end

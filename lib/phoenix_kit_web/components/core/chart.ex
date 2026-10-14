@@ -410,16 +410,45 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
   with no JS. Negative values hang below the baseline instead of
   disappearing. A datum may set `class:` to colour one bar differently
   (`%{label: "Fri", value: 22, class: "text-error"}`).
+
+  ## Stacked bars
+
+  A datum with `parts:` is drawn as one bar of several segments, bottom to
+  top in the order given — hours per day by person, spend per month by
+  category. Each part is `%{value: number, class: string, label: term}`;
+  the bar's height is the sum of its parts, and its tooltip lists them.
+
+      <.bar_chart
+        id="hours"
+        y_max={480}
+        data={[
+          %{label: "Mon", parts: [
+            %{label: "Ada", value: 120, class: "text-primary"},
+            %{label: "Bot", value: 300, class: "text-secondary"}
+          ]}
+        ]}
+      />
+
+  A part with a value of zero or less, or one that is not a number, is
+  left out. `y_max` fixes the top of the scale (a round figure the page
+  also prints beside its own axis); without it the tallest bar touches the
+  top.
   """
   attr :id, :string, required: true, doc: "Unique id (applied to the SVG element)"
 
   attr :data, :list,
     required: true,
-    doc: "List of %{label: term, value: number, class: optional_string}"
+    doc:
+      "List of %{label: term, value: number, class: optional_string}, or — stacked — " <>
+        "%{label: term, parts: [%{value: number, class: string, label: term}]}"
 
   attr :width, :integer, default: 960
   attr :height, :integer, default: 200
   attr :show_labels, :boolean, default: false, doc: "Render labels beneath the bars"
+
+  attr :y_max, :any,
+    default: nil,
+    doc: "The value at the top of the scale. Default: the tallest bar."
 
   attr :baseline, :boolean,
     default: true,
@@ -471,19 +500,34 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
           vector-effect="non-scaling-stroke"
         />
 
-        <rect
-          :for={bar <- @geometry.bars}
-          x={bar.x}
-          y={bar.y}
-          width={bar.w}
-          height={bar.h}
-          rx="2"
-          fill="currentColor"
-          fill-opacity="0.75"
-          class={bar.class}
-        >
-          <title>{bar.title}</title>
-        </rect>
+        <%= for bar <- @geometry.bars do %>
+          <rect
+            :if={bar.segments == []}
+            x={bar.x}
+            y={bar.y}
+            width={bar.w}
+            height={bar.h}
+            rx="2"
+            fill="currentColor"
+            fill-opacity="0.75"
+            class={bar.class}
+          >
+            <title>{bar.title}</title>
+          </rect>
+          <%!-- A stacked bar: one group (one tooltip), a rect per part. --%>
+          <g :if={bar.segments != []}>
+            <title>{bar.title}</title>
+            <rect
+              :for={seg <- bar.segments}
+              x={bar.x}
+              y={seg.y}
+              width={bar.w}
+              height={seg.h}
+              fill="currentColor"
+              class={seg.class}
+            />
+          </g>
+        <% end %>
       </svg>
 
       <div :if={@geometry && @show_labels} class="flex text-xs opacity-60 font-mono mt-1 shrink-0">
@@ -917,7 +961,7 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
         # The baseline is always inside the domain, even when every value sits
         # on one side of it.
         v_min = values |> Enum.min() |> min(0)
-        v_max = values |> Enum.max() |> max(0)
+        v_max = values |> Enum.max() |> max(0) |> top_of(numeric(Map.get(assigns, :y_max)))
         span = max(v_max - v_min, 1.0e-9)
 
         plot_h = height - 4
@@ -970,10 +1014,31 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
         h: h,
         label: label_text(bar.label),
         class: bar.class,
-        title: bar_title(bar, formatter)
+        title: bar_title(bar, formatter),
+        segments: segments(bar, round1(y), h)
       }
     end)
   end
+
+  # The scale's top: the caller's `y_max` when it clears the tallest bar (a
+  # smaller one would push bars out of the box, so it is ignored).
+  defp top_of(v_max, y_max) when is_number(y_max) and y_max > v_max, do: y_max
+  defp top_of(v_max, _y_max), do: v_max
+
+  # A stacked bar's parts as rects inside the bar's own box, bottom first:
+  # each takes its share of the bar's height.
+  defp segments(%{parts: [_ | _] = parts, value: total}, y, h) when total > 0 do
+    {segs, _top} =
+      Enum.map_reduce(parts, y + h, fn part, bottom ->
+        seg_h = round1(h * part.value / total)
+        top = bottom - seg_h
+        {%{y: round1(top), h: seg_h, class: part.class}, top}
+      end)
+
+    segs
+  end
+
+  defp segments(_bar, _y, _h), do: []
 
   # Accepts the same shapes as line_chart's points, plus {label, value} tuples —
   # a caller who reaches for one and gets a silently blank chart has no way to
@@ -985,6 +1050,25 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
   end
 
   defp normalize_bars(_), do: []
+
+  # Stacked: the bar's value is the sum of its usable parts.
+  defp bar(%{parts: parts} = datum) when is_list(parts) do
+    parts =
+      for part <- parts,
+          is_map(part),
+          value = numeric(Map.get(part, :value) || Map.get(part, "value")),
+          is_number(value) and value > 0 do
+        %{
+          value: value,
+          class: Map.get(part, :class) || Map.get(part, "class"),
+          label: Map.get(part, :label) || Map.get(part, "label")
+        }
+      end
+
+    total = parts |> Enum.map(& &1.value) |> Enum.sum()
+
+    %{value: total, label: Map.get(datum, :label), class: Map.get(datum, :class), parts: parts}
+  end
 
   defp bar(%{value: value} = datum),
     do: build_bar(value, Map.get(datum, :label), Map.get(datum, :class))
@@ -999,8 +1083,21 @@ defmodule PhoenixKitWeb.Components.Core.Chart do
   defp build_bar(value, label, class) do
     case numeric(value) do
       nil -> nil
-      n -> %{value: n, label: label, class: class}
+      n -> %{value: n, label: label, class: class, parts: []}
     end
+  end
+
+  # A stacked bar says its total, then each part on its own line.
+  defp bar_title(%{parts: [_ | _] = parts} = bar, formatter) do
+    lines =
+      Enum.map(parts, fn part ->
+        case label_text(part.label) do
+          nil -> display(part.value, formatter)
+          label -> "#{label}: #{display(part.value, formatter)}"
+        end
+      end)
+
+    Enum.join([bar_title(%{bar | parts: []}, formatter) | lines], "\n")
   end
 
   defp bar_title(%{label: nil, value: value}, formatter), do: display(value, formatter)

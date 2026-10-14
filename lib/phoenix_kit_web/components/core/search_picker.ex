@@ -56,6 +56,27 @@ defmodule PhoenixKitWeb.Components.Core.SearchPicker do
 
   The chips themselves stay consumer-rendered — their look and remove
   semantics differ per feature.
+
+  ## One choice at a time (`chosen`)
+
+  A filter or a form field that holds ONE picked record — "which task",
+  "whose time" — is the same three steps everywhere: search, pick, show
+  what was picked with a way to clear it. Pass `chosen` (the picked
+  record's label) and the component draws that last state itself, in the
+  input's place and at its size, with an × that sends `clear_event`:
+
+      <.search_picker
+        id="task-filter"
+        dropdown_id="task-filter-list"
+        chosen={@task && @task.title}
+        clear_event="clear_task"
+        search_on_focus
+        close_on_pick
+        placeholder={gettext("All tasks")}
+      />
+
+  With `chosen` nil it is the ordinary picker. The pick still arrives as
+  `pick_event`; store the record and re-render with its label.
   """
 
   use Phoenix.Component
@@ -138,11 +159,44 @@ defmodule PhoenixKitWeb.Components.Core.SearchPicker do
   attr :loading_more_label, :string, default: "Loading…"
   attr :no_matches_label, :string, default: "No matches"
   attr :close_on_pick, :boolean, default: false
+
+  attr :chosen, :string,
+    default: nil,
+    doc: "The picked record's label: shown in the input's place, with a clear button."
+
+  attr :clear_event, :string,
+    default: "picker_clear",
+    doc: "Sent (with the picker's `id`) when the chosen value's × is pressed."
+
+  attr :clear_label, :string, default: "Clear"
   attr :row_layout, :string, default: "inline", values: ["inline", "stacked"]
 
   attr :rest, :global,
     include:
       ~w(form maxlength minlength required disabled readonly autofocus inputmode enterkeyhint autocapitalize spellcheck pattern)
+
+  def search_picker(%{chosen: chosen} = assigns) when is_binary(chosen) and chosen != "" do
+    ~H"""
+    <%!-- The input's own classes, so the chosen value is the same box the
+         picker was (size, border, width); the hook is not mounted. --%>
+    <div class="relative">
+      <span id={@id} class={[@class, "flex items-center gap-1 pr-1"]} data-picker-chosen>
+        <span class="truncate flex-1 min-w-0" title={@chosen}>{@chosen}</span>
+        <button
+          type="button"
+          class="btn btn-ghost btn-xs btn-circle shrink-0"
+          phx-click={@clear_event}
+          phx-value-id={@id}
+          phx-target={@target}
+          aria-label={@clear_label}
+          title={@clear_label}
+        >
+          <span class="hero-x-mark w-3.5 h-3.5"></span>
+        </button>
+      </span>
+    </div>
+    """
+  end
 
   def search_picker(assigns) do
     ~H"""
@@ -192,7 +246,7 @@ defmodule PhoenixKitWeb.Components.Core.SearchPicker do
            giving buttons a pointer, so the dropdown rows read as decoration
            without it — and a host that never writes the class by hand would
            otherwise not have it compiled at all. --%>
-      <span class="hidden loading loading-spinner loading-xs hero-user hero-plus-mini cursor-pointer items-start flex-col line-clamp-2 break-words mt-0.5"></span>
+      <span class="hidden loading loading-spinner loading-xs hero-user hero-plus-mini hero-x-mark cursor-pointer items-start flex-col line-clamp-2 break-words mt-0.5"></span>
     </div>
     """
   end
