@@ -47,4 +47,18 @@ defmodule PhoenixKitWeb.Components.Core.SelectTest do
     assert html =~ ~s(<option selected value="24">)
     refute html =~ ~s(<option selected value="1">)
   end
+
+  test "a select's label is the same box as an input's label" do
+    # `block` on the select's label made it 24px tall beside a 16px input
+    # label, so a row of mixed fields sat on two baselines.
+    assigns = %{}
+
+    html =
+      render(~H"""
+      <.select name="country" value="ee" label="Country" options={[{"Estonia", "ee"}]} />
+      """)
+
+    [label] = Regex.run(~r/<label[^>]*>/, html)
+    refute label =~ ~r/class="[^"]*\bblock\b/
+  end
 end

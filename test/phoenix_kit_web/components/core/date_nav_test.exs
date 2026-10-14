@@ -59,4 +59,48 @@ defmodule PhoenixKitWeb.Components.Core.DateNavTest do
       assert DateNav.parse_param("2000-01-01", min: ~D[2026-01-01]) == ~D[2026-01-01]
     end
   end
+
+  describe "a week at a time, with no URL" do
+    defp render_week(extra) do
+      assigns =
+        Map.merge(
+          %{date: ~D[2026-10-12], today: ~D[2026-10-12], label: "Oct 12 – Oct 18"},
+          extra
+        )
+
+      rendered_to_string(~H"""
+      <.date_nav
+        date={@date}
+        today={@today}
+        step={7}
+        label={@label}
+        today_label="This week"
+        event="sheet_week"
+      />
+      """)
+    end
+
+    test "the arrows send the event a week either side" do
+      html = render_week(%{})
+      assert html =~ ~s(phx-click="sheet_week")
+      assert html =~ ~s(phx-value-date="2026-10-05")
+      assert html =~ ~s(phx-value-date="2026-10-19")
+      refute html =~ "data-phx-link"
+      assert html =~ "Previous"
+      refute html =~ "Previous day"
+    end
+
+    test "the label stands between the arrows, without the day picker" do
+      html = render_week(%{})
+      assert html =~ "Oct 12 – Oct 18"
+      refute html =~ ~s(type="date")
+    end
+
+    test "the way back to today is a button with its own word" do
+      html = render_week(%{date: ~D[2026-09-28]})
+      assert html =~ ~s(phx-value-date="2026-10-12")
+      assert html =~ "This week"
+      refute render_week(%{}) =~ "This week</button>"
+    end
+  end
 end

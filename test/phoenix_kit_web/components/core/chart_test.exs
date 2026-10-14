@@ -904,4 +904,75 @@ defmodule PhoenixKitWeb.Components.Core.ChartTest do
       assert Enum.all?(ys, &(&1 >= 0.0 and &1 <= 100.0))
     end
   end
+
+  describe "stacked bars" do
+    test "a datum with parts is one bar of a rect per part, under one tooltip" do
+      assigns = %{
+        data: [
+          %{
+            label: "Mon",
+            parts: [
+              %{label: "Ada", value: 120, class: "text-primary"},
+              %{label: "Bot", value: 60, class: "text-secondary"},
+              %{label: "Nil", value: 0, class: "text-error"}
+            ]
+          }
+        ]
+      }
+
+      html = render(~H|<.bar_chart id="b" data={@data} />|)
+
+      [group] = Regex.run(~r/<g>\s*<title>.*?<\/g>/s, html)
+      assert group =~ "text-primary"
+      assert group =~ "text-secondary"
+      # A part of zero is left out.
+      refute group =~ "text-error"
+      assert length(Regex.scan(~r/<rect/, group)) == 2
+      [title] = Regex.run(~r/<title>(.*?)<\/title>/s, group, capture: :all_but_first)
+      assert title =~ "Ada"
+      assert title =~ "Bot"
+      assert Enum.all?(numeric_attrs(html), &match?({_, ""}, Float.parse(&1)))
+    end
+
+    test "the parts share the bar's height in proportion, bottom first" do
+      assigns = %{
+        data: [
+          %{
+            label: "Mon",
+            parts: [%{label: "a", value: 3, class: "a"}, %{label: "b", value: 1, class: "b"}]
+          }
+        ]
+      }
+
+      html = render(~H|<.bar_chart id="b" data={@data} />|)
+
+      [{ya, ha}, {yb, hb}] =
+        ~r/<rect x="[^"]*" y="([^"]*)" width="[^"]*" height="([^"]*)" fill="currentColor" class="(a|b)"/
+        |> Regex.scan(html, capture: :all_but_first)
+        |> Enum.map(fn [y, h, _] -> {String.to_float(y), String.to_float(h)} end)
+
+      assert_in_delta ha, 3 * hb, 0.2
+      # "a" is drawn first, at the bottom: below "b".
+      assert ya > yb
+    end
+
+    test "y_max sets the top of the scale, but never cuts a taller bar" do
+      assigns = %{data: [%{label: "Mon", value: 50}]}
+      half = render(~H|<.bar_chart id="b" data={@data} y_max={100} />|)
+      full = render(~H|<.bar_chart id="b" data={@data} />|)
+      low = render(~H|<.bar_chart id="b" data={@data} y_max={10} />|)
+
+      height = fn html ->
+        [h] =
+          Regex.run(~r/<rect[^>]*height="([^"]*)"[^>]*fill-opacity/, html,
+            capture: :all_but_first
+          )
+
+        String.to_float(h)
+      end
+
+      assert_in_delta height.(half) * 2, height.(full), 0.5
+      assert height.(low) == height.(full)
+    end
+  end
 end
