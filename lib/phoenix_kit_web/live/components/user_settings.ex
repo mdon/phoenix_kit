@@ -62,6 +62,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Utils.TimeZone
+  alias PhoenixKitWeb.Components.Core.Input, as: CoreInput
   alias PhoenixKitWeb.Components.MediaCanvasViewer
   alias PhoenixKitWeb.Components.ProfileSettingsTabs
 
@@ -337,12 +338,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   end
 
   def handle_event("validate_profile", params, socket) do
-    user_params =
-      case params do
-        %{"user" => user_params} -> user_params
-        %{"profile_form" => %{"user" => user_params}} -> user_params
-        _ -> %{}
-      end
+    user_params = profile_params(params)
 
     merged_params = merge_custom_fields(params, user_params)
 
@@ -365,16 +361,14 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   end
 
   def handle_event("update_profile", params, socket) do
-    user_params =
-      case params do
-        %{"user" => user_params} -> user_params
-        %{"profile_form" => %{"user" => user_params}} -> user_params
-        _ -> %{}
-      end
+    user_params = profile_params(params)
 
     user = socket.assigns.user
 
-    merged_params = merge_custom_fields_for_save(params, user_params, user)
+    # The submitted custom fields go in as they arrived: the changeset decides
+    # which keys the account holder may write and merges them over the stored
+    # map, so nothing here rebuilds that map from the struct in assigns.
+    merged_params = merge_custom_fields(params, user_params)
 
     case Auth.update_user_profile(user, merged_params) do
       {:ok, updated_user} ->
@@ -949,6 +943,22 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
     has_password or oauth_count > 1
   end
 
+  # `profile_changeset/3` casts `email`, but no profile form here renders it:
+  # the address changes only through `update_email`, which asks for the
+  # current password and confirms the new address by mail. Taken from the
+  # profile events it would re-point the account (and every password-reset
+  # link) at an unconfirmed address with one crafted submit.
+  defp profile_params(params) do
+    user_params =
+      case params do
+        %{"user" => user_params} when is_map(user_params) -> user_params
+        %{"profile_form" => %{"user" => user_params}} when is_map(user_params) -> user_params
+        _ -> %{}
+      end
+
+    Map.delete(user_params, "email")
+  end
+
   defp extract_custom_fields(params) do
     get_in(params, ["profile_form", "user", "custom_fields"])
   end
@@ -963,21 +973,18 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
     end
   end
 
-  # Merges form custom fields on top of all existing user custom fields for persistence.
-  # Ensures fields not present in the form (e.g. avatar_file_uuid, programmatic fields)
-  # are preserved when saving.
-  defp merge_custom_fields_for_save(params, user_params, user) do
-    existing = user.custom_fields || %{}
+  # One line per custom field the changeset refused, led by the field's own
+  # label. `User.profile_changeset/3` tags each error with its `:field`.
+  defp custom_field_errors(form, definitions) do
+    labels = Map.new(definitions, &{&1["key"], &1["label"]})
 
-    case extract_custom_fields(params) do
-      form_fields when is_map(form_fields) ->
-        Map.put(user_params, "custom_fields", Map.merge(existing, form_fields))
+    for {:custom_fields, {_message, opts} = error} <- form.errors do
+      message = CoreInput.translate_error(error)
 
-      _ when map_size(existing) > 0 ->
-        Map.put(user_params, "custom_fields", existing)
-
-      _ ->
-        user_params
+      case labels[opts[:field]] || opts[:field] do
+        nil -> message
+        label -> "#{label}: #{message}"
+      end
     end
   end
 
@@ -1355,6 +1362,14 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
               <% else %>
                 <h2 class="text-lg font-semibold mb-2">Additional Information</h2>
               <% end %>
+
+              <div
+                :for={message <- custom_field_errors(@profile_form, @custom_field_definitions)}
+                class="alert alert-error text-sm mb-2"
+                role="alert"
+              >
+                {message}
+              </div>
 
               <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 <%= for field <- @custom_field_definitions do %>

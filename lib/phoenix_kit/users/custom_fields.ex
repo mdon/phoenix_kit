@@ -458,6 +458,131 @@ defmodule PhoenixKit.Users.CustomFields do
     end
   end
 
+  # A value typed into a profile form. Generous for a textarea, and still a
+  # bound: the definitions cap the number of keys, this caps each one.
+  @max_user_value_length 10_000
+
+  @doc "The longest value `cast_user_input/2` accepts for one field, in characters."
+  @spec max_user_value_length() :: pos_integer()
+  def max_user_value_length, do: @max_user_value_length
+
+  @doc """
+  Reduces a `custom_fields` map submitted by the account holder to the entries
+  they may write.
+
+  `custom_fields` is one JSONB column shared by admin-defined profile fields
+  and by state the system keeps per user (the avatar file, the invite-only
+  stamp, notification routing). A profile form posts whatever the client
+  sends, so this is the rule for anything that arrives from one:
+
+    * only a key with an enabled, user-accessible definition is accepted, and
+      never an internal key (`internal_key?/1`), whatever definition it has;
+    * a key whose stored value is structured is left alone — no field type
+      edits one;
+    * a value equal to the stored one is skipped, so stored data that predates
+      a definition is never re-validated by an unrelated save;
+    * a new value must be a scalar of at most `max_user_value_length/0`
+      characters that satisfies the definition (`required`, `type`, and the
+      offered options of a `select`).
+
+  Returns `{accepted, errors}`: `accepted` holds only the entries to merge over
+  the stored map, `errors` is a list of `{key, {message, opts}}` in the shape
+  `Ecto.Changeset.add_error/4` takes. Everything else submitted is dropped.
+  """
+  @spec cast_user_input(map() | nil, map()) ::
+          {%{optional(String.t()) => term()}, [{String.t(), {String.t(), keyword()}}]}
+  def cast_user_input(stored, submitted) when is_map(submitted) do
+    stored = stored || %{}
+
+    definitions =
+      for definition <- list_user_accessible_field_definitions(),
+          key = definition["key"],
+          is_binary(key) and not internal_key?(key),
+          into: %{},
+          do: {key, definition}
+
+    {accepted, errors} =
+      Enum.reduce(submitted, {%{}, []}, fn {key, value}, {accepted, errors} = acc ->
+        key = if is_atom(key), do: Atom.to_string(key), else: key
+        definition = is_binary(key) && definitions[key]
+
+        cond do
+          !definition -> acc
+          structured_value?(stored[key]) -> acc
+          same_user_value?(stored[key], value) -> acc
+          true -> accept_user_value(definition, key, value, accepted, errors)
+        end
+      end)
+
+    {accepted, Enum.reverse(errors)}
+  end
+
+  defp accept_user_value(definition, key, value, accepted, errors) do
+    case validate_user_value(definition, value) do
+      :ok -> {Map.put(accepted, key, value), errors}
+      {:error, error} -> {accepted, [{key, error} | errors]}
+    end
+  end
+
+  defp same_user_value?(stored, value) when stored in [nil, ""] and value in [nil, ""], do: true
+  defp same_user_value?(nil, _value), do: false
+  defp same_user_value?(stored, value) when is_binary(value), do: printable(stored) == value
+  defp same_user_value?(stored, value), do: stored == value
+
+  defp validate_user_value(definition, value) do
+    cond do
+      structured_value?(value) ->
+        {:error, {"is invalid", []}}
+
+      is_binary(value) and String.length(value) > @max_user_value_length ->
+        {:error,
+         {"should be at most %{count} character(s)",
+          [count: @max_user_value_length, validation: :length, kind: :max, type: :string]}}
+
+      definition["required"] && value in [nil, ""] ->
+        {:error, {"can't be blank", [validation: :required]}}
+
+      true ->
+        validate_user_value_type(definition, value)
+    end
+  end
+
+  # `validate_type/2` matches on strings and booleans; any other scalar is
+  # checked as the text a form would have sent for it.
+  defp validate_user_value_type(definition, value) do
+    text =
+      cond do
+        is_binary(value) or is_nil(value) -> value
+        definition["type"] == "boolean" -> value
+        true -> to_string(value)
+      end
+
+    with :ok <- validate_type(definition, text),
+         :ok <- validate_offered_option(definition, text) do
+      :ok
+    else
+      {:error, _message} -> {:error, {"is invalid", []}}
+    end
+  end
+
+  # The profile form posts a select's option value and the admin form its
+  # index, so a stored value is either; both are accepted here.
+  defp validate_offered_option(%{"type" => "select", "options" => options}, value)
+       when is_list(options) and is_binary(value) and value != "" do
+    offered =
+      Enum.map(options, fn
+        %{"value" => option} -> printable(option)
+        option -> printable(option)
+      end)
+
+    indexes =
+      options |> Enum.with_index() |> Enum.map(fn {_option, index} -> to_string(index) end)
+
+    if value in offered or value in indexes, do: :ok, else: {:error, "Not an offered option"}
+  end
+
+  defp validate_offered_option(_definition, _value), do: :ok
+
   # Private Helpers
 
   defp parse_position(nil), do: 0
