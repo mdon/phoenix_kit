@@ -202,15 +202,16 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # access to; the real-database integration suite re-ran clean against a DB
   # migrated through V196, which is the property s7/s8 exist to prove.
   #
-  # V220 (2026-10-11, the dangerous-operation flow of the shop API) DECLARES 43
+  # V220 (2026-10-14, the dangerous-operation flow of the shop API) DECLARES 44
   # objects, built by the `v220_*` helpers under `raw_objects/0`: the tables
   # `phoenix_kit_api_confirmations` (19 columns, pkey, two foreign keys, three CHECKs,
-  # three indexes) and `phoenix_kit_api_idempotency` (9 columns, pkey, one CHECK, a
-  # unique and a plain index). Kept honest by `PhoenixKit.Migrations.Postgres.V220Test`,
+  # four indexes, one of them partial for the stuck-operation sweep) and
+  # `phoenix_kit_api_idempotency` (9 columns, pkey, one CHECK, a unique and a plain
+  # index). Kept honest by `PhoenixKit.Migrations.Postgres.V220Test`,
   # which runs the repair differ over every `since: 220` object of a freshly migrated
   # database. `chain_hash` restamped over the shipped files.
   #
-  # V219 (2026-10-11, API keys and service users) DECLARES 24 objects:
+  # V219 (2026-10-14, API keys and service users) DECLARES 24 objects:
   # `column:phoenix_kit_users.api_only` (boolean NOT NULL DEFAULT false) and the 23 of
   # `phoenix_kit_api_keys` (table, 15 columns, pkey, two user FKs, a CHECK on `prefix`, a
   # unique index on `prefix` and two plain indexes). Read from the catalog after running
@@ -218,6 +219,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # `PhoenixKit.Migrations.Postgres.V219Test`, which runs the repair differ over every
   # `since: 219` object of a freshly migrated database. `chain_hash` restamped over the
   # shipped files.
+  #
   # V218 (2026-10-14, sync requests per minute) RESHAPES one object:
   # `column:phoenix_kit_sync_connections.rate_limit_requests_per_minute` keeps
   # integer NOT NULL at position 18, its default 60 -> 600. The migration's other
@@ -606,7 +608,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "4f441b0ceab5ffc6be6328f7c5ce57f96d2e29c7853b84d8a4f36d526546fd3f"
+  @chain_hash "571a8a2328fa1eb8f1b989007bad2d5f7161dbda2f03ac3f7bb208d95918dace"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -76942,6 +76944,15 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
           ["decided_by_uuid"],
           ["uuid_ops"]
         ),
+        v220_index(
+          conf,
+          "phoenix_kit_api_confirmations_active_updated_at_index",
+          ["updated_at"],
+          ["timestamp_ops"],
+          where: "status IN ('approved', 'executing')",
+          predicate:
+            "((status)::text = ANY ((ARRAY['approved'::character varying, 'executing'::character varying])::text[]))"
+        ),
         v220_table(idem),
         v220_column(idem, "uuid", 1, "uuid",
           default: "__SCHEMA__.uuid_generate_v7()",
@@ -77048,14 +77059,17 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
 
   defp v220_index(table, name, keys, opclasses, opts \\ []) do
     unique = Keyword.get(opts, :unique, false)
+    predicate = Keyword.get(opts, :predicate)
     head = if unique, do: "CREATE UNIQUE INDEX", else: "CREATE INDEX"
     tail = "ON __SCHEMA__.#{table} USING btree (#{Enum.join(keys, ", ")})"
+    create_tail = if predicate, do: "#{tail} WHERE #{Keyword.fetch!(opts, :where)}", else: tail
+    deparsed_tail = if predicate, do: "#{tail} WHERE #{predicate}", else: tail
 
     %{
       id: "index:#{name}",
       owner: :core,
       check: {:catalog, %{name: name, table: table, kind: :index}},
-      create: "#{head} IF NOT EXISTS #{name} #{tail}",
+      create: "#{head} IF NOT EXISTS #{name} #{create_tail}",
       since: 220,
       class: :index,
       revisions: [
@@ -77065,8 +77079,8 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
            keys: keys,
            unique: unique,
            method: "btree",
-           definition: "#{head} #{name} #{tail}",
-           predicate: nil,
+           definition: "#{head} #{name} #{deparsed_tail}",
+           predicate: predicate,
            opclasses: opclasses,
            name_template: nil
          }}

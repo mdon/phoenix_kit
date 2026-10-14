@@ -170,6 +170,32 @@ defmodule PhoenixKit.Migrations.Postgres.V220Test do
     end
   end
 
+  describe "the stuck-operation sweep index" do
+    test "is partial on the running statuses, and the sweep's filter can use it" do
+      assert [["((status)::text = ANY" <> _ = predicate]] =
+               query(
+                 "SELECT pg_get_expr(indpred, indrelid) FROM pg_index WHERE indexrelid = 'public.phoenix_kit_api_confirmations_active_updated_at_index'::regclass"
+               )
+
+      assert predicate =~ "approved" and predicate =~ "executing"
+
+      plan =
+        Repo.transaction(fn ->
+          Repo.query!("SET LOCAL enable_seqscan = off")
+
+          Repo.query!("""
+          EXPLAIN SELECT uuid FROM phoenix_kit_api_confirmations
+          WHERE kind = 'approval' AND status IN ('approved', 'executing') AND updated_at < now()
+          """).rows
+          |> List.flatten()
+          |> Enum.join("\n")
+        end)
+
+      assert {:ok, text} = plan
+      assert text =~ "phoenix_kit_api_confirmations_active_updated_at_index"
+    end
+  end
+
   describe "phoenix_kit_api_idempotency" do
     test "stores a record with the defaults" do
       row = Repo.insert!(record(%{}))
@@ -252,13 +278,13 @@ defmodule PhoenixKit.Migrations.Postgres.V220Test do
       end
     end
 
-    test "declares 2 tables, 28 columns, 8 constraints and 5 indexes" do
+    test "declares 2 tables, 28 columns, 8 constraints and 6 indexes" do
       objects = declared_by_v220()
 
-      assert %{table: 2, column: 28, constraint: 8, index: 5} =
+      assert %{table: 2, column: 28, constraint: 8, index: 6} =
                Enum.frequencies_by(objects, & &1.class)
 
-      assert length(objects) == 43
+      assert length(objects) == 44
     end
 
     test "every object it declares matches what the chain built" do

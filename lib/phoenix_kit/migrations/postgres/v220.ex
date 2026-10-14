@@ -31,7 +31,7 @@ defmodule PhoenixKit.Migrations.Postgres.V220 do
 
   ## Locks
 
-  Two `CREATE TABLE`s and five indexes on empty tables. Re-runnable.
+  Two `CREATE TABLE`s and six indexes on empty tables. Re-runnable.
 
   ## Down
 
@@ -101,6 +101,9 @@ defmodule PhoenixKit.Migrations.Postgres.V220 do
       "CREATE INDEX IF NOT EXISTS phoenix_kit_api_confirmations_expires_at_index ON #{conf} (expires_at)",
       # The SET NULL of a user delete must not scan the table.
       "CREATE INDEX IF NOT EXISTS phoenix_kit_api_confirmations_decided_by_uuid_index ON #{conf} (decided_by_uuid)",
+      # The stuck-operation sweep (`Confirm.sweep_stuck/2`): only approvals that are
+      # running are in it, so it stays small however many unused codes the table holds.
+      "CREATE INDEX IF NOT EXISTS phoenix_kit_api_confirmations_active_updated_at_index ON #{conf} (updated_at) WHERE status IN ('approved', 'executing')",
       """
       CREATE TABLE IF NOT EXISTS #{idem} (
         uuid uuid DEFAULT #{Helpers.uuid_v7_call(prefix)} NOT NULL,

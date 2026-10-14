@@ -284,13 +284,14 @@ defmodule PhoenixKit.API.Confirm do
   def sweep_stuck(now \\ DateTime.utc_now(), stale_after_seconds \\ @stuck_after_seconds) do
     now = second(now)
     cutoff = DateTime.add(now, -stale_after_seconds, :second)
-    active = ["approved", "executing"]
     error = %{"code" => "interrupted", "detail" => @interrupted, "context" => %{}}
 
     stuck =
       repo().all(
         from(c in Confirmation,
-          where: c.kind == "approval" and c.status in ^active and c.updated_at < ^cutoff
+          where:
+            c.kind == "approval" and c.status in ["approved", "executing"] and
+              c.updated_at < ^cutoff
         )
       )
 
@@ -299,7 +300,9 @@ defmodule PhoenixKit.API.Confirm do
       Enum.filter(stuck, fn row ->
         query =
           from(c in Confirmation,
-            where: c.uuid == ^row.uuid and c.status in ^active and c.updated_at < ^cutoff
+            where:
+              c.uuid == ^row.uuid and c.status in ["approved", "executing"] and
+                c.updated_at < ^cutoff
           )
 
         changes = [
