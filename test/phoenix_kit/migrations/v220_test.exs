@@ -172,12 +172,13 @@ defmodule PhoenixKit.Migrations.Postgres.V220Test do
 
   describe "the stuck-operation sweep index" do
     test "is partial on the running statuses, and the sweep's filter can use it" do
-      assert [["((status)::text = ANY" <> _ = predicate]] =
+      assert [[predicate]] =
                query(
                  "SELECT pg_get_expr(indpred, indrelid) FROM pg_index WHERE indexrelid = 'public.phoenix_kit_api_confirmations_active_updated_at_index'::regclass"
                )
 
-      assert predicate =~ "approved" and predicate =~ "executing"
+      assert predicate =~ "'approved'" and predicate =~ "'executing'"
+      refute predicate =~ "'pending'"
 
       plan =
         Repo.transaction(fn ->
