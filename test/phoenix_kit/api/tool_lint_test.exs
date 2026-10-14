@@ -551,6 +551,41 @@ defmodule PhoenixKit.API.ToolLintTest do
     test "an atom root type is read like a string" do
       assert :ok = ToolLint.check_tool(tool(input_schema: %{type: :object, properties: %{}}))
     end
+
+    test "a public tool with a danger must list cart_token in required" do
+      schema = fn required ->
+        %{
+          "type" => "object",
+          "required" => required,
+          "properties" => %{
+            "cart_token" => %{"type" => "string"},
+            "other" => %{"type" => "string"}
+          },
+          "additionalProperties" => false
+        }
+      end
+
+      public = fn danger, required ->
+        tool(audience: :public, scope: nil, danger: danger, input_schema: schema.(required))
+      end
+
+      for danger <- [:always, {Kernel, :inspect}] do
+        assert {:error, [m]} = ToolLint.check_tool(public.(danger, []))
+        assert m =~ "must list cart_token in required"
+
+        assert {:error, [_]} = ToolLint.check_tool(public.(danger, ["other"]))
+        assert :ok = ToolLint.check_tool(public.(danger, ["cart_token"]))
+        assert :ok = ToolLint.check_tool(public.(danger, [:cart_token]))
+      end
+
+      assert {:error, [_]} =
+               ToolLint.check_tool(tool(audience: :public, scope: nil, danger: :always))
+    end
+
+    test "a public tool without a danger, and an admin tool with one, need no cart_token" do
+      assert :ok = ToolLint.check_tool(tool(audience: :public, scope: nil, danger: nil))
+      assert :ok = ToolLint.check_tool(tool(danger: :always))
+    end
   end
 
   describe "check_tools/1" do

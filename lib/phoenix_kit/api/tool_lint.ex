@@ -29,7 +29,9 @@ defmodule PhoenixKit.API.ToolLint do
   numeric and count bounds, `pattern`), that both roots are objects (MCP
   needs an object `inputSchema`, and `structuredContent` is an object), that a
   `required` name is declared when the object is closed, that a tool has a
-  description, and that no two tools of one audience share a name or an MCP
+  description, that a public tool with a `danger:` lists `cart_token` in
+  `required` (a dry run is answered before the cart token is checked, so
+  the schema has to refuse a call without one), and that no two tools of one audience share a name or an MCP
   name (`a.b_c` and `a_b.c` are both `a_b_c` on MCP).
 
   ## Relation to the validator
@@ -61,7 +63,7 @@ defmodule PhoenixKit.API.ToolLint do
   @types ~w(object array string integer number boolean null)
 
   # What the validator enforces. Its annotations are asked of the validator
-  # Anything else in an input schema is flagged.
+  # (`Validator.annotation?/1`). Anything else in an input schema is flagged.
   @enforced_keywords ~w(type required properties additionalProperties enum
                         minimum maximum minLength maxLength minItems maxItems items pattern)
 
@@ -89,7 +91,8 @@ defmodule PhoenixKit.API.ToolLint do
   @doc "Checks the schemas, the roots and the description of one tool."
   @spec check_tool(Tool.t()) :: :ok | {:error, [String.t()]}
   def check_tool(%Tool{} = tool) do
-    case input_messages(tool) ++ output_messages(tool) ++ description_messages(tool) do
+    case input_messages(tool) ++
+           output_messages(tool) ++ description_messages(tool) ++ danger_messages(tool) do
       [] -> :ok
       messages -> {:error, messages}
     end
@@ -149,6 +152,24 @@ defmodule PhoenixKit.API.ToolLint do
     do: ["description is empty: an agent chooses tools by their description"]
 
   defp description_messages(%Tool{}), do: []
+
+  # `Flow.gate/1` answers a dry run before it asks for a cart token, so the
+  # schema itself has to refuse a call without one.
+  defp danger_messages(%Tool{audience: :public, danger: danger} = tool) when danger != nil do
+    required =
+      case stringify(tool.input_schema) do
+        %{"required" => names} when is_list(names) -> Enum.map(names, &type_name/1)
+        _no_required -> []
+      end
+
+    if "cart_token" in required,
+      do: [],
+      else: [
+        "a public tool with a danger must list cart_token in required: a dry run is answered before the cart token is checked"
+      ]
+  end
+
+  defp danger_messages(%Tool{}), do: []
 
   defp prefix(label, messages), do: Enum.map(messages, &"#{label}: #{&1}")
 
