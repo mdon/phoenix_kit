@@ -22,6 +22,7 @@ defmodule PhoenixKit.API.ExecutorTest do
   alias PhoenixKit.Test.ApiShapeTools
   alias PhoenixKit.Test.ApiTools
   alias PhoenixKit.Users.Permissions
+  alias PhoenixKit.Users.RateLimiter.Backend
 
   @read "testkit.items:read"
   @write "testkit.items:write"
@@ -309,6 +310,23 @@ defmodule PhoenixKit.API.ExecutorTest do
 
       # The refusals themselves wrote nothing.
       assert audit_entries(key) == []
+    end
+
+    test "a call the limiter itself refuses is charged once, not again as a refusal",
+         %{token: token, key: key} do
+      wait_for_window_room()
+      put_setting("api_admin_rate_per_min", 5)
+
+      for _ <- 1..3, do: assert(200 == call(token, "testkit.read_items", %{}).status)
+
+      # A 200-row batch costs 4 units; only 2 are left, so the limiter refuses it.
+      refused = call(token, "testkit.write_batch", %{"items" => lines(200)})
+      assert refused.status == 429
+      assert json(refused)["code"] == "rate_limited"
+      assert ["0"] = get_resp_header(refused, "ratelimit-remaining")
+
+      # 3 read units + 4 for the batch; the refusal added nothing on top.
+      assert Backend.get("api:admin:key:" <> key.uuid, 60_000) == 7
     end
 
     test "an admin write batch costs one unit per 50 rows", %{token: token} do

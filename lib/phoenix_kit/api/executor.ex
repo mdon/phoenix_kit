@@ -600,6 +600,11 @@ defmodule PhoenixKit.API.Executor do
     {:ok, %{result: result, json: body}, replay_headers(state)}
   end
 
+  # The limiter's own refusal has already been charged; it is answered as it
+  # stands, not charged again.
+  defp refused(state, :rate_limited, detail, context),
+    do: failed(state, :rate_limited, detail, context)
+
   # An admin call the lookup or the scope check refused never met the limiter
   # (`charged?` is still false and the caller is a key; nothing else can end an
   # admin request there). It pays one unit, as a `ping` does, so unknown names
