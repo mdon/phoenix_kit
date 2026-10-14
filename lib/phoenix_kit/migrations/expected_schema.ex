@@ -202,6 +202,13 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # access to; the real-database integration suite re-ran clean against a DB
   # migrated through V196, which is the property s7/s8 exist to prove.
   #
+  # V218 (2026-10-14, sync requests per minute) RESHAPES one object:
+  # `column:phoenix_kit_sync_connections.rate_limit_requests_per_minute` keeps
+  # integer NOT NULL at position 18, its default 60 -> 600. The migration's other
+  # statement raises rows still at 60 — row DATA, which the manifest does not
+  # track. Read from a test database migrated through V218. `chain_hash`
+  # restamped over the shipped files.
+  #
   # V217 (2026-10-10, the options of a rendition) DECLARES one object,
   # `column:phoenix_kit_storage_dimensions.options` (jsonb NOT NULL DEFAULT '{}',
   # position 18), and RESHAPES three: `crop_mode`, `fit_by` and `shape` (positions
@@ -583,7 +590,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "8567d24513c3471d83881d73d0bc1abd3995207c24b62f30b89bfc61aa1ae02d"
+  @chain_hash "a7da3e5154f28619a79730deb27dbf8ebec26c88a7f44344ecfafd944c93c0a0"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -23116,10 +23123,13 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              kind: :column
            }},
         create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_sync_connections ADD COLUMN IF NOT EXISTS \"rate_limit_requests_per_minute\" integer DEFAULT 60 NOT NULL",
+          "ALTER TABLE __SCHEMA__.phoenix_kit_sync_connections ADD COLUMN IF NOT EXISTS \"rate_limit_requests_per_minute\" integer DEFAULT 600 NOT NULL",
         since: 44,
         class: :column,
-        revisions: [{44, %{default: "60", type: "integer", pos: 18, not_null: true}}],
+        revisions: [
+          {44, %{default: "60", type: "integer", pos: 18, not_null: true}},
+          {218, %{default: "600", type: "integer", pos: 18, not_null: true}}
+        ],
         presence: :required,
         backfill: :default
       },
