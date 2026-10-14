@@ -25,7 +25,12 @@ defmodule PhoenixKit.API.Executor do
        `Registry.find/2` costs about 2 ms, so a flood of unknown names must
        end in 429 without it) and a tool with a dearer price pays the
        difference after the lookup; the admin audience is charged once,
-       after the scope check, because its price depends on the tool.
+       after the scope check, because its price depends on the tool. A call
+       the lookup or the scope check refuses (unknown, hidden, forbidden or
+       disabled-module tool) never reaches that charge, so it pays one unit
+       instead: a key cannot loop on invented names for free. The answer is
+       the same refusal, or `429` when the key's budget is spent; the refusal
+       writes no audit entry.
     6. **Validate** the input against `max_items` and against the tool's
        `input_schema` **closed by `PhoenixKit.API.Validator.close_schema/2`**
        (so a schema that forgot `additionalProperties: false` still refuses
@@ -205,7 +210,7 @@ defmodule PhoenixKit.API.Executor do
       complete(state)
     else
       {:done, state} -> complete(state)
-      {:error, code, detail, context, state} -> failed(state, code, detail, context)
+      {:error, code, detail, context, state} -> refused(state, code, detail, context)
     end
   end
 
@@ -594,6 +599,34 @@ defmodule PhoenixKit.API.Executor do
 
     {:ok, %{result: result, json: body}, replay_headers(state)}
   end
+
+  # An admin call the lookup or the scope check refused never met the limiter
+  # (`charged?` is still false and the caller is a key; nothing else can end an
+  # admin request there). It pays one unit, as a `ping` does, so unknown names
+  # are not free; an empty budget turns the refusal into `429`. `charged?`
+  # stays false: a refusal writes no audit entry.
+  defp refused(
+         %{audience: :admin, charged?: false, actor: %Actor{kind: :key, key_uuid: key_uuid}} =
+           state,
+         code,
+         detail,
+         context
+       ) do
+    case RateLimit.check_admin(key_uuid, 1) do
+      {:ok, headers} ->
+        failed(%{state | headers: headers}, code, detail, context)
+
+      {:error, retry_after, headers} ->
+        failed(
+          %{state | headers: headers},
+          :rate_limited,
+          "Too many requests.",
+          %{retry_after: retry_after}
+        )
+    end
+  end
+
+  defp refused(state, code, detail, context), do: failed(state, code, detail, context)
 
   # A refused or failed request releases its idempotency claim, so the same
   # key can be retried.

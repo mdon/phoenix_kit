@@ -281,6 +281,36 @@ defmodule PhoenixKit.API.ExecutorTest do
       assert length(audit_entries(key)) == 2
     end
 
+    test "a call the lookup or the scope check refuses still costs one unit: unknown, forbidden and disabled-module names are throttled",
+         %{owner: owner, key: key} do
+      {_key, read_only} = issue_key(owner, [@read])
+      wait_for_window_room()
+      put_setting("api_admin_rate_per_min", 3)
+
+      unknown = call(read_only, "testkit.nope", %{})
+      assert unknown.status == 404
+      assert json(unknown)["code"] == "not_found"
+      assert ["2"] = get_resp_header(unknown, "ratelimit-remaining")
+
+      forbidden = call(read_only, "testkit.write_item", %{})
+      assert forbidden.status == 403
+      assert json(forbidden)["code"] == "forbidden"
+
+      ApiTools.set_enabled(false)
+      disabled = call(read_only, "testkit.read_items", %{})
+      assert disabled.status == 404
+      assert json(disabled)["code"] == "module_disabled"
+      assert ["0"] = get_resp_header(disabled, "ratelimit-remaining")
+
+      refused = call(read_only, "testkit.nope", %{})
+      assert refused.status == 429
+      assert json(refused)["code"] == "rate_limited"
+      assert [_] = get_resp_header(refused, "retry-after")
+
+      # The refusals themselves wrote nothing.
+      assert audit_entries(key) == []
+    end
+
     test "an admin write batch costs one unit per 50 rows", %{token: token} do
       put_setting("api_confirm_batch_over", 500)
       wait_for_window_room()

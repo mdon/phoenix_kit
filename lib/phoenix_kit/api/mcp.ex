@@ -327,15 +327,6 @@ defmodule PhoenixKit.API.MCP do
       {:error, :rate_limited, detail, context, headers} ->
         conn |> put_headers(headers) |> Problem.send(:rate_limited, detail, context)
 
-      # Refused before the limiter (an unknown, hidden, forbidden or disabled-module
-      # admin tool): the executor charged nothing, and the lookups cost several
-      # registry walks, so the call pays the unit a `ping` pays. A refusal that
-      # came after the limiter carries its headers and was charged. The public
-      # audience is charged by the executor before the lookup and takes the
-      # clause below.
-      {:error, _code, _detail, _context, []} = refused ->
-        cheap(conn, audience, &reply(&1, id, Shape.call_result(refused, version, request_id)))
-
       outcome ->
         conn
         |> put_headers(outcome_headers(outcome))
