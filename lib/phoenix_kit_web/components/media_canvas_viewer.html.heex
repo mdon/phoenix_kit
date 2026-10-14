@@ -309,12 +309,9 @@
                       initial_rotation={@viewer_rotation}
                       persist_rotation={@persist_rotation}
                     />
-                    <%!-- connectors={:off} is the HARD form (Etcher 0.13): the      --%>
-                    <%!-- soft default loses to the user's saved toggle, which is    --%>
-                    <%!-- shared across every Etcher surface in the browser — a      --%>
-                    <%!-- toggle flipped on a board followed people here, where the  --%>
-                    <%!-- anchors point at nothing (no arrow tool below). Hard off   --%>
-                    <%!-- also hides the toggle from the toolbar.                    --%>
+                    <%!-- No connectors={:off} any more: Etcher 0.22's arrow tool    --%>
+                    <%!-- snaps to shapes' anchors as it draws, and the shared     --%>
+                    <%!-- ⋯ toggle that once leaked in from boards is gone.         --%>
                     <%!-- panel_toggle / panel_offset: the style panel's on/off  --%>
                     <%!-- switch joins Fresco's nav row; the panel itself docks  --%>
                     <%!-- top-right, just under the close and details buttons    --%>
@@ -345,7 +342,6 @@
                       panel_offset={%{top: 12, right: if(@has_next, do: 40, else: 12)}}
                       panel_toggle={:nav}
                       tooltip_dock={:panel}
-                      connectors={:off}
                       toolbar={@can_annotate}
                       nav_buttons={if @can_annotate, do: [:pencil], else: [:visibility]}
                       tools={
