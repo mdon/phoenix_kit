@@ -14,8 +14,11 @@ defmodule PhoenixKit.Utils.Routes do
   alias PhoenixKit.Users.Auth.Scope
 
   # List of path prefixes that should NEVER have a locale added.
-  # This should be kept in sync with @reserved_segments in LocaleExtractor plug.
-  @reserved_prefixes ~w(/api /webhooks /assets /static /files /images /fonts /js /css /sitemap)
+  # Keep the entries both lists share (api, mcp, webhooks, assets, static,
+  # files, images) in sync with @reserved_path_segments in
+  # PhoenixKitWeb.Users.Auth, which names them without the slashes. `/api` and
+  # `/mcp` are the shop API's and MCP's endpoints.
+  @reserved_prefixes ~w(/api /mcp /webhooks /assets /static /files /images /fonts /js /css /sitemap)
 
   @doc """
   Returns the configured PhoenixKit URL prefix.

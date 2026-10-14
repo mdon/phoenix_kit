@@ -277,6 +277,12 @@ defmodule PhoenixKitWeb.Integration do
 
         forward "/api/admin/v1", PhoenixKit.API.REST, audience: :admin
         forward "/api/shop/v1", PhoenixKit.API.REST, audience: :public
+
+        # MCP (Streamable HTTP) over the same tools. Same scope and pipeline:
+        # no session, no CSRF, no content negotiation. `/mcp` is a reserved
+        # prefix, so the locale plugs leave it alone.
+        forward "/mcp/admin", PhoenixKit.API.MCP, audience: :admin
+        forward "/mcp/shop", PhoenixKit.API.MCP, audience: :public
       end
     end
   end
