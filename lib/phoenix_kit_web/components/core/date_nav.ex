@@ -70,10 +70,12 @@ defmodule PhoenixKitWeb.Components.Core.DateNav do
   attr :event, :string,
     default: nil,
     doc:
-      "Instead of patch links: the buttons send this event with `%{\"date\" => \"YYYY-MM-DD\"}`. " <>
+      ~s(Instead of patch links: the buttons send this event with `%{"date" => "YYYY-MM-DD"}`. ) <>
         "For a view with no URL of its own — a LiveView nested in another page, a tab."
 
-  attr :target, :any, default: nil, doc: "`phx-target` for `event`."
+  attr :target, :any,
+    default: nil,
+    doc: "`phx-target` for `event` and for the day picker's `pick_event`."
 
   attr :step, :integer,
     default: 1,
@@ -137,6 +139,7 @@ defmodule PhoenixKitWeb.Components.Core.DateNav do
           :if={@show_picker?}
           id={"#{@id}-picker"}
           phx-change={@pick_event}
+          phx-target={@target}
           class="join-item"
           onsubmit="return false"
         >

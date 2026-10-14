@@ -45,6 +45,17 @@ defmodule PhoenixKitWeb.Components.Core.DateNavTest do
     assert html =~ ~s(value="2026-09-20")
   end
 
+  test "the day picker's change event follows `target`, like the arrows" do
+    assigns = %{}
+
+    html =
+      rendered_to_string(~H"""
+      <.date_nav date={~D[2026-09-20]} event="sheet_day" target="#sheet" />
+      """)
+
+    assert html =~ ~r/<form[^>]*phx-change="date_nav_pick"[^>]*phx-target="#sheet"/
+  end
+
   describe "parse_param/2" do
     test "reads a date, and anything else is today" do
       today = ~D[2026-09-30]
