@@ -1,8 +1,7 @@
 defmodule PhoenixKit.API.RateLimitPreauthTest do
   @moduledoc """
   The admin pre-auth bucket: peeked before authentication, charged only by
-  failures, so guessing is throttled without locking out a valid key (Review
-  Focus #4). Counters live in one ETS table shared by the whole run, so every
+  failures, so guessing is throttled without locking out a valid key. Counters live in one ETS table shared by the whole run, so every
   test uses addresses of its own.
   """
   use PhoenixKit.DataCase, async: false

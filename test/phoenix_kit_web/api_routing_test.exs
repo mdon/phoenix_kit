@@ -135,7 +135,7 @@ defmodule PhoenixKitWeb.APIRoutingTest do
     end
   end
 
-  describe "with the API switched off, which is the default (Review Focus #8)" do
+  describe "with the API switched off, which is the default" do
     test "every API path is a 404 problem, for either audience", %{conn: conn} do
       for path <- [
             "/api/admin/v1/system.get_identity",

@@ -127,7 +127,7 @@ defmodule PhoenixKit.API.Executor do
 
   @empty_schema %{"type" => "object", "properties" => %{}, "additionalProperties" => false}
 
-  # An admin write costs one unit per this many rows (spec 4.6).
+  # An admin write costs one unit per this many rows.
   @rows_per_unit 50
 
   # Rows charged at most for a write tool that declares no `max_items`.
@@ -715,7 +715,7 @@ defmodule PhoenixKit.API.Executor do
   end
 
   @doc """
-  Rate-limit units one call of `tool` with `input` costs (spec 4.6; the cost
+  Rate-limit units one call of `tool` with `input` costs (the cost
   is clamped).
 
   1 for everything, except a tool of the admin audience that is not

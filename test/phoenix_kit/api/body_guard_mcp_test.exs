@@ -45,7 +45,7 @@ defmodule PhoenixKit.API.BodyGuardMCPTest do
     assert is_binary(message)
   end
 
-  describe "Review Focus #2: /mcp/admin follows the admin switch" do
+  describe "/mcp/admin follows the admin switch" do
     test "admin on, public off: /mcp/admin is read, /mcp/shop is not" do
       switch(:admin, true)
       switch(:public, false)
@@ -112,7 +112,7 @@ defmodule PhoenixKit.API.BodyGuardMCPTest do
       assert %{"id" => 1} = run(:post, shop_path() <> "/anything", @message).body_params
     end
 
-    test "spec 16.1: bare /mcp and any other path under /mcp are not guarded: nothing is read or judged, whatever the switches" do
+    test "bare /mcp and any other path under /mcp are not guarded: nothing is read or judged, whatever the switches" do
       for {admin, public} <- [{true, true}, {true, false}, {false, true}, {false, false}],
           path <- [
             bare_path(),

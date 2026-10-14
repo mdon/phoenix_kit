@@ -150,7 +150,7 @@ defmodule PhoenixKit.API.MCPTransportTest do
       assert conn.resp_body == ""
     end
 
-    test "Review Focus #3: a tools/call sent as a notification runs nothing", %{token: token} do
+    test "a tools/call sent as a notification runs nothing", %{token: token} do
       message =
         notification("tools/call", %{
           "name" => "testkit_write_item",
@@ -169,7 +169,7 @@ defmodule PhoenixKit.API.MCPTransportTest do
     end
   end
 
-  describe "Review Focus #3: malformed JSON-RPC is a 400 invalid request, never a 500" do
+  describe "malformed JSON-RPC is a 400 invalid request, never a 500" do
     test "each shape, with the id echoed when the message had a usable one", %{token: token} do
       cases = [
         {"a batch", %{"_json" => [message("ping"), message("ping", nil, 2)]}, nil},
@@ -370,7 +370,7 @@ defmodule PhoenixKit.API.MCPTransportTest do
     end
   end
 
-  describe "Review Focus #1: the Origin check" do
+  describe "the Origin check" do
     test "a foreign Origin is 403 before the key is looked at, and costs the failure bucket nothing" do
       ip = unique_ip()
 
@@ -418,7 +418,7 @@ defmodule PhoenixKit.API.MCPTransportTest do
     end
   end
 
-  describe "Review Focus #5: the cheap methods are throttled" do
+  describe "the cheap methods are throttled" do
     setup do
       wait_for_window_room()
     end

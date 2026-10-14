@@ -64,7 +64,7 @@ defmodule PhoenixKit.API.MCP.NamesTest do
       assert Names.resolve("testkit_public_echo", :admin) == "testkit_public_echo"
     end
 
-    test "Review Focus #4: a disabled module's underscore name still maps on its own audience, so the answer is module_disabled" do
+    test "a disabled module's underscore name still maps on its own audience, so the answer is module_disabled" do
       ApiTools.set_enabled(false)
       assert Names.resolve("testkit_write_item", :admin) == "testkit.write_item"
     end

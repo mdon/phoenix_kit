@@ -47,7 +47,7 @@ defmodule PhoenixKit.API.MCP.RpcTest do
   end
 
   describe "classify/1: what is invalid" do
-    test "Review Focus #3: no body, an empty body, a batch, a scalar" do
+    test "no body, an empty body, a batch, a scalar" do
       assert {:invalid, nil, text} = Rpc.classify(%Plug.Conn.Unfetched{aspect: :body_params})
       assert text =~ "no JSON body"
 

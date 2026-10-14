@@ -22,7 +22,7 @@ defmodule PhoenixKit.Integration.Users.ApiPermissionTest do
 
   defp can_api?(user), do: user |> Scope.for_user(narrow: false) |> Scope.can?("api")
 
-  describe "Review Focus #7 - the permission is not handed to existing Admin roles" do
+  describe "the permission is not handed to existing Admin roles" do
     test "the boot sweep (auto_grant_new_keys_to_admin/0) leaves api off the Admin role" do
       admin = role_uuid("Admin")
 

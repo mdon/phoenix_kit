@@ -164,7 +164,7 @@ defmodule PhoenixKit.API.MCPEndToEndTest do
     end
   end
 
-  describe "Review Focus #1: the Origin check, through the endpoint" do
+  describe "the Origin check, through the endpoint" do
     test "a foreign Origin is a 403 even with a valid key; the install's own origin passes", %{
       conn: conn,
       token: token
@@ -195,7 +195,7 @@ defmodule PhoenixKit.API.MCPEndToEndTest do
       assert rpc(rebinding, "/mcp/shop", message("ping")).status == 403
     end
 
-    # The same attack with a host hook configured, as on the stand: a hook that
+    # The same attack with a host hook configured: a hook that
     # returns only language and currency, and a hook that raises, both leave
     # RequestContext's hosts at the Host header. The Origin check must not use it.
     for hook <- [:language_only, :raises] do
@@ -252,7 +252,7 @@ defmodule PhoenixKit.API.MCPEndToEndTest do
     end
   end
 
-  describe "Review Focus #2: each endpoint follows its own switch, with a real call" do
+  describe "each endpoint follows its own switch, with a real call" do
     test "admin on, public off: tools/call works on /mcp/admin, /mcp/shop is a 404", %{
       conn: conn,
       token: token
@@ -277,7 +277,7 @@ defmodule PhoenixKit.API.MCPEndToEndTest do
     end
   end
 
-  describe "Review Focus #3: malformed JSON-RPC" do
+  describe "malformed JSON-RPC" do
     test "a body that is not JSON is -32700 on both endpoints", %{conn: conn, token: token} do
       for {path, key} <- [{"/mcp/admin", token}, {"/mcp/shop", nil}],
           body <- ["{broken", "not json", ~s({"a":})] do
@@ -324,7 +324,7 @@ defmodule PhoenixKit.API.MCPEndToEndTest do
     end
   end
 
-  describe "Review Focus #4: errors are tool results, in both name forms" do
+  describe "errors are tool results, in both name forms" do
     test "validation, scope, unknown tool", %{conn: conn, owner: owner, token: token} do
       for name <- ["testkit_write_item", "testkit.write_item"] do
         invalid = call_tool(conn, "/mcp/admin", token, name, %{"nope" => 1})
@@ -459,7 +459,7 @@ defmodule PhoenixKit.API.MCPEndToEndTest do
     end
   end
 
-  describe "Review Focus #5: a flood of cheap messages" do
+  describe "a flood of cheap messages" do
     setup do
       wait_for_window_room()
       :ok

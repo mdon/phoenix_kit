@@ -1,7 +1,7 @@
 defmodule PhoenixKitWeb.Live.Settings.ApiApprovals do
   @moduledoc """
   Settings -> API -> Pending approvals: the queue of dangerous operations from API keys
-  that need a person's approval (path B of the dangerous-operation flow).
+  that need a person's approval (the approval path of the dangerous-operation flow).
 
   Shows the approvals the person may decide (an Owner: all; the creator of a key: the
   approvals of their keys for tools they hold the permission of) and the latest decided

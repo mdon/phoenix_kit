@@ -124,7 +124,7 @@ defmodule PhoenixKit.API.RESTOpenAPITest do
              ]
     end
 
-    test "operations carry the extensions of spec 5.1", %{token: token} do
+    test "operations carry the vendor extensions", %{token: token} do
       ops = fetch(token) |> json() |> Map.fetch!("paths")
 
       assert ops["/testkit.read_items"]["post"]["x-agent-safety"] == "read"
@@ -170,7 +170,7 @@ defmodule PhoenixKit.API.RESTOpenAPITest do
       ApiTools.set_enabled(false)
       listed = paths(fetch(token))
 
-      # contains, not equals: phase 1c adds the core tool system.get_approval (M17)
+      # contains, not equals: core also lists the tool system.get_approval
       assert "/" in listed
       assert "/system.get_identity" in listed
       refute Enum.any?(listed, &String.starts_with?(&1, "/testkit."))

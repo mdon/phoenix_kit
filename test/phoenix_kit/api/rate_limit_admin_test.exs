@@ -1,7 +1,7 @@
 defmodule PhoenixKit.API.RateLimitAdminTest do
   @moduledoc """
   The per-key admin bucket: limits, cost weighting and the headers; and that the
-  pre-auth bucket never locks out a valid key (Review Focus #4).
+  pre-auth bucket never locks out a valid key.
   """
   use PhoenixKit.DataCase, async: false
 
@@ -84,11 +84,11 @@ defmodule PhoenixKit.API.RateLimitAdminTest do
     end
   end
 
-  describe "Review Focus #4: failures throttle failing authentication only" do
-    # What the Auth plug does with these functions (Task 12): peek the pre-auth
+  describe "failures throttle failing authentication only" do
+    # What the Auth plug does with these functions: peek the pre-auth
     # bucket, always verify, charge a failure only when the address was not yet
     # throttled; a failed authentication is answered 401, or 429 once the address
-    # was throttled (spec 16.5); a valid key is never refused for its address's
+    # was throttled; a valid key is never refused for its address's
     # failures.
     defp authenticate(token, ip) do
       throttle = RateLimit.check_preauth(ip)

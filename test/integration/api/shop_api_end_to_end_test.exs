@@ -4,7 +4,7 @@ defmodule PhoenixKit.API.ShopApiEndToEndTest do
   called as a function, every check is an HTTP request (or a web login) against
   `PhoenixKitWeb.Endpoint`.
 
-  One `describe` per item of the plan's "Review Focus" list. The pieces have
+  One `describe` per behaviour that depends on several parts working together. The pieces have
   their own unit tests; this file is where they are shown to work together, so
   a test here fails when two correct parts are wired wrongly.
 
@@ -128,9 +128,7 @@ defmodule PhoenixKit.API.ShopApiEndToEndTest do
     assert Enum.any?(body["tools"], &(&1["name"] == @read_tool))
   end
 
-  # --- Review Focus #1 ----------------------------------------------------
-
-  describe "Review Focus #1: a bad Authorization header is a 401 problem, never a 500" do
+  describe "a bad Authorization header is a 401 problem, never a 500" do
     test "empty, blank, truncated and non-pk_ bearer values", %{conn: conn, token: token} do
       headers = [
         "Bearer",
@@ -174,9 +172,7 @@ defmodule PhoenixKit.API.ShopApiEndToEndTest do
     end
   end
 
-  # --- Review Focus #2 ----------------------------------------------------
-
-  describe "Review Focus #2: a key stops with its owner's rights, while its row is cached" do
+  describe "a key stops with its owner's rights, while its row is cached" do
     setup %{conn: conn, token: token, key: key} do
       assert call_tool(conn, token, @read_tool).status == 200
       # The proof that the row is cached: the fetcher must not run.
@@ -219,9 +215,7 @@ defmodule PhoenixKit.API.ShopApiEndToEndTest do
     end
   end
 
-  # --- Review Focus #3 ----------------------------------------------------
-
-  describe "Review Focus #3: a credential in the URL is refused and never logged" do
+  describe "a credential in the URL is refused and never logged" do
     # A host gets this filter from `PhoenixKit.boot/1` (`harden_filter_parameters/0`
     # in lib/phoenix_kit.ex); the test environment does not run boot, so the
     # test runs it, and without the filter `Phoenix.Logger` prints the request's
@@ -302,9 +296,7 @@ defmodule PhoenixKit.API.ShopApiEndToEndTest do
     end
   end
 
-  # --- Review Focus #4 ----------------------------------------------------
-
-  describe "Review Focus #4: failed authentications are throttled, a valid key is not" do
+  describe "failed authentications are throttled, a valid key is not" do
     test "many failures from one address end in 429, and a valid key from it still works", %{
       conn: conn,
       token: token
@@ -339,9 +331,7 @@ defmodule PhoenixKit.API.ShopApiEndToEndTest do
     end
   end
 
-  # --- Review Focus #5 ----------------------------------------------------
-
-  describe "Review Focus #5: the body guard answers problem+json on /api and touches nothing else" do
+  describe "the body guard answers problem+json on /api and touches nothing else" do
     defp raw_post(conn, path, body), do: conn |> from_ip() |> post_json(path, body)
 
     test "a body over 2 MB is 413 payload_too_large", %{conn: conn, token: token} do
@@ -397,9 +387,7 @@ defmodule PhoenixKit.API.ShopApiEndToEndTest do
     end
   end
 
-  # --- Review Focus #6 ----------------------------------------------------
-
-  describe "Review Focus #6: a service user gets no web session" do
+  describe "a service user gets no web session" do
     @password "ServicePassw0rd!"
 
     setup %{scope: scope} do
@@ -459,9 +447,7 @@ defmodule PhoenixKit.API.ShopApiEndToEndTest do
     end
   end
 
-  # --- Review Focus #7 ----------------------------------------------------
-
-  describe "Review Focus #7: upgrading does not give Admin the api permission" do
+  describe "upgrading does not give Admin the api permission" do
     test "the boot sweep that grants new keys to Admin skips api" do
       assert "api" in Permissions.opt_in_admin_keys()
 
@@ -495,9 +481,7 @@ defmodule PhoenixKit.API.ShopApiEndToEndTest do
     end
   end
 
-  # --- Review Focus #8 ----------------------------------------------------
-
-  describe "Review Focus #8: with the API off, every path is a 404 and costs one settings read" do
+  describe "with the API off, every path is a 404 and costs one settings read" do
     setup do
       start_supervised!(
         Supervisor.child_spec({PhoenixKit.Cache, name: :settings}, id: :settings_cache)

@@ -207,7 +207,7 @@ defmodule PhoenixKit.API.MCPToolsCallTest do
     end
   end
 
-  describe "Review Focus #4: errors are tool results" do
+  describe "errors are tool results" do
     test "validation: HTTP 200, isError, [validation_failed], the problem document, no structured content",
          %{token: token} do
       conn = call(token, "testkit_write_item", %{"unknown_field" => 5})
@@ -479,7 +479,7 @@ defmodule PhoenixKit.API.MCPToolsCallTest do
       assert [_] = get_resp_header(conn, "retry-after")
     end
 
-    test "Review Focus #5: a call refused before the limiter still costs one unit: unknown, forbidden and disabled-module names are throttled",
+    test "a call refused before the limiter still costs one unit: unknown, forbidden and disabled-module names are throttled",
          %{owner: owner} do
       {_key, read_only} = issue_key(owner, [@read])
       put_setting("api_admin_rate_per_min", 3)
@@ -502,7 +502,7 @@ defmodule PhoenixKit.API.MCPToolsCallTest do
       refute_received {:write_item, _}
     end
 
-    test "Review Focus #5: the same flood of invented names against the public endpoint is throttled per address" do
+    test "the same flood of invented names against the public endpoint is throttled per address" do
       put_setting("api_public_ip_rate_per_min", 2)
       ip = unique_ip()
 

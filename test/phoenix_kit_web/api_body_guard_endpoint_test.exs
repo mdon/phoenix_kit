@@ -171,7 +171,7 @@ defmodule PhoenixKitWeb.APIBodyGuardEndpointTest do
     refute conn.status in [400, 413]
   end
 
-  test "Review Focus #5: a path that is merely similar is parsed by Plug.Parsers as before", %{
+  test "a path that is merely similar is parsed by Plug.Parsers as before", %{
     conn: conn
   } do
     # `/apiary` is not `/api`: no BodyGuard, so the stock parser raises on bad
@@ -189,7 +189,7 @@ defmodule PhoenixKitWeb.APIBodyGuardEndpointTest do
     refute conn.status == 413
   end
 
-  describe "Review Focus #8: the API switch is off" do
+  describe "the API switch is off" do
     setup do
       switch(:admin, false)
       switch(:public, false)

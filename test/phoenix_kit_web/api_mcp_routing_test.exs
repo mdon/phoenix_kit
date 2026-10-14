@@ -190,7 +190,7 @@ defmodule PhoenixKitWeb.APIMCPRoutingTest do
       assert rpc(conn, "/mcp/shop", ping()).status == 200
     end
 
-    test "Review Focus #3: bad JSON reaches the client as a JSON-RPC parse error", %{
+    test "bad JSON reaches the client as a JSON-RPC parse error", %{
       conn: conn,
       token: token
     } do
@@ -229,7 +229,7 @@ defmodule PhoenixKitWeb.APIMCPRoutingTest do
       assert %{"error" => %{"code" => -32_600}} = json(conn)
     end
 
-    test "Review Focus #1: a foreign Origin is a 403 even with a valid key; the install's own passes",
+    test "a foreign Origin is a 403 even with a valid key; the install's own passes",
          %{
            conn: conn,
            token: token
@@ -251,7 +251,7 @@ defmodule PhoenixKitWeb.APIMCPRoutingTest do
     end
   end
 
-  describe "Review Focus #2: each endpoint follows its own switch, through the real body guard" do
+  describe "each endpoint follows its own switch, through the real body guard" do
     setup %{conn: conn} do
       setup_api()
       {owner, _role} = user_with(["dashboard"])

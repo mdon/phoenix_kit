@@ -6,7 +6,7 @@ defmodule PhoenixKit.Test.ApiHarness do
   them.
 
   Users, owners, keys, client addresses and the key cache come from
-  `PhoenixKit.API.KeyTestSupport` (Task 7), the single source for them; the
+  `PhoenixKit.API.KeyTestSupport`, the single source for them; the
   functions here delegate to it and add only what is specific to the shop
   API. Import this module, not `KeyTestSupport`, in a test file of this
   part, so no helper name is ambiguous.

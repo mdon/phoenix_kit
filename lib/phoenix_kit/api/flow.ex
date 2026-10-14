@@ -314,7 +314,7 @@ defmodule PhoenixKit.API.Flow do
   defp approval_key?(%{actor: %{kind: :key, requires_approval: true}}), do: true
   defp approval_key?(_state), do: false
 
-  # Path A, second call: cheap checks, a fresh dry run for the fingerprint, then the atomic
+  # Confirmation code, second call: cheap checks, a fresh dry run for the fingerprint, then the atomic
   # claim. Only a successful claim spends the code.
   defp redeem(state, token) do
     if approval_key?(state) do
@@ -367,7 +367,7 @@ defmodule PhoenixKit.API.Flow do
   defp label(:changed), do: "changed"
   defp label(:approval_key), do: "approval_required"
 
-  # Path A, first call.
+  # Confirmation code, first call.
   defp issue(state) do
     with {:ok, previewed} <- Executor.preview(state),
          {:ok, issued} <-
@@ -405,7 +405,7 @@ defmodule PhoenixKit.API.Flow do
     end
   end
 
-  # Path B.
+  # Approval queue.
   defp request_approval(state) do
     with {:ok, previewed} <- Executor.preview(state),
          {:ok, row, _created_or_existing} <-

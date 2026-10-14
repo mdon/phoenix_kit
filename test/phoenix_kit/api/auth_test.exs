@@ -87,7 +87,7 @@ defmodule PhoenixKit.API.AuthTest do
     end
   end
 
-  describe "Review Focus #1: a bad Authorization header is a 401, never a 500" do
+  describe "a bad Authorization header is a 401, never a 500" do
     test "empty, truncated, non-pk_ and wrong-scheme credentials", %{token: token} do
       [prefix_part | _] = String.split(token, "_", parts: 3) |> Enum.drop(1)
 
@@ -177,7 +177,7 @@ defmodule PhoenixKit.API.AuthTest do
     end
   end
 
-  describe "Review Focus #2: a key stops working when its owner changes" do
+  describe "a key stops working when its owner changes" do
     test "a blocked owner, with the key row still cached", %{
       token: token,
       key: key,
@@ -209,7 +209,7 @@ defmodule PhoenixKit.API.AuthTest do
     end
   end
 
-  describe "Review Focus #3: a credential in the URL" do
+  describe "a credential in the URL" do
     test "is refused with 400 token_in_url before the key is looked at", %{token: token} do
       queries = [
         "?api_key=x",
@@ -283,7 +283,7 @@ defmodule PhoenixKit.API.AuthTest do
     end
   end
 
-  describe "the API switch (Review Focus #8)" do
+  describe "the API switch" do
     test "off: a bare 404 problem, for either audience, key or no key", %{token: token} do
       switch(:admin, false)
       switch(:public, false)
@@ -386,7 +386,7 @@ defmodule PhoenixKit.API.AuthTest do
     end
   end
 
-  describe "Review Focus #4: the failed-authentication throttle spares a valid key" do
+  describe "the failed-authentication throttle spares a valid key" do
     test "an exhausted IP gets 429 for bad keys and 200 for the good one", %{token: token} do
       put_setting("api_admin_preauth_fail_per_min", 3)
       ip = unique_ip()

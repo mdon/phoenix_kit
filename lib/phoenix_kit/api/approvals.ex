@@ -1,6 +1,6 @@
 defmodule PhoenixKit.API.Approvals do
   @moduledoc """
-  The approval queue of dangerous API operations (path B of the dangerous-operation flow): the calls of a key
+  The approval queue of dangerous API operations (the approval path of the dangerous-operation flow): the calls of a key
   marked "requires approval" that would be dangerous wait here for a person.
 
   ## Life of an approval

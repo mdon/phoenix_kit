@@ -213,7 +213,7 @@ defmodule PhoenixKit.API.ExecutorTest do
       refute_received {:write_item, _}
     end
 
-    test "Review Focus #2: a permission the owner lost fails the very next call",
+    test "a permission the owner lost fails the very next call",
          %{token: token, role: role, key: key} do
       assert 200 == call(token, "testkit.write_item", %{}).status
       assert_received {:write_item, _}

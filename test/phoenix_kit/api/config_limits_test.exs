@@ -41,7 +41,7 @@ defmodule PhoenixKit.API.ConfigLimitsTest do
   end
 
   describe "rate_limits/0 and max_body_bytes/0" do
-    test "carry the defaults of the spec" do
+    test "carry the documented defaults" do
       assert Config.rate_limits() == %{
                preauth_fail_per_min: 20,
                admin_per_min: 600,

@@ -122,8 +122,8 @@ defmodule PhoenixKit.API.MCPToolsListTest do
     test "a key with both scopes sees every testkit tool", %{token: token} do
       names = token |> list() |> tool_names() |> Enum.sort()
 
-      # system_get_identity is contained, not listed exactly: phase 1c adds the scope-less
-      # core tool system.get_approval
+      # system_get_identity is contained, not listed exactly: core also lists the scope-less
+      # tool system.get_approval
       assert "system_get_identity" in names
 
       assert Enum.filter(names, &String.starts_with?(&1, "testkit_")) == [
@@ -148,7 +148,7 @@ defmodule PhoenixKit.API.MCPToolsListTest do
 
       names = token |> list() |> tool_names()
 
-      # contains, not equals: phase 1c adds the scope-less core tool system.get_approval (M17)
+      # contains, not equals: core also lists the scope-less tool system.get_approval
       assert "system_get_identity" in names
       refute Enum.any?(names, &String.starts_with?(&1, "testkit_"))
     end
@@ -177,7 +177,7 @@ defmodule PhoenixKit.API.MCPToolsListTest do
       assert "testkit_read_items" in names
     end
 
-    test "M12: two tools with one MCP name are listed once, the first in registry order" do
+    test "two tools with one MCP name are listed once, the first in registry order" do
       :ok = ModuleRegistry.register(CollidingTools)
       on_exit(fn -> ModuleRegistry.unregister(CollidingTools) end)
 

@@ -8,8 +8,8 @@ defmodule PhoenixKit.API.ToolLintTest do
   alias PhoenixKit.API.ToolLint
   alias PhoenixKit.API.Validator
 
-  # A struct literal, not Tool.new!: 1a's Tool.new refuses the keywords some
-  # of these fixtures carry on purpose (spec 16.25), and the lint has to be
+  # A struct literal, not Tool.new!: Tool.new refuses the keywords some
+  # of these fixtures carry on purpose, and the lint has to be
   # tested on a tool that got past it some other way.
   defp tool(attrs) do
     struct!(
@@ -279,7 +279,7 @@ defmodule PhoenixKit.API.ToolLintTest do
       end
     end
 
-    # The rule is a whitelist (spec 16.25). This list is written out by hand,
+    # The rule is a whitelist. This list is written out by hand,
     # NOT taken from the implementation: a test that iterates the module's own
     # list cannot find a keyword the module forgot.
     test "any keyword outside the supported subset is an error, including ones nobody listed" do

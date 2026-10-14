@@ -1,6 +1,6 @@
 defmodule PhoenixKit.API.CoreToolsTest do
   @moduledoc """
-  `system.get_identity`: the one tool core ships in phase 1a, called the way a
+  `system.get_identity`: a tool core ships itself, called the way a
   client does, through authentication and the executor.
   """
   use PhoenixKit.DataCase, async: false

@@ -1,7 +1,7 @@
 defmodule PhoenixKit.API.ExecutorGateTest do
   @moduledoc """
   The dangerous-operation gate in the executor: when a call is dangerous, the preview
-  and the one-time code (path A), the approval queue (path B), and every way a code is
+  and the one-time code, the approval queue, and every way a code is
   refused. Plug level, real keys, the `flowkit` test tools.
   """
   use PhoenixKit.DataCase, async: false
@@ -50,7 +50,7 @@ defmodule PhoenixKit.API.ExecutorGateTest do
     end
   end
 
-  describe "path A: the preview, then the code" do
+  describe "the confirmation code: the preview, then the code" do
     test "asking again for the same call while its code is live returns that code, not another row",
          %{token: token} do
       first = call(token, @delete, %{"ids" => ["a"]})
@@ -502,7 +502,7 @@ defmodule PhoenixKit.API.ExecutorGateTest do
     # so the call is a 422 before anything is claimed or written, on every path.
     defp nul_value, do: "x" <> <<0>> <> "tail-#{System.unique_integer([:positive])}"
 
-    test "path A: 422, no raise, no row, and the value is not logged", %{token: token} do
+    test "code: 422, no raise, no row, and the value is not logged", %{token: token} do
       sentinel = nul_value()
 
       log =
@@ -520,7 +520,7 @@ defmodule PhoenixKit.API.ExecutorGateTest do
       assert ApiFlowStore.items() == @all_items
     end
 
-    test "path B: 422, no raise, no approval", %{gated: gated} do
+    test "approval: 422, no raise, no approval", %{gated: gated} do
       conn = call(gated.token, @delete, %{"ids" => [nul_value()]})
 
       assert conn.status == 422
@@ -610,7 +610,7 @@ defmodule PhoenixKit.API.ExecutorGateTest do
       assert confirmed.status == 200
       assert resolutions() == 1
 
-      # Path B: the dry run and the snapshot kept with the approval.
+      # Approval: the dry run and the snapshot kept with the approval.
       assert call(gated.token, @delete, %{"ids" => ["a"]}).status == 200
       assert resolutions() == 1
 
@@ -625,7 +625,7 @@ defmodule PhoenixKit.API.ExecutorGateTest do
   describe "a fingerprint the store cannot hold" do
     @misbehave "flowkit.misbehave"
 
-    test "path A: 64 characters is issued, 65 or a non-UTF-8 text is a 500 with no row", %{
+    test "code: 64 characters is issued, 65 or a non-UTF-8 text is a 500 with no row", %{
       token: token
     } do
       conn = call(token, @misbehave, %{"mode" => "fingerprint_64"})
@@ -645,7 +645,7 @@ defmodule PhoenixKit.API.ExecutorGateTest do
       assert length(rows("token")) == 1
     end
 
-    test "path B: 64 characters is queued, 65 or a non-UTF-8 text is a 500 with no row", %{
+    test "approval: 64 characters is queued, 65 or a non-UTF-8 text is a 500 with no row", %{
       gated: gated
     } do
       conn = call(gated.token, @misbehave, %{"mode" => "fingerprint_64"})
@@ -696,7 +696,7 @@ defmodule PhoenixKit.API.ExecutorGateTest do
     end
   end
 
-  describe "path B: a key that requires approval" do
+  describe "a key that requires approval" do
     test "a dangerous call is queued, not run, and no code is issued", %{gated: gated} do
       conn = call(gated.token, @delete, %{"ids" => ["a", "b"]})
 

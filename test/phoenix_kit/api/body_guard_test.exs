@@ -181,7 +181,7 @@ defmodule PhoenixKit.API.BodyGuardTest do
     end
   end
 
-  describe "Review Focus #5: a body over 2 MB" do
+  describe "a body over 2 MB" do
     test "is 413 payload_too_large as problem+json" do
       conn = run(:post, tool_path(), json_of_size(@max + 1))
 
@@ -244,7 +244,7 @@ defmodule PhoenixKit.API.BodyGuardTest do
     end
   end
 
-  describe "Review Focus #5: every other path is untouched" do
+  describe "every other path is untouched" do
     test "the body is neither read nor judged" do
       base = Routes.prefix_base()
 
@@ -498,7 +498,7 @@ defmodule PhoenixKit.API.BodyGuardTest do
     end
   end
 
-  describe "Review Focus #8: while the audience's switch is off the guard reads nothing" do
+  describe "while the audience's switch is off the guard reads nothing" do
     # `%{}`, not `Unfetched`: `Plug.Parsers` runs after the guard and would
     # raise on the invalid JSON; a map in `body_params` makes it skip the
     # request, and `Auth` then answers the bare 404.

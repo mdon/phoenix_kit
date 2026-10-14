@@ -154,7 +154,7 @@ defmodule PhoenixKit.API.MCP.ShapeTest do
                OutputShape.for_tool(write_tool(output_schema: %{"type" => "array"}))
     end
 
-    test "the preview shape is the spec 4.4 vocabulary and a valid output schema" do
+    test "the preview shape is the documented vocabulary and a valid output schema" do
       preview = OutputShape.preview_shape()
 
       assert preview["required"] == ["executed"]

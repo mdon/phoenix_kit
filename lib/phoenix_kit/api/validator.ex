@@ -12,7 +12,7 @@ defmodule PhoenixKit.API.Validator do
   500 on one request.
 
   Annotations constrain nothing and are accepted and ignored: `description`,
-  `title`, `default`, `examples` and `format` (spec 16.25), and also `$schema`,
+  `title`, `default`, `examples` and `format`, and also `$schema`,
   `$id`, `$comment`, `example`, `deprecated`, `readOnly`, `writeOnly` and any key
   that starts with a lowercase `x-`. `format` is not enforced: a tool that needs
   a shape checked declares a `pattern`.
