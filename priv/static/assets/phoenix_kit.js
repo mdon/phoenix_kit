@@ -5232,7 +5232,10 @@ if (typeof window.Chart === "undefined") {
       // Nothing drawn and nothing burned — a picture opened and closed.
       // A picture whose last shape was just rubbed out has a burn on file
       // and does not match this, so it goes on to render the clean one.
-      if (now === "" && !this._burned) return;
+      // "A burn on file" is asked of the page too, not only of the
+      // fingerprint: a copy whose fingerprint never reached this page is
+      // still a copy with the old markup in it.
+      if (now === "" && !this._burned && this.el.dataset.hasBurn !== "true") return;
 
       var fingerprint = burnHash(now);
       // The stored copy was made from exactly this drawing. Re-rendering it

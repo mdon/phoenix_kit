@@ -37,4 +37,15 @@ defmodule PhoenixKitWeb.AnnotationBurnFormatTest do
     assert Burn.layout_from_params(Map.put(params, "canvas_w", "1e9")) == :error
     assert Burn.layout_from_params(Map.put(params, "picture_h", "abc")) == :error
   end
+
+  test "the fingerprint is written before the file's change is announced" do
+    src = File.read!("lib/phoenix_kit_web/controllers/annotation_burn_controller.ex")
+
+    assert src =~
+             ~r/remember_fingerprint\(file, params\["fingerprint"\]\)\s+Storage\.broadcast_file_thumbnail_updated\(file\.uuid\)/,
+           "a refresh on the broadcast must read the new fingerprint"
+
+    assert length(Regex.scan(~r/broadcast_file_thumbnail_updated/, src)) == 1
+  end
+
 end

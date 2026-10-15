@@ -97,7 +97,14 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
          {:ok, variants} <- variants_from_params(params),
          {:ok, source_key} <- bind_original(file, params),
          {:ok, written} <- write_variants(file, upload, variants, source_key, params) do
+      # The fingerprint first, then the news: whoever re-reads the file on
+      # the broadcast (the media browser refreshes its row and the open
+      # viewer) must see what this copy was made from. Announced first, the
+      # refresh raced the write and often kept the old answer — reopening
+      # the picture and rubbing out its last shape then never rendered the
+      # clean copy, because the page believed no burn was on file.
       remember_fingerprint(file, params["fingerprint"])
+      Storage.broadcast_file_thumbnail_updated(file.uuid)
       json(conn, %{written: written})
     else
       {:error, reason} -> fail(conn, reason)
@@ -423,7 +430,6 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
         {:error, reason}
 
       list ->
-        Storage.broadcast_file_thumbnail_updated(file.uuid)
         {:ok, Enum.reverse(list)}
     end
   end

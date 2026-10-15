@@ -424,3 +424,8 @@ test("an animation's burn is the markup alone, with the picture's place sent alo
     assert.ok(section.includes(`body.append("${k}"`), k);
   }
 });
+
+test("rubbing out the last shape re-renders the clean picture whenever a burn is on file", () => {
+  assert.ok(section.includes('if (now === "" && !this._burned && this.el.dataset.hasBurn !== "true") return;'),
+    "an empty board skips only when there is no burn — by fingerprint or by the page's own word");
+});
