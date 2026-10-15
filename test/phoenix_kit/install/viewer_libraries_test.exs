@@ -139,4 +139,52 @@ defmodule PhoenixKit.Install.ViewerLibrariesTest do
     assert File.read!(Path.join(root, "priv/static/assets/vendor/phoenix_kit_modules.js")) ==
              before
   end
+
+  describe "minifying the Hex libraries" do
+    setup do
+      previous = Application.get_env(:phoenix_kit, :minify_libraries)
+
+      on_exit(fn ->
+        if is_nil(previous),
+          do: Application.delete_env(:phoenix_kit, :minify_libraries),
+          else: Application.put_env(:phoenix_kit, :minify_libraries, previous)
+      end)
+    end
+
+    test "production minifies; the setting overrides it either way" do
+      Application.delete_env(:phoenix_kit, :minify_libraries)
+      assert ViewerLibraries.minify?() == (Mix.env() == :prod)
+
+      Application.put_env(:phoenix_kit, :minify_libraries, true)
+      assert ViewerLibraries.minify?()
+
+      Application.put_env(:phoenix_kit, :minify_libraries, false)
+      refute ViewerLibraries.minify?()
+    end
+
+    test "a minified copy is named by its source, so an unchanged library is not minified again" do
+      assert ViewerLibraries.min_file_name("etcher", "0.22.0", "src") ==
+               String.replace_suffix(ViewerLibraries.file_name("etcher", "0.22.0", "src"), ".js", ".min.js")
+    end
+
+    test "with minifying on, the Hex libraries land minified and the core-committed ones as they are",
+         %{root: root} do
+      Application.put_env(:phoenix_kit, :minify_libraries, true)
+      facts = ViewerLibraries.vendor!(root)
+
+      # Without an installed esbuild (the test env has none) the readable
+      # copy is served instead — never a failed build.
+      for name <- ~w(etcher fresco) do
+        file = facts[name].file
+        assert File.regular?(lib_path(root, file))
+
+        if match?({:ok, _}, ViewerLibraries.minify("var a = 1;")),
+          do: assert(file =~ ~r/\.min\.js\z/),
+          else: refute(file =~ ~r/\.min\.js\z/)
+      end
+
+      refute facts["sortable"].file =~ ~r/\.min\.js\z/, "already minified upstream: copied as is"
+    end
+  end
+
 end

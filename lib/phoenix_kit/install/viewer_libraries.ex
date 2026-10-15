@@ -29,6 +29,21 @@ defmodule PhoenixKit.Install.ViewerLibraries do
       as far as the deployment itself keeps them (a clean release image does
       not; that retention is the deployment's, not the compiler's).
 
+  ## Minified in production
+
+  The Hex libraries are written readable, as published — Etcher alone is
+  over a megabyte of commented source. A production build (or any build
+  with `config :phoenix_kit, minify_libraries: true`) minifies them on the
+  way in with the host's own esbuild, the binary `mix assets.deploy` already
+  uses: Etcher goes from ~1.3 MB to ~450 KB (~370 KB to ~115 KB gzipped),
+  Fresco from ~180 KB to ~60 KB. The minified copy is named
+  `<name>-<version>-<hash>.min.js`, the hash still that of the source, so an
+  unchanged library is not minified again. Dev builds keep the readable
+  copy, so a stack trace points at real lines. A host without esbuild
+  installed, or a minify that fails, gets the readable copy and a note —
+  never a broken build. The libraries committed in core ship minified
+  already and are copied as they are.
+
   It returns the facts the browser needs — `window.PHOENIX_KIT_LIBS`, written
   by the `:phoenix_kit_js_sources` compiler next to the module bundles — so
   `phoenix_kit.js` names no CDN, no tag and no version of its own. A CDN is
@@ -112,24 +127,118 @@ defmodule PhoenixKit.Install.ViewerLibraries do
     File.mkdir_p!(dir)
     cdn? = Application.get_env(:phoenix_kit, :library_cdn_fallback, false) == true
 
+    minify? = minify?()
+
     Map.new(@libraries, fn lib ->
       content = read_source!(lib)
       vsn = version!(lib)
-      file = file_name(lib.name, vsn, content)
-      dest = Path.join(dir, file)
-
-      # The name carries the content hash, so a file of the wrong size is a
-      # write that was cut short: write it again rather than trust it. The
-      # rename keeps a half-written file from ever sitting under the final name.
-      unless File.exists?(dest) and File.stat!(dest).size == byte_size(content) do
-        tmp = dest <> ".tmp"
-        File.write!(tmp, content)
-        File.rename!(tmp, dest)
-        Mix.shell().info("[PhoenixKit] Vendored #{@lib_dir}/#{file}")
-      end
+      file = vendor_file!(dir, lib, vsn, content, minify? and lib.version == :app_vsn)
 
       {lib.name, %{file: file, cdn: if(cdn?, do: String.replace(lib.cdn, "{vsn}", vsn))}}
     end)
+  end
+
+  # The minified copy when asked for and esbuild can make it; otherwise the
+  # source as it is. Either way only written when its name is not there yet.
+  defp vendor_file!(dir, lib, vsn, content, true) do
+    file = min_file_name(lib.name, vsn, content)
+    dest = Path.join(dir, file)
+
+    # A minified copy is written whole through a rename, so an existing,
+    # non-empty file under its name is the finished one.
+    if File.exists?(dest) and File.stat!(dest).size > 0 do
+      file
+    else
+      case minify(content) do
+        {:ok, small} ->
+          write!(dest, small)
+          Mix.shell().info("[PhoenixKit] Vendored #{@lib_dir}/#{file} (minified)")
+          file
+
+        {:error, reason} ->
+          Mix.shell().info(
+            "[PhoenixKit] Could not minify #{lib.name} (#{reason}); serving it unminified."
+          )
+
+          vendor_file!(dir, lib, vsn, content, false)
+      end
+    end
+  end
+
+  defp vendor_file!(dir, lib, vsn, content, false) do
+    file = file_name(lib.name, vsn, content)
+    dest = Path.join(dir, file)
+
+    # The name carries the content hash, so a file of the wrong size is a
+    # write that was cut short: write it again rather than trust it.
+    unless File.exists?(dest) and File.stat!(dest).size == byte_size(content) do
+      write!(dest, content)
+      Mix.shell().info("[PhoenixKit] Vendored #{@lib_dir}/#{file}")
+    end
+
+    file
+  end
+
+  # The rename keeps a half-written file from ever sitting under the final name.
+  defp write!(dest, content) do
+    tmp = dest <> ".tmp"
+    File.write!(tmp, content)
+    File.rename!(tmp, dest)
+  end
+
+  @doc false
+  # Production minifies; `config :phoenix_kit, minify_libraries: true/false`
+  # says otherwise either way.
+  def minify? do
+    case Application.get_env(:phoenix_kit, :minify_libraries) do
+      flag when is_boolean(flag) -> flag
+      _ -> Mix.env() == :prod
+    end
+  end
+
+  @doc false
+  # The host's esbuild — the binary its own asset build installs — as a plain
+  # transform: no bundling, so a script stays the script it was.
+  @spec minify(binary()) :: {:ok, binary()} | {:error, String.t()}
+  def minify(content) do
+    with {:ok, bin} <- esbuild_bin() do
+      stamp = System.unique_integer([:positive])
+      input = Path.join(System.tmp_dir!(), "pk_minify_#{stamp}.js")
+      output = Path.join(System.tmp_dir!(), "pk_minify_#{stamp}.min.js")
+
+      try do
+        File.write!(input, content)
+
+        case System.cmd(bin, [input, "--minify", "--log-level=error", "--outfile=" <> output],
+               stderr_to_stdout: true
+             ) do
+          {_, 0} ->
+            case File.read(output) do
+              {:ok, small} when byte_size(small) > 0 -> {:ok, small}
+              _ -> {:error, "esbuild wrote nothing"}
+            end
+
+          {out, code} ->
+            {:error, "esbuild exited #{code}: #{String.slice(out, 0, 200)}"}
+        end
+      after
+        File.rm(input)
+        File.rm(output)
+      end
+    end
+  rescue
+    e -> {:error, Exception.message(e)}
+  end
+
+  defp esbuild_bin do
+    if Code.ensure_loaded?(Esbuild) do
+      bin = apply(Esbuild, :bin_path, [])
+      if File.exists?(bin), do: {:ok, bin}, else: {:error, "esbuild is not installed"}
+    else
+      {:error, "the host has no :esbuild dependency"}
+    end
+  rescue
+    e -> {:error, Exception.message(e)}
   end
 
   @doc "The JavaScript statement carrying the facts, for the install-facts preamble."
@@ -146,10 +255,15 @@ defmodule PhoenixKit.Install.ViewerLibraries do
   end
 
   @doc false
-  def file_name(name, vsn, content) do
-    hash = :crypto.hash(:sha256, content) |> Base.encode16(case: :lower) |> binary_part(0, 8)
-    "#{name}-#{vsn}-#{hash}.js"
-  end
+  def file_name(name, vsn, content), do: "#{name}-#{vsn}-#{hash8(content)}.js"
+
+  @doc false
+  # The source's hash, not the minified bytes': an unchanged library keeps its
+  # name, so nothing is minified twice.
+  def min_file_name(name, vsn, content), do: "#{name}-#{vsn}-#{hash8(content)}.min.js"
+
+  defp hash8(content),
+    do: :crypto.hash(:sha256, content) |> Base.encode16(case: :lower) |> binary_part(0, 8)
 
   defp read_source!(%{name: name, source: {app, path}} = lib) do
     source =
