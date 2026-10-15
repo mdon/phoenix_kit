@@ -142,6 +142,7 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       |> RouterIntegration.add_router_integration(opts[:router_path])
       |> BrowserPipelineIntegration.add_integration_to_browser_pipeline()
       |> EndpointIntegration.add_endpoint_integration()
+      |> EndpointIntegration.add_body_guard()
       |> MigrationStrategy.create_phoenix_kit_migration_only(opts)
       |> add_completion_notice(opts)
       |> queue_post_install(opts)

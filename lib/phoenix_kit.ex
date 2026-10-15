@@ -3,6 +3,7 @@ defmodule PhoenixKit do
   PhoenixKit
   """
 
+  alias PhoenixKit.API.Auth
   alias PhoenixKit.Config
   alias PhoenixKit.Integrations.Encryption
   alias PhoenixKit.Settings
@@ -243,6 +244,11 @@ defmodule PhoenixKit do
   # but its name contains none of `secret`/`token`/`api_key`. Duplicating
   # that list by hand here instead would drift from it exactly the way the
   # settings-display side used to drift from `module == "integrations"`.
+  #
+  # The API's credential parameter names (`PhoenixKit.API.Auth.credential_params/0`:
+  # `apikey`, `api-key`, `authorization`, `bearer` ...) are added from their one
+  # definition: a request carrying one is refused with 400 token_in_url, but
+  # Phoenix logs its query string at :debug before the plug runs.
   defp harden_filter_parameters do
     case Application.get_env(:phoenix, :filter_parameters, ["password"]) do
       {:keep, _} = keep_mode ->
@@ -250,7 +256,10 @@ defmodule PhoenixKit do
 
       _other ->
         filter =
-          Enum.uniq(~w(password token secret api_key) ++ Settings.restricted_setting_keys())
+          Enum.uniq(
+            ~w(password token secret api_key idempotency_key) ++
+              Auth.credential_params() ++ Settings.restricted_setting_keys()
+          )
 
         Application.put_env(:phoenix, :filter_parameters, filter)
     end

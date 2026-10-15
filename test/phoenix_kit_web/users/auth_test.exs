@@ -80,6 +80,14 @@ defmodule PhoenixKitWeb.Users.AuthTest do
                "users"
     end
 
+    test "maps Settings -> API to the api permission, not to settings" do
+      assert Auth.permission_key_for_admin_view(PhoenixKitWeb.Live.Settings.Api) == "api"
+    end
+
+    test "maps Settings -> API -> Pending approvals to the api permission too" do
+      assert Auth.permission_key_for_admin_view(PhoenixKitWeb.Live.Settings.ApiApprovals) == "api"
+    end
+
     test "infers key from PhoenixKit.Modules.<Name>.Web.* namespace" do
       assert Auth.permission_key_for_admin_view(PhoenixKit.Modules.Tickets.Web.Index) ==
                "tickets"

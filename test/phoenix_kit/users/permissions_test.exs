@@ -46,7 +46,9 @@ defmodule PhoenixKit.Users.PermissionsTest do
       assert "jobs" in keys
       # Languages is core too: its settings page holds the multi-language switch
       assert "languages" in keys
-      assert length(keys) == 7
+      # The API section: keys and service users. Opt-in for Admin (see the api permission tests).
+      assert "api" in keys
+      assert length(keys) == 8
     end
   end
 

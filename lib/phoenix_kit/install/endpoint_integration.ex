@@ -13,7 +13,8 @@ if Code.ensure_loaded?(Igniter) do
     via `phoenix_kit_routes()` in the router.
 
     This module now removes any existing deprecated `phoenix_kit_socket()` calls from
-    endpoints during installation/updates.
+    endpoints during installation/updates. It also mounts the PDF.js static assets when the
+    catalogue module is present and adds `PhoenixKit.API.BodyGuard` before `Plug.Parsers`.
     """
     use PhoenixKit.Install.IgniterCompat
 
@@ -33,6 +34,12 @@ if Code.ensure_loaded?(Igniter) do
       from: {:phoenix_kit_catalogue, "priv/static/pdfjs"},
       gzip: false\
     """
+
+    # The shop API's body guard. It has to run before `Plug.Parsers`, which in
+    # the host endpoint reads (up to 8 MB) and parses every body first; see
+    # `PhoenixKit.API.BodyGuard`.
+    @body_guard_plug "plug PhoenixKit.API.BodyGuard"
+    @body_guard_marker "PhoenixKit.API.BodyGuard"
 
     @doc """
     Removes deprecated `phoenix_kit_socket()` and its import from the endpoint.
@@ -89,6 +96,77 @@ if Code.ensure_loaded?(Igniter) do
         # No catalogue dep, no endpoint, or mount already present.
         _ -> igniter
       end
+    end
+
+    @doc """
+    Puts `plug PhoenixKit.API.BodyGuard` into the host endpoint, immediately
+    before `plug Plug.Parsers`.
+
+    `PhoenixKit.API.BodyGuard` bounds the body of shop API requests to 2 MB
+    and answers malformed JSON as `application/problem+json`; a router plug
+    cannot do either, because `Plug.Parsers` has already read the body by
+    then. Requests to any other path pass through it untouched.
+
+    Idempotent: nothing happens when the endpoint already mentions
+    `PhoenixKit.API.BodyGuard`. When the endpoint (or its `Plug.Parsers`) is
+    not where the installer expects it, the plug is not added and a warning
+    tells the developer to add it by hand. Called by both
+    `mix phoenix_kit.install` and `mix phoenix_kit.update`; PhoenixKit's own
+    project is skipped, its test endpoint carries the plug in source.
+    """
+    def add_body_guard(igniter) do
+      case find_endpoint(igniter) do
+        {igniter, nil} ->
+          warn_no_endpoint(igniter)
+
+        {igniter, endpoint_module} ->
+          {igniter, source, _zipper} = IgniterModule.find_module!(igniter, endpoint_module)
+
+          if source |> Rewrite.Source.get(:content) |> String.contains?(@body_guard_marker) do
+            igniter
+          else
+            insert_body_guard(igniter, endpoint_module)
+          end
+      end
+    end
+
+    defp insert_body_guard(igniter, endpoint_module) do
+      IgniterModule.find_and_update_module!(igniter, endpoint_module, fn zipper ->
+        case move_to_plug_parsers(zipper) do
+          {:ok, parsers_zipper} ->
+            {:ok, Common.add_code(parsers_zipper, @body_guard_plug, placement: :before)}
+
+          :error ->
+            {:warning, body_guard_warning(endpoint_module)}
+        end
+      end)
+    end
+
+    defp warn_no_endpoint(igniter) do
+      if Application.app_name(igniter) == :phoenix_kit do
+        igniter
+      else
+        Igniter.add_warning(igniter, body_guard_warning(nil))
+      end
+    end
+
+    defp body_guard_warning(endpoint_module) do
+      where = if endpoint_module, do: inspect(endpoint_module), else: "the endpoint"
+
+      "Could not add PhoenixKit.API.BodyGuard to #{where}. Add `#{@body_guard_plug}` " <>
+        "immediately before `plug Plug.Parsers` by hand; without it the shop API " <>
+        "(/api/admin/v1, /api/shop/v1) has no 2 MB body limit and answers malformed " <>
+        "JSON with an error page instead of a problem+json document."
+    end
+
+    # `plug Plug.Parsers, parsers: ...` (or `plug(Plug.Parsers, ...)`).
+    defp move_to_plug_parsers(zipper) do
+      Function.move_to_function_call(zipper, :plug, [1, 2], fn call_zipper ->
+        case Function.move_to_nth_argument(call_zipper, 0) do
+          {:ok, arg_zipper} -> Common.nodes_equal?(arg_zipper, Plug.Parsers)
+          :error -> false
+        end
+      end)
     end
 
     # Locate `use Phoenix.Endpoint, otp_app: ...` so the static mount can be

@@ -45,6 +45,7 @@ defmodule PhoenixKit.Users.Auth.User do
           first_name: String.t() | nil,
           last_name: String.t() | nil,
           is_active: boolean(),
+          api_only: boolean(),
           confirmed_at: DateTime.t() | nil,
           user_timezone: String.t() | nil,
           registration_ip: String.t() | nil,
@@ -72,6 +73,10 @@ defmodule PhoenixKit.Users.Auth.User do
     field :first_name, :string
     field :last_name, :string
     field :is_active, :boolean, default: true
+    # A service user (`PhoenixKit.API.ServiceUsers`): owns API keys, never signs in on the
+    # web. Every web authentication door refuses it. Written only by core code that
+    # creates a service user - never add it to a `cast/3` list, or a form could mint one.
+    field :api_only, :boolean, default: false
     field :confirmed_at, :utc_datetime
     field :user_timezone, :string
     field :registration_ip, :string
@@ -444,6 +449,13 @@ defmodule PhoenixKit.Users.Auth.User do
   If there is no user or the user doesn't have a password, we call
   `Bcrypt.no_user_verify/0` to avoid timing attacks.
   """
+  def valid_password?(%PhoenixKit.Users.Auth.User{api_only: true}, _password) do
+    # A service user signs in with an API key only. It has a random password hash, but a
+    # password somebody sets on it later (an admin form, a reset) must not open the web.
+    Bcrypt.no_user_verify()
+    false
+  end
+
   def valid_password?(%PhoenixKit.Users.Auth.User{hashed_password: hashed_password}, password)
       when is_binary(hashed_password) and byte_size(password) > 0 do
     Bcrypt.verify_pass(password, hashed_password)

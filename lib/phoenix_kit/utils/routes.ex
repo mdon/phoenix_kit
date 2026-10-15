@@ -14,8 +14,15 @@ defmodule PhoenixKit.Utils.Routes do
   alias PhoenixKit.Users.Auth.Scope
 
   # List of path prefixes that should NEVER have a locale added.
-  # This should be kept in sync with @reserved_segments in LocaleExtractor plug.
+  # Keep the entries both lists share (api, mcp, webhooks, assets, static,
+  # files, images) in sync with @reserved_path_segments in
+  # PhoenixKitWeb.Users.Auth, which names them without the slashes. `/api` and
+  # `/mcp` are the shop API's and MCP's endpoints.
   @reserved_prefixes ~w(/api /webhooks /assets /static /files /images /fonts /js /css /sitemap)
+
+  # Reserved as a whole path segment only: `/mcp` and `/mcp/...` keep their
+  # place, a host page such as `/mcp-servers` still gets its locale.
+  @reserved_segments ~w(/mcp)
 
   @doc """
   Returns the configured PhoenixKit URL prefix.
@@ -1256,9 +1263,16 @@ defmodule PhoenixKit.Utils.Routes do
   # rescue policy.
   defp prefixless_primary?, do: Languages.prefixless_primary_safe?()
 
-  # Check if a path starts with one of the reserved prefixes.
+  # Check if a path starts with one of the reserved prefixes, or is (or lies
+  # under) one of the reserved segments.
   defp reserved_path?(path) do
-    Enum.any?(@reserved_prefixes, &String.starts_with?(path, &1))
+    Enum.any?(@reserved_prefixes, &String.starts_with?(path, &1)) or
+      Enum.any?(@reserved_segments, &segment_path?(path, &1))
+  end
+
+  defp segment_path?(path, segment) do
+    path == segment or
+      Enum.any?(["/", "?", "#"], &String.starts_with?(path, segment <> &1))
   end
 
   defp determine_locale do

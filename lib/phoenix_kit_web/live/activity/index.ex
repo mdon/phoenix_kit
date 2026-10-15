@@ -123,6 +123,11 @@ defmodule PhoenixKitWeb.Live.Activity.Index do
     {:noreply, load_activities(socket)}
   end
 
+  # `Activity.log_many/2` announces a whole batch with this same message, once.
+  # Anything else that reaches the process (a stray message on the shared
+  # topic, a reply that arrived late) must not take the page down.
+  def handle_info(_message, socket), do: {:noreply, socket}
+
   ## Private
 
   defp assign_filter_defaults(socket) do

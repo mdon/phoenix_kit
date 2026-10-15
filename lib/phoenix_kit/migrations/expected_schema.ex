@@ -202,6 +202,24 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # access to; the real-database integration suite re-ran clean against a DB
   # migrated through V196, which is the property s7/s8 exist to prove.
   #
+  # V220 (2026-10-14, the dangerous-operation flow of the shop API) DECLARES 44
+  # objects, built by the `v220_*` helpers under `raw_objects/0`: the tables
+  # `phoenix_kit_api_confirmations` (19 columns, pkey, two foreign keys, three CHECKs,
+  # four indexes, one of them partial for the stuck-operation sweep) and
+  # `phoenix_kit_api_idempotency` (9 columns, pkey, one CHECK, a unique and a plain
+  # index). Kept honest by `PhoenixKit.Migrations.Postgres.V220Test`,
+  # which runs the repair differ over every `since: 220` object of a freshly migrated
+  # database. `chain_hash` restamped over the shipped files.
+  #
+  # V219 (2026-10-14, API keys and service users) DECLARES 24 objects:
+  # `column:phoenix_kit_users.api_only` (boolean NOT NULL DEFAULT false) and the 23 of
+  # `phoenix_kit_api_keys` (table, 15 columns, pkey, two user FKs, a CHECK on `prefix`, a
+  # unique index on `prefix` and two plain indexes). Read from the catalog after running
+  # V219's SQL on a copy of the V218 schema, and kept honest by
+  # `PhoenixKit.Migrations.Postgres.V219Test`, which runs the repair differ over every
+  # `since: 219` object of a freshly migrated database. `chain_hash` restamped over the
+  # shipped files.
+  #
   # V218 (2026-10-14, sync requests per minute) RESHAPES one object:
   # `column:phoenix_kit_sync_connections.rate_limit_requests_per_minute` keeps
   # integer NOT NULL at position 18, its default 60 -> 600. The migration's other
@@ -590,7 +608,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "a7da3e5154f28619a79730deb27dbf8ebec26c88a7f44344ecfafd944c93c0a0"
+  @chain_hash "571a8a2328fa1eb8f1b989007bad2d5f7161dbda2f03ac3f7bb208d95918dace"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -76393,8 +76411,683 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         ],
         presence: :required,
         backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_users.api_only",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_users", column: "api_only", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_users ADD COLUMN IF NOT EXISTS \"api_only\" boolean DEFAULT false NOT NULL",
+        since: 219,
+        class: :column,
+        revisions: [{219, %{default: "false", type: "boolean", pos: 24, not_null: true}}],
+        presence: :required,
+        backfill: :default
+      },
+      %{
+        id: "table:phoenix_kit_api_keys",
+        owner: :core,
+        check: {:catalog, %{name: "phoenix_kit_api_keys", kind: :table}},
+        create: "CREATE TABLE IF NOT EXISTS __SCHEMA__.phoenix_kit_api_keys ()",
+        since: 219,
+        class: :table,
+        revisions: [{219, %{}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_api_keys.uuid",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_api_keys", column: "uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_api_keys ADD COLUMN IF NOT EXISTS \"uuid\" uuid DEFAULT __SCHEMA__.uuid_generate_v7() NOT NULL",
+        since: 219,
+        class: :column,
+        revisions: [
+          {219, %{default: "__SCHEMA__.uuid_generate_v7()", type: "uuid", pos: 1, not_null: true}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_api_keys.user_uuid",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_api_keys", column: "user_uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_api_keys ADD COLUMN IF NOT EXISTS \"user_uuid\" uuid NOT NULL",
+        since: 219,
+        class: :column,
+        revisions: [{219, %{default: nil, type: "uuid", pos: 2, not_null: true}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_api_keys.created_by_uuid",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_api_keys", column: "created_by_uuid", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_api_keys ADD COLUMN IF NOT EXISTS \"created_by_uuid\" uuid",
+        since: 219,
+        class: :column,
+        revisions: [{219, %{default: nil, type: "uuid", pos: 3, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_api_keys.name",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_api_keys", column: "name", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_api_keys ADD COLUMN IF NOT EXISTS \"name\" character varying(160) NOT NULL",
+        since: 219,
+        class: :column,
+        revisions: [
+          {219, %{default: nil, type: "character varying(160)", pos: 4, not_null: true}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_api_keys.prefix",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_api_keys", column: "prefix", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_api_keys ADD COLUMN IF NOT EXISTS \"prefix\" character varying(8) NOT NULL",
+        since: 219,
+        class: :column,
+        revisions: [{219, %{default: nil, type: "character varying(8)", pos: 5, not_null: true}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_api_keys.secret_hash",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_api_keys", column: "secret_hash", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_api_keys ADD COLUMN IF NOT EXISTS \"secret_hash\" bytea NOT NULL",
+        since: 219,
+        class: :column,
+        revisions: [{219, %{default: nil, type: "bytea", pos: 6, not_null: true}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_api_keys.scopes",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_api_keys", column: "scopes", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_api_keys ADD COLUMN IF NOT EXISTS \"scopes\" text[] DEFAULT '{}'::text[] NOT NULL",
+        since: 219,
+        class: :column,
+        revisions: [{219, %{default: "'{}'::text[]", type: "text[]", pos: 7, not_null: true}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_api_keys.requires_approval",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_api_keys", column: "requires_approval", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_api_keys ADD COLUMN IF NOT EXISTS \"requires_approval\" boolean DEFAULT false NOT NULL",
+        since: 219,
+        class: :column,
+        revisions: [{219, %{default: "false", type: "boolean", pos: 8, not_null: true}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_api_keys.allowed_ips",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_api_keys", column: "allowed_ips", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_api_keys ADD COLUMN IF NOT EXISTS \"allowed_ips\" text[] DEFAULT '{}'::text[] NOT NULL",
+        since: 219,
+        class: :column,
+        revisions: [{219, %{default: "'{}'::text[]", type: "text[]", pos: 9, not_null: true}}],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_api_keys.expires_at",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_api_keys", column: "expires_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_api_keys ADD COLUMN IF NOT EXISTS \"expires_at\" timestamp(0) without time zone",
+        since: 219,
+        class: :column,
+        revisions: [
+          {219, %{default: nil, type: "timestamp(0) without time zone", pos: 10, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_api_keys.revoked_at",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_api_keys", column: "revoked_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_api_keys ADD COLUMN IF NOT EXISTS \"revoked_at\" timestamp(0) without time zone",
+        since: 219,
+        class: :column,
+        revisions: [
+          {219, %{default: nil, type: "timestamp(0) without time zone", pos: 11, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_api_keys.last_used_at",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_api_keys", column: "last_used_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_api_keys ADD COLUMN IF NOT EXISTS \"last_used_at\" timestamp(0) without time zone",
+        since: 219,
+        class: :column,
+        revisions: [
+          {219, %{default: nil, type: "timestamp(0) without time zone", pos: 12, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_api_keys.last_used_ip",
+        owner: :core,
+        check:
+          {:catalog, %{table: "phoenix_kit_api_keys", column: "last_used_ip", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_api_keys ADD COLUMN IF NOT EXISTS \"last_used_ip\" character varying(45)",
+        since: 219,
+        class: :column,
+        revisions: [
+          {219, %{default: nil, type: "character varying(45)", pos: 13, not_null: false}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_api_keys.inserted_at",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_api_keys", column: "inserted_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_api_keys ADD COLUMN IF NOT EXISTS \"inserted_at\" timestamp(0) without time zone DEFAULT now() NOT NULL",
+        since: 219,
+        class: :column,
+        revisions: [
+          {219,
+           %{default: "now()", type: "timestamp(0) without time zone", pos: 14, not_null: true}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "column:phoenix_kit_api_keys.updated_at",
+        owner: :core,
+        check: {:catalog, %{table: "phoenix_kit_api_keys", column: "updated_at", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_api_keys ADD COLUMN IF NOT EXISTS \"updated_at\" timestamp(0) without time zone DEFAULT now() NOT NULL",
+        since: 219,
+        class: :column,
+        revisions: [
+          {219,
+           %{default: "now()", type: "timestamp(0) without time zone", pos: 15, not_null: true}}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "constraint:phoenix_kit_api_keys.phoenix_kit_api_keys_pkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{name: "phoenix_kit_api_keys_pkey", table: "phoenix_kit_api_keys", kind: :constraint}},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_api_keys_pkey'\n      AND t.relname = 'phoenix_kit_api_keys'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_api_keys ADD CONSTRAINT phoenix_kit_api_keys_pkey PRIMARY KEY (uuid);\n  END IF;\nEND\n$$",
+        since: 219,
+        class: :constraint,
+        revisions: [
+          {219,
+           %{
+             type: "p",
+             definition: "PRIMARY KEY (uuid)",
+             name_template: nil,
+             columns: ["uuid"],
+             foreign_table: nil,
+             foreign_columns: nil,
+             on_delete: nil,
+             on_update: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "constraint:phoenix_kit_api_keys.phoenix_kit_api_keys_user_uuid_fkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_api_keys_user_uuid_fkey",
+             table: "phoenix_kit_api_keys",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_api_keys_user_uuid_fkey'\n      AND t.relname = 'phoenix_kit_api_keys'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_api_keys ADD CONSTRAINT phoenix_kit_api_keys_user_uuid_fkey FOREIGN KEY (user_uuid) REFERENCES __SCHEMA__.phoenix_kit_users(uuid) ON DELETE CASCADE;\n  END IF;\nEND\n$$",
+        since: 219,
+        class: :constraint,
+        revisions: [
+          {219,
+           %{
+             type: "f",
+             definition:
+               "FOREIGN KEY (user_uuid) REFERENCES __SCHEMA__.phoenix_kit_users(uuid) ON DELETE CASCADE",
+             name_template: nil,
+             columns: ["user_uuid"],
+             foreign_table: "phoenix_kit_users",
+             foreign_columns: ["uuid"],
+             on_delete: "c",
+             on_update: "a"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "constraint:phoenix_kit_api_keys.phoenix_kit_api_keys_created_by_uuid_fkey",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_api_keys_created_by_uuid_fkey",
+             table: "phoenix_kit_api_keys",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_api_keys_created_by_uuid_fkey'\n      AND t.relname = 'phoenix_kit_api_keys'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_api_keys ADD CONSTRAINT phoenix_kit_api_keys_created_by_uuid_fkey FOREIGN KEY (created_by_uuid) REFERENCES __SCHEMA__.phoenix_kit_users(uuid) ON DELETE SET NULL;\n  END IF;\nEND\n$$",
+        since: 219,
+        class: :constraint,
+        revisions: [
+          {219,
+           %{
+             type: "f",
+             definition:
+               "FOREIGN KEY (created_by_uuid) REFERENCES __SCHEMA__.phoenix_kit_users(uuid) ON DELETE SET NULL",
+             name_template: nil,
+             columns: ["created_by_uuid"],
+             foreign_table: "phoenix_kit_users",
+             foreign_columns: ["uuid"],
+             on_delete: "n",
+             on_update: "a"
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "constraint:phoenix_kit_api_keys.phoenix_kit_api_keys_prefix_check",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_api_keys_prefix_check",
+             table: "phoenix_kit_api_keys",
+             kind: :constraint
+           }},
+        create:
+          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_api_keys_prefix_check'\n      AND t.relname = 'phoenix_kit_api_keys'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_api_keys ADD CONSTRAINT phoenix_kit_api_keys_prefix_check CHECK (((prefix)::text ~ '^[0-9a-f]{8}$'::text));\n  END IF;\nEND\n$$",
+        since: 219,
+        class: :constraint,
+        revisions: [
+          {219,
+           %{
+             type: "c",
+             definition: "CHECK (((prefix)::text ~ '^[0-9a-f]{8}$'::text))",
+             name_template: nil,
+             columns: ["prefix"],
+             foreign_table: nil,
+             foreign_columns: nil,
+             on_delete: nil,
+             on_update: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_api_keys_created_by_uuid_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_api_keys_created_by_uuid_index",
+             table: "phoenix_kit_api_keys",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_api_keys_created_by_uuid_index ON __SCHEMA__.phoenix_kit_api_keys USING btree (created_by_uuid)",
+        since: 219,
+        class: :index,
+        revisions: [
+          {219,
+           %{
+             table: "phoenix_kit_api_keys",
+             keys: ["created_by_uuid"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_api_keys_created_by_uuid_index ON __SCHEMA__.phoenix_kit_api_keys USING btree (created_by_uuid)",
+             predicate: nil,
+             opclasses: ["uuid_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_api_keys_prefix_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_api_keys_prefix_index",
+             table: "phoenix_kit_api_keys",
+             kind: :index
+           }},
+        create:
+          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_api_keys_prefix_index ON __SCHEMA__.phoenix_kit_api_keys USING btree (prefix)",
+        since: 219,
+        class: :index,
+        revisions: [
+          {219,
+           %{
+             table: "phoenix_kit_api_keys",
+             keys: ["prefix"],
+             unique: true,
+             method: "btree",
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_api_keys_prefix_index ON __SCHEMA__.phoenix_kit_api_keys USING btree (prefix)",
+             predicate: nil,
+             opclasses: ["text_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      },
+      %{
+        id: "index:phoenix_kit_api_keys_user_uuid_index",
+        owner: :core,
+        check:
+          {:catalog,
+           %{
+             name: "phoenix_kit_api_keys_user_uuid_index",
+             table: "phoenix_kit_api_keys",
+             kind: :index
+           }},
+        create:
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_api_keys_user_uuid_index ON __SCHEMA__.phoenix_kit_api_keys USING btree (user_uuid)",
+        since: 219,
+        class: :index,
+        revisions: [
+          {219,
+           %{
+             table: "phoenix_kit_api_keys",
+             keys: ["user_uuid"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_api_keys_user_uuid_index ON __SCHEMA__.phoenix_kit_api_keys USING btree (user_uuid)",
+             predicate: nil,
+             opclasses: ["uuid_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
       }
-    ]
+    ] ++ v220_objects()
+  end
+
+  # --- V220: the dangerous-operation flow (built, not typed; see the header) ---
+
+  defp v220_objects do
+    conf = "phoenix_kit_api_confirmations"
+    idem = "phoenix_kit_api_idempotency"
+    ts = "timestamp(0) without time zone"
+    jsonb_empty = "'{}'::jsonb"
+    kinds = ~w(token approval)
+    statuses = ~w(unused used expired pending approved executing executed failed rejected stale)
+
+    [v220_table(conf)] ++
+      [
+        v220_column(conf, "uuid", 1, "uuid",
+          default: "__SCHEMA__.uuid_generate_v7()",
+          not_null: true
+        ),
+        v220_column(conf, "kind", 2, "character varying(16)", not_null: true),
+        v220_column(conf, "tool", 3, "character varying(120)", not_null: true),
+        v220_column(conf, "input_hash", 4, "character varying(64)", not_null: true),
+        v220_column(conf, "fingerprint", 5, "character varying(64)", not_null: true),
+        v220_column(conf, "input", 6, "jsonb"),
+        v220_column(conf, "context", 7, "jsonb", default: jsonb_empty, not_null: true),
+        v220_column(conf, "actor_key_uuid", 8, "uuid"),
+        v220_column(conf, "cart_token_hash", 9, "character varying(64)"),
+        v220_column(conf, "preview", 10, "jsonb", default: jsonb_empty, not_null: true),
+        v220_column(conf, "status", 11, "character varying(16)", not_null: true),
+        v220_column(conf, "expires_at", 12, ts, not_null: true),
+        v220_column(conf, "used_at", 13, ts),
+        v220_column(conf, "decided_by_uuid", 14, "uuid"),
+        v220_column(conf, "decided_at", 15, ts),
+        v220_column(conf, "result", 16, "jsonb"),
+        v220_column(conf, "notified_at", 17, ts),
+        v220_column(conf, "inserted_at", 18, ts, default: "now()", not_null: true),
+        v220_column(conf, "updated_at", 19, ts, default: "now()", not_null: true),
+        v220_constraint(conf, "phoenix_kit_api_confirmations_pkey", "PRIMARY KEY (uuid)", "p", [
+          "uuid"
+        ]),
+        v220_constraint(
+          conf,
+          "phoenix_kit_api_confirmations_actor_key_uuid_fkey",
+          "FOREIGN KEY (actor_key_uuid) REFERENCES __SCHEMA__.phoenix_kit_api_keys(uuid) ON DELETE CASCADE",
+          "f",
+          ["actor_key_uuid"],
+          foreign_table: "phoenix_kit_api_keys",
+          foreign_columns: ["uuid"],
+          on_delete: "c"
+        ),
+        v220_constraint(
+          conf,
+          "phoenix_kit_api_confirmations_decided_by_uuid_fkey",
+          "FOREIGN KEY (decided_by_uuid) REFERENCES __SCHEMA__.phoenix_kit_users(uuid) ON DELETE SET NULL",
+          "f",
+          ["decided_by_uuid"],
+          foreign_table: "phoenix_kit_users",
+          foreign_columns: ["uuid"],
+          on_delete: "n"
+        ),
+        v220_constraint(
+          conf,
+          "phoenix_kit_api_confirmations_kind_check",
+          v220_in_check("kind", kinds),
+          "c",
+          ["kind"]
+        ),
+        v220_constraint(
+          conf,
+          "phoenix_kit_api_confirmations_status_check",
+          v220_in_check("status", statuses),
+          "c",
+          ["status"]
+        ),
+        v220_constraint(
+          conf,
+          "phoenix_kit_api_confirmations_actor_check",
+          "CHECK (((actor_key_uuid IS NOT NULL) OR (cart_token_hash IS NOT NULL)))",
+          "c",
+          ["actor_key_uuid", "cart_token_hash"]
+        ),
+        v220_index(
+          conf,
+          "phoenix_kit_api_confirmations_actor_status_index",
+          ["actor_key_uuid", "status"],
+          ["uuid_ops", "text_ops"]
+        ),
+        v220_index(conf, "phoenix_kit_api_confirmations_expires_at_index", ["expires_at"], [
+          "timestamp_ops"
+        ]),
+        v220_index(
+          conf,
+          "phoenix_kit_api_confirmations_decided_by_uuid_index",
+          ["decided_by_uuid"],
+          ["uuid_ops"]
+        ),
+        v220_index(
+          conf,
+          "phoenix_kit_api_confirmations_active_updated_at_index",
+          ["updated_at"],
+          ["timestamp_ops"],
+          where: "status IN ('approved', 'executing')",
+          predicate:
+            "((status)::text = ANY ((ARRAY['approved'::character varying, 'executing'::character varying])::text[]))"
+        ),
+        v220_table(idem),
+        v220_column(idem, "uuid", 1, "uuid",
+          default: "__SCHEMA__.uuid_generate_v7()",
+          not_null: true
+        ),
+        v220_column(idem, "scope_ref", 2, "character varying(64)", not_null: true),
+        v220_column(idem, "key", 3, "character varying(128)", not_null: true),
+        v220_column(idem, "request_hash", 4, "character varying(64)", not_null: true),
+        v220_column(idem, "state", 5, "character varying(16)", not_null: true),
+        v220_column(idem, "locked_at", 6, "timestamp without time zone", not_null: true),
+        v220_column(idem, "response", 7, "text"),
+        v220_column(idem, "expires_at", 8, ts, not_null: true),
+        v220_column(idem, "inserted_at", 9, ts, default: "now()", not_null: true),
+        v220_constraint(idem, "phoenix_kit_api_idempotency_pkey", "PRIMARY KEY (uuid)", "p", [
+          "uuid"
+        ]),
+        v220_constraint(
+          idem,
+          "phoenix_kit_api_idempotency_state_check",
+          v220_in_check("state", ~w(in_progress done)),
+          "c",
+          ["state"]
+        ),
+        v220_index(
+          idem,
+          "phoenix_kit_api_idempotency_scope_key_index",
+          ["scope_ref", "key"],
+          ["text_ops", "text_ops"],
+          unique: true
+        ),
+        v220_index(idem, "phoenix_kit_api_idempotency_expires_at_index", ["expires_at"], [
+          "timestamp_ops"
+        ])
+      ]
+  end
+
+  defp v220_table(name) do
+    %{
+      id: "table:#{name}",
+      owner: :core,
+      check: {:catalog, %{name: name, kind: :table}},
+      create: "CREATE TABLE IF NOT EXISTS __SCHEMA__.#{name} ()",
+      since: 220,
+      class: :table,
+      revisions: [{220, %{}}],
+      presence: :required,
+      backfill: nil
+    }
+  end
+
+  defp v220_column(table, name, pos, type, opts \\ []) do
+    default = Keyword.get(opts, :default)
+    not_null = Keyword.get(opts, :not_null, false)
+
+    ddl =
+      "ALTER TABLE __SCHEMA__.#{table} ADD COLUMN IF NOT EXISTS \"#{name}\" #{type}" <>
+        if(default, do: " DEFAULT #{default}", else: "") <>
+        if(not_null, do: " NOT NULL", else: "")
+
+    %{
+      id: "column:#{table}.#{name}",
+      owner: :core,
+      check: {:catalog, %{table: table, column: name, kind: :column}},
+      create: ddl,
+      since: 220,
+      class: :column,
+      revisions: [{220, %{default: default, type: type, pos: pos, not_null: not_null}}],
+      presence: :required,
+      backfill: nil
+    }
+  end
+
+  defp v220_in_check(column, values) do
+    list = Enum.map_join(values, ", ", &"'#{&1}'::character varying")
+    "CHECK (((#{column})::text = ANY ((ARRAY[#{list}])::text[])))"
+  end
+
+  defp v220_constraint(table, name, definition, type, columns, opts \\ []) do
+    %{
+      id: "constraint:#{table}.#{name}",
+      owner: :core,
+      check: {:catalog, %{name: name, table: table, kind: :constraint}},
+      create:
+        "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = '#{name}'\n      AND t.relname = '#{table}'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.#{table} ADD CONSTRAINT #{name} #{definition};\n  END IF;\nEND\n$$",
+      since: 220,
+      class: :constraint,
+      revisions: [
+        {220,
+         %{
+           type: type,
+           definition: definition,
+           name_template: nil,
+           columns: columns,
+           foreign_table: Keyword.get(opts, :foreign_table),
+           foreign_columns: Keyword.get(opts, :foreign_columns),
+           on_delete: Keyword.get(opts, :on_delete),
+           on_update: if(type == "f", do: "a")
+         }}
+      ],
+      presence: :required,
+      backfill: nil
+    }
+  end
+
+  defp v220_index(table, name, keys, opclasses, opts \\ []) do
+    unique = Keyword.get(opts, :unique, false)
+    predicate = Keyword.get(opts, :predicate)
+    head = if unique, do: "CREATE UNIQUE INDEX", else: "CREATE INDEX"
+    tail = "ON __SCHEMA__.#{table} USING btree (#{Enum.join(keys, ", ")})"
+    create_tail = if predicate, do: "#{tail} WHERE #{Keyword.fetch!(opts, :where)}", else: tail
+    deparsed_tail = if predicate, do: "#{tail} WHERE #{predicate}", else: tail
+
+    %{
+      id: "index:#{name}",
+      owner: :core,
+      check: {:catalog, %{name: name, table: table, kind: :index}},
+      create: "#{head} IF NOT EXISTS #{name} #{create_tail}",
+      since: 220,
+      class: :index,
+      revisions: [
+        {220,
+         %{
+           table: table,
+           keys: keys,
+           unique: unique,
+           method: "btree",
+           definition: "#{head} #{name} #{deparsed_tail}",
+           predicate: predicate,
+           opclasses: opclasses,
+           name_template: nil
+         }}
+      ],
+      presence: :required,
+      backfill: nil
+    }
   end
 
   defp raw_data_invariants do

@@ -237,6 +237,16 @@ defmodule PhoenixKitWeb.Integration do
         plug :accepts, ["json"]
       end
 
+      # Pipeline of the shop API (`/api/admin/v1`, `/api/shop/v1`). It has no
+      # `accepts`: the API negotiates nothing, and a client that sends
+      # `Accept: application/problem+json` (or no Accept at all) must get the
+      # same answer as one that sends `*/*`; `plug :accepts` would turn those
+      # into a 406 HTML page. No session, no CSRF, no browser plugs either:
+      # keys travel in `Authorization`, and `PhoenixKit.API.Auth` runs inside
+      # the forwarded `PhoenixKit.API.REST` plug.
+      pipeline :phoenix_kit_api_v1 do
+      end
+
       # Define locale validation pipeline
       pipeline :phoenix_kit_locale_validation do
         plug PhoenixKitWeb.Users.Auth, :phoenix_kit_validate_and_set_locale
@@ -244,6 +254,36 @@ defmodule PhoenixKitWeb.Integration do
 
       # Shop session pipeline (only when phoenix_kit_ecommerce is installed)
       unquote(shop_session_pipeline)
+    end
+  end
+
+  # The shop API: one forwarded plug per audience, so tools that modules
+  # enable and disable at runtime need no route of their own.
+  #
+  # The scope carries no alias: `PhoenixKitWeb` would turn the plug into
+  # `PhoenixKitWeb.PhoenixKit.API.REST`. Under a non-root `url_prefix` the API
+  # lives under it (`/phoenix_kit/api/admin/v1`).
+  #
+  # A forward needs `PhoenixKit.API.BodyGuard` in the host endpoint for a
+  # percent-encoded prefix (`/api/%61dmin/v1/x`): `forward` strips its prefix
+  # from the raw `path_info` and raises a `MatchError` on the encoded form,
+  # and no plug of the (empty) pipeline runs before it. The guard decodes the
+  # prefix segments. Every further forward (the MCP endpoints) needs it too.
+  # `/mcp/admin` and `/mcp/shop` are the MCP transport of the same tools.
+  defp generate_api_routes(url_prefix) do
+    quote do
+      scope unquote(url_prefix) do
+        pipe_through [:phoenix_kit_api_v1]
+
+        forward "/api/admin/v1", PhoenixKit.API.REST, audience: :admin
+        forward "/api/shop/v1", PhoenixKit.API.REST, audience: :public
+
+        # MCP (Streamable HTTP) over the same tools. Same scope and pipeline:
+        # no session, no CSRF, no content negotiation. `/mcp` is a reserved
+        # prefix, so the locale plugs leave it alone.
+        forward "/mcp/admin", PhoenixKit.API.MCP, audience: :admin
+        forward "/mcp/shop", PhoenixKit.API.MCP, audience: :public
+      end
     end
   end
 
@@ -587,6 +627,10 @@ defmodule PhoenixKitWeb.Integration do
       live "/admin/settings/integrations", Live.Settings.Integrations, :index
       live "/admin/settings/integrations/new", Live.Settings.IntegrationForm, :new
       live "/admin/settings/integrations/:uuid", Live.Settings.IntegrationForm, :edit
+
+      # API keys, service users and the shop API switches (gated by "api").
+      live "/admin/settings/api", Live.Settings.Api, :index
+      live "/admin/settings/api/approvals", Live.Settings.ApiApprovals, :index
 
       # "email-sending", not "emails" — the optional emails module registers its
       # own routable "Emails" settings tab at /admin/settings/emails (via
@@ -1863,6 +1907,12 @@ defmodule PhoenixKitWeb.Integration do
 
       # Generate basic routes scope
       unquote(generate_basic_scope(url_prefix))
+
+      # The shop API. Literal-rooted (`/api/...`), so it belongs with the
+      # surfaces declared BEFORE the `/:locale`-rooted ones below: a later
+      # position would let `/:locale/shop/...` bind `/api/shop/v1/...` with
+      # `locale = "api"`. Pinned by test/phoenix_kit_web/api_routing_test.exs.
+      unquote(generate_api_routes(url_prefix))
 
       # ⚠️ THE ORDER OF EVERYTHING BELOW IS LOAD-BEARING — DO NOT REORDER.
       #

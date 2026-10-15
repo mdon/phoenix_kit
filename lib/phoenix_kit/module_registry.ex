@@ -30,6 +30,7 @@ defmodule PhoenixKit.ModuleRegistry do
       ModuleRegistry.all_settings_tabs()     # Collect settings tabs
       ModuleRegistry.all_email_settings_sections() # Collect Emails Transactional page sections
       ModuleRegistry.all_email_templates()   # Collect emails for the admin email preview
+      ModuleRegistry.all_api_tools()         # Collect API tools of enabled modules
       ModuleRegistry.all_user_dashboard_tabs() # Collect user dashboard tabs
       ModuleRegistry.all_children()          # Collect supervisor child specs
       ModuleRegistry.all_permission_metadata() # Collect permission metadata
@@ -41,6 +42,7 @@ defmodule PhoenixKit.ModuleRegistry do
 
   use GenServer
 
+  alias PhoenixKit.API.Tool
   alias PhoenixKit.Dashboard.Tab
   alias PhoenixKit.Integrations.Providers
 
@@ -837,6 +839,164 @@ defmodule PhoenixKit.ModuleRegistry do
       &(is_atom(&1) and Code.ensure_loaded?(&1) and function_exported?(&1, :kind, 0))
     )
     |> Enum.uniq()
+  end
+
+  @doc """
+  Collect the API tools (`c:PhoenixKit.Module.api_tools/0`) of the **enabled** modules,
+  each tagged with `:module`, the module that declared it.
+
+  A disabled module's tools cannot be called, so they are left out (`disabled_api_tool?/2`
+  is the other side of that). An entry that is not a valid `PhoenixKit.API.Tool`
+  (`PhoenixKit.API.Tool.validate/1`) is dropped with one warning per module, and so is a
+  tool in core's `system.` namespace (those skip the scope and permission checks and belong
+  to `PhoenixKit.API.CoreTools` alone). A name declared twice for one audience keeps the
+  first (registration order), again with one warning. A module whose `api_tools/0` raises
+  contributes nothing and is reported once.
+
+  Every call asks every module again (`enabled?/0` and `api_tools/0` are not cached), so a
+  caller that serves requests should call it once per request and keep the result.
+  """
+  @spec all_api_tools() :: [Tool.t()]
+  def all_api_tools do
+    enabled_modules()
+    |> Enum.flat_map(&module_api_tools/1)
+    |> drop_duplicate_api_tools()
+  end
+
+  @doc """
+  True when a registered module that is switched **off** declares the API tool `name` for
+  `audience`.
+
+  This is the "module disabled" test of `PhoenixKit.API.Registry.find/2`. It asks only the
+  disabled modules for their tools, and it looks at the audience, so an anonymous caller
+  cannot learn that an admin tool exists by asking for it on the public side.
+  """
+  @spec disabled_api_tool?(String.t(), :admin | :public) :: boolean()
+  def disabled_api_tool?(name, audience) do
+    (all_modules() -- enabled_modules())
+    |> Enum.flat_map(&module_api_tools/1)
+    |> Enum.any?(&(&1.name == name and &1.audience == audience))
+  end
+
+  @doc """
+  The names of the API tools declared for `audience` by **every** registered module,
+  switched on or off, sorted and without duplicates.
+
+  This is for enumeration only (for instance a screen listing the tools that can be hidden
+  or granted). It is not a gate: `PhoenixKit.API.Registry.find/2` decides whether a tool
+  can be called. The tools go through the same validation as in `all_api_tools/0`, so an
+  invalid tool and a `system.` name declared by a module are left out, and a module whose
+  `api_tools/0` raises contributes nothing.
+  """
+  @spec api_tool_names(:admin | :public) :: [String.t()]
+  def api_tool_names(audience) when audience in [:admin, :public] do
+    all_modules()
+    |> Enum.flat_map(&module_api_tools/1)
+    |> Enum.filter(&(&1.audience == audience))
+    |> Enum.map(& &1.name)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  defp module_api_tools(mod) do
+    mod
+    |> call_api_tools()
+    |> List.wrap()
+    |> Enum.flat_map(&valid_api_tool(mod, &1))
+  end
+
+  # Unlike `safe_call/3`, a failing `api_tools/0` is reported once per module: this runs on
+  # the request path of an endpoint that needs no login.
+  defp call_api_tools(mod) do
+    if Code.ensure_loaded?(mod) and function_exported?(mod, :api_tools, 0) do
+      mod.api_tools()
+    else
+      []
+    end
+  rescue
+    error ->
+      warn_api_tools_failed(mod, Exception.message(error))
+  catch
+    kind, reason ->
+      warn_api_tools_failed(mod, inspect({kind, reason}))
+  end
+
+  defp warn_api_tools_failed(mod, detail) do
+    warn_once(
+      {:api_tools_failed, mod},
+      "[ModuleRegistry] #{inspect(mod)}.api_tools/0 failed: #{detail}"
+    )
+
+    []
+  end
+
+  defp valid_api_tool(mod, %Tool{} = tool) do
+    case Tool.validate(tool) do
+      {:ok, tool} ->
+        if Tool.system?(tool), do: reject_system_tool(mod, tool), else: [%{tool | module: mod}]
+
+      {:error, messages} ->
+        warn_once(
+          {:bad_api_tool, mod},
+          "[ModuleRegistry] #{inspect(mod)}.api_tools/0 returned an invalid tool, ignored: " <>
+            Enum.join(messages, "; ")
+        )
+
+        []
+    end
+  end
+
+  defp valid_api_tool(mod, entry) do
+    warn_once(
+      {:bad_api_tool, mod},
+      "[ModuleRegistry] #{inspect(mod)}.api_tools/0 returned something that is not a " <>
+        "PhoenixKit.API.Tool, ignored: #{inspect(entry, limit: 5, printable_limit: 80)}"
+    )
+
+    []
+  end
+
+  defp reject_system_tool(mod, tool) do
+    warn_once(
+      {:system_api_tool, mod},
+      "[ModuleRegistry] #{inspect(mod)}.api_tools/0 declares #{tool.name}, but the " <>
+        "\"system.\" namespace is reserved for core, ignored"
+    )
+
+    []
+  end
+
+  defp drop_duplicate_api_tools(tools) do
+    {kept, _seen} =
+      Enum.reduce(tools, {[], MapSet.new()}, fn tool, {kept, seen} ->
+        key = {tool.audience, tool.name}
+
+        if MapSet.member?(seen, key) do
+          warn_once(
+            {:duplicate_api_tool, key},
+            "[ModuleRegistry] #{inspect(tool.module)} declares the API tool #{tool.name} " <>
+              "(#{tool.audience}) that another module already declared, ignored"
+          )
+
+          {kept, seen}
+        else
+          {[tool | kept], MapSet.put(seen, key)}
+        end
+      end)
+
+    Enum.reverse(kept)
+  end
+
+  # Collectors run on the request path: log a given problem once per node.
+  defp warn_once(key, message) do
+    pterm = {__MODULE__, :warned, key}
+
+    unless :persistent_term.get(pterm, false) do
+      :persistent_term.put(pterm, true)
+      Logger.warning(message)
+    end
+
+    :ok
   end
 
   @doc """

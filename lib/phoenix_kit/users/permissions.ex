@@ -33,8 +33,8 @@ defmodule PhoenixKit.Users.Permissions do
 
   ## Constants & Metadata
 
-      Permissions.all_module_keys()        # 25 built-in + any custom keys
-      Permissions.core_section_keys()      # 7 core keys
+      Permissions.all_module_keys()        # 26 built-in + any custom keys
+      Permissions.core_section_keys()      # 8 core keys
       Permissions.feature_module_keys()    # 20 feature keys
       Permissions.enabled_module_keys()    # Core + enabled features + custom keys
       Permissions.valid_module_key?("ai")  # true
@@ -105,7 +105,9 @@ defmodule PhoenixKit.Users.Permissions do
   alias PhoenixKit.Users.ScopeNotifier
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
-  @core_section_keys ~w(dashboard users media settings modules jobs languages)
+  # `api` (API keys, service users, the Settings → API page) is a core section but
+  # opt-in for Admin: see `@opt_in_admin_keys`.
+  @core_section_keys ~w(dashboard users media settings modules jobs languages api)
 
   # Sub-permissions of CORE sections. A feature module declares its own in
   # `permission_metadata/0`; a core section has no module, so they live here and
@@ -176,7 +178,12 @@ defmodule PhoenixKit.Users.Permissions do
   # asked for. Enforced at the single `auto_grant_to_admin_roles/1` chokepoint so
   # BOTH the boot-time sweep (`auto_grant_new_keys_to_admin/0`) and the tab
   # registry (`Dashboard.Registry.auto_register_custom_permission/1`) honor it.
-  @opt_in_admin_keys [@integrations_personal_key]
+  #
+  # `api` is the second: whoever holds it can mint bearer keys and service users, so an
+  # upgrade must not hand it to every existing Admin. It is a core section key, which is
+  # exactly why this list matters: the boot sweep (`auto_grant_new_keys_to_admin/0`) walks
+  # every core key and reaches `auto_grant_to_admin_roles/1`, where this list stops it.
+  @opt_in_admin_keys [@integrations_personal_key, "api"]
 
   # Persistent term keys for runtime-registered custom permission keys
   @custom_keys_pterm {PhoenixKit, :custom_permission_keys}
@@ -562,7 +569,7 @@ defmodule PhoenixKit.Users.Permissions do
   Keys that are opt-in — never auto-granted to Admin, and excluded from the
   "operator baseline" that `Scope.holds_all_enabled_permissions?/1` compares
   against (so a default Admin, which never holds them, is still Owner-equivalent
-  for admin-view access). Currently just the personal `integrations` page.
+  for admin-view access). Currently the personal `integrations` page and `api`.
   """
   @spec opt_in_admin_keys() :: [String.t()]
   def opt_in_admin_keys, do: @opt_in_admin_keys
@@ -695,6 +702,7 @@ defmodule PhoenixKit.Users.Permissions do
     "db" => "DB",
     "integrations" => "My Integrations",
     "integrations_system" => "System Integrations",
+    "api" => "API keys",
     "*" => "Full Access (Superadmin)"
   }
 
@@ -711,6 +719,7 @@ defmodule PhoenixKit.Users.Permissions do
     "db" => "hero-server-stack",
     "integrations" => "hero-link",
     "integrations_system" => "hero-link",
+    "api" => "hero-code-bracket",
     "*" => "hero-key"
   }
 
@@ -727,6 +736,7 @@ defmodule PhoenixKit.Users.Permissions do
     "db" => "Database explorer and schema inspection",
     "integrations" => "Your own personal service connections (API keys, SMTP, etc.)",
     "integrations_system" => "Website-wide integration setup shared across the app",
+    "api" => "API keys and service users for the admin and public APIs",
     "*" =>
       "Grants access to everything, including features added later — the drift-immune way to make a role Owner-equivalent"
   }

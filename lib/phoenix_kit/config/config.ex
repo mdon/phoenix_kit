@@ -514,7 +514,7 @@ defmodule PhoenixKit.Config do
   # segment may not be any of them: the router would carry two different route
   # trees under one path and whichever is declared first would silently win,
   # which surfaces as "half my admin pages 404" rather than as a config error.
-  @admin_path_collisions ~w(users profile dashboard api webhooks assets static
+  @admin_path_collisions ~w(users profile dashboard api mcp webhooks assets static
                             files images fonts js css sitemap)
 
   @doc """

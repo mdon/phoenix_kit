@@ -99,6 +99,14 @@ defmodule PhoenixKit.Supervisor do
         {PhoenixKit.Cache, name: :trashed_file_access, ttl: :timer.seconds(5)},
         id: :trashed_file_access_cache
       ),
+      # API key rows (`PhoenixKit.API.Keys`), for 60 seconds, so that verifying a
+      # bearer token is not a query per request. Owner rights are never cached.
+      # The second child drops a row when another node revokes or rotates the key.
+      Supervisor.child_spec(
+        {PhoenixKit.Cache, name: :api_keys, ttl: :timer.seconds(60)},
+        id: :api_keys_cache
+      ),
+      PhoenixKit.API.Keys.Cache,
       # Dashboard tab registry for user dashboard navigation.
       # Starts after settings_cache so module enabled? checks hit cache rather than DB.
       PhoenixKit.Dashboard.Registry,

@@ -229,4 +229,32 @@ defmodule PhoenixKit.Utils.RoutesTest do
       refute Routes.admin_area_path?(123)
     end
   end
+
+  describe "path/2 — reserved prefixes never get a locale" do
+    test "the API and MCP paths stay where they are, whatever locale is asked for" do
+      for path <- [
+            "/api/admin/v1/system.get_identity",
+            "/api/shop/v1/openapi.json",
+            "/mcp/admin",
+            "/mcp/shop"
+          ] do
+        assert Routes.path(path, locale: "de") == Routes.prefix_base() <> path, path
+        assert Routes.path(path, locale: "en") == Routes.prefix_base() <> path, path
+      end
+    end
+
+    test "a path that is not reserved still gets its locale" do
+      assert Routes.path("/shop/cart", locale: "de") == Routes.prefix_base() <> "/de/shop/cart"
+    end
+
+    test "/mcp is reserved as a path segment: itself and what lies under it, not a longer name" do
+      for path <- ["/mcp", "/mcp/x", "/mcp?x=1"] do
+        assert Routes.path(path, locale: "de") == Routes.prefix_base() <> path, path
+      end
+
+      for name <- ["/mcp-servers", "/mcpfoo"] do
+        assert Routes.path(name, locale: "de") == Routes.prefix_base() <> "/de" <> name, name
+      end
+    end
+  end
 end

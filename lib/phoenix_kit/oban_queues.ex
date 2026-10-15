@@ -258,7 +258,11 @@ defmodule PhoenixKit.ObanQueues do
 
   ## Internals
 
-  defp installed_modules do
+  @doc false
+  # Shared with `PhoenixKit.ObanCrons`: the installed modules, from the registry when it
+  # runs and from a `.beam` scan when it does not (the install and update tasks).
+  @spec installed_modules() :: [module()]
+  def installed_modules do
     case ModuleRegistry.all_modules() do
       [] -> ModuleDiscovery.discover_external_modules()
       modules -> modules

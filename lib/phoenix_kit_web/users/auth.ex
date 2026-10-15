@@ -142,6 +142,19 @@ defmodule PhoenixKitWeb.Users.Auth do
     |> halt()
   end
 
+  # A service user (`api_only`) acts through API keys and never signs in on the web.
+  # Password login, magic link, QR code and OAuth all end here, so the refusal is on the
+  # shared funnel as well as in each door's own check. The message is the one a wrong
+  # password gets: the page must not say that such an account exists.
+  def log_in_user(conn, %Auth.User{api_only: true} = user, _params) do
+    Logger.warning("PhoenixKit: refused sign-in for API-only user #{user.uuid}")
+
+    conn
+    |> Phoenix.Controller.put_flash(:error, gettext("Invalid email/username or password"))
+    |> Phoenix.Controller.redirect(to: Routes.path("/users/log-in"))
+    |> halt()
+  end
+
   def log_in_user(conn, user, params) do
     # Create session fingerprint if enabled
     opts =
@@ -2033,6 +2046,7 @@ defmodule PhoenixKitWeb.Users.Auth do
     # Integrations" moved to /profile/settings/integrations) — a holder of
     # only that key falls through to the skip_admin default below instead.
     {"integrations_system", "/admin/settings/integrations"},
+    {"api", "/admin/settings/api"},
     # Settings sub-pages (lower priority landing pages)
     {"languages", "/admin/settings/languages"},
     {"crawlers", "/admin/settings/crawlers"},
@@ -2460,6 +2474,10 @@ defmodule PhoenixKitWeb.Users.Auth do
     # their own independent `integrations_system` key (grantable on its own).
     PhoenixKitWeb.Live.Settings.Integrations => "integrations_system",
     PhoenixKitWeb.Live.Settings.IntegrationForm => "integrations_system",
+    # API keys and switches. `api` is opt-in for Admin, so this page is the one
+    # place where "Admin" alone is not enough.
+    PhoenixKitWeb.Live.Settings.Api => "api",
+    PhoenixKitWeb.Live.Settings.ApiApprovals => "api",
     # Personal per-user integrations moved to /profile/settings/integrations
     # (the :phoenix_kit_authenticated session, not this admin gate) — each
     # LiveView checks the `integrations` permission itself in mount/3 now,
@@ -3450,7 +3468,7 @@ defmodule PhoenixKitWeb.Users.Auth do
 
   # Reserved path segments that should never be treated as locale codes
   # These are valid URL path components that happen to match the locale pattern position
-  @reserved_path_segments ~w(admin api webhooks assets static files images dashboard users)
+  @reserved_path_segments ~w(admin api mcp webhooks assets static files images dashboard users)
 
   # Locale processing logic
   #

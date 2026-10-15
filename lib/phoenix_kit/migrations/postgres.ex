@@ -7,7 +7,21 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V218 - Sync requests per minute default to 600 ⚡ LATEST
+  ### V220 - The dangerous-operation flow of the shop API ⚡ LATEST
+
+  `phoenix_kit_api_confirmations`: confirmation codes and approval requests of
+  dangerous API operations (arguments, preview, status, who decided).
+  `phoenix_kit_api_idempotency`: the `Idempotency-Key` store (claim, lease, stored
+  response). No row is created.
+
+  ### V219 - API keys and service users
+
+  `phoenix_kit_users.api_only` (default false): a service user owns API keys and never
+  signs in on the web. `phoenix_kit_api_keys`: one row per bearer key (owner, scopes,
+  allowed addresses, expiry, revocation, last use). The secret is stored only as a
+  SHA-256 hash. No key is created.
+
+  ### V218 - Sync requests per minute default to 600
 
   `phoenix_kit_sync_connections.rate_limit_requests_per_minute` defaults to 600
   (was 60, which nothing enforced). Connections still at 60, the old default, are
@@ -989,7 +1003,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 218
+  @current_version 220
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

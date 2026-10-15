@@ -1543,7 +1543,9 @@ defmodule PhoenixKit.Users.Auth do
   """
   def deliver_user_confirmation_instructions(%User{} = user, confirmation_url_fun)
       when is_function(confirmation_url_fun, 1) do
-    if user.confirmed_at do
+    # A service user (`api_only`) needs no confirmation and has no inbox: it counts as
+    # confirmed, so no token is made and no mail is sent.
+    if user.confirmed_at || user.api_only do
       {:error, :already_confirmed}
     else
       {encoded_token, user_token} = UserToken.build_email_token(user, "confirm")
@@ -1806,7 +1808,19 @@ defmodule PhoenixKit.Users.Auth do
       {:error, :rate_limit_exceeded}
 
   """
-  def deliver_user_reset_password_instructions(%User{} = user, reset_password_url_fun, opts \\ [])
+  def deliver_user_reset_password_instructions(user, reset_password_url_fun, opts \\ [])
+
+  # A service user (`api_only`) has no password to reset and an address nobody reads: a
+  # reset would only be a way to give it one.
+  def deliver_user_reset_password_instructions(
+        %User{api_only: true},
+        reset_password_url_fun,
+        _opts
+      )
+      when is_function(reset_password_url_fun, 1),
+      do: {:error, :api_only}
+
+  def deliver_user_reset_password_instructions(%User{} = user, reset_password_url_fun, opts)
       when is_function(reset_password_url_fun, 1) do
     if Keyword.get(opts, :rate_limit, true) do
       case RateLimiter.check_password_reset_rate_limit(user.email) do

@@ -69,7 +69,7 @@ if Code.ensure_loaded?(Ueberauth) do
     def find_or_create_user(oauth_data, track_geolocation \\ false, ip_address \\ nil) do
       cond do
         linked_user = user_by_provider_identity(oauth_data) ->
-          {:ok, linked_user, :found}
+          found(linked_user)
 
         # A provider account with no (public/primary) email — GitHub allows
         # it — must fail here, not as a FunctionClauseError inside the lookup.
@@ -129,6 +129,14 @@ if Code.ensure_loaded?(Ueberauth) do
     end
 
     defp user_by_provider_identity(_oauth_data), do: nil
+
+    # A service user (`api_only`) signs in with an API key only: no provider identity may be
+    # linked to it, by a stored link or by an address that happens to match.
+    defp found(%User{api_only: true}), do: {:error, :api_only_account}
+    defp found(%User{} = user), do: {:ok, user, :found}
+
+    defp attach_to_existing_user(%User{api_only: true}, _oauth_data),
+      do: {:error, :api_only_account}
 
     defp attach_to_existing_user(%User{} = user, oauth_data) do
       if email_ownership_proven?(oauth_data) do

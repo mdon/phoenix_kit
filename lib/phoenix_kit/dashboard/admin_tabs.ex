@@ -424,6 +424,18 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
         :admin_settings,
         "integrations_system"
       ),
+      # API keys and the switches of the shop API. Gated on its own `api` key,
+      # which is opt-in for Admin (see `Permissions`), so an Admin without it
+      # sees neither this tab nor the page.
+      admin_subtab(
+        :admin_settings_api,
+        gettext_noop("API"),
+        "hero-key",
+        "api",
+        921,
+        :admin_settings,
+        "api"
+      ),
       # Languages: always on (it was a module with a toggle). The multi-language
       # switch lives on this page, so the page has to be reachable while it is off.
       admin_subtab(
@@ -468,6 +480,7 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
     Scope.has_module_access?(scope, "settings") or
       Scope.has_module_access?(scope, "media.manage") or
       integrations_visible?(scope) or
+      api_visible?(scope) or
       Enum.any?(settings_tab_permissions(), &Scope.has_module_access?(scope, &1))
   rescue
     error ->
@@ -486,6 +499,20 @@ defmodule PhoenixKit.Dashboard.AdminTabs do
   rescue
     error ->
       Logger.warning("[AdminTabs] integrations_visible?/1 failed: #{Exception.message(error)}")
+      false
+  end
+
+  @doc """
+  Whether the API subtab is visible — the user holds the `api` permission,
+  which is opt-in for Admin. Without this the Settings parent would stay
+  hidden from a role that holds `api` and nothing else under Settings.
+  """
+  @spec api_visible?(map()) :: boolean()
+  def api_visible?(scope) do
+    Scope.has_module_access?(scope, "api")
+  rescue
+    error ->
+      Logger.warning("[AdminTabs] api_visible?/1 failed: #{Exception.message(error)}")
       false
   end
 

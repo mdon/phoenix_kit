@@ -111,12 +111,16 @@ defmodule PhoenixKit.Module do
     Transactional settings page (default: `[]`).
   - `email_templates/0` - Emails this module sends, for the admin email preview
     (default: `[]`).
+  - `oban_crons/0` - Scheduled Oban workers as `{cron, worker}` pairs, written into the
+    host's crontab by `mix phoenix_kit.install` / `mix phoenix_kit.update` (default: `[]`).
   - `media_reorganizer/0` - Module implementing
     `PhoenixKit.Modules.Storage.Reorganizer.Source` for this module's own
     records (default: `nil`).
   - `job_kinds/0` - Kinds of job run this module contributes (modules
     implementing `PhoenixKit.Jobs.Kind`), for the admin Jobs page
     (default: `[]`).
+  - `api_tools/0` - `PhoenixKit.API.Tool` structs this module offers through the
+    shop/admin API (default: `[]`).
   """
 
   @typedoc """
@@ -427,6 +431,35 @@ defmodule PhoenixKit.Module do
   @callback oban_queues() :: keyword(pos_integer() | keyword())
 
   @doc """
+  Returns the Oban cron jobs this module needs, as `{cron, worker}` pairs.
+
+  `mix phoenix_kit.install` and `mix phoenix_kit.update` write the entries a host's Oban
+  crontab is missing, the way they do for core's own workers. Details:
+  `PhoenixKit.ObanCrons`.
+
+    * `cron` - a five-field cron expression (`"0 3 * * *"`) or a nickname such as
+      `"@hourly"`.
+    * `worker` - an `Oban.Worker` module of this package.
+
+  **One entry per worker.** The installer decides whether an entry is already there by the
+  worker's name, so a worker has one schedule and no `args`.
+
+  The entry goes into the host's config whether or not the module is enabled; the worker
+  itself should do nothing while its module is off. The worker's queue must exist: use a
+  core queue (`default`, ...) or declare it in `c:oban_queues/0`, otherwise
+  `mix phoenix_kit.doctor` warns. A schedule the host wrote is never changed, and an entry
+  the host commented out of its crontab is left out.
+
+  ## Example
+
+      @impl PhoenixKit.Module
+      def oban_crons, do: [{"0 3 * * *", MyModule.Workers.NightlyRebuild}]
+
+  Modules with no scheduled jobs skip this callback — the default is `[]`.
+  """
+  @callback oban_crons() :: [{String.t(), module()}]
+
+  @doc """
   Returns top-level route path segments this module owns for its own
   LiveViews/controllers (e.g. a host app declares `live "/legal", LegalLive`
   and this module IS the "legal" feature).
@@ -625,6 +658,48 @@ defmodule PhoenixKit.Module do
   """
   @callback job_kinds() :: [module()]
 
+  @doc """
+  Returns the API tools this module offers (`PhoenixKit.API.Tool`).
+
+  A tool is one operation (`"ecommerce.set_prices"`): its audience (`:admin` needs a key,
+  `:public` needs none), the scope and role permission it requires, a JSON Schema for its
+  input and a `{module, function}` handler. Core builds the REST surface (and later MCP)
+  from them, so validation, permission checks, rate limits and the shape of the response
+  are done once, in core. Details: `PhoenixKit.API.Tool`, `PhoenixKit.API.Registry`.
+
+  Collected from **enabled** modules by `PhoenixKit.ModuleRegistry.all_api_tools/0`: a
+  disabled module's tools cannot be called.
+  `PhoenixKit.ModuleRegistry.disabled_api_tool?/2` asks the switched-off modules, so the API
+  can answer "module disabled" instead of "no such tool".
+
+  Build every tool with `PhoenixKit.API.Tool.new!/1`. A tool that fails
+  `PhoenixKit.API.Tool.validate/1` is ignored, with one warning per module. So is a tool
+  named `system.*`: that namespace is core's own and skips the scope and permission checks.
+
+  ## Example
+
+      @impl PhoenixKit.Module
+      def api_tools do
+        [
+          PhoenixKit.API.Tool.new!(
+            name: "catalogue.list_products",
+            audience: :admin,
+            scope: "catalogue.products:read",
+            permission: "catalogue",
+            title: "List products",
+            handler: {MyModule.API, :list_products},
+            annotations: %{read_only: true}
+          )
+        ]
+      end
+
+  A module that must also compile against an older core, which has no such callback,
+  defines `api_tools/0` without `@impl` (with `@impl` that compile warns).
+
+  Modules with no API skip this callback — the default is `[]`.
+  """
+  @callback api_tools() :: [PhoenixKit.API.Tool.t()]
+
   @optional_callbacks [
     get_config: 0,
     permission_metadata: 0,
@@ -646,12 +721,14 @@ defmodule PhoenixKit.Module do
     js_sources: 0,
     sitemap_sources: 0,
     oban_queues: 0,
+    oban_crons: 0,
     reserved_route_prefixes: 0,
     migrate_legacy: 0,
     email_settings_sections: 0,
     email_templates: 0,
     media_reorganizer: 0,
-    job_kinds: 0
+    job_kinds: 0,
+    api_tools: 0
   ]
 
   defmacro __using__(_opts) do
@@ -722,6 +799,9 @@ defmodule PhoenixKit.Module do
       def oban_queues, do: []
 
       @impl PhoenixKit.Module
+      def oban_crons, do: []
+
+      @impl PhoenixKit.Module
       def reserved_route_prefixes, do: []
 
       @impl PhoenixKit.Module
@@ -738,6 +818,9 @@ defmodule PhoenixKit.Module do
 
       @impl PhoenixKit.Module
       def job_kinds, do: []
+
+      @impl PhoenixKit.Module
+      def api_tools, do: []
 
       defoverridable get_config: 0,
                      permission_metadata: 0,
@@ -758,12 +841,14 @@ defmodule PhoenixKit.Module do
                      js_sources: 0,
                      sitemap_sources: 0,
                      oban_queues: 0,
+                     oban_crons: 0,
                      reserved_route_prefixes: 0,
                      migrate_legacy: 0,
                      email_settings_sections: 0,
                      email_templates: 0,
                      media_reorganizer: 0,
-                     job_kinds: 0
+                     job_kinds: 0,
+                     api_tools: 0
     end
   end
 end
