@@ -409,3 +409,12 @@ test("a selected shape's fading look is not read mid-fade: transitions are off f
   assert.match(plan, /if \(stillStyle\.parentNode\) stillStyle\.parentNode\.removeChild\(stillStyle\);/,
     "the rule does not outlive the read");
 });
+
+test("a see-through picture burns as a PNG with nothing laid behind it", () => {
+  assert.ok(section.includes('plan.alpha = this.el.dataset.burnAlpha === "true";'),
+    "the page says whether the picture can be see-through");
+  assert.match(section, /if \(!plan\.alpha\) \{\s*ctx\.fillStyle = plan\.background;\s*ctx\.fillRect/,
+    "the background sheet is only laid under a picture that can't show through");
+  assert.ok(section.includes('plan.alpha ? "image/png" : "image/jpeg"'), "PNG keeps the alpha; JPEG cannot");
+  assert.ok(section.includes('blob.type === "image/png" ? "burn.png" : "burn.jpg"'));
+});

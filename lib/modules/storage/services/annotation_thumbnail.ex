@@ -191,7 +191,11 @@ defmodule PhoenixKit.Modules.Storage.AnnotationThumbnail do
       ImageProcessor.limit_args() ++
         [input] ++
         draw_args ++
-        ["-resize", "#{@size}x#{@size}^", "-gravity", "center", "-extent", "#{@size}x#{@size}"] ++
+        # `-extent` lays the picture over the background colour, white by
+        # default — which flattened a see-through PNG onto white. `none`
+        # keeps its transparency; an opaque picture is unchanged.
+        ["-resize", "#{@size}x#{@size}^", "-background", "none", "-gravity", "center"] ++
+        ["-extent", "#{@size}x#{@size}"] ++
         ["png:#{output_path}"]
 
     case System.cmd("convert", args, stderr_to_stdout: true) do

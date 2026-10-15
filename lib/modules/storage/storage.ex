@@ -154,8 +154,9 @@ defmodule PhoenixKit.Modules.Storage do
   The name says which copy it is: `photo-large.jpg`, `photo-original.jpg`,
   and for the copies with the annotations drawn in,
   `photo-large-annotated.jpg`. `ext` comes from the stored instance rather
-  than from the URL — a signed URL ends in a token, and a burn is a JPEG
-  even where the picture it was drawn on is a PNG.
+  than from the URL — a signed URL ends in a token, and a burn's format
+  follows the picture's transparency (a JPEG for a photo, a PNG for a
+  see-through picture), not its upload.
   """
   @spec download_name(String.t() | nil, String.t() | nil, String.t() | nil) :: String.t()
   def download_name(file_name, variant, ext) do

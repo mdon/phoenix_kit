@@ -4860,14 +4860,17 @@ if (typeof window.Chart === "undefined") {
           var ctx = canvas.getContext("2d");
           ctx.imageSmoothingQuality = "high";
           // JPEG has no alpha: every pixel the picture does not cover would
-          // encode as black without this.
-          ctx.fillStyle = plan.background;
-          ctx.fillRect(0, 0, plan.out.w, plan.out.h);
+          // encode as black without this. A see-through picture keeps its
+          // transparency instead — as a PNG, with nothing laid behind it.
+          if (!plan.alpha) {
+            ctx.fillStyle = plan.background;
+            ctx.fillRect(0, 0, plan.out.w, plan.out.h);
+          }
           ctx.drawImage(picture, plan.picture.x, plan.picture.y, plan.picture.w, plan.picture.h);
           ctx.drawImage(overlay, 0, 0, plan.out.w, plan.out.h);
           canvas.toBlob(function(blob) {
             blob ? resolve(blob) : reject(new Error("the browser produced no image"));
-          }, "image/jpeg", 0.9);
+          }, plan.alpha ? "image/png" : "image/jpeg", 0.9);
         };
         overlay.onerror = function() { reject(new Error("the markup did not rasterise")); };
         overlay.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(plan.svgText);
@@ -4879,7 +4882,7 @@ if (typeof window.Chart === "undefined") {
 
   function burnUpload(uuid, blob, variants, sourceVersion, fingerprint) {
     var body = new FormData();
-    body.append("image", blob, "burn.jpg");
+    body.append("image", blob, blob.type === "image/png" ? "burn.png" : "burn.jpg");
     body.append("variants", variants);
     if (sourceVersion) body.append("source_version", sourceVersion);
     // Recorded against the stored copy, so the next visit can tell whether
@@ -5224,6 +5227,9 @@ if (typeof window.Chart === "undefined") {
 
       var plan = burnCapturePlan(this._host());
       if (!plan) return;
+      // A picture that can be see-through (PNG, WebP, GIF) burns as a PNG
+      // with nothing behind it, so its transparency survives the markup.
+      plan.alpha = this.el.dataset.burnAlpha === "true";
 
       var pending = {
         fingerprint: fingerprint,

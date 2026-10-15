@@ -116,6 +116,9 @@
             data-file-uuid={f.file_uuid}
             data-source-version={original_source_version(f)}
             data-burn-variants="thumbnail,burned,burned_large"
+            data-burn-alpha={
+              to_string(PhoenixKitWeb.AnnotationBurnController.alpha_mime?(Map.get(f, :mime_type)))
+            }
             data-burn-mode={to_string(@burn_mode and not is_nil(@burn_canvas))}
             data-can-annotate={to_string(@can_annotate)}
             data-auto-annotate={to_string(@auto_annotate)}

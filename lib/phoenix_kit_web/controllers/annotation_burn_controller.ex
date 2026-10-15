@@ -109,6 +109,20 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
   @doc false
   def writable_variants, do: @writable
 
+  # Pictures that can be see-through. Their burns are PNGs with the
+  # transparency kept — a JPEG would lay the markup over a white sheet. Read
+  # off the stored file, never the upload: the client's bytes only decide
+  # what is drawn, not how it is kept.
+  @alpha_mimes ~w(image/png image/webp image/gif image/avif)
+
+  @doc false
+  def alpha_mime?(mime) when is_binary(mime), do: mime in @alpha_mimes
+  def alpha_mime?(_), do: false
+
+  defp burn_format(%Storage.File{mime_type: mime}) do
+    if alpha_mime?(mime), do: {"png", "image/png"}, else: {"jpg", "image/jpeg"}
+  end
+
   @doc false
   # The file's owner, an Owner/Admin (honouring the active role), or anyone
   # holding the media module — the same three `ImageEditing` allows to change
@@ -226,7 +240,7 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
   # pixel budget, into a JPEG no larger than the biggest slot asked for.
   # Each slot is then a resize of that trusted file.
   defp write_variants(file, %Plug.Upload{path: path}, variants, source_key) do
-    safe = temp_path("safe")
+    safe = temp_path("safe", file)
 
     try do
       case prepare_burn(file, path, safe, variants) do
@@ -241,7 +255,9 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
   defp prepare_burn(file, path, safe, variants) do
     edge = variants |> Enum.map(&variant_long_edge/1) |> Enum.max()
 
-    case ImageProcessor.sanitize(path, safe, max_edge: edge, quality: 90, format: "jpeg") do
+    format = if elem(burn_format(file), 0) == "png", do: "png", else: "jpeg"
+
+    case ImageProcessor.sanitize(path, safe, max_edge: edge, quality: 90, format: format) do
       {:ok, _} ->
         :ok
 
@@ -290,12 +306,13 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
 
   defp write_variant(file, safe, variant, source_key) do
     {w, h} = variant_box(variant)
-    out = temp_path(variant)
+    out = temp_path(variant, file)
+    {ext, mime} = burn_format(file)
 
     result =
-      case ImageProcessor.resize(safe, out, w, h, quality: 90, format: "jpg") do
+      case ImageProcessor.resize(safe, out, w, h, quality: 90, format: ext) do
         {:ok, _} ->
-          VariantGenerator.store_prepared_variant(file, variant, out, "jpg", "image/jpeg",
+          VariantGenerator.store_prepared_variant(file, variant, out, ext, mime,
             source_key: source_key
           )
 
@@ -370,8 +387,9 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
     end
   end
 
-  defp temp_path(tag) do
-    Path.join(System.tmp_dir!(), "pk_burn_#{tag}_#{System.unique_integer([:positive])}.jpg")
+  defp temp_path(tag, file) do
+    {ext, _} = burn_format(file)
+    Path.join(System.tmp_dir!(), "pk_burn_#{tag}_#{System.unique_integer([:positive])}.#{ext}")
   end
 
   # ── answers ──────────────────────────────────────────────────────────────
