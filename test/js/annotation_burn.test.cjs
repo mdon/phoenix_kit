@@ -410,6 +410,70 @@ test("a selected shape's fading look is not read mid-fade: transitions are off f
     "the rule does not outlive the read");
 });
 
+for (const stage of ["clone", "styles"]) {
+  test(`capture restores the live selection and removes its style when ${stage} throws`, () => {
+    const failure = new Error(`failed to read ${stage}`);
+    const classList = (...names) => {
+      const classes = new Set(names);
+      return {
+        add: (name) => classes.add(name),
+        remove: (name) => classes.delete(name),
+        contains: (name) => classes.has(name)
+      };
+    };
+    const shape = { classList: classList("is-selected", "is-hovered") };
+    const copy = { setAttribute() {}, removeAttribute() {} };
+    const svg = {
+      classList: classList(),
+      querySelectorAll: (selector) => selector === ".etcher-shape, .etcher-shape *" ? [] : [shape],
+      cloneNode() {
+        if (stage === "clone") throw failure;
+        return { ...copy, querySelectorAll: () => [copy] };
+      }
+    };
+    const head = {
+      children: new Set(),
+      appendChild(el) { this.children.add(el); el.parentNode = this; },
+      removeChild(el) { this.children.delete(el); el.parentNode = null; }
+    };
+    const document = { head, createElement: () => ({}) };
+    const image = {
+      dataset: { canvasWidth: "120", canvasHeight: "60" },
+      naturalWidth: 120,
+      getAttribute: () => "/picture.png"
+    };
+    const host = {
+      id: "viewer",
+      querySelector: (selector) => selector === "img[data-fresco-canvas-img]" ? image : svg,
+      closest: () => null,
+      getBoundingClientRect: () => ({ left: 0, top: 0 })
+    };
+    const capture = new Function(
+      "window", "document", "getComputedStyle", "BURN_STATE", "BURN_STYLE_PROPS",
+      "burnViewAffine", "burnInkBounds",
+      sliceFn("burnCapturePlan") + "\nreturn burnCapturePlan;"
+    )(
+      { Fresco: { viewerFor: () => ({ imageToScreen: (p) => p }) } },
+      document,
+      (el) => {
+        assert.strictEqual(head.children.size, 1, "transitions are disabled during capture");
+        assert.ok(!shape.classList.contains("is-selected"));
+        if (el === shape) throw failure;
+        return { getPropertyValue: () => "black" };
+      },
+      ["is-selected", "is-hovered"], ["fill"],
+      () => ({ s: 1 }),
+      () => ({ minX: 0, minY: 0, maxX: 120, maxY: 60 })
+    );
+
+    assert.throws(() => capture(host), (error) => error === failure);
+    assert.ok(shape.classList.contains("is-selected"));
+    assert.ok(shape.classList.contains("is-hovered"));
+    assert.ok(!svg.classList.contains("pk-burn-still"));
+    assert.strictEqual(head.children.size, 0);
+  });
+}
+
 test("the burn's format comes from the page, and only a JPEG gets a background sheet", () => {
   assert.ok(section.includes('plan.format = this.el.dataset.burnFormat || "jpeg";'));
   assert.match(section, /if \(format === "jpeg"\) \{\s*ctx\.fillStyle = plan\.background;\s*ctx\.fillRect/,

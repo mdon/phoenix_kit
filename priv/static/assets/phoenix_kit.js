@@ -4799,32 +4799,36 @@ if (typeof window.Chart === "undefined") {
     svg.classList.add("pk-burn-still");
 
     var suspended = [];
-    svg.querySelectorAll("." + BURN_STATE.join(", .")).forEach(function(el) {
-      var had = BURN_STATE.filter(function(c) { return el.classList.contains(c); });
-      if (had.length) {
-        suspended.push([el, had]);
-        had.forEach(function(c) { el.classList.remove(c); });
-      }
-    });
+    var clone, live, copy;
+    try {
+      svg.querySelectorAll("." + BURN_STATE.join(", .")).forEach(function(el) {
+        var had = BURN_STATE.filter(function(c) { return el.classList.contains(c); });
+        if (had.length) {
+          suspended.push([el, had]);
+          had.forEach(function(c) { el.classList.remove(c); });
+        }
+      });
 
-    var clone = svg.cloneNode(true);
-    var live = [svg].concat(Array.prototype.slice.call(svg.querySelectorAll("*")));
-    var copy = [clone].concat(Array.prototype.slice.call(clone.querySelectorAll("*")));
-    for (var i = 0; i < live.length; i++) {
-      var cs = getComputedStyle(live[i]);
-      var css = "";
-      for (var p = 0; p < BURN_STYLE_PROPS.length; p++) {
-        var v = cs.getPropertyValue(BURN_STYLE_PROPS[p]);
-        if (v && v !== "normal" && v !== "auto") css += BURN_STYLE_PROPS[p] + ":" + v + ";";
+      clone = svg.cloneNode(true);
+      live = [svg].concat(Array.prototype.slice.call(svg.querySelectorAll("*")));
+      copy = [clone].concat(Array.prototype.slice.call(clone.querySelectorAll("*")));
+      for (var i = 0; i < live.length; i++) {
+        var cs = getComputedStyle(live[i]);
+        var css = "";
+        for (var p = 0; p < BURN_STYLE_PROPS.length; p++) {
+          var v = cs.getPropertyValue(BURN_STYLE_PROPS[p]);
+          if (v && v !== "normal" && v !== "auto") css += BURN_STYLE_PROPS[p] + ":" + v + ";";
+        }
+        copy[i].setAttribute("style", css);
+        copy[i].removeAttribute("class");
       }
-      copy[i].setAttribute("style", css);
-      copy[i].removeAttribute("class");
+    } finally {
+      suspended.forEach(function(pair) {
+        pair[1].forEach(function(c) { pair[0].classList.add(c); });
+      });
+      svg.classList.remove("pk-burn-still");
+      if (stillStyle.parentNode) stillStyle.parentNode.removeChild(stillStyle);
     }
-    suspended.forEach(function(pair) {
-      pair[1].forEach(function(c) { pair[0].classList.add(c); });
-    });
-    svg.classList.remove("pk-burn-still");
-    if (stillStyle.parentNode) stillStyle.parentNode.removeChild(stillStyle);
     BURN_CHROME.forEach(function(sel) {
       live.forEach(function(el, idx) {
         if (el.matches && el.matches(sel) && copy[idx] && copy[idx].remove) copy[idx].remove();

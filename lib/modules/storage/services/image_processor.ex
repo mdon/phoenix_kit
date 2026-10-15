@@ -738,7 +738,8 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
   in — the markup is drawn in the browser, the frames only exist here.
   The source's decoder is pinned and the resource limits are those of every
   other call; an animation over `animation_limits/0` — measured at the
-  canvas size, margins included — is refused with `{:error, :too_large}`.
+  largest of the source, resized picture and output canvas — is refused
+  with `{:error, :too_large}`.
 
   `still: true` takes the first frame only and writes a PNG — the fallback
   for an animation too large to re-encode.
@@ -751,11 +752,14 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
 
     with {:ok, source} <- pinned_input(source_path, if(still?, do: "[0]", else: "")),
          {:ok, overlay} <- pinned_input(overlay_path, "[0]"),
+         {:ok, {sw, sh}} <- extract_dimensions(source_path),
+         :ok <- check_pixel_budget(sw, sh, @resize_max_pixels),
          :ok <- check_pixel_budget(cw, ch, @resize_max_pixels),
          # The picture's box is the client's claim, scaled by the markup's real
          # size: a tiny canvas with a huge picture asks for a gigantic resize.
          :ok <- check_pixel_budget(w, h, @resize_max_pixels),
-         :ok <- if(still?, do: :ok, else: check_composite_budget(source_path, cw, ch)) do
+         pixels = max(sw * sh, max(w * h, cw * ch)),
+         :ok <- if(still?, do: :ok, else: check_composite_budget(source_path, pixels)) do
       out =
         if still?, do: ["png:#{output_path}"], else: ["-layers", "optimize", "gif:#{output_path}"]
 
@@ -780,10 +784,12 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
       {:error, "could not compose the animation"}
   end
 
-  defp check_composite_budget(source_path, cw, ch) do
+  # Coalescing and resizing happen before the final extent crops the picture.
+  # A small output canvas cannot bound those earlier, potentially larger frames.
+  defp check_composite_budget(source_path, pixels) do
     case animation_info(source_path) do
       {:ok, %{frames: frames}}
-      when frames > @animation_max_frames or frames * cw * ch > @animation_max_pixels ->
+      when frames > @animation_max_frames or frames * pixels > @animation_max_pixels ->
         {:error, :too_large}
 
       {:ok, _} ->

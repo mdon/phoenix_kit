@@ -208,4 +208,61 @@ defmodule PhoenixKit.Modules.Storage.CompositeAnimationTest do
 
     refute File.exists?(out)
   end
+
+  test "the frame budget includes the resized picture before cropping to a small canvas", ctx do
+    source = animation(ctx)
+    out = Path.join(ctx.tmp_dir, "resized_budget.gif")
+
+    # Each resized frame fits the 100 MP per-image limit; three of them exceed
+    # the animation limit, even though the final canvas is just 120x60.
+    assert {:error, :too_large} =
+             ImageProcessor.composite_animation(
+               source,
+               overlay(ctx, 120, 60),
+               out,
+               layout(120, 60, 0, 0, 8_000, 8_000)
+             )
+
+    refute File.exists?(out)
+  end
+
+  test "the frame budget includes the source canvas before coalescing and shrinking", ctx do
+    source = animation(ctx) |> set_canvas(8_000, 8_000)
+    out = Path.join(ctx.tmp_dir, "source_budget.gif")
+    assert {:ok, {8_000, 8_000}} = ImageProcessor.extract_dimensions(source)
+
+    assert {:error, :too_large} =
+             ImageProcessor.composite_animation(
+               source,
+               overlay(ctx, 120, 60),
+               out,
+               layout(120, 60, 0, 0)
+             )
+
+    refute File.exists?(out)
+  end
+
+  test "an oversized source canvas is refused even for the still fallback", ctx do
+    source = animation(ctx) |> set_canvas(12_000, 12_000)
+    out = Path.join(ctx.tmp_dir, "source_too_large.png")
+
+    assert {:error, "image is too large"} =
+             ImageProcessor.composite_animation(
+               source,
+               overlay(ctx, 120, 60),
+               out,
+               layout(120, 60, 0, 0),
+               still: true
+             )
+
+    refute File.exists?(out)
+  end
+
+  # GIF's logical screen can be huge while every encoded patch is tiny.
+  # Change the header only, so fixtures never allocate the claimed canvas.
+  defp set_canvas(path, width, height) do
+    <<header::binary-size(6), _old_size::binary-size(4), rest::binary>> = File.read!(path)
+    File.write!(path, <<header::binary, width::little-16, height::little-16, rest::binary>>)
+    path
+  end
 end
