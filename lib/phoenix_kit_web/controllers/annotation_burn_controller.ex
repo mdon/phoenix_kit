@@ -362,23 +362,21 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
   def layout_from_params(params) do
     keys = ~w(canvas_w canvas_h picture_x picture_y picture_w picture_h)
 
-    nums =
-      Enum.map(keys, fn k ->
-        case Float.parse(to_string(params[k] || "")) do
-          {n, ""} -> n
-          _ -> nil
-        end
-      end)
+    with [cw, ch, x, y, w, h] = nums <- Enum.map(keys, &layout_number(params[&1])),
+         true <- Enum.all?(nums, &is_float/1),
+         true <- Enum.all?([cw, ch, w, h], &(&1 >= 1 and &1 <= 16_000)),
+         true <- Enum.all?([x, y], &(abs(&1) <= 16_000)) do
+      {:ok, %{canvas_w: cw, canvas_h: ch, x: x, y: y, w: w, h: h}}
+    else
+      _ -> :error
+    end
+  end
 
-    case nums do
-      [cw, ch, x, y, w, h]
-      when is_float(cw) and is_float(ch) and is_float(x) and is_float(y) and is_float(w) and
-             is_float(h) and cw >= 1 and ch >= 1 and cw <= 16_000 and ch <= 16_000 and w >= 1 and
-             h >= 1 and w <= 16_000 and h <= 16_000 and abs(x) <= 16_000 and abs(y) <= 16_000 ->
-        {:ok, %{canvas_w: cw, canvas_h: ch, x: x, y: y, w: w, h: h}}
-
-      _ ->
-        :error
+  # A number the client sent, or nil — never a float it did not send.
+  defp layout_number(value) do
+    case Float.parse(to_string(value || "")) do
+      {n, ""} -> n
+      _ -> nil
     end
   end
 

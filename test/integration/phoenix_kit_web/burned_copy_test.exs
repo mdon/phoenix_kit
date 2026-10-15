@@ -198,6 +198,7 @@ defmodule PhoenixKitWeb.BurnedCopyTest do
     # photo, not of the 1920px copy.
     test "lays the burn out in the original's pixels", %{stored: file} do
       add_burn!(file, "burned_large", {1920, 1080})
+
       sized = %Phoenix.LiveView.Socket{
         assigns: %{__changed__: %{}, file: %{file_uuid: file.uuid, width: 3840, height: 2160}}
       }
@@ -217,6 +218,7 @@ defmodule PhoenixKitWeb.BurnedCopyTest do
       # photo at half size plus 120px of ink, so the width ratio is the
       # true one.
       add_burn!(file, "burned_large", {1920, 1200})
+
       sized = %Phoenix.LiveView.Socket{
         assigns: %{__changed__: %{}, file: %{file_uuid: file.uuid, width: 3840, height: 2160}}
       }

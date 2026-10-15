@@ -52,6 +52,9 @@ defmodule PhoenixKit.Install.ViewerLibraries do
   with a URL built from that same consumer version.
   """
 
+  # The host's esbuild, when it has one: core only lists :esbuild for dev.
+  @compile {:no_warn_undefined, Esbuild}
+
   @lib_dir "priv/static/assets/vendor/lib"
 
   # name: the key in window.PHOENIX_KIT_LIBS (and the file-name prefix).
@@ -232,7 +235,7 @@ defmodule PhoenixKit.Install.ViewerLibraries do
 
   defp esbuild_bin do
     if Code.ensure_loaded?(Esbuild) do
-      bin = apply(Esbuild, :bin_path, [])
+      bin = Esbuild.bin_path()
       if File.exists?(bin), do: {:ok, bin}, else: {:error, "esbuild is not installed"}
     else
       {:error, "the host has no :esbuild dependency"}

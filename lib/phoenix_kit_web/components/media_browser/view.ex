@@ -29,8 +29,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.View do
   import PhoenixKitWeb.Components.MediaBrowser.Helpers
 
   alias Phoenix.LiveView.JS
-  alias PhoenixKitWeb.Components.MediaBrowser
   alias PhoenixKit.Utils.Format
+  alias PhoenixKitWeb.Components.MediaBrowser
 
   embed_templates "browser.html"
 end

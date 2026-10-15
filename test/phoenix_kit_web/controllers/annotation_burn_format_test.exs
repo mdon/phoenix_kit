@@ -31,11 +31,21 @@ defmodule PhoenixKitWeb.AnnotationBurnFormatTest do
     }
 
     assert {:ok, layout} = Burn.layout_from_params(params)
-    assert Burn.scale_layout(layout, 400, 300) == %{canvas_w: 400, canvas_h: 300, x: 50, y: 25, w: 200, h: 150}
+
+    assert Burn.scale_layout(layout, 400, 300) == %{
+             canvas_w: 400,
+             canvas_h: 300,
+             x: 50,
+             y: 25,
+             w: 200,
+             h: 150
+           }
 
     assert Burn.layout_from_params(Map.delete(params, "picture_w")) == :error
     assert Burn.layout_from_params(Map.put(params, "canvas_w", "1e9")) == :error
     assert Burn.layout_from_params(Map.put(params, "picture_h", "abc")) == :error
+    assert Burn.layout_from_params(Map.put(params, "picture_x", "abc")) == :error
+    assert Burn.layout_from_params(Map.delete(params, "picture_y")) == :error
   end
 
   test "the fingerprint is written before the file's change is announced" do
@@ -47,5 +57,4 @@ defmodule PhoenixKitWeb.AnnotationBurnFormatTest do
 
     assert length(Regex.scan(~r/broadcast_file_thumbnail_updated/, src)) == 1
   end
-
 end

@@ -187,13 +187,13 @@ defmodule PhoenixKit.Modules.Storage.AnnotationThumbnail do
     # `draw_args` already carries `-fill none` + the per-shape `-stroke/-draw`
     # (from Etcher.Raster); we just splice it in before the resize/crop so shapes
     # are drawn in the source image's pixel space and scale with it.
+    # `-extent` lays the picture over the background colour, white by
+    # default — which flattened a see-through PNG onto white. `none`
+    # keeps its transparency; an opaque picture is unchanged.
     args =
       ImageProcessor.limit_args() ++
         [input] ++
         draw_args ++
-        # `-extent` lays the picture over the background colour, white by
-        # default — which flattened a see-through PNG onto white. `none`
-        # keeps its transparency; an opaque picture is unchanged.
         ["-resize", "#{@size}x#{@size}^", "-background", "none", "-gravity", "center"] ++
         ["-extent", "#{@size}x#{@size}"] ++
         ["png:#{output_path}"]
