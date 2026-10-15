@@ -31,7 +31,7 @@ defmodule PhoenixKitWeb.Components.ViewerSplitOrientationTest do
           )
   @browser Path.join(
              __DIR__,
-             "../../../lib/phoenix_kit_web/components/media_browser.html.heex"
+             "../../../lib/phoenix_kit_web/components/media_browser/browser.html.heex"
            )
   @media_viewer Path.join(
                   __DIR__,

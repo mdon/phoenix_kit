@@ -164,7 +164,11 @@ defmodule PhoenixKit.Install.ViewerLibrariesTest do
 
     test "a minified copy is named by its source, so an unchanged library is not minified again" do
       assert ViewerLibraries.min_file_name("etcher", "0.22.0", "src") ==
-               String.replace_suffix(ViewerLibraries.file_name("etcher", "0.22.0", "src"), ".js", ".min.js")
+               String.replace_suffix(
+                 ViewerLibraries.file_name("etcher", "0.22.0", "src"),
+                 ".js",
+                 ".min.js"
+               )
     end
 
     test "with minifying on, the Hex libraries land minified and the core-committed ones as they are",
@@ -186,5 +190,4 @@ defmodule PhoenixKit.Install.ViewerLibrariesTest do
       refute facts["sortable"].file =~ ~r/\.min\.js\z/, "already minified upstream: copied as is"
     end
   end
-
 end

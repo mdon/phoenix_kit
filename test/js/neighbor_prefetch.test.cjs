@@ -21,6 +21,14 @@ const fs = require("fs");
 const path = require("path");
 const assert = require("node:assert");
 const { test } = require("node:test");
+const mediaBrowserDir = path.join(__dirname, "..", "..", "lib", "phoenix_kit_web", "components", "media_browser");
+// The browser is split across modules (media_browser.ex, and its view,
+// sections and helpers under media_browser/): read them all.
+function mediaBrowserSource(ext) {
+  const files = fs.readdirSync(mediaBrowserDir).filter((f) => f.endsWith(ext)).map((f) => path.join(mediaBrowserDir, f));
+  if (ext === ".ex") files.unshift(path.join(mediaBrowserDir, "..", "media_browser.ex"));
+  return files.map((f) => fs.readFileSync(f, "utf8")).join("\n");
+}
 
 const SOURCE = path.join(__dirname, "..", "..", "priv", "static", "assets", "phoenix_kit.js");
 const src = fs.readFileSync(SOURCE, "utf8");
@@ -226,9 +234,7 @@ test("closing the viewer cancels a warm that has not run yet", async () => {
 });
 
 test("the modal advertises its neighbours", () => {
-  const heex = fs.readFileSync(
-    path.join(__dirname, "..", "..", "lib", "phoenix_kit_web", "components",
-              "media_browser.html.heex"), "utf8");
+  const heex = mediaBrowserSource(".html.heex");
   assert.ok(heex.includes("data-neighbors={neighbors_json}"),
     "ViewerKeydown reads the neighbours off its own element, as one structured attribute");
   assert.ok(/Enum\.at\(siblings, viewer_idx - 1\)/.test(heex) &&
@@ -244,11 +250,9 @@ test("the modal advertises its neighbours", () => {
   assert.ok(heex.includes("viewer_open_url("),
     "the step stand-in is the variant the viewer opens on, not always small");
 
-  const ex = fs.readFileSync(
-    path.join(__dirname, "..", "..", "lib", "phoenix_kit_web", "components",
-              "media_browser.ex"), "utf8");
-  assert.ok(/defp neighbor_warm_data\(%\{file_type: "image"\}/.test(ex) &&
-            /defp neighbor_warm_data\(_\), do: nil/.test(ex),
+  const ex = mediaBrowserSource(".ex");
+  assert.ok(/defp? neighbor_warm_data\(%\{file_type: "image"\}/.test(ex) &&
+            /defp? neighbor_warm_data\(_\), do: nil/.test(ex),
     "videos and pdfs are not image-warmable and are skipped");
   for (const key of ['"open"', '"large"', '"original"', '"aspect"']) {
     assert.ok(ex.includes(key), `each side advertises ${key}`);

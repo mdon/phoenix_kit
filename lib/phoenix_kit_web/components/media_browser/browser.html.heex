@@ -1,0 +1,1028 @@
+<%!-- MediaBrowser LiveComponent template.
+     All phx-* events route to the component via phx-target={@myself} on the root div. --%>
+<%!-- Esc exits select mode (same as the toolbar Cancel), only while it's on
+     so the window listener isn't attached otherwise. --%>
+<div
+  id={@id}
+  phx-target={@myself}
+  phx-hook="MediaDragDrop"
+  phx-window-keydown={@select_mode && "exit_select_mode"}
+  phx-key="Escape"
+  class={@fill_height && "flex flex-col flex-1 min-h-0 w-full"}
+>
+  <%!-- Keeps a copy of every picked file in the browser (IndexedDB) until
+       the server says it has the bytes, so a transfer cut short by a refresh,
+       a closed tab or a dropped connection can be resumed instead of lost.
+       Reports leftovers as `upload_resume_available`. Its parent — this
+       root — is the scope whose file inputs it watches. --%>
+  <div
+    :if={not @readonly and @has_buckets}
+    id={@id <> "-upload-resume"}
+    phx-hook="UploadResume"
+    phx-target={@myself}
+    data-user={upload_stash_user(assigns)}
+    class="hidden"
+  >
+  </div>
+  <style>
+    @keyframes rename-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .renaming-preview {
+      animation: rename-pulse 1.5s ease-in-out infinite;
+      color: oklch(var(--p));
+      font-style: italic;
+    }
+
+    /* Compact-mode overrides for the Comments component when embedded
+       inside the modal viewer's narrow sidebar. The component itself is
+       designed for full-width post-detail pages; here we shrink the
+       internal typography, paddings, avatars, and button gaps so the
+       author/actions row stops truncating in ~360px of space. */
+    .leaf-comments-compact h2 { font-size: 1rem; line-height: 1.5rem; }
+    .leaf-comments-compact h3 { font-size: 0.8125rem; line-height: 1.25rem; }
+    .leaf-comments-compact .text-sm { font-size: 0.75rem; line-height: 1rem; }
+    .leaf-comments-compact .text-xs { font-size: 0.6875rem; line-height: 0.95rem; }
+    .leaf-comments-compact .p-3 { padding: 0.5rem; }
+    .leaf-comments-compact .p-4 { padding: 0.625rem; }
+    .leaf-comments-compact .gap-2 { gap: 0.25rem; }
+    .leaf-comments-compact .gap-4 { gap: 0.5rem; }
+    .leaf-comments-compact .mb-2 { margin-bottom: 0.25rem; }
+    .leaf-comments-compact .mt-4 { margin-top: 0.5rem; }
+    .leaf-comments-compact .w-5 { width: 1rem; }
+    .leaf-comments-compact .h-5 { height: 1rem; }
+    .leaf-comments-compact .w-4 { width: 0.875rem; }
+    .leaf-comments-compact .h-4 { height: 0.875rem; }
+    .leaf-comments-compact .btn-xs { min-height: 1.5rem; height: 1.5rem; padding: 0 0.4rem; font-size: 0.6875rem; }
+    .leaf-comments-compact .btn-sm { min-height: 1.75rem; height: 1.75rem; font-size: 0.75rem; }
+  </style>
+
+  <%!-- Scope-invalid guard: scope folder was deleted --%>
+  <%= if @scope_invalid do %>
+    <div role="alert" class="alert alert-warning mb-4">
+      <.icon name="hero-exclamation-triangle" class="w-5 h-5 shrink-0" />
+      <span>
+        {gettext(
+          "The configured scope folder no longer exists. The media browser is disabled until the scope is reconfigured."
+        )}
+      </span>
+    </div>
+  <% else %>
+    <%!-- Upload Section --%>
+    <%= if not @readonly and @show_upload and assigns[:parent_uploads] do %>
+      <div class="card bg-base-100 shadow-xl mb-6">
+        <div class="card-body">
+          <div class="flex items-center gap-3 mb-4">
+            <h2 class="card-title text-xl">{gettext("Upload Media")}</h2>
+            <button
+              phx-click="toggle_upload"
+              phx-target={@myself}
+              class="btn btn-sm btn-error gap-2"
+            >
+              <.icon name="hero-x-mark" class="w-4 h-4" /> {gettext("Cancel")}
+            </button>
+          </div>
+          <%= if @has_buckets do %>
+            <.file_upload
+              upload={@parent_uploads.media_files}
+              label={gettext("Upload Media Files")}
+              icon="hero-cloud-arrow-up"
+              accept_description={gettext("All file types supported")}
+              max_size_description={gettext("%{mb}MB per file", mb: @max_upload_size_mb)}
+            />
+          <% else %>
+            <div class="alert alert-warning">
+              <.icon name="hero-exclamation-triangle" class="w-6 h-6" />
+              <div>
+                <h3 class="font-bold">{gettext("No Storage Buckets Configured")}</h3>
+                <div class="text-sm mt-1">
+                  <.link
+                    navigate={PhoenixKit.Utils.Routes.path("/admin/settings/media")}
+                    class="link link-primary font-semibold"
+                  >
+                    {gettext("Configure Storage Buckets")}
+                  </.link>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <%!-- Main Layout: Sidebar + Content in a unified card --%>
+    <%!-- `isolate` confines the hero header's `z-30` (and the toolbar
+         dropdowns' `z-20`) to this card's own stacking context, so they no
+         longer paint over the mobile drawer/navbar. Modals live outside this
+         card and are unaffected. --%>
+    <div class={["card bg-base-100 shadow-xl isolate", @fill_height && "flex-1 min-h-0"]}>
+      <div class={[
+        "card-body p-2 sm:p-4 flex flex-row gap-0 overflow-hidden",
+        if(@fill_height, do: "flex-1 min-h-0", else: "h-[72vh] max-h-[48rem] min-h-[24rem]")
+      ]}>
+        <%!-- Folder Sidebar --%>
+        <.folder_explorer
+          id="media-browser-sidebar"
+          myself={@myself}
+          folder_tree={@folder_tree}
+          current_folder={@current_folder}
+          expanded_folders={@expanded_folders}
+          scope_folder_id={@scope_folder_id}
+          scope_folder_name={@scope_folder_name}
+          renaming_folder={@renaming_folder}
+          renaming_source={@renaming_source}
+          renaming_text={@renaming_text}
+          filter_trash={@filter_trash}
+          file_view={@file_view}
+          sidebar_collapsed={@sidebar_collapsed}
+          sidebar_rev={@sidebar_rev}
+          trash_count={@trash_count}
+          show_create={not @readonly}
+          show_rename={not @readonly}
+          enable_drag={not @readonly}
+        />
+
+        <%!-- Main content area --%>
+        <div class="flex-1 min-w-0 min-h-0 lg:pl-4 flex flex-col">
+          <%!-- Hidden upload input for folder drag-drop (always in DOM when in a folder) --%>
+          <%= if not @readonly && @has_buckets && !@show_upload && assigns[:parent_uploads] do %>
+            <form
+              phx-change="validate"
+              id="folder-drop-upload-form"
+              class="hidden"
+            >
+              <.live_file_input upload={@parent_uploads.media_files} />
+            </form>
+          <% end %>
+
+          <div class="min-h-0 flex-1 flex flex-col">
+            <%!-- The single scroll area for the whole content column —
+                 breadcrumbs, folder hero header, toolbar, and the file grid
+                 all scroll together (the grid wrapper below is NOT its own
+                 scroll region). The list view's sticky column header pins to
+                 the top of this scrollport once the header scrolls past.
+
+                 [scrollbar-gutter:stable]: this column is its own scroll
+                 region, so its scrollbar is its own — and its height crosses
+                 the scroll threshold on almost every folder click (a folder's
+                 hero header is ~50px taller than the flat "All Media" one).
+                 Without a reserved gutter the bar appears or disappears on
+                 each navigation and everything inside it — breadcrumb, hero
+                 header, toolbar, grid — jumps 15px sideways. Same narrow case
+                 as `.drawer-side` in layout_wrapper: an inner scroller, not
+                 the root gutter daisyUI owns. --%>
+            <div
+              class="px-2 pb-2 min-h-0 flex-1 flex flex-col overflow-auto [scrollbar-gutter:stable]"
+              id={if @has_buckets, do: "folder-drop-upload"}
+              phx-hook={if @has_buckets and not @readonly, do: "FolderDropUpload"}
+              phx-target={if @has_buckets, do: @myself}
+            >
+              <%!-- Upload problems: every upload that did not land, by name   --%>
+              <%!-- and with why — refused before transfer, failed to store,  --%>
+              <%!-- interrupted by a refresh. Retry re-sends what was kept;   --%>
+              <%!-- Discard lets go. Survives a refresh for anything the      --%>
+              <%!-- server received (UploadInbox) or the browser stashed      --%>
+              <%!-- (UploadResume).                                           --%>
+              <% problems = upload_problems(assigns) %>
+              <div
+                :if={problems != []}
+                id={@id <> "-upload-problems"}
+                role="alert"
+                class="mb-4 rounded-lg border border-warning/60 bg-warning/10 p-3"
+              >
+                <div class="flex flex-wrap items-center gap-2">
+                  <.icon name="hero-exclamation-triangle" class="w-5 h-5 text-warning shrink-0" />
+                  <p class="font-semibold text-sm flex-1 min-w-0">
+                    {ngettext(
+                      "%{count} file did not upload",
+                      "%{count} files did not upload",
+                      length(problems)
+                    )}
+                  </p>
+                  <button
+                    :if={Enum.count(problems, & &1.retry) > 1}
+                    type="button"
+                    phx-click="retry_all_uploads"
+                    phx-target={@myself}
+                    class="btn btn-xs btn-primary gap-1"
+                  >
+                    <.icon name="hero-arrow-path" class="w-3.5 h-3.5" /> {gettext("Retry all")}
+                  </button>
+                  <button
+                    type="button"
+                    phx-click="discard_all_uploads"
+                    phx-target={@myself}
+                    data-confirm={
+                      gettext("Discard every file in this list? They will not be uploaded.")
+                    }
+                    class="btn btn-xs btn-ghost"
+                  >
+                    {gettext("Discard all")}
+                  </button>
+                </div>
+                <ul class="mt-2 space-y-1.5">
+                  <li
+                    :for={problem <- problems}
+                    id={@id <> "-upload-problem-" <> problem.key}
+                    class="flex flex-wrap items-center gap-2 rounded-md bg-base-100 px-3 py-2"
+                  >
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-medium truncate">{problem.client_name}</p>
+                      <p class="text-xs text-base-content/70">
+                        <span :if={is_integer(problem[:client_size]) and problem.client_size > 0}>
+                          {Format.bytes(problem.client_size, base: 1000, decimals: 2)} ·
+                        </span>
+                        {problem.reason}
+                      </p>
+                    </div>
+                    <button
+                      :if={problem.retry}
+                      type="button"
+                      phx-click="retry_upload"
+                      phx-value-key={problem.key}
+                      phx-target={@myself}
+                      class="btn btn-xs btn-outline btn-primary gap-1"
+                    >
+                      <.icon name="hero-arrow-path" class="w-3.5 h-3.5" />
+                      {if problem.kind == :browser, do: gettext("Resume"), else: gettext("Retry")}
+                    </button>
+                    <button
+                      type="button"
+                      phx-click="discard_upload"
+                      phx-value-key={problem.key}
+                      phx-target={@myself}
+                      class="btn btn-xs btn-ghost"
+                      aria-label={gettext("Discard %{name}", name: problem.client_name)}
+                    >
+                      {if problem.retry, do: gettext("Discard"), else: gettext("Dismiss")}
+                    </button>
+                  </li>
+                </ul>
+              </div>
+
+              <%!-- Inline upload progress for drag-drop (no modal) --%>
+              <%= if !@show_upload && assigns[:parent_uploads] && length(@parent_uploads.media_files.entries) > 0 do %>
+                <div class="space-y-2 mb-4">
+                  <%= for entry <- @parent_uploads.media_files.entries do %>
+                    <div class="flex items-center gap-3 p-3 border border-base-300 rounded-lg bg-base-100">
+                      <div class="flex-1">
+                        <p class="font-medium text-sm truncate">{entry.client_name}</p>
+                        <div class="flex gap-2 items-center mt-1">
+                          <progress
+                            value={entry.progress}
+                            max="100"
+                            class="progress progress-primary progress-sm flex-1"
+                          >
+                            {entry.progress}%
+                          </progress>
+                          <span class="text-xs text-base-content/60 min-w-max">
+                            {entry.progress}%
+                          </span>
+                        </div>
+                        <.upload_entry_stats entry={entry} />
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              <% end %>
+
+              <%!-- Files handed off to the server: the transfer entry is
+                   already consumed, but the store/variant work is still
+                   running in this component's drain queue. Without these
+                   rows the file simply vanishes until the batch flash. --%>
+              <%= if processing_upload_entries(assigns) != [] do %>
+                <div class="space-y-2 mb-4">
+                  <%= for entry <- processing_upload_entries(assigns) do %>
+                    <div class="flex items-center gap-3 p-3 border border-base-300 rounded-lg bg-base-100">
+                      <span class="loading loading-spinner loading-xs text-primary"></span>
+                      <div class="flex-1 min-w-0">
+                        <p class="font-medium text-sm truncate">{entry.client_name}</p>
+                        <p class="text-xs text-base-content/60 tabular-nums">
+                          {Format.bytes(entry.client_size, base: 1000, decimals: 2)} · {gettext(
+                            "Processing on server…"
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              <% end %>
+
+              <%!--
+                Breadcrumbs. `@breadcrumbs` is the full ancestor chain INCLUDING
+                the current folder (with the scope folder dropped when scoped),
+                so we iterate `Enum.drop(@breadcrumbs, -1)` for the clickable
+                middle and render the current folder once at the end. When
+                scoped, the leading "root" button shows the scope folder's
+                name (e.g. "banana") instead of "All Media".
+              --%>
+              <%!--
+                Breadcrumb — ALWAYS rendered so it stays in the same place
+                across root and folder views (no disappearing row / layout
+                jump). At root the leading crumb is the current, non-link item
+                ("All Media", or the scope folder's name when scoped); inside a
+                folder it becomes a clickable button followed by the ancestor
+                path and the current folder.
+              --%>
+              <%!-- `!py-0` strips daisyUI's default breadcrumb padding and the
+                   removed top padding above lets this row sit flush with the
+                   sidebar's "Folders" header; `mb-3` matches that header's
+                   bottom gap so the rows below line up too. --%>
+              <nav class="breadcrumbs text-sm mb-3 !py-0 min-h-[1.5rem] flex items-center">
+                <ul>
+                  <%= if @current_folder do %>
+                    <li>
+                      <button
+                        phx-click="navigate_root"
+                        phx-target={@myself}
+                        class="hover:underline text-primary"
+                      >
+                        {if @scope_folder_id,
+                          do: @scope_folder_name,
+                          else: gettext("All Media")}
+                      </button>
+                    </li>
+                    <%= for folder <- Enum.drop(@breadcrumbs, -1) do %>
+                      <li>
+                        <button
+                          phx-click="navigate_folder"
+                          phx-target={@myself}
+                          phx-value-folder-uuid={folder.uuid}
+                          class="hover:underline text-primary"
+                        >
+                          {folder.name}
+                        </button>
+                      </li>
+                    <% end %>
+                    <li>
+                      {@current_folder.name}
+                    </li>
+                  <% else %>
+                    <li>
+                      {if @scope_folder_id,
+                        do: @scope_folder_name,
+                        else: gettext("All Media")}
+                    </li>
+                  <% end %>
+                </ul>
+              </nav>
+
+              <%!--
+                Folder hero header: a cover image (or a soft folder-color
+                gradient when none is set) as the background, faded to the page
+                at the bottom, with the title + created-by/file-count and the
+                "Edit header" action overlaid. Non-folder views (Trash /
+                Orphaned / All Files / root) just show a plain title. The
+                cover-image upload itself lives in the Edit-header modal.
+              --%>
+              <%!-- Unified header: a hero block (cover image / folder-color
+                   gradient for folders, neutral gradient otherwise) that also
+                   holds the toolbar at the bottom. `overflow-hidden` is avoided
+                   so the toolbar dropdown menus aren't clipped — the background
+                   layers are each rounded instead. --%>
+              <%!-- The folder whose header customizations to display. Falls
+                   back to the scope folder only at the effective root of an
+                   embedded (scoped) browser — never under the all-files /
+                   orphaned / trash / search views, where the `<h2>` title below
+                   would disagree with the scope folder's metadata. See
+                   `header_folder_target/6`. --%>
+              <MediaBrowser.Header.header
+                current_folder={assigns[:current_folder]}
+                editing_folder_header={assigns[:editing_folder_header]}
+                file_type_filter={assigns[:file_type_filter]}
+                file_view={assigns[:file_view]}
+                filter_orphaned={assigns[:filter_orphaned]}
+                filter_trash={assigns[:filter_trash]}
+                folder_cover_rotation={assigns[:folder_cover_rotation]}
+                folder_cover_url={assigns[:folder_cover_url]}
+                folder_creator_name={assigns[:folder_creator_name]}
+                folder_creator_user={assigns[:folder_creator_user]}
+                folder_header_description={assigns[:folder_header_description]}
+                folder_header_name={assigns[:folder_header_name]}
+                folder_logo_rotation={assigns[:folder_logo_rotation]}
+                folder_logo_url={assigns[:folder_logo_url]}
+                id={assigns[:id]}
+                myself={assigns[:myself]}
+                only_file_type={assigns[:only_file_type]}
+                readonly={assigns[:readonly]}
+                renaming_folder={assigns[:renaming_folder]}
+                renaming_text={assigns[:renaming_text]}
+                scope_folder={assigns[:scope_folder]}
+                scope_folder_id={assigns[:scope_folder_id]}
+                scope_folder_name={assigns[:scope_folder_name]}
+                search_query={assigns[:search_query]}
+                select_mode={assigns[:select_mode]}
+                selected_files={assigns[:selected_files]}
+                selected_folders={assigns[:selected_folders]}
+                selecting_cover={assigns[:selecting_cover]}
+                shape_filter={assigns[:shape_filter]}
+                show_search={assigns[:show_search]}
+                show_upload={assigns[:show_upload]}
+                sort_by={assigns[:sort_by]}
+                total_count={assigns[:total_count]}
+                view_mode={assigns[:view_mode]}
+              />
+              <%!-- /hero header (search now lives inline in the toolbar) --%>
+
+              <%!--
+                Main-area drop target. Dropping a folder or file onto the
+                body wraps the move into `@current_folder` (or the scope
+                root when at the top of a scoped browser). Outline-only
+                via `data-drop-no-bg` — a 10% primary tint across the
+                whole content area is overwhelming compared to the
+                folder cards.
+
+                Omitted in trash / all-files views: the `if` produces
+                `nil` and `data-drop-folder={nil}` strips the attribute,
+                so the wrapper isn't a drop target there.
+              --%>
+              <div
+                class="rounded-lg flex-1 pr-1"
+                data-drop-folder={
+                  if not @readonly and not @filter_trash and @file_view != "all" do
+                    if @current_folder, do: @current_folder.uuid, else: "root"
+                  end
+                }
+                data-drop-no-bg
+              >
+                <%= if @uploaded_files == [] && (@folders == [] or @file_view == "all") do %>
+                  <%!-- Empty state --%>
+                  <div class={[
+                    "rounded-lg p-8 text-center",
+                    if(@current_folder,
+                      do: "border-2 border-dashed border-base-300 bg-base-200/50",
+                      else: "bg-base-200"
+                    )
+                  ]}>
+                    <%= cond do %>
+                      <% @filter_trash -> %>
+                        <.icon
+                          name="hero-trash"
+                          class="w-12 h-12 mx-auto text-base-content/30 mb-2"
+                        />
+                        <p class="text-base-content/70">{gettext("Trash is empty.")}</p>
+                        <p class="text-base-content/50 text-sm mt-1">
+                          {gettext("Deleted files will appear here")}
+                        </p>
+                      <% @search_query != "" -> %>
+                        <%!-- Zero search results is not "no media" — files exist,
+                             they just don't match. --%>
+                        <.icon
+                          name="hero-magnifying-glass"
+                          class="w-12 h-12 mx-auto text-base-content/30 mb-2"
+                        />
+                        <p class="text-base-content/70">
+                          {gettext("No files match your search.")}
+                        </p>
+                        <p class="text-base-content/50 text-sm mt-1">
+                          {gettext("Try a different term or clear the search")}
+                        </p>
+                      <% @current_folder -> %>
+                        <.icon
+                          name="hero-cloud-arrow-up"
+                          class="w-12 h-12 mx-auto text-base-content/30 mb-2"
+                        />
+                        <p class="text-base-content/70">{gettext("This folder is empty.")}</p>
+                        <p class="text-base-content/50 text-sm mt-1">
+                          {gettext("Drop files here or click \"Add Media\" to upload")}
+                        </p>
+                      <% @file_view == "all" -> %>
+                        <.icon
+                          name="hero-folder-open"
+                          class="w-12 h-12 mx-auto text-base-content/30 mb-2"
+                        />
+                        <p class="text-base-content/70">{gettext("No files found.")}</p>
+                      <% true -> %>
+                        <.icon
+                          name="hero-folder-open"
+                          class="w-12 h-12 mx-auto text-base-content/30 mb-2"
+                        />
+                        <p class="text-base-content/70">
+                          {gettext("No media uploaded yet. Upload your first file above!")}
+                        </p>
+                    <% end %>
+                  </div>
+                <% else %>
+                  <%= if @view_mode == "grid" do %>
+                    <MediaBrowser.GridView.grid_view
+                      editing_folder_description={assigns[:editing_folder_description]}
+                      featured={assigns[:featured]}
+                      file_view={assigns[:file_view]}
+                      filter_trash={assigns[:filter_trash]}
+                      folder_description_text={assigns[:folder_description_text]}
+                      folders={assigns[:folders]}
+                      id={assigns[:id]}
+                      myself={assigns[:myself]}
+                      readonly={assigns[:readonly]}
+                      renaming_folder={assigns[:renaming_folder]}
+                      renaming_source={assigns[:renaming_source]}
+                      renaming_text={assigns[:renaming_text]}
+                      select_mode={assigns[:select_mode]}
+                      selected_files={assigns[:selected_files]}
+                      selected_folders={assigns[:selected_folders]}
+                      uploaded_files={assigns[:uploaded_files]}
+                    />
+                  <% end %>
+                  <%= if @view_mode == "stacks" do %>
+                    <MediaBrowser.StacksView.stacks_view
+                      expanded_stacks={assigns[:expanded_stacks]}
+                      featured={assigns[:featured]}
+                      filter_trash={assigns[:filter_trash]}
+                      folders={assigns[:folders]}
+                      id={assigns[:id]}
+                      just_opened_stack={assigns[:just_opened_stack]}
+                      myself={assigns[:myself]}
+                      readonly={assigns[:readonly]}
+                      scope_folder_id={assigns[:scope_folder_id]}
+                      select_mode={assigns[:select_mode]}
+                      selected_files={assigns[:selected_files]}
+                      stack_files={assigns[:stack_files]}
+                      stack_previews={assigns[:stack_previews]}
+                      uploaded_files={assigns[:uploaded_files]}
+                    />
+                  <% end %>
+                  <%= if @view_mode == "list" do %>
+                    <MediaBrowser.ListView.list_view
+                      current_folder={assigns[:current_folder]}
+                      editing_folder_description={assigns[:editing_folder_description]}
+                      featured={assigns[:featured]}
+                      file_view={assigns[:file_view]}
+                      filter_trash={assigns[:filter_trash]}
+                      folder_description_text={assigns[:folder_description_text]}
+                      folders={assigns[:folders]}
+                      id={assigns[:id]}
+                      myself={assigns[:myself]}
+                      readonly={assigns[:readonly]}
+                      renaming_folder={assigns[:renaming_folder]}
+                      renaming_source={assigns[:renaming_source]}
+                      renaming_text={assigns[:renaming_text]}
+                      scope={assigns[:scope]}
+                      scope_folder_id={assigns[:scope_folder_id]}
+                      select_mode={assigns[:select_mode]}
+                      selected_files={assigns[:selected_files]}
+                      selected_folders={assigns[:selected_folders]}
+                      uploaded_files={assigns[:uploaded_files]}
+                    />
+                  <% end %>
+                <% end %>
+              </div>
+
+              <%!-- Pagination (event-based; URL sync deferred to Task 3) --%>
+              <%= if @total_count > @per_page do %>
+                <div class="flex justify-center items-center gap-2 mt-4">
+                  <%= if @current_page > 1 do %>
+                    <button
+                      phx-click="set_page"
+                      phx-target={@myself}
+                      phx-value-page={@current_page - 1}
+                      class="btn btn-sm btn-ghost gap-1"
+                    >
+                      <.icon name="hero-chevron-left" class="w-4 h-4" /> {gettext("Prev")}
+                    </button>
+                  <% end %>
+                  <span class="text-sm text-base-content/70">
+                    {@current_page} / {@total_pages}
+                  </span>
+                  <%= if @current_page < @total_pages do %>
+                    <button
+                      phx-click="set_page"
+                      phx-target={@myself}
+                      phx-value-page={@current_page + 1}
+                      class="btn btn-sm btn-ghost gap-1"
+                    >
+                      {gettext("Next")} <.icon name="hero-chevron-right" class="w-4 h-4" />
+                    </button>
+                  <% end %>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <%!-- Move to Folder Modal --%>
+    <%= if @show_move_modal do %>
+      <div class="modal modal-open">
+        <div class="modal-box">
+          <h3 class="font-bold text-lg mb-4">
+            <%!--
+              "item" covers both files and folders so the kebab single-item
+              and bulk-mixed selections all read sensibly. Bulk-file-only
+              flows used to say "file(s)" — generalising loses that nuance
+              but gains correctness when folders are in the mix.
+            --%>
+            {ngettext(
+              "Move %{count} item to folder",
+              "Move %{count} items to folder",
+              MapSet.size(@selected_files) + MapSet.size(@selected_folders)
+            )}
+          </h3>
+          <%!--
+            Plain <ul> (not daisyUI `menu`, which laid the custom tree rows
+            out horizontally and overflowed the box). Full width, vertical
+            scroll, horizontal clipped — folder names truncate rather than
+            spill past the box edge.
+          --%>
+          <ul class="bg-base-200 rounded-lg max-h-64 w-full overflow-y-auto overflow-x-hidden p-2 space-y-0.5">
+            <li>
+              <button
+                phx-click="move_selected_to_folder"
+                phx-target={@myself}
+                phx-value-folder-uuid=""
+                class={[
+                  "flex items-center gap-1.5 w-full min-w-0 text-left rounded-lg px-1 py-1 hover:bg-base-300 transition-colors",
+                  @current_folder == nil && "font-semibold"
+                ]}
+              >
+                <.icon name="hero-home" class="w-4 h-4 shrink-0" />
+                <span class="truncate">{@scope_folder_name}</span>
+              </button>
+            </li>
+            <%!--
+              Same recursive tree node as the left sidebar
+              (`FolderExplorer.folder_tree_node`) so guide lines / structure
+              stay in sync. Move-mode config: clicking a row selects it as the
+              destination, the chevron drives the modal's own `move_expanded`
+              set, and rename + drag are off. No active highlight (current_folder
+              left nil — you're picking where to move TO).
+            --%>
+            <%= for node <- @folder_tree do %>
+              <.folder_tree_node
+                node={node}
+                current_folder={nil}
+                expanded_folders={@move_expanded}
+                depth={0}
+                myself={@myself}
+                on_navigate="move_selected_to_folder"
+                on_toggle="toggle_move_folder"
+                show_rename={false}
+                enable_drag={false}
+                hover_class="hover:bg-base-300"
+              />
+            <% end %>
+          </ul>
+          <div class="modal-action">
+            <button phx-click="close_move_modal" phx-target={@myself} class="btn btn-ghost">
+              {gettext("Cancel")}
+            </button>
+          </div>
+        </div>
+        <div class="modal-backdrop" phx-click="close_move_modal" phx-target={@myself}></div>
+      </div>
+    <% end %>
+
+    <%!-- New Folder Modal — name the folder before it's created; Cancel
+         (button / backdrop / Esc) adds nothing. The placeholder is the next
+         default name, used as-is when the field is left blank. --%>
+    <%= if @show_new_folder_modal do %>
+      <div class="modal modal-open">
+        <div class="modal-box max-w-sm">
+          <h3 class="font-bold text-lg flex items-center gap-2">
+            <.icon name="hero-folder-plus" class="w-5 h-5 text-primary" />
+            {gettext("New folder")}
+          </h3>
+          <p class="text-sm text-base-content/60 mt-1 mb-4">
+            {gettext("Name your folder, or leave it blank to use the default.")}
+          </p>
+          <form
+            id={"#{@id}-new-folder-form"}
+            phx-submit="submit_new_folder"
+            phx-change="new_folder_input"
+            phx-target={@myself}
+          >
+            <input
+              id="new-folder-name-input"
+              type="text"
+              name="name"
+              value={@new_folder_name}
+              placeholder={@new_folder_placeholder}
+              maxlength="255"
+              autocomplete="off"
+              class="input w-full"
+              phx-mounted={JS.focus()}
+              phx-keydown="close_new_folder_modal"
+              phx-key="Escape"
+              phx-target={@myself}
+            />
+            <div class="modal-action">
+              <button
+                type="button"
+                phx-click="close_new_folder_modal"
+                phx-target={@myself}
+                class="btn btn-ghost"
+              >
+                {gettext("Cancel")}
+              </button>
+              <button type="submit" class="btn btn-primary gap-2">
+                <.icon name="hero-folder-plus" class="w-4 h-4" />
+                {gettext("Create folder")}
+              </button>
+            </div>
+          </form>
+        </div>
+        <div class="modal-backdrop" phx-click="close_new_folder_modal" phx-target={@myself}></div>
+      </div>
+    <% end %>
+  <% end %>
+
+  <%!-- ── Cover-image media picker ───────────────────────────────────────────
+       Reuses the shared MediaSelectorModal, scoped to the folder being edited,
+       so the user can pick an existing image from the folder or upload a new
+       one. Single-select; the choice is reported back to this component via
+       `notify`, where set_cover_from_selection/2 records it as the cover. --%>
+  <%= if @editing_folder_header do %>
+    <.live_component
+      module={PhoenixKitWeb.Live.Components.MediaSelectorModal}
+      id={"#{@id}-cover-selector"}
+      show={@selecting_cover}
+      mode={:single}
+      file_type_filter={:image}
+      lock_file_type
+      title={
+        if @image_picker_target == "logo",
+          do: gettext("Select Logo"),
+          else: gettext("Select Cover Image")
+      }
+      scope_folder_id={@editing_folder_header}
+      selected_uuids={[]}
+      phoenix_kit_current_user={assigns[:phoenix_kit_current_user]}
+      notify={{PhoenixKitWeb.Components.MediaBrowser, @id}}
+    />
+  <% end %>
+
+  <%!-- ── Instant stand-in ────────────────────────────────────────────────── --%>
+  <%!-- Opening the viewer is a server round trip, and until it lands there   --%>
+  <%!-- is nothing on screen. The server's part is ~2ms, so this is mostly    --%>
+  <%!-- the network — and the thing being opened is a picture the browser     --%>
+  <%!-- already has, because the grid painted it. This shows that bitmap      --%>
+  <%!-- full-size the moment the click happens and clears itself when the     --%>
+  <%!-- real viewer mounts.                                                   --%>
+  <%!--                                                                       --%>
+  <%!-- `phx-update="ignore"` because the hook owns its contents; LiveView    --%>
+  <%!-- patching it mid-show is how it would flicker. `data-armed` is how it  --%>
+  <%!-- stays out of select mode, where the same click is a checkbox.         --%>
+  <%!-- `data-sidebar-open` seeds the hook's layout prediction for the first --%>
+  <%!-- open of a session; after that the hook remembers what the real       --%>
+  <%!-- viewer actually showed (data-viewer-sidebar), which also covers the  --%>
+  <%!-- user toggling the sidebar mid-session — this attribute would not,    --%>
+  <%!-- because the assign never refreshes on a toggle.                      --%>
+  <div
+    id={"#{@id}-instant-viewer"}
+    phx-hook="InstantViewer"
+    phx-update="ignore"
+    data-armed={to_string(not @select_mode)}
+    data-sidebar-open={
+      to_string(
+        PhoenixKitWeb.Components.MediaCanvasViewer.sidebar_open?(
+          assigns[:phoenix_kit_current_user]
+        )
+      )
+    }
+    class="modal modal-open lg:portrait:items-start"
+    style="display:none; z-index: 1000; pointer-events: none; transition: none"
+    aria-hidden="true"
+  >
+    <div class="modal-box !fixed !inset-0 !w-auto !h-auto !min-w-0 !max-w-none !max-h-none !m-0 !rounded-none lg:!relative lg:!inset-auto lg:!w-[95vw] lg:landscape:!h-[90vh] lg:portrait:!max-h-[90vh] lg:!rounded-2xl lg:!m-auto lg:portrait:!mt-[4vh] lg:portrait:!mb-auto p-0 !overflow-hidden">
+      <%!-- Mirror of the real viewer's split: flex-[7] image column,        --%>
+      <%!-- flex-[3] info sidebar (open by default). Painting the image over --%>
+      <%!-- the full popup and shrinking it when the sidebar mounts is its   --%>
+      <%!-- own flash; the hook shows or hides the sidebar pane per          --%>
+      <%!-- prediction before each open. The pane stays empty — its content  --%>
+      <%!-- is the server's to render — but it holds the sidebar's ground    --%>
+      <%!-- so the image column starts at its final size.                    --%>
+      <%!-- `lg:landscape:` throughout, matching the real viewer: it docks  --%>
+      <%!-- the panel along the bottom on a portrait popup, and a stand-in   --%>
+      <%!-- that predicted a side split there would hand over with the jump  --%>
+      <%!-- it exists to prevent.                                            --%>
+      <div class="flex flex-col lg:landscape:flex-row h-full overflow-hidden">
+        <%!-- `--pk-pane-aspect` is set by the hook before each open, off the --%>
+        <%!-- card's own bitmap (`naturalWidth`/`naturalHeight` — the grid has --%>
+        <%!-- already decoded it), because the stacked pane is sized to the    --%>
+        <%!-- picture and a stand-in that guessed a different shape would hand --%>
+        <%!-- over with the jump it exists to prevent. The 3/2 in the fallback --%>
+        <%!-- is only ever seen if the bitmap has no dimensions to give.       --%>
+        <div class="flex-[7] relative flex items-center justify-center bg-base-200 overflow-hidden p-0 lg:landscape:p-2 max-lg:min-h-[40vh] lg:portrait:flex-none lg:portrait:aspect-[var(--pk-pane-aspect,1.5)] lg:portrait:min-h-[18rem] lg:portrait:max-h-[60vh]">
+          <%!-- `w-full h-full`, not `max-w-full`: max-* constrains but never   --%>
+          <%!-- scales UP, so a 300px thumbnail sat at 300px in the middle of a --%>
+          <%!-- 95vw box — which reads as the viewer having opened wrong rather --%>
+          <%!-- than as something still loading. Filling the box puts it at the --%>
+          <%!-- size and position the real image is about to occupy, so the     --%>
+          <%!-- hand-off is a sharpening rather than a jump.                    --%>
+          <%!--                                                                  --%>
+          <%!-- object-contain, not cover, for the same reason: this stands in  --%>
+          <%!-- for a viewer that fits the whole picture. Cropping here and     --%>
+          <%!-- un-cropping a moment later is worse than the wait it replaces.  --%>
+          <%!--                                                                  --%>
+          <%!-- The blur is the point, not an apology for it. The card holds a --%>
+          <%!-- 300-400px variant, so filling the box is a ~4x upscale and is   --%>
+          <%!-- going to look rough however it is presented. Blurred, it reads  --%>
+          <%!-- as "developing" — which is what is actually happening — and the --%>
+          <%!-- eye waits for it instead of judging it.                         --%>
+          <%!--                                                                  --%>
+          <%!-- Inline, not `blur-sm`: this template is a library's, and a host --%>
+          <%!-- whose Tailwind build does not reach into the package would drop --%>
+          <%!-- the utility and leave a hard-edged pixelated upscale. The hook  --%>
+          <%!-- rewrites className to carry the card's rotation, so the style   --%>
+          <%!-- attribute is also the one place a blur survives that.           --%>
+          <img
+            data-base-class="w-full h-full object-contain"
+            class="w-full h-full object-contain"
+            style="filter: blur(6px)"
+            alt=""
+          />
+          <%!-- The same "Loading full quality…" pill the real viewer shows  --%>
+          <%!-- (MediaCanvasViewer's ViewerHiresLoading). This stand-in sits --%>
+          <%!-- over the real popup until the real picture has loaded — on a --%>
+          <%!-- slow line, the whole wait — and covers the real pill while it --%>
+          <%!-- does, so it carries its own: shown a beat after the stand-in  --%>
+          <%!-- opens, gone with it. Inline opacity for the reason the blur  --%>
+          <%!-- above is inline.                                             --%>
+          <div
+            data-standin-loading
+            style="opacity: 0; transition: opacity 300ms ease"
+            class="pointer-events-none absolute left-3 bottom-3 z-20 flex items-center gap-2 rounded-full bg-base-100/90 px-2.5 py-1 text-xs font-medium text-base-content/80 shadow-md ring-1 ring-base-300"
+          >
+            <span class="loading loading-spinner loading-xs text-primary"></span>
+            <span>{gettext("Loading full quality…")}</span>
+          </div>
+        </div>
+        <%!-- Skeleton bars, not an empty block: an empty white pane reads as --%>
+        <%!-- "no comments", and then the real sidebar's content arriving     --%>
+        <%!-- reads as the comments suddenly opening. Bars that pulse read as --%>
+        <%!-- a panel still loading — the content arriving is it finishing.   --%>
+        <%!-- Bar widths are inline because w-2/3-style utilities are not in  --%>
+        <%!-- every host's compiled CSS.                                      --%>
+        <div
+          data-pane="sidebar"
+          class="flex-[3] lg:landscape:min-w-[280px] lg:landscape:max-w-[26rem] lg:portrait:flex-initial lg:portrait:max-h-[32vh] bg-base-100 p-4 space-y-3"
+          style="display:none"
+        >
+          <div class="skeleton h-4" style="width: 70%"></div>
+          <div class="skeleton h-4" style="width: 45%"></div>
+          <div class="skeleton h-4" style="width: 55%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <%!-- ── Read-only modal viewer ──────────────────────────────────────────── --%>
+  <%!-- Default click target for non-select_mode browsers — the click_file    --%>
+  <%!-- handler stashes the clicked file in :viewer_file and this block       --%>
+  <%!-- renders the preview + metadata + Download. Admin browsers get the     --%>
+  <%!-- same popup plus an "Open details page" sidebar button (details_path). --%>
+  <%!-- Pickers reach bulk-select via the toolbar's Select button             --%>
+  <%!-- (`select_mode` toggle). Closes via X / Esc / backdrop click.          --%>
+  <%= if assigns[:viewer_file] do %>
+    <% f = @viewer_file %>
+    <%!-- Step through the list the viewer was opened from (the page's files,
+         or an expanded stack's own) — not always `@uploaded_files`, which
+         doesn't contain files that live inside a stack. --%>
+    <% siblings = @viewer_siblings %>
+    <% viewer_idx = Enum.find_index(siblings, &(&1.file_uuid == f.file_uuid)) %>
+    <% has_prev = is_integer(viewer_idx) and viewer_idx > 0 %>
+    <% has_next = is_integer(viewer_idx) and viewer_idx < length(siblings) - 1 %>
+    <%!-- What ViewerKeydown may warm for each neighbour while this image is   --%>
+    <%!-- being looked at (an arrow press remounts the viewer on the next      --%>
+    <%!-- file). One structured attribute, per side: `open` (the variant the   --%>
+    <%!-- viewer opens on — a burned copy, or `small`), `large`, and, for a    --%>
+    <%!-- module to decide on, the `original` and the picture's `aspect`.      --%>
+    <%!-- Core warms `open` for both sides (tiny; makes a step paint at once)  --%>
+    <%!-- and `large` only for the side being stepped towards; originals are   --%>
+    <%!-- high-end viewing and belong to phoenix_kit_photos (pk:viewer-        --%>
+    <%!-- neighbours). Nil for an edge of the list, a video, a pdf.            --%>
+    <% neighbors_json =
+      Jason.encode!(%{
+        "prev" => has_prev && neighbor_warm_data(Enum.at(siblings, viewer_idx - 1)),
+        "next" => has_next && neighbor_warm_data(Enum.at(siblings, viewer_idx + 1))
+      }) %>
+    <div
+      id={"#{@id}-viewer-modal"}
+      class="modal modal-open lg:portrait:items-start"
+      phx-hook="ViewerKeydown"
+      phx-target={@myself}
+      data-neighbors={neighbors_json}
+      data-step-prev-src={
+        with true <- has_prev,
+             %{file_type: "image"} = p <- Enum.at(siblings, viewer_idx - 1) do
+          viewer_open_url(p)
+        else
+          _ -> nil
+        end
+      }
+      data-step-next-src={
+        with true <- has_next,
+             %{file_type: "image"} = n <- Enum.at(siblings, viewer_idx + 1) do
+          viewer_open_url(n)
+        else
+          _ -> nil
+        end
+      }
+      data-step-prev-rot={has_prev && rotation_class(Enum.at(siblings, viewer_idx - 1))}
+      data-step-next-rot={has_next && rotation_class(Enum.at(siblings, viewer_idx + 1))}
+      data-step-prev-aspect={
+        with true <- has_prev,
+             %{file_type: "image"} = p <- Enum.at(siblings, viewer_idx - 1) do
+          PhoenixKitWeb.Components.MediaCanvasViewer.neighbor_pane_aspect(p)
+        else
+          _ -> nil
+        end
+      }
+      data-step-next-aspect={
+        with true <- has_next,
+             %{file_type: "image"} = n <- Enum.at(siblings, viewer_idx + 1) do
+          PhoenixKitWeb.Components.MediaCanvasViewer.neighbor_pane_aspect(n)
+        else
+          _ -> nil
+        end
+      }
+    >
+      <%!-- Mobile: pin the modal-box directly to the viewport via          --%>
+      <%!--   position: fixed; inset: 0;                                    --%>
+      <%!-- This bypasses daisyUI's grid layout AND iOS Safari's 100vh /   --%>
+      <%!-- 100dvh quirks — the box just covers top:0 right:0 bottom:0     --%>
+      <%!-- left:0 of whatever the visual viewport is, no math involved.   --%>
+      <%!-- `w-auto h-auto` lets the inset declarations actually drive the --%>
+      <%!-- size; otherwise an intrinsic width/height could win.           --%>
+      <%!--                                                                 --%>
+      <%!-- lg+: revert to a normal centred modal with 95vw × 90vh + soft  --%>
+      <%!-- rounded corners.                                               --%>
+      <%!--                                                                 --%>
+      <%!-- The `!` (important) prefix is required because daisyUI v5's    --%>
+      <%!-- .modal-box defaults (width: calc(11/12 * 100%), max-width:     --%>
+      <%!-- 32rem, max-height: 100vh) win the cascade over plain Tailwind  --%>
+      <%!-- utilities.                                                     --%>
+      <div class="modal-box !fixed !inset-0 !w-auto !h-auto !min-w-0 !max-w-none !max-h-none !m-0 !rounded-none lg:!relative lg:!inset-auto lg:!w-[95vw] lg:landscape:!h-[90vh] lg:portrait:!max-h-[90vh] lg:!rounded-2xl lg:!m-auto lg:portrait:!mt-[4vh] lg:portrait:!mb-auto p-0 !overflow-hidden">
+        <%!-- Per-file content (close button, prev/next chevrons,        --%>
+        <%!-- canvas/video/pdf/icon renderer, composer popover, sidebar  --%>
+        <%!-- with filename + Download + metadata + comments thread) is  --%>
+        <%!-- owned by the MediaCanvasViewer child LiveComponent. Its id --%>
+        <%!-- includes the file uuid so prev/next destroys and remounts  --%>
+        <%!-- on file change (clean canvas re-hydration), plus the dims  --%>
+        <%!-- + variant count so a processing-completion refresh (see    --%>
+        <%!-- refresh_processed_file/2) remounts with the real canvas    --%>
+        <%!-- instead of the 1000x1000 placeholder.                      --%>
+        <%!-- persist_rotation is unconditional in normal mode: rotation is --%>
+        <%!-- the file's shared orientation, so anyone who can open the    --%>
+        <%!-- viewer and rotate saves it for everyone (not admin-only).    --%>
+        <%!-- The Storage link is admin-only and also hidden under        --%>
+        <%!-- readonly (it doubles as the meta-edit boundary below) — it  --%>
+        <%!-- targets the file's storage page. readonly forces every write --%>
+        <%!-- path off:                                                   --%>
+        <%!-- can_annotate (Etcher shapes), edit_target AND details_path  --%>
+        <%!-- (title/alt/desc save — MediaCanvasViewer's                  --%>
+        <%!-- save_media_details clause only refuses when BOTH are nil,   --%>
+        <%!-- so readonly must nil both, not just edit_target),           --%>
+        <%!-- persist_rotation, and featured (nil hides the sidebar's own --%>
+        <%!-- Set/Unset toggle — the grid/list/stack tile badge is a      --%>
+        <%!-- separate, unconditional read of @featured, untouched here). --%>
+        <.live_component
+          module={PhoenixKitWeb.Components.MediaCanvasViewer}
+          id={viewer_component_id(f)}
+          file={f}
+          current_user={assigns[:phoenix_kit_current_user]}
+          parent_id={@id}
+          has_prev={has_prev}
+          has_next={has_next}
+          can_annotate={not @readonly}
+          persist_rotation={not @readonly}
+          details_path={
+            if @admin and @can_manage_storage and not @readonly,
+              do: Routes.path("/admin/media/#{f.file_uuid}/storage")
+          }
+          edit_target={if @readonly or @select_mode, do: nil, else: {__MODULE__, @id}}
+          write_scope={@scope_folder_id}
+          own_files_only={@own_files_only}
+          write_library_uuid={@library_uuid}
+          viewer_uuid={@viewer_uuid}
+          featured={if @readonly, do: nil, else: @featured}
+        />
+      </div>
+      <div class="modal-backdrop" phx-click="close_viewer" phx-target={@myself}></div>
+    </div>
+  <% end %>
+
+  <%!-- ── Image editor ─────────────────────────────────────────────── --%>
+  <%= if file = assigns[:image_editor_file] do %>
+    <div
+      id={"#{@id}-image-editor-modal"}
+      class="modal modal-open"
+      phx-window-keydown="close_image_editor"
+      phx-key="Escape"
+      phx-target={@myself}
+    >
+      <div class="modal-box !fixed !inset-0 !w-auto !h-auto !min-w-0 !max-w-none !max-h-none !m-0 !rounded-none lg:!relative lg:!inset-auto lg:!w-[95vw] lg:!h-[90vh] lg:!rounded-2xl lg:!m-auto p-4 !overflow-y-auto">
+        <.live_component
+          module={PhoenixKitWeb.Components.ImageEditor}
+          id={image_editor_id(@id, file.uuid)}
+          file={file}
+          scope={assigns[:image_editor_scope]}
+          authorized={true}
+          on_close={JS.push("close_image_editor", target: @myself)}
+        />
+      </div>
+      <div class="modal-backdrop" phx-click="close_image_editor" phx-target={@myself}></div>
+    </div>
+  <% end %>
+</div>

@@ -15,6 +15,14 @@ const fs = require("fs");
 const path = require("path");
 const assert = require("node:assert");
 const { test } = require("node:test");
+const mediaBrowserDir = path.join(__dirname, "..", "..", "lib", "phoenix_kit_web", "components", "media_browser");
+// The browser is split across modules (media_browser.ex, and its view,
+// sections and helpers under media_browser/): read them all.
+function mediaBrowserSource(ext) {
+  const files = fs.readdirSync(mediaBrowserDir).filter((f) => f.endsWith(ext)).map((f) => path.join(mediaBrowserDir, f));
+  if (ext === ".ex") files.unshift(path.join(mediaBrowserDir, "..", "media_browser.ex"));
+  return files.map((f) => fs.readFileSync(f, "utf8")).join("\n");
+}
 
 const SOURCE = path.join(__dirname, "..", "..", "priv", "static", "assets", "phoenix_kit.js");
 const src = fs.readFileSync(SOURCE, "utf8");
@@ -523,10 +531,7 @@ test("fills the box the real image is about to occupy", () => {
 });
 
 test("the upscale is blurred, and by a style the className rewrite cannot drop", () => {
-  const heex = fs.readFileSync(
-    path.join(__dirname, "..", "..", "lib", "phoenix_kit_web", "components",
-              "media_browser.html.heex"), "utf8"
-  );
+  const heex = mediaBrowserSource(".html.heex");
   const block = heex.slice(heex.indexOf("-instant-viewer"), heex.indexOf("Read-only modal viewer"));
 
   // Blurred on purpose: filling the box from a 300-400px card variant is a
@@ -665,10 +670,7 @@ test("hovering anything that is not a file card fetches nothing", () => {
 });
 
 test("the markup keeps LiveView's hands off it", () => {
-  const heex = fs.readFileSync(
-    path.join(__dirname, "..", "..", "lib", "phoenix_kit_web", "components",
-              "media_browser.html.heex"), "utf8"
-  );
+  const heex = mediaBrowserSource(".html.heex");
   const block = heex.slice(heex.indexOf("-instant-viewer"), heex.indexOf("Read-only modal viewer"));
   assert.ok(block.includes('phx-update="ignore"'),
     "the hook owns its contents — patching it mid-show is how it would flicker");
