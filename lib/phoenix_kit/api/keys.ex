@@ -21,8 +21,8 @@ defmodule PhoenixKit.API.Keys do
   ## Who may create a key
 
   - the creator holds the `api` permission;
-  - the owner is the creator, or a **service user** (`api_only`) whose roles'
-    permissions are a subset of the creator's;
+  - the owner is the creator, or a **service user** (`api_only`) they created
+    (an Owner may use any) whose roles' permissions are a subset of the creator's;
   - every scope is one the owner could use (`allowed_scopes_for/1`).
 
   Authorization failures are atoms (`:forbidden`, `:owner_not_allowed`,
@@ -83,6 +83,7 @@ defmodule PhoenixKit.API.Keys do
   alias PhoenixKit.API.Keys.Token
   alias PhoenixKit.API.Registry, as: ToolRegistry
   alias PhoenixKit.RepoHelper
+  alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.Auth.User
@@ -361,9 +362,17 @@ defmodule PhoenixKit.API.Keys do
   @spec active_owner(Key.t()) :: {:ok, User.t()} | {:error, :owner_inactive}
   def active_owner(%Key{user_uuid: user_uuid}) do
     case user_uuid |> Auth.get_user() |> Auth.ensure_active_user() do
-      %User{} = owner -> {:ok, owner}
+      %User{api_only: true} = owner -> {:ok, owner}
+      %User{confirmed_at: %DateTime{}} = owner -> {:ok, owner}
+      %User{} = owner -> confirmation_optional(owner)
       nil -> {:error, :owner_inactive}
     end
+  end
+
+  defp confirmation_optional(owner) do
+    if Settings.get_boolean_setting("require_email_confirmation", true),
+      do: {:error, :owner_inactive},
+      else: {:ok, owner}
   end
 
   @doc """

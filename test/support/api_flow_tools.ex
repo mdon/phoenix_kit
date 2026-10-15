@@ -117,6 +117,7 @@ defmodule PhoenixKit.Test.ApiFlowTools do
         :progress_write,
         %{
           "crash" => %{"type" => "boolean"},
+          "credentials" => %{"type" => "boolean"},
           "fail" => %{"type" => "boolean"},
           "hold" => %{"type" => "boolean"}
         },
@@ -290,7 +291,12 @@ defmodule PhoenixKit.Test.ApiFlowTools do
     if ctx.dry_run? do
       {:preview, %{"totals" => %{"write" => 2}}, Store.fingerprint(["progress"])}
     else
-      ctx.progress.(%{"done" => 1})
+      partial =
+        if input["credentials"],
+          do: %{"done" => 1, "rows" => [%{"Access_Token" => "private-progress-token"}]},
+          else: %{"done" => 1}
+
+      ctx.progress.(partial)
       if input["hold"], do: hold()
       if input["crash"], do: raise("boom with a secret-detail inside")
 

@@ -11,6 +11,7 @@ defmodule PhoenixKitWeb.Live.Settings.ApiTest do
 
   import ExUnit.CaptureLog
 
+  alias Phoenix.LiveView.Channel
   alias PhoenixKit.Activity
   alias PhoenixKit.API.Config
   alias PhoenixKit.API.Keys
@@ -225,8 +226,22 @@ defmodule PhoenixKitWeb.Live.Settings.ApiTest do
       token = view |> submit_key(%{"name" => "Quiet"}) |> token_in()
 
       assigns = page_assigns(view)
-      assert assigns.new_token == token
+      assert assigns.new_token.value == token
       refute inspect(assigns.flash) =~ token
+    end
+
+    test "termination state inspection never exposes the token", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path)
+      open_form(view)
+      token = view |> submit_key(%{"name" => "Crash safe"}) |> token_in()
+      state = :sys.get_state(view.pid)
+      report = Channel.format_status(:terminate, [[], state])
+      inspected = inspect(report, limit: :infinity, printable_limit: :infinity)
+      [_pk, _prefix, secret] = String.split(token, "_", parts: 3)
+
+      refute inspected =~ token
+      refute inspected =~ secret
+      assert render(view) =~ token
     end
 
     test "dismissing the dialog clears the token for good", %{conn: conn} do
@@ -514,7 +529,7 @@ defmodule PhoenixKitWeb.Live.Settings.ApiTest do
 
       assert html =~ "That action is not available."
       assert key_count() == before
-      assert page_assigns(view).new_token == token
+      assert page_assigns(view).new_token.value == token
     end
 
     test "a replayed create_key after the dialog was dismissed mints no second key", %{conn: conn} do
@@ -591,7 +606,7 @@ defmodule PhoenixKitWeb.Live.Settings.ApiTest do
 
       assert html =~ "That action is not available."
       assert key_count() == before
-      assert page_assigns(view).new_token == token
+      assert page_assigns(view).new_token.value == token
     end
 
     test "create_key after the person lost api creates nothing", %{conn: conn} do

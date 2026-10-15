@@ -407,15 +407,17 @@ defmodule PhoenixKit.API.Executor do
     invalid(state, [%{path: "", message: "must be a JSON object", limit: nil, allowed: nil}])
   end
 
-  # Every schema is closed here, whatever the module author wrote: an unknown
-  # field is a validation error. A write tool also gets the control fields
+  # Every root schema is closed here: an unknown top-level field is a
+  # validation error. A write tool also gets the control fields
   # (`PhoenixKit.API.ControlFields`).
   @doc """
   The input schema the executor enforces for `tool`: the tool's own schema,
-  closed with `additionalProperties: false`, with string keys, and for a write
+  closed at the root with `additionalProperties: false`, with string keys, and for a write
   tool with the control fields (`dry_run`, `confirm_token`, `idempotency_key`).
   MCP's `inputSchema` and OpenAPI's request body are built from it, so a client
   is told exactly what the validator will accept.
+  Nested objects retain the module's policy; declare `additionalProperties: false`
+  on each nested object that must reject unknown fields.
   """
   @spec input_schema(Tool.t()) :: map()
   def input_schema(%Tool{input_schema: schema} = tool),

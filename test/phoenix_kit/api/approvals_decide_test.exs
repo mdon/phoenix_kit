@@ -48,6 +48,48 @@ defmodule PhoenixKit.API.ApprovalsDecideTest do
   end
 
   describe "approve/3" do
+    test "credentials in progress never reach the row or a failed result", %{
+      agent: agent,
+      owner_scope: scope
+    } do
+      ApiFlowStore.set_gate(self())
+
+      row =
+        pending!(agent, "flowkit.progress_write", %{
+          "hold" => true,
+          "fail" => true,
+          "credentials" => true
+        })
+
+      caller = Task.async(fn -> Approvals.approve(row.uuid, scope) end)
+      assert_receive {:held, worker}, 5_000
+
+      assert get_in(reload(row).result, ["partial", "rows"]) == [
+               %{"Access_Token" => "[REDACTED]"}
+             ]
+
+      send(worker, :release)
+      assert {:ok, done} = Task.await(caller, 5_000)
+      assert done.status == "failed"
+      assert done.result["partial"]["done"] == 1
+      refute JSON.encode!(reload(row).result) =~ "private-progress-token"
+    end
+
+    test "credential-bearing results are redacted before storage and polling", %{
+      agent: agent,
+      owner_scope: scope
+    } do
+      row = pending!(agent, "flowkit.misbehave", %{"mode" => "leak"})
+      assert {:ok, done} = Approvals.approve(row.uuid, scope)
+      assert done.status == "executed"
+      assert done.result == %{"cart_token" => "[REDACTED]"}
+      assert reload(row).result == done.result
+
+      view = row.uuid |> Approvals.get_for_key(agent.key.uuid) |> Approvals.status_view()
+      refute JSON.encode!(view) =~ "leaked-cart-token"
+      assert ApiFlowStore.calls() == 1
+    end
+
     test "runs the tool for the key's owner, with the original request's context", %{
       agent: agent,
       owner: owner,

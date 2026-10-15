@@ -123,7 +123,7 @@ defmodule PhoenixKitWeb.Live.Settings.ApiRotationTest do
     request_rotate(view, key)
     token = view |> submit_rotate("1") |> new_token_in()
 
-    assert :sys.get_state(view.pid).socket.assigns.new_token == token
+    assert :sys.get_state(view.pid).socket.assigns.new_token.value == token
 
     view |> element("#new-api-token-done") |> render_click()
 
@@ -174,7 +174,7 @@ defmodule PhoenixKitWeb.Live.Settings.ApiRotationTest do
 
     assert html =~ "That action is not available."
     assert length(Keys.list_keys(scope)) == 2
-    assert :sys.get_state(view.pid).socket.assigns.new_token == token
+    assert :sys.get_state(view.pid).socket.assigns.new_token.value == token
   end
 
   test "confirm_rotate after the person lost api rotates nothing", %{conn: conn, key: key} do

@@ -616,6 +616,29 @@ defmodule PhoenixKit.Settings do
   end
 
   @doc """
+  Reads a cached string setting without conflating a missing row with an unreadable store.
+
+  Returns `{:ok, nil}` for a missing row and `:error` when the database cannot be read
+  (including update mode). Failed reads are never cached. Uses the same cache and
+  generation guard as `get_setting_cached/2`; callers decide their failure policy.
+  """
+  @spec fetch_setting_cached(String.t()) :: {:ok, String.t() | nil} | :error
+  def fetch_setting_cached(key) when is_binary(key) do
+    sentinel = :__cache_not_found__
+    {cached, generation} = PhoenixKit.Cache.get_with_generation(@cache_name, key, sentinel)
+
+    case cached do
+      ^sentinel -> fetch_and_cache_setting(key, generation)
+      @not_found_sentinel -> {:ok, nil}
+      value -> {:ok, value}
+    end
+  rescue
+    _ -> :error
+  catch
+    :exit, _ -> :error
+  end
+
+  @doc """
   Gets multiple settings from cache in a single operation.
 
   More efficient than multiple individual get_setting_cached/2 calls
@@ -2507,26 +2530,9 @@ defmodule PhoenixKit.Settings do
 
   # Queries database for a single setting and caches the result
   defp query_and_cache_setting(key, generation) do
-    # In update_mode, skip DB — return nil immediately.
-    if Application.get_env(:phoenix_kit, :update_mode, false) do
-      nil
-    else
-      # Check if repository is available before attempting query
-      if repo_available?() do
-        case Queries.get_setting_by_key(key) do
-          %Setting{value: value} ->
-            cache_decrypted(key, value, decrypt_if_restricted(key, value), generation)
-
-          nil ->
-            # Cache a sentinel value to indicate this setting doesn't exist
-            # This prevents repeated database queries for non-existent settings
-            PhoenixKit.Cache.put(@cache_name, key, @not_found_sentinel, if_generation: generation)
-            nil
-        end
-      else
-        # Repository not started yet - return nil silently
-        nil
-      end
+    case fetch_and_cache_setting(key, generation) do
+      {:ok, value} -> value
+      :error -> nil
     end
   rescue
     error ->
@@ -2538,6 +2544,25 @@ defmodule PhoenixKit.Settings do
       end
 
       nil
+  end
+
+  defp fetch_and_cache_setting(key, generation) do
+    if Application.get_env(:phoenix_kit, :update_mode, false) || not repo_available?() do
+      :error
+    else
+      case Queries.get_setting_by_key(key) do
+        %Setting{value: value} ->
+          decrypted = decrypt_if_restricted(key, value)
+
+          if decrypt_failed?(key, value, decrypted),
+            do: :error,
+            else: {:ok, cache_decrypted(key, value, decrypted, generation)}
+
+        nil ->
+          PhoenixKit.Cache.put(@cache_name, key, @not_found_sentinel, if_generation: generation)
+          {:ok, nil}
+      end
+    end
   end
 
   # Queries database for a single JSON setting and caches the result

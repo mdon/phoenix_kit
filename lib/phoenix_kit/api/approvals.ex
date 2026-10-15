@@ -46,6 +46,7 @@ defmodule PhoenixKit.API.Approvals do
   alias PhoenixKit.API.Confirm.Confirmation
   alias PhoenixKit.API.Executor
   alias PhoenixKit.API.FlowConfig
+  alias PhoenixKit.API.Idempotency
   alias PhoenixKit.API.Keys
   alias PhoenixKit.API.Keys.Key
   alias PhoenixKit.API.LogSafe
@@ -720,7 +721,7 @@ defmodule PhoenixKit.API.Approvals do
 
     repo().update_all(
       from(c in Confirmation, where: c.uuid == ^uuid and c.status == "executing"),
-      set: [result: %{"partial" => jsonable(partial)}, updated_at: now]
+      set: [result: %{"partial" => storable_result(partial)}, updated_at: now]
     )
 
     :ok
@@ -761,6 +762,7 @@ defmodule PhoenixKit.API.Approvals do
       result
       |> jsonable()
       |> keep_partial(status, current)
+      |> Idempotency.redact_credentials()
 
     write_final(uuid, status, result, now, status == "executed" and swept?(current))
 
@@ -833,6 +835,8 @@ defmodule PhoenixKit.API.Approvals do
   rescue
     _ -> %{"error" => error(:internal_error, "The result could not be stored.")}
   end
+
+  defp storable_result(value), do: value |> jsonable() |> Idempotency.redact_credentials()
 
   defp error(code, detail, context \\ %{}),
     do: %{"code" => to_string(code), "detail" => detail, "context" => context}

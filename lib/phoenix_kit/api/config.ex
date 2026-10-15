@@ -161,11 +161,11 @@ defmodule PhoenixKit.API.Config do
 
   defp whole_number(_value), do: nil
 
-  # `Settings.get_setting_cached/2` itself answers its default when the database is
-  # unreachable, so that case still reads as an empty list; `:unreadable` covers a read that
-  # raises or exits.
   defp fetch_list(key) do
-    {:ok, key |> Settings.get_setting_cached("") |> parse_list()}
+    case Settings.fetch_setting_cached(key) do
+      {:ok, value} when is_binary(value) or is_nil(value) -> {:ok, parse_list(value)}
+      _ -> :unreadable
+    end
   rescue
     _ -> :unreadable
   catch

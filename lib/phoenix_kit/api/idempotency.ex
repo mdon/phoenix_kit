@@ -189,6 +189,24 @@ defmodule PhoenixKit.API.Idempotency do
     end
   end
 
+  @doc """
+  Redacts credentials in JSON-compatible data using the same rules as replay storage.
+  Approval results and progress must pass through this before they are persisted.
+  """
+  @spec redact_credentials(term()) :: term()
+  def redact_credentials(map) when is_map(map) do
+    Map.new(map, fn {key, value} ->
+      {key, if(credential_key?(key), do: "[REDACTED]", else: redact_credentials(value))}
+    end)
+  end
+
+  def redact_credentials(list) when is_list(list), do: Enum.map(list, &redact_credentials/1)
+
+  def redact_credentials(value) when is_binary(value),
+    do: if(walk(value), do: "[REDACTED]", else: value)
+
+  def redact_credentials(value), do: value
+
   defp walk(map) when is_map(map) do
     Enum.any?(map, fn {key, value} -> credential_key?(key) or walk(value) end)
   end

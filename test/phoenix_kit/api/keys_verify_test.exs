@@ -10,6 +10,7 @@ defmodule PhoenixKit.API.KeysVerifyTest do
   import PhoenixKit.API.KeyTestSupport
 
   alias PhoenixKit.API.Actor
+  alias PhoenixKit.API.Confirm
   alias PhoenixKit.API.Keys
   alias PhoenixKit.API.Keys.Cache
   alias PhoenixKit.API.Keys.Key
@@ -232,6 +233,45 @@ defmodule PhoenixKit.API.KeysVerifyTest do
   end
 
   describe "the owner changes while the key row is cached" do
+    test "unconfirming a human owner stops cached keys and queued actors" do
+      %{token: token, key: key, user: user} = holder_with_key()
+      confirmed_at = DateTime.truncate(DateTime.utc_now(), :second)
+
+      Repo.update_all(from(u in Auth.User, where: u.uuid == ^user.uuid),
+        set: [confirmed_at: confirmed_at]
+      )
+
+      assert {:ok, _} = Keys.verify(token, nil)
+      assert cached?(key)
+
+      Repo.update_all(from(u in Auth.User, where: u.uuid == ^user.uuid),
+        set: [confirmed_at: nil]
+      )
+
+      assert {:error, :owner_inactive} = Keys.verify(token, nil)
+      assert {:error, :owner_inactive} = Confirm.live_actor(key.uuid)
+      refute Keys.active?(key)
+      assert cached?(key)
+
+      put_setting("require_email_confirmation", "false")
+      assert {:ok, _} = Keys.verify(token, nil)
+      assert {:ok, _} = Confirm.live_actor(key.uuid)
+    end
+
+    test "service users do not need email confirmation" do
+      {role, _} = role_with(["media"])
+      service = service_user_with([role.name])
+      {key, token} = create_key!(service, scope_of(owner_user()))
+
+      Repo.update_all(from(u in Auth.User, where: u.uuid == ^service.uuid),
+        set: [confirmed_at: nil]
+      )
+
+      assert {:ok, _} = Keys.verify(token, nil)
+      assert {:ok, _} = Confirm.live_actor(key.uuid)
+      assert Keys.active?(key)
+    end
+
     test "demoting the owner narrows the key on the very next request" do
       %{token: token, key: key, user: user, role: role} = holder_with_key()
 

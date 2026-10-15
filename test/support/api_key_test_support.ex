@@ -15,11 +15,13 @@ defmodule PhoenixKit.API.KeyTestSupport do
   import ExUnit.Callbacks, only: [on_exit: 1, start_supervised!: 1]
   import ExUnit.CaptureLog, only: [with_log: 1]
 
+  alias Ecto.Changeset
   alias PhoenixKit.API.Keys
   alias PhoenixKit.API.KeyTestSupport.FakeModule
   alias PhoenixKit.API.ServiceUsers
   alias PhoenixKit.ModuleRegistry
   alias PhoenixKit.Settings
+  alias PhoenixKit.Test.Repo
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.Auth.User
@@ -148,7 +150,7 @@ defmodule PhoenixKit.API.KeyTestSupport do
     user
   end
 
-  @doc "A registered user with the default role only."
+  @doc "A confirmed user with the default role only, ready to use API keys."
   def register_user! do
     {:ok, user} =
       Auth.register_user(
@@ -160,6 +162,8 @@ defmodule PhoenixKit.API.KeyTestSupport do
       )
 
     user
+    |> Changeset.change(confirmed_at: DateTime.truncate(DateTime.utc_now(), :second))
+    |> Repo.update!()
   end
 
   # The one line a settings write logs when the test runs no `:settings`

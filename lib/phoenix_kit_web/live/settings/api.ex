@@ -57,6 +57,7 @@ defmodule PhoenixKitWeb.Live.Settings.Api do
   alias PhoenixKit.API.Config
   alias PhoenixKit.API.FlowConfig
   alias PhoenixKit.API.Keys
+  alias PhoenixKit.API.Keys.DisplayToken
   alias PhoenixKit.API.Registry
   alias PhoenixKit.API.ServiceUsers
   alias PhoenixKit.Settings
@@ -488,7 +489,7 @@ defmodule PhoenixKitWeb.Live.Settings.Api do
          {:ok, key, token} <- Keys.create_key(owner, scope(socket), key_attrs(params, expires_at)) do
       socket
       |> close_key_form()
-      |> assign(:new_token, token)
+      |> assign(:new_token, %DisplayToken{value: token})
       |> assign(:new_token_name, key.name)
       |> assign_state()
     else
@@ -574,7 +575,7 @@ defmodule PhoenixKitWeb.Live.Settings.Api do
          {:ok, new_key, token} <- Keys.rotate(key, grace, scope(socket)) do
       socket
       |> assign(:rotate_form, %{show: false})
-      |> assign(:new_token, token)
+      |> assign(:new_token, %DisplayToken{value: token})
       |> assign(:new_token_name, new_key.name)
       |> assign_state()
     else
