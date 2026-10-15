@@ -410,11 +410,17 @@ test("a selected shape's fading look is not read mid-fade: transitions are off f
     "the rule does not outlive the read");
 });
 
-test("a see-through picture burns as a PNG with nothing laid behind it", () => {
-  assert.ok(section.includes('plan.alpha = this.el.dataset.burnAlpha === "true";'),
-    "the page says whether the picture can be see-through");
-  assert.match(section, /if \(!plan\.alpha\) \{\s*ctx\.fillStyle = plan\.background;\s*ctx\.fillRect/,
-    "the background sheet is only laid under a picture that can't show through");
-  assert.ok(section.includes('plan.alpha ? "image/png" : "image/jpeg"'), "PNG keeps the alpha; JPEG cannot");
-  assert.ok(section.includes('blob.type === "image/png" ? "burn.png" : "burn.jpg"'));
+test("the burn's format comes from the page, and only a JPEG gets a background sheet", () => {
+  assert.ok(section.includes('plan.format = this.el.dataset.burnFormat || "jpeg";'));
+  assert.match(section, /if \(format === "jpeg"\) \{\s*ctx\.fillStyle = plan\.background;\s*ctx\.fillRect/,
+    "PNG, WebP and the GIF markup keep what the picture doesn't cover see-through");
+  assert.ok(section.includes('format === "jpeg" ? "image/jpeg" : format === "webp" ? "image/webp" : "image/png"'));
+});
+
+test("an animation's burn is the markup alone, with the picture's place sent alongside", () => {
+  assert.ok(section.includes('var markupOnly = format === "gif";'));
+  assert.ok(section.includes("if (markupOnly) { compose(null); return; }"), "the picture is never drawn into it");
+  for (const k of ["canvas_w", "canvas_h", "picture_x", "picture_y", "picture_w", "picture_h"]) {
+    assert.ok(section.includes(`body.append("${k}"`), k);
+  }
 });

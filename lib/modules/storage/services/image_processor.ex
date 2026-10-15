@@ -605,7 +605,7 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
             # are a privacy leak the reporter did not intend.
             "-strip",
             "-alpha",
-            if(format == "png", do: "on", else: "remove"),
+            if(format in ["png", "webp"], do: "on", else: "remove"),
             "-resize",
             "#{max_edge}x#{max_edge}>",
             "-quality",
@@ -727,6 +727,73 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
         error
     end
   end
+
+  @doc """
+  Draws a transparent overlay onto every frame of an animation, keeping it
+  animated: each frame is scaled to `w`×`h`, set at `x`,`y` on a see-through
+  canvas of `canvas_w`×`canvas_h`, and `overlay_path` (a PNG of exactly the
+  canvas size) is laid over it. Written as an optimised GIF.
+
+  This is how an animated GIF keeps playing once its annotations are burned
+  in — the markup is drawn in the browser, the frames only exist here.
+  The source's decoder is pinned and the resource limits are those of every
+  other call; an animation over `animation_limits/0` — measured at the
+  canvas size, margins included — is refused with `{:error, :too_large}`.
+
+  `still: true` takes the first frame only and writes a PNG — the fallback
+  for an animation too large to re-encode.
+  """
+  @spec composite_animation(String.t(), String.t(), String.t(), map(), keyword()) ::
+          {:ok, String.t()} | {:error, term()}
+  def composite_animation(source_path, overlay_path, output_path, layout, opts \\ []) do
+    %{canvas_w: cw, canvas_h: ch, x: x, y: y, w: w, h: h} = layout
+    still? = Keyword.get(opts, :still, false)
+
+    with {:ok, source} <- pinned_input(source_path, if(still?, do: "[0]", else: "")),
+         {:ok, overlay} <- pinned_input(overlay_path, "[0]"),
+         :ok <- check_pixel_budget(cw, ch, @resize_max_pixels),
+         :ok <- if(still?, do: :ok, else: check_composite_budget(source_path, cw, ch)) do
+      out =
+        if still?, do: ["png:#{output_path}"], else: ["-layers", "optimize", "gif:#{output_path}"]
+
+      args =
+        @limit_args ++
+          [source, "-coalesce", "-resize", "#{w}x#{h}!"] ++
+          ["-background", "none", "-extent", "#{cw}x#{ch}#{offset(-x)}#{offset(-y)}", "+repage"] ++
+          ["null:", overlay, "-layers", "composite"] ++ out
+
+      case System.cmd("convert", args, stderr_to_stdout: true) do
+        {_output, 0} ->
+          {:ok, output_path}
+
+        {output, exit_code} ->
+          Logger.warning("Animation composite failed (#{exit_code}): #{output}")
+          {:error, "could not compose the animation"}
+      end
+    end
+  rescue
+    e ->
+      Logger.warning("Animation composite raised: #{Exception.message(e)}")
+      {:error, "could not compose the animation"}
+  end
+
+  defp check_composite_budget(source_path, cw, ch) do
+    case animation_info(source_path) do
+      {:ok, %{frames: frames}}
+      when frames > @animation_max_frames or frames * cw * ch > @animation_max_pixels ->
+        {:error, :too_large}
+
+      {:ok, _} ->
+        :ok
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  # An ImageMagick geometry offset: always signed.
+  defp offset(n) when n < 0, do: Integer.to_string(n)
+  defp offset(n), do: "+" <> Integer.to_string(n)
 
   # What ImageMagick actually thinks this is, checked against a short
   # allowlist. The extension and the browser's content-type are both the

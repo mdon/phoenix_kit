@@ -4849,9 +4849,13 @@ if (typeof window.Chart === "undefined") {
 
   // No DOM of the viewer's needed from here on — the plan holds everything.
   function burnRender(plan) {
+    var format = plan.format || "jpeg";
+    // An animation's frames only exist on the server: the burn sent for it
+    // is the markup alone, on a transparent canvas, with the picture's place
+    // in it sent alongside (see `burnUpload`).
+    var markupOnly = format === "gif";
     return new Promise(function(resolve, reject) {
-      var picture = new Image();
-      picture.onload = function() {
+      function compose(picture) {
         var overlay = new Image();
         overlay.onload = function() {
           var canvas = document.createElement("canvas");
@@ -4860,29 +4864,47 @@ if (typeof window.Chart === "undefined") {
           var ctx = canvas.getContext("2d");
           ctx.imageSmoothingQuality = "high";
           // JPEG has no alpha: every pixel the picture does not cover would
-          // encode as black without this. A see-through picture keeps its
-          // transparency instead — as a PNG, with nothing laid behind it.
-          if (!plan.alpha) {
+          // encode as black without this. Every other format keeps what
+          // the picture doesn't cover see-through.
+          if (format === "jpeg") {
             ctx.fillStyle = plan.background;
             ctx.fillRect(0, 0, plan.out.w, plan.out.h);
           }
-          ctx.drawImage(picture, plan.picture.x, plan.picture.y, plan.picture.w, plan.picture.h);
+          if (picture) {
+            ctx.drawImage(picture, plan.picture.x, plan.picture.y, plan.picture.w, plan.picture.h);
+          }
           ctx.drawImage(overlay, 0, 0, plan.out.w, plan.out.h);
+          // A browser that cannot encode WebP hands back a PNG; the server
+          // re-encodes either way.
+          var type = format === "jpeg" ? "image/jpeg" : format === "webp" ? "image/webp" : "image/png";
           canvas.toBlob(function(blob) {
             blob ? resolve(blob) : reject(new Error("the browser produced no image"));
-          }, plan.alpha ? "image/png" : "image/jpeg", 0.9);
+          }, type, 0.9);
         };
         overlay.onerror = function() { reject(new Error("the markup did not rasterise")); };
         overlay.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(plan.svgText);
-      };
+      }
+      if (markupOnly) { compose(null); return; }
+      var picture = new Image();
+      picture.onload = function() { compose(picture); };
       picture.onerror = function() { reject(new Error("the picture did not load")); };
       picture.src = plan.sourceUrl;
     });
   }
 
-  function burnUpload(uuid, blob, variants, sourceVersion, fingerprint) {
+  function burnUpload(uuid, blob, variants, sourceVersion, fingerprint, plan) {
     var body = new FormData();
-    body.append("image", blob, blob.type === "image/png" ? "burn.png" : "burn.jpg");
+    var ext = blob.type === "image/png" ? "png" : blob.type === "image/webp" ? "webp" : "jpg";
+    body.append("image", blob, "burn." + ext);
+    // A markup-only burn says where the picture goes in it.
+    if (plan && plan.format === "gif") {
+      body.append("canvas_w", plan.out.w);
+      body.append("canvas_h", plan.out.h);
+      body.append("picture_x", plan.picture.x);
+      body.append("picture_y", plan.picture.y);
+      body.append("picture_w", plan.picture.w);
+      body.append("picture_h", plan.picture.h);
+    }
     body.append("variants", variants);
     if (sourceVersion) body.append("source_version", sourceVersion);
     // Recorded against the stored copy, so the next visit can tell whether
@@ -5227,9 +5249,14 @@ if (typeof window.Chart === "undefined") {
 
       var plan = burnCapturePlan(this._host());
       if (!plan) return;
-      // A picture that can be see-through (PNG, WebP, GIF) burns as a PNG
-      // with nothing behind it, so its transparency survives the markup.
-      plan.alpha = this.el.dataset.burnAlpha === "true";
+      // How the burn is kept, decided by the server from the stored file:
+      //   "png"  — a see-through picture, transparency kept;
+      //   "webp" — a photo: small, and a margin the markup opens up past the
+      //            picture's edges stays see-through instead of white;
+      //   "gif"  — an animation: only the markup is sent, and the server
+      //            draws it onto every frame so the burn still plays.
+      // Missing (an older page): the JPEG it always was.
+      plan.format = this.el.dataset.burnFormat || "jpeg";
 
       var pending = {
         fingerprint: fingerprint,
@@ -5258,7 +5285,7 @@ if (typeof window.Chart === "undefined") {
       burnRender(pending.plan)
         .then(function(blob) {
           return burnUpload(self._uuid, blob, self._variants, pending.version,
-                            pending.fingerprint);
+                            pending.fingerprint, pending.plan);
         })
         .then(function(res) {
           // What the stored copy is now made from. Held only after the
