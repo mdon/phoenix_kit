@@ -14,6 +14,14 @@ const fs = require("fs");
 const path = require("path");
 const assert = require("node:assert");
 const { test } = require("node:test");
+const mediaBrowserDir = path.join(__dirname, "..", "..", "lib", "phoenix_kit_web", "components", "media_browser");
+// The browser is split across modules (media_browser.ex, and its view,
+// sections and helpers under media_browser/): read them all.
+function mediaBrowserSource(ext) {
+  const files = fs.readdirSync(mediaBrowserDir).filter((f) => f.endsWith(ext)).map((f) => path.join(mediaBrowserDir, f));
+  if (ext === ".ex") files.unshift(path.join(mediaBrowserDir, "..", "media_browser.ex"));
+  return files.map((f) => fs.readFileSync(f, "utf8")).join("\n");
+}
 
 const src = fs.readFileSync(
   path.join(__dirname, "..", "..", "priv", "static", "assets", "phoenix_kit.js"), "utf8");
@@ -138,8 +146,7 @@ test("a canvas remount brings a new <img>, which is watched instead of the old o
 // the whole wait; nothing inside the real viewer can draw above it. So the
 // stand-in carries its own pill, up a beat after it opens and gone with it.
 test("the instant stand-in carries its own pill, shown with it and gone with it", () => {
-  const heex = fs.readFileSync(path.join(__dirname, "..", "..", "lib", "phoenix_kit_web",
-    "components", "media_browser.html.heex"), "utf8");
+  const heex = mediaBrowserSource(".html.heex");
   const standin = heex.slice(heex.indexOf('phx-hook="InstantViewer"'));
   assert.match(standin, /data-standin-loading\s+style="opacity: 0;/,
     "the stand-in's pill exists, hidden by inline opacity");

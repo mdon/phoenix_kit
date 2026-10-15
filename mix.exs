@@ -253,8 +253,8 @@ defmodule PhoenixKit.MixProject do
       # rule, and the next minor needs a read of phoenix_kit.js's use of it.
       #
       # :etcher's FLOOR is load-bearing too, not just its ceiling: core's own
-      # markup passes `panel_offset` (0.13.2) and `connectors={:off}`
-      # (0.12.2), phoenix_kit.js bridges `etcher:tooltip-action` (0.13.0),
+      # markup passes `panel_offset` (0.13.2), phoenix_kit.js bridges
+      # `etcher:tooltip-action` (0.13.0),
       # and the media viewer's toolbar offers the `:highlighter` and `:arrow`
       # tools (0.14.0). 0.15 is where a thickness stopped meaning document
       # pixels and started meaning a weight against the canvas, so an older
@@ -287,6 +287,16 @@ defmodule PhoenixKit.MixProject do
       # with the package. The two-finger work needs fresco ≥ 0.13.1, which
       # counts a claimed finger so the second one has something to pinch
       # against; older fresco simply keeps the old single-pointer reading.
+      #
+      # 0.22 is a floor because the media viewer no longer passes
+      # `connectors={:off}`: 0.22's arrow tool ties an arrow to the shapes it
+      # starts and ends on (the anchor dots show on hover, and turn with a
+      # turned shape), with no connector mode to switch. On an older Etcher
+      # dropping the attr turns the old opt-in connector mode back on instead.
+      # It also claims Escape ahead of the page when it cancels something, so
+      # cancelling a half-placed shape no longer reads as closing the viewer
+      # (which ended the session and burned the drawing), and `.min.js`
+      # copies of it are what `ViewerLibraries` serves in production.
       #
       # 0.21 is a floor because the media viewer passes `panel_toggle: :nav`
       # (the style panel's switch in Fresco's nav row, beside the pencil) and
@@ -323,15 +333,26 @@ defmodule PhoenixKit.MixProject do
       # six pixels when it panned — a viewer that reads as broken rather
       # than as slow.
       #
+      # 0.14 is a floor because the media viewer passes `actual_size` (real-
+      # pixel zoom: home is fit or 100%, whichever is smaller, with an
+      # actual-size button and a zoom control), and relies on 0.14's dot grid
+      # surviving a LiveView patch of the viewer element — on 0.13 every saved
+      # drawing snapped the grid back to the static one until the next pan.
+      # Older fresco does not declare `actual_size`: the host's compile warns
+      # and the viewer opens at fit.
+      #
       # 0.13.3 is a floor because the media viewer passes `nav_layout`,
       # `nav_reverse` and `nav_overflow` (the short top row that fits a phone)
       # and listens for its `fresco:swipe`; 0.13.2 added
       # `invert_two_finger_pan`, the per-user "Invert two-finger pan" switch.
       # Older fresco does not declare the attributes, so the host's compile
       # warns and the viewer keeps the old column.
-      {:fresco, "~> 0.13.3"},
-      {:tessera, "~> 0.3.0"},
-      {:etcher, "~> 0.21.0"},
+      {:fresco, "~> 0.14.0"},
+      # 0.3.9 is the first tessera that admits fresco 0.14 (above): with an
+      # older one locked, `mix deps.update phoenix_kit` cannot resolve fresco
+      # 0.14 at all, and the failure names neither library.
+      {:tessera, "~> 0.3.9"},
+      {:etcher, "~> 0.22.0"},
 
       # QR device-handoff login ("scan to sign in" on the login page).
       #

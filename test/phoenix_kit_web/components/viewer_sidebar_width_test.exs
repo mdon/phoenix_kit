@@ -21,7 +21,7 @@ defmodule PhoenixKitWeb.Components.ViewerSidebarWidthTest do
             __DIR__
           )
   @standin Path.expand(
-             "../../../lib/phoenix_kit_web/components/media_browser.html.heex",
+             "../../../lib/phoenix_kit_web/components/media_browser/browser.html.heex",
              __DIR__
            )
 

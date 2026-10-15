@@ -17,11 +17,18 @@ const fs = require("fs");
 const path = require("path");
 const assert = require("node:assert");
 const { test } = require("node:test");
+const mediaBrowserDir = path.join(__dirname, "..", "..", "lib", "phoenix_kit_web", "components", "media_browser");
+// The browser is split across modules (media_browser.ex, and its view,
+// sections and helpers under media_browser/): read them all.
+function mediaBrowserSource(ext) {
+  const files = fs.readdirSync(mediaBrowserDir).filter((f) => f.endsWith(ext)).map((f) => path.join(mediaBrowserDir, f));
+  if (ext === ".ex") files.unshift(path.join(mediaBrowserDir, "..", "media_browser.ex"));
+  return files.map((f) => fs.readFileSync(f, "utf8")).join("\n");
+}
 
 const root = path.join(__dirname, "..", "..");
 const src = fs.readFileSync(path.join(root, "priv", "static", "assets", "phoenix_kit.js"), "utf8");
-const server = fs.readFileSync(
-  path.join(root, "lib", "phoenix_kit_web", "components", "media_browser.ex"), "utf8");
+const server = mediaBrowserSource(".ex");
 
 function section() {
   const start = src.indexOf("// UploadResume — keep picked files until the server has them");

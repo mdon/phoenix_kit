@@ -4754,6 +4754,14 @@ if (typeof window.Chart === "undefined") {
         });
       } catch (_) { /* malformed list → the on-screen picture stands */ }
     }
+    // Never past the picture's own pixels. The ladder lists each rung at
+    // its configured box (large = 1920), not at the size it really came out
+    // — a 500px picture's "large" is 500px — so a small picture was composed
+    // at nearly four times its size: the burned copy then opened at 100% as
+    // a huge image beside the original's true-size one, and a clean burn of
+    // it no longer matched the picture it was made from. The canvas width
+    // IS the picture's natural width.
+    sourceWidth = Math.min(sourceWidth, W);
     var k = sourceWidth / W;
 
     // The overlay is laid out in CONTAINER px. Three image points recover
@@ -4780,6 +4788,16 @@ if (typeof window.Chart === "undefined") {
     var minX = Math.floor(ink.minX), minY = Math.floor(ink.minY);
     var maxX = Math.ceil(ink.maxX), maxY = Math.ceil(ink.maxY);
 
+    // Transitions off for the read. The selected and hovered looks fade
+    // out (a text's box, for one, eases its stroke over 120ms), so with
+    // them running the styles read below would be the look's first frame
+    // of fading — and a text that happened to be selected when the session
+    // ended was stored with its blue selection box drawn round it.
+    var stillStyle = document.createElement("style");
+    stillStyle.textContent = ".pk-burn-still, .pk-burn-still * { transition: none !important; }";
+    document.head.appendChild(stillStyle);
+    svg.classList.add("pk-burn-still");
+
     var suspended = [];
     svg.querySelectorAll("." + BURN_STATE.join(", .")).forEach(function(el) {
       var had = BURN_STATE.filter(function(c) { return el.classList.contains(c); });
@@ -4805,6 +4823,8 @@ if (typeof window.Chart === "undefined") {
     suspended.forEach(function(pair) {
       pair[1].forEach(function(c) { pair[0].classList.add(c); });
     });
+    svg.classList.remove("pk-burn-still");
+    if (stillStyle.parentNode) stillStyle.parentNode.removeChild(stillStyle);
     BURN_CHROME.forEach(function(sel) {
       live.forEach(function(el, idx) {
         if (el.matches && el.matches(sel) && copy[idx] && copy[idx].remove) copy[idx].remove();
@@ -4837,9 +4857,13 @@ if (typeof window.Chart === "undefined") {
 
   // No DOM of the viewer's needed from here on — the plan holds everything.
   function burnRender(plan) {
+    var format = plan.format || "jpeg";
+    // An animation's frames only exist on the server: the burn sent for it
+    // is the markup alone, on a transparent canvas, with the picture's place
+    // in it sent alongside (see `burnUpload`).
+    var markupOnly = format === "gif";
     return new Promise(function(resolve, reject) {
-      var picture = new Image();
-      picture.onload = function() {
+      function compose(picture) {
         var overlay = new Image();
         overlay.onload = function() {
           var canvas = document.createElement("canvas");
@@ -4848,26 +4872,47 @@ if (typeof window.Chart === "undefined") {
           var ctx = canvas.getContext("2d");
           ctx.imageSmoothingQuality = "high";
           // JPEG has no alpha: every pixel the picture does not cover would
-          // encode as black without this.
-          ctx.fillStyle = plan.background;
-          ctx.fillRect(0, 0, plan.out.w, plan.out.h);
-          ctx.drawImage(picture, plan.picture.x, plan.picture.y, plan.picture.w, plan.picture.h);
+          // encode as black without this. Every other format keeps what
+          // the picture doesn't cover see-through.
+          if (format === "jpeg") {
+            ctx.fillStyle = plan.background;
+            ctx.fillRect(0, 0, plan.out.w, plan.out.h);
+          }
+          if (picture) {
+            ctx.drawImage(picture, plan.picture.x, plan.picture.y, plan.picture.w, plan.picture.h);
+          }
           ctx.drawImage(overlay, 0, 0, plan.out.w, plan.out.h);
+          // A browser that cannot encode WebP hands back a PNG; the server
+          // re-encodes either way.
+          var type = format === "jpeg" ? "image/jpeg" : format === "webp" ? "image/webp" : "image/png";
           canvas.toBlob(function(blob) {
             blob ? resolve(blob) : reject(new Error("the browser produced no image"));
-          }, "image/jpeg", 0.9);
+          }, type, 0.9);
         };
         overlay.onerror = function() { reject(new Error("the markup did not rasterise")); };
         overlay.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(plan.svgText);
-      };
+      }
+      if (markupOnly) { compose(null); return; }
+      var picture = new Image();
+      picture.onload = function() { compose(picture); };
       picture.onerror = function() { reject(new Error("the picture did not load")); };
       picture.src = plan.sourceUrl;
     });
   }
 
-  function burnUpload(uuid, blob, variants, sourceVersion, fingerprint) {
+  function burnUpload(uuid, blob, variants, sourceVersion, fingerprint, plan) {
     var body = new FormData();
-    body.append("image", blob, "burn.jpg");
+    var ext = blob.type === "image/png" ? "png" : blob.type === "image/webp" ? "webp" : "jpg";
+    body.append("image", blob, "burn." + ext);
+    // A markup-only burn says where the picture goes in it.
+    if (plan && plan.format === "gif") {
+      body.append("canvas_w", plan.out.w);
+      body.append("canvas_h", plan.out.h);
+      body.append("picture_x", plan.picture.x);
+      body.append("picture_y", plan.picture.y);
+      body.append("picture_w", plan.picture.w);
+      body.append("picture_h", plan.picture.h);
+    }
     body.append("variants", variants);
     if (sourceVersion) body.append("source_version", sourceVersion);
     // Recorded against the stored copy, so the next visit can tell whether
@@ -5195,7 +5240,10 @@ if (typeof window.Chart === "undefined") {
       // Nothing drawn and nothing burned — a picture opened and closed.
       // A picture whose last shape was just rubbed out has a burn on file
       // and does not match this, so it goes on to render the clean one.
-      if (now === "" && !this._burned) return;
+      // "A burn on file" is asked of the page too, not only of the
+      // fingerprint: a copy whose fingerprint never reached this page is
+      // still a copy with the old markup in it.
+      if (now === "" && !this._burned && this.el.dataset.hasBurn !== "true") return;
 
       var fingerprint = burnHash(now);
       // The stored copy was made from exactly this drawing. Re-rendering it
@@ -5212,6 +5260,14 @@ if (typeof window.Chart === "undefined") {
 
       var plan = burnCapturePlan(this._host());
       if (!plan) return;
+      // How the burn is kept, decided by the server from the stored file:
+      //   "png"  — a see-through picture, transparency kept;
+      //   "webp" — a photo: small, and a margin the markup opens up past the
+      //            picture's edges stays see-through instead of white;
+      //   "gif"  — an animation: only the markup is sent, and the server
+      //            draws it onto every frame so the burn still plays.
+      // Missing (an older page): the JPEG it always was.
+      plan.format = this.el.dataset.burnFormat || "jpeg";
 
       var pending = {
         fingerprint: fingerprint,
@@ -5240,7 +5296,7 @@ if (typeof window.Chart === "undefined") {
       burnRender(pending.plan)
         .then(function(blob) {
           return burnUpload(self._uuid, blob, self._variants, pending.version,
-                            pending.fingerprint);
+                            pending.fingerprint, pending.plan);
         })
         .then(function(res) {
           // What the stored copy is now made from. Held only after the

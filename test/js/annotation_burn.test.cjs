@@ -392,3 +392,45 @@ test("the same drawing is not burned twice over one session end", () => {
   });
   assert.strictEqual(changed.planned.taken, 1, "it takes the plan while the overlay is there");
 });
+
+test("a selected shape's fading look is not read mid-fade: transitions are off for the read", () => {
+  // A text's selection box eases its stroke out over 120ms. Removing the
+  // selected class and reading styles in the same frame read the first
+  // frame of that fade — the blue box — and a text selected when the
+  // session ended was stored with it drawn round it.
+  const plan = src.slice(src.indexOf("function burnCapturePlan"), src.indexOf("svgText: new XMLSerializer()"));
+  const still = plan.indexOf('svg.classList.add("pk-burn-still")');
+  const suspend = plan.indexOf('svg.querySelectorAll("." + BURN_STATE.join(", ."))');
+  const read = plan.indexOf("getComputedStyle(live[i])");
+  const off = plan.indexOf('svg.classList.remove("pk-burn-still")');
+  assert.ok(still > -1 && suspend > still, "transitions go off before the looks are suspended");
+  assert.ok(read > suspend && off > read, "and stay off until the styles are read");
+  assert.match(plan, /\.pk-burn-still, \.pk-burn-still \* \{ transition: none !important; \}/);
+  assert.match(plan, /if \(stillStyle\.parentNode\) stillStyle\.parentNode\.removeChild\(stillStyle\);/,
+    "the rule does not outlive the read");
+});
+
+test("the burn's format comes from the page, and only a JPEG gets a background sheet", () => {
+  assert.ok(section.includes('plan.format = this.el.dataset.burnFormat || "jpeg";'));
+  assert.match(section, /if \(format === "jpeg"\) \{\s*ctx\.fillStyle = plan\.background;\s*ctx\.fillRect/,
+    "PNG, WebP and the GIF markup keep what the picture doesn't cover see-through");
+  assert.ok(section.includes('format === "jpeg" ? "image/jpeg" : format === "webp" ? "image/webp" : "image/png"'));
+});
+
+test("an animation's burn is the markup alone, with the picture's place sent alongside", () => {
+  assert.ok(section.includes('var markupOnly = format === "gif";'));
+  assert.ok(section.includes("if (markupOnly) { compose(null); return; }"), "the picture is never drawn into it");
+  for (const k of ["canvas_w", "canvas_h", "picture_x", "picture_y", "picture_w", "picture_h"]) {
+    assert.ok(section.includes(`body.append("${k}"`), k);
+  }
+});
+
+test("rubbing out the last shape re-renders the clean picture whenever a burn is on file", () => {
+  assert.ok(section.includes('if (now === "" && !this._burned && this.el.dataset.hasBurn !== "true") return;'),
+    "an empty board skips only when there is no burn — by fingerprint or by the page's own word");
+});
+
+test("a burn is never composed bigger than the picture itself", () => {
+  assert.ok(/sourceWidth = Math\.min\(sourceWidth, W\);\s*var k = sourceWidth \/ W;/.test(section),
+    "the ladder's nominal widths cannot upscale a small picture");
+});

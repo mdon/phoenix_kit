@@ -19,13 +19,20 @@ defmodule PhoenixKitWeb.Components.TrashRestoreControlsTest do
                 __DIR__,
                 "../../../lib/phoenix_kit_web/components/media_browser.ex"
               )
-  @browser_heex Path.join(
-                  __DIR__,
-                  "../../../lib/phoenix_kit_web/components/media_browser.html.heex"
-                )
+  @browser_dir Path.join(__DIR__, "../../../lib/phoenix_kit_web/components/media_browser")
 
-  defp ex, do: File.read!(@browser_ex)
-  defp heex, do: File.read!(@browser_heex)
+  # The browser is split across modules (`MediaBrowser`, and its view,
+  # sections and helpers under media_browser/), so read them all.
+  defp ex,
+    do:
+      Enum.map_join(
+        [@browser_ex | Path.wildcard(Path.join(@browser_dir, "*.ex"))],
+        "\n",
+        &File.read!/1
+      )
+
+  defp heex,
+    do: Enum.map_join(Path.wildcard(Path.join(@browser_dir, "*.html.heex")), "\n", &File.read!/1)
 
   describe "a trashed file can be restored from the view it is in" do
     test "the file's own menu offers it" do

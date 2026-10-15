@@ -96,8 +96,15 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
          :ok <- accept_magic(upload),
          {:ok, variants} <- variants_from_params(params),
          {:ok, source_key} <- bind_original(file, params),
-         {:ok, written} <- write_variants(file, upload, variants, source_key) do
+         {:ok, written} <- write_variants(file, upload, variants, source_key, params) do
+      # The fingerprint first, then the news: whoever re-reads the file on
+      # the broadcast (the media browser refreshes its row and the open
+      # viewer) must see what this copy was made from. Announced first, the
+      # refresh raced the write and often kept the old answer — reopening
+      # the picture and rubbing out its last shape then never rendered the
+      # clean copy, because the page believed no burn was on file.
       remember_fingerprint(file, params["fingerprint"])
+      Storage.broadcast_file_thumbnail_updated(file.uuid)
       json(conn, %{written: written})
     else
       {:error, reason} -> fail(conn, reason)
@@ -108,6 +115,36 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
 
   @doc false
   def writable_variants, do: @writable
+
+  # How a burn is kept, by what the stored file is — never by the upload:
+  # the client's bytes only decide what is drawn, not how it is kept.
+  #
+  #   * an animated GIF stays a GIF that plays: the client sends only the
+  #     markup, and the server draws it onto every frame (see
+  #     `ImageProcessor.composite_animation/4`);
+  #   * a picture that can be see-through (PNG, WebP, AVIF) burns as a PNG,
+  #     lossless and with its transparency kept;
+  #   * anything else — a photo — burns as WebP: about JPEG's size, but the
+  #     margin around the picture that markup drawn past its edges opens up
+  #     stays see-through instead of being filled white.
+  @doc false
+  def burn_format_for(mime) when is_binary(mime) do
+    cond do
+      mime == "image/gif" -> "gif"
+      mime in ~w(image/png image/webp image/avif) -> "png"
+      true -> "webp"
+    end
+  end
+
+  def burn_format_for(_), do: "webp"
+
+  @formats %{
+    "gif" => {"gif", "image/gif"},
+    "png" => {"png", "image/png"},
+    "webp" => {"webp", "image/webp"}
+  }
+
+  defp ext_mime(format), do: Map.fetch!(@formats, format)
 
   @doc false
   # The file's owner, an Owner/Admin (honouring the active role), or anyone
@@ -142,8 +179,10 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
   end
 
   @doc false
-  # JPEG or PNG, by magic. The multipart content-type is the client's claim.
+  # JPEG, PNG or WebP, by magic. The multipart content-type is the client's claim.
   def image_magic?(<<0xFF, 0xD8, 0xFF, _::binary>>), do: true
+
+  def image_magic?(<<"RIFF", _::binary-size(4), "WEBP", _::binary>>), do: true
 
   def image_magic?(<<0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, _::binary>>), do: true
 
@@ -223,38 +262,144 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
   end
 
   # Decode the untrusted bytes ONCE, under ImageMagick resource limits and a
-  # pixel budget, into a JPEG no larger than the biggest slot asked for.
-  # Each slot is then a resize of that trusted file.
-  defp write_variants(file, %Plug.Upload{path: path}, variants, source_key) do
-    safe = temp_path("safe")
+  # pixel budget, into a trusted file no larger than the biggest slot asked
+  # for. Each slot is then a resize of that trusted file.
+  defp write_variants(file, %Plug.Upload{path: path}, variants, source_key, params) do
+    case prepare_burn(file, path, variants, params) do
+      {:ok, safe, format} ->
+        try do
+          commit_variants(file, safe, format, variants, source_key)
+        after
+          File.rm(safe)
+        end
 
-    try do
-      case prepare_burn(file, path, safe, variants) do
-        :ok -> commit_variants(file, safe, variants, source_key)
-        {:error, reason} -> {:error, reason}
-      end
-    after
-      File.rm(safe)
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
-  defp prepare_burn(file, path, safe, variants) do
+  defp prepare_burn(file, path, variants, params) do
     edge = variants |> Enum.map(&variant_long_edge/1) |> Enum.max()
 
-    case ImageProcessor.sanitize(path, safe, max_edge: edge, quality: 90, format: "jpeg") do
+    case {burn_format_for(file.mime_type), layout_from_params(params)} do
+      {"gif", {:ok, layout}} -> prepare_animation(file, path, edge, layout)
+      # A GIF burned by a client that sent the whole picture (no layout) is
+      # kept as the still it is.
+      {"gif", _} -> prepare_still(file, path, edge, "png")
+      {format, _} -> prepare_still(file, path, edge, format)
+    end
+  end
+
+  defp prepare_still(file, path, edge, format) do
+    safe = temp_path("safe", format)
+
+    case ImageProcessor.sanitize(path, safe, max_edge: edge, quality: 90, format: format) do
       {:ok, _} ->
-        :ok
+        {:ok, safe, format}
 
       {:error, reason} ->
+        File.rm(safe)
         Logger.warning("burn sanitize failed for #{file.uuid}: #{inspect(reason)}")
         {:error, :convert_failed}
     end
   end
 
-  defp commit_variants(file, safe, variants, source_key) do
+  # The upload is the markup alone, on a transparent canvas; the frames come
+  # from the stored original. Sanitized like any upload (it may come back
+  # smaller than it was sent, so the layout is scaled to what it became),
+  # then laid over every frame.
+  defp prepare_animation(file, path, edge, layout) do
+    overlay = temp_path("overlay", "png")
+    safe = temp_path("safe", "gif")
+
+    result =
+      with {:ok, _} <-
+             ImageProcessor.sanitize(path, overlay, max_edge: edge, quality: 90, format: "png"),
+           {:ok, {ow, oh}} <- ImageProcessor.extract_dimensions(overlay),
+           layout = scale_layout(layout, ow, oh),
+           {:ok, original, _file, _source} <- Storage.retrieve_original(file.uuid) do
+        try do
+          compose_frames(original, overlay, safe, layout)
+        after
+          File.rm(original)
+        end
+      end
+
+    File.rm(overlay)
+
+    case result do
+      {:ok, format} ->
+        {:ok, safe, format}
+
+      {:error, reason} ->
+        File.rm(safe)
+        Logger.warning("burn animation failed for #{file.uuid}: #{inspect(reason)}")
+        {:error, :convert_failed}
+    end
+  end
+
+  # Every frame, or — for an animation too large to re-encode — the first
+  # one, kept as a still PNG rather than no burn at all.
+  defp compose_frames(original, overlay, safe, layout) do
+    case ImageProcessor.composite_animation(original, overlay, safe, layout) do
+      {:ok, _} ->
+        {:ok, "gif"}
+
+      {:error, :too_large} ->
+        with {:ok, _} <-
+               ImageProcessor.composite_animation(original, overlay, safe, layout, still: true),
+             do: {:ok, "png"}
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  @doc false
+  # Where the picture sits in the burn the client drew, in that burn's
+  # pixels: `canvas_w`×`canvas_h` overall, the picture at `picture_x`,
+  # `picture_y`, `picture_w`×`picture_h`. Only an animated burn needs it.
+  def layout_from_params(params) do
+    keys = ~w(canvas_w canvas_h picture_x picture_y picture_w picture_h)
+
+    with [cw, ch, x, y, w, h] = nums <- Enum.map(keys, &layout_number(params[&1])),
+         true <- Enum.all?(nums, &is_float/1),
+         true <- Enum.all?([cw, ch, w, h], &(&1 >= 1 and &1 <= 16_000)),
+         true <- Enum.all?([x, y], &(abs(&1) <= 16_000)) do
+      {:ok, %{canvas_w: cw, canvas_h: ch, x: x, y: y, w: w, h: h}}
+    else
+      _ -> :error
+    end
+  end
+
+  # A number the client sent, or nil — never a float it did not send.
+  defp layout_number(value) do
+    case Float.parse(to_string(value || "")) do
+      {n, ""} -> n
+      _ -> nil
+    end
+  end
+
+  @doc false
+  # The layout carried into the overlay's real size, in whole pixels.
+  def scale_layout(%{canvas_w: cw, canvas_h: ch} = l, ow, oh) do
+    kx = ow / cw
+    ky = oh / ch
+
+    %{
+      canvas_w: ow,
+      canvas_h: oh,
+      x: round(l.x * kx),
+      y: round(l.y * ky),
+      w: max(1, round(l.w * kx)),
+      h: max(1, round(l.h * ky))
+    }
+  end
+
+  defp commit_variants(file, safe, format, variants, source_key) do
     written =
       Enum.reduce_while(variants, [], fn variant, acc ->
-        case write_variant(file, safe, variant, source_key) do
+        case write_variant(file, safe, format, variant, source_key) do
           {:ok, instance} ->
             {:cont,
              [
@@ -283,19 +428,23 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
         {:error, reason}
 
       list ->
-        Storage.broadcast_file_thumbnail_updated(file.uuid)
         {:ok, Enum.reverse(list)}
     end
   end
 
-  defp write_variant(file, safe, variant, source_key) do
+  defp write_variant(file, safe, format, variant, source_key) do
     {w, h} = variant_box(variant)
-    out = temp_path(variant)
+    out = temp_path(variant, format)
+    {ext, mime} = ext_mime(format)
 
     result =
-      case ImageProcessor.resize(safe, out, w, h, quality: 90, format: "jpg") do
+      case ImageProcessor.resize(safe, out, w, h,
+             quality: 90,
+             format: ext,
+             animated: format == "gif"
+           ) do
         {:ok, _} ->
-          VariantGenerator.store_prepared_variant(file, variant, out, "jpg", "image/jpeg",
+          VariantGenerator.store_prepared_variant(file, variant, out, ext, mime,
             source_key: source_key
           )
 
@@ -370,8 +519,8 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
     end
   end
 
-  defp temp_path(tag) do
-    Path.join(System.tmp_dir!(), "pk_burn_#{tag}_#{System.unique_integer([:positive])}.jpg")
+  defp temp_path(tag, ext) do
+    Path.join(System.tmp_dir!(), "pk_burn_#{tag}_#{System.unique_integer([:positive])}.#{ext}")
   end
 
   # ── answers ──────────────────────────────────────────────────────────────

@@ -1,0 +1,956 @@
+<% header_folder =
+  header_folder_target(
+    @current_folder,
+    @file_view,
+    @filter_orphaned,
+    @search_query,
+    @filter_trash,
+    @scope_folder
+  ) %>
+<% hero_hex = header_folder && folder_color_hex(header_folder.color) %>
+<%!-- Folder-header customization (Edit header): size + per-element
+     visibility toggles. Non-folder views ignore them (defaults). --%>
+<% header_min_h =
+  header_folder &&
+    case header_folder.header_size do
+      "small" -> "min-h-[100px] sm:min-h-[140px]"
+      "large" -> "min-h-[160px] sm:min-h-[320px]"
+      _ -> "min-h-[130px] sm:min-h-[200px]"
+    end %>
+<% show_background = !header_folder || header_folder.header_show_background %>
+<% show_logo =
+  header_folder && header_folder.header_show_icon && @folder_logo_url %>
+<% show_title = !header_folder || header_folder.header_show_title %>
+<% show_creator =
+  header_folder && header_folder.header_show_creator && @folder_creator_name %>
+<% show_date = header_folder && header_folder.header_show_date %>
+<% show_file_count = header_folder && header_folder.header_show_file_count %>
+<% show_creation_info = show_creator || show_date || show_file_count %>
+<% show_description = header_folder && header_folder.header_show_description %>
+<%!-- `relative z-30` lifts the whole header above the file area
+     below (same scroll container, later in the DOM), so the
+     toolbar dropdowns open *over* the sticky table header
+     (z-10) instead of being painted behind it. --%>
+<div class={[
+  "relative z-30 rounded-xl mb-3 sm:mb-4 flex flex-col justify-end",
+  header_min_h
+]}>
+  <%!-- Background: cover image (when shown), folder-color gradient,
+       or neutral --%>
+  <%= cond do %>
+    <%!-- `header_folder &&` gates the cover so a scope-folder
+         cover URL still held in assigns (it's only refreshed on
+         the nav path) can't bleed into the all-files / trash /
+         orphaned / search views where `header_folder` is nil. --%>
+    <% header_folder && show_background && @folder_cover_url -> %>
+      <%!-- The wrapper is the size container so a quarter-turned
+           cover can swap its dimensions via cq units — see
+           `cover_image_class/1`. --%>
+      <div class="absolute inset-0 rounded-xl overflow-hidden [container-type:size]">
+        <img
+          src={@folder_cover_url}
+          alt=""
+          class={cover_image_class(@folder_cover_rotation)}
+        />
+      </div>
+    <% hero_hex -> %>
+      <div
+        class="absolute inset-0 rounded-xl"
+        style={"background-image: linear-gradient(160deg, #{hero_hex}59 0%, #{hero_hex}1a 55%, transparent 100%);"}
+      >
+      </div>
+    <% true -> %>
+      <div class="absolute inset-0 rounded-xl bg-gradient-to-br from-base-200 to-base-300"></div>
+  <% end %>
+
+  <%!-- Bottom fade to the page background for the clean,
+       faded-out look and readable overlaid text. --%>
+  <div class="absolute inset-0 rounded-xl bg-gradient-to-t from-base-100 via-base-100/60 to-transparent">
+  </div>
+
+  <%!-- Action(s), top-right. `z-20` keeps it above the content
+       block (also z-10, but later in the DOM) so a tall header
+       with lots of content can't cover the button's click area. --%>
+  <%= if @current_folder && not @readonly do %>
+    <div class="absolute top-3 right-3 z-40 flex flex-col items-end gap-2">
+      <button
+        type="button"
+        phx-click="start_edit_folder_header"
+        phx-value-folder-uuid={@current_folder.uuid}
+        phx-target={@myself}
+        class="btn btn-sm gap-1.5 border-0 bg-base-100/70 hover:bg-base-100 backdrop-blur text-base-content shadow"
+      >
+        <.icon name="hero-pencil-square" class="w-4 h-4" />
+        {gettext("Edit header")}
+      </button>
+
+      <%!-- Edit-header editor as a popover dropping from the
+           button (not a centered modal). Closes on click-away,
+           except while the image picker is open. --%>
+      <%= if @editing_folder_header do %>
+        <div
+          id="folder-header-popover"
+          phx-hook="ViewportPopover"
+          class="absolute top-full right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] max-h-[70vh] flex flex-col overflow-hidden bg-base-100 rounded-xl shadow-2xl border border-base-300 text-left cursor-default font-normal"
+          phx-click-away={!@selecting_cover && "cancel_edit_folder_header"}
+          phx-target={@myself}
+        >
+          <div class="flex items-center justify-between px-4 py-3 border-b border-base-200 shrink-0">
+            <h3 class="font-semibold text-sm flex items-center gap-2">
+              <.icon name="hero-pencil-square" class="w-4 h-4 text-primary" />
+              {gettext("Edit header")}
+            </h3>
+            <button
+              type="button"
+              phx-click="cancel_edit_folder_header"
+              phx-target={@myself}
+              class="btn btn-ghost btn-xs btn-circle"
+              title={gettext("Close")}
+            >
+              <.icon name="hero-x-mark" class="w-4 h-4" />
+            </button>
+          </div>
+
+          <div class="flex-1 min-h-0 overflow-y-auto px-4 py-4">
+            <%!-- 1. Name + description (saved on Save below; the
+                 other sections apply instantly). --%>
+            <form
+              id="folder-header-form"
+              phx-submit="save_folder_header"
+              phx-change="folder_header_input"
+              phx-target={@myself}
+              class="mb-4"
+            >
+              <input
+                type="hidden"
+                name="folder_uuid"
+                value={@editing_folder_header}
+              />
+              <div class="mb-3">
+                <label
+                  class="text-xs font-medium mb-1 block text-base-content/70"
+                  for="folder-header-name"
+                >
+                  {gettext("Name")}
+                </label>
+                <input
+                  id="folder-header-name"
+                  type="text"
+                  name="name"
+                  value={@folder_header_name}
+                  maxlength="255"
+                  required
+                  placeholder={gettext("Folder name")}
+                  class="input input-sm w-full"
+                  phx-debounce="300"
+                />
+              </div>
+              <div>
+                <label
+                  class="text-xs font-medium mb-1 block text-base-content/70"
+                  for="folder-header-description"
+                >
+                  {gettext("Description")}
+                </label>
+                <textarea
+                  id="folder-header-description"
+                  name="description"
+                  rows="3"
+                  maxlength="2000"
+                  placeholder={gettext("Describe what this folder is for...")}
+                  class="textarea textarea-sm w-full"
+                  phx-debounce="300"
+                >{@folder_header_description}</textarea>
+              </div>
+            </form>
+
+            <%!-- 2. Icon + background image --%>
+            <div class="mb-4">
+              <label class="text-xs font-medium mb-1.5 block text-base-content/70">
+                {gettext("Icon")}
+              </label>
+              <div class="flex items-center gap-3">
+                <button
+                  type="button"
+                  phx-click="open_logo_picker"
+                  phx-target={@myself}
+                  class="group relative w-16 h-16 rounded-xl overflow-hidden border border-base-300 bg-base-200 cursor-pointer shrink-0"
+                >
+                  <%= if @folder_logo_url do %>
+                    <img
+                      src={@folder_logo_url}
+                      alt=""
+                      class={[
+                        "absolute inset-0 w-full h-full object-contain p-1",
+                        rotation_class(%{rotation: @folder_logo_rotation})
+                      ]}
+                    />
+                  <% else %>
+                    <div class="absolute inset-0 flex items-center justify-center text-base-content/40">
+                      <.icon name="hero-photo" class="w-6 h-6" />
+                    </div>
+                  <% end %>
+                  <div class="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors">
+                    <.icon
+                      name="hero-arrow-up-tray"
+                      class="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                    />
+                  </div>
+                </button>
+                <div class="flex-1 min-w-0">
+                  <p class="text-xs text-base-content/50">
+                    {gettext("Pick or upload a small icon image.")}
+                  </p>
+                  <%= if @folder_logo_url do %>
+                    <button
+                      type="button"
+                      phx-click="remove_folder_logo"
+                      phx-value-folder-uuid={@editing_folder_header}
+                      phx-target={@myself}
+                      class="btn btn-ghost btn-xs gap-1 text-error mt-1"
+                    >
+                      <.icon name="hero-x-mark" class="w-3.5 h-3.5" /> {gettext("Remove")}
+                    </button>
+                  <% end %>
+                </div>
+              </div>
+            </div>
+
+            <div class="mb-4">
+              <label class="text-xs font-medium mb-1.5 block text-base-content/70">
+                {gettext("Background image")}
+              </label>
+              <button
+                type="button"
+                phx-click="open_cover_picker"
+                phx-target={@myself}
+                class="group relative block w-full aspect-[16/7] rounded-xl overflow-hidden border border-base-300 bg-base-200 cursor-pointer"
+              >
+                <%= if @folder_cover_url do %>
+                  <div class="absolute inset-0 [container-type:size]">
+                    <img
+                      src={@folder_cover_url}
+                      alt=""
+                      class={cover_image_class(@folder_cover_rotation)}
+                    />
+                  </div>
+                <% else %>
+                  <div class="absolute inset-0 flex flex-col items-center justify-center gap-1 text-base-content/40">
+                    <.icon name="hero-photo" class="w-7 h-7" />
+                    <span class="text-xs">{gettext("No background")}</span>
+                  </div>
+                <% end %>
+                <div class="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors">
+                  <span class="opacity-0 group-hover:opacity-100 transition-opacity btn btn-xs gap-1 border-0 bg-base-100/90 text-base-content">
+                    <.icon name="hero-photo" class="w-3.5 h-3.5" />
+                    {if @folder_cover_url,
+                      do: gettext("Change"),
+                      else: gettext("Choose")}
+                  </span>
+                </div>
+              </button>
+              <%= if @folder_cover_url do %>
+                <button
+                  type="button"
+                  phx-click="remove_folder_cover"
+                  phx-value-folder-uuid={@editing_folder_header}
+                  phx-target={@myself}
+                  class="btn btn-ghost btn-xs gap-1 text-error mt-1"
+                >
+                  <.icon name="hero-x-mark" class="w-3.5 h-3.5" /> {gettext("Remove")}
+                </button>
+              <% end %>
+            </div>
+
+            <%!-- 3. Header size --%>
+            <div class="mb-4">
+              <label class="text-xs font-medium mb-1.5 block text-base-content/70">
+                {gettext("Header size")}
+              </label>
+              <div class="join w-full">
+                <%= for {val, label} <- [
+                      {"small", gettext("Small")},
+                      {"medium", gettext("Medium")},
+                      {"large", gettext("Large")}
+                    ] do %>
+                  <button
+                    type="button"
+                    phx-click="set_header_size"
+                    phx-value-size={val}
+                    phx-value-folder-uuid={@editing_folder_header}
+                    phx-target={@myself}
+                    class={[
+                      "btn btn-sm join-item flex-1",
+                      @current_folder.header_size == val && "btn-primary"
+                    ]}
+                  >
+                    {label}
+                  </button>
+                <% end %>
+              </div>
+            </div>
+
+            <%!-- 4. Element visibility toggles --%>
+            <div class="mb-4 divide-y divide-base-200">
+              <%= for {opt, label, icon, on} <- [
+                    {"title", gettext("Show title"), "hero-bars-3-bottom-left",
+                     @current_folder.header_show_title},
+                    {"icon", gettext("Show icon"), "hero-photo",
+                     @current_folder.header_show_icon},
+                    {"creator", gettext("Show creator"), "hero-user",
+                     @current_folder.header_show_creator},
+                    {"date", gettext("Show date created"), "hero-calendar",
+                     @current_folder.header_show_date},
+                    {"file_count", gettext("Show file count"), "hero-document",
+                     @current_folder.header_show_file_count},
+                    {"description", gettext("Show description"), "hero-document-text",
+                     @current_folder.header_show_description},
+                    {"background", gettext("Show background"), "hero-swatch",
+                     @current_folder.header_show_background}
+                  ] do %>
+                <label class="flex items-center gap-2.5 py-2 cursor-pointer">
+                  <.icon name={icon} class="w-4 h-4 text-base-content/50 shrink-0" />
+                  <span class="text-sm flex-1">{label}</span>
+                  <input
+                    type="checkbox"
+                    class="toggle toggle-primary toggle-sm"
+                    checked={on}
+                    phx-click="toggle_header_option"
+                    phx-value-option={opt}
+                    phx-value-folder-uuid={@editing_folder_header}
+                    phx-target={@myself}
+                  />
+                </label>
+              <% end %>
+            </div>
+          </div>
+
+          <%!-- Save / Cancel — pinned as a non-scrolling footer
+               (shrink-0) so the buttons stay reachable however
+               tall/scrolled the body is. Save submits the
+               name/description form above (the rest applied
+               live). --%>
+          <div class="flex justify-end gap-2 px-4 py-3 border-t border-base-200 shrink-0">
+            <button
+              type="button"
+              phx-click="cancel_edit_folder_header"
+              phx-target={@myself}
+              class="btn btn-ghost btn-sm"
+            >
+              {gettext("Done")}
+            </button>
+            <button
+              type="submit"
+              form="folder-header-form"
+              class="btn btn-primary btn-sm"
+            >
+              {gettext("Save name")}
+            </button>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%!-- Title + meta, bottom-left over the faded area. The
+         description must NOT use `whitespace-pre-line` — the
+         HEEx-indented `{...}` would render its leading newline as
+         a blank line ("crazy top padding"). --%>
+  <%!-- Content (title / description / meta / toolbar) over the
+       faded bottom area. The toolbar is folded in below. --%>
+  <div class="relative z-10 p-3 sm:p-4 flex flex-col gap-1">
+    <% small_header = header_folder && header_folder.header_size == "small" %>
+    <%!-- Logo + text. On a SMALL header the logo sits to the LEFT
+         of the title/description (so it can be larger despite the
+         short header); otherwise it sits above them. --%>
+    <div class={[
+      "flex min-w-0",
+      if(small_header, do: "flex-row items-center gap-3", else: "flex-col gap-1")
+    ]}>
+      <%= if show_logo do %>
+        <%!-- Transparent logos (e.g. PNG) show the header
+             background through, not a solid square: no bg,
+             object-contain (full logo, uncropped), and a
+             drop-shadow that follows the logo's alpha shape. --%>
+        <img
+          src={@folder_logo_url}
+          alt=""
+          class={[
+            "object-contain shrink-0 drop-shadow-lg",
+            rotation_class(%{rotation: @folder_logo_rotation}),
+            case header_folder.header_size do
+              "small" -> "w-12 h-12 sm:w-16 sm:h-16"
+              "large" -> "w-14 h-14 sm:w-20 sm:h-20"
+              _ -> "w-10 h-10 sm:w-14 sm:h-14"
+            end
+          ]}
+        />
+      <% end %>
+      <div class="flex flex-col gap-0.5 min-w-0">
+        <%= if show_title do %>
+          <h2 class="text-lg sm:text-2xl font-bold text-base-content break-words leading-tight">
+            <%= cond do %>
+              <% @filter_trash -> %>
+                {gettext("Trash")}
+              <% @filter_orphaned -> %>
+                {gettext("Orphaned Files")}
+              <% @file_view == "all" -> %>
+                {gettext("All Files")}
+              <% @current_folder -> %>
+                <%!-- Live-preview the sidebar rename so the header
+                     title tracks what's being typed, then settles
+                     on the saved name. --%>
+                <%= if @renaming_folder == @current_folder.uuid && @renaming_text != "" do %>
+                  {@renaming_text}
+                <% else %>
+                  {@current_folder.name}
+                <% end %>
+              <% true -> %>
+                {if @scope_folder_id,
+                  do: @scope_folder_name,
+                  else: gettext("All Media")}
+            <% end %>
+          </h2>
+        <% end %>
+        <%= if header_folder do %>
+          <%!-- Description (folders only). Must NOT use
+               whitespace-pre-line (the HEEx-indented expression's
+               leading newline would render as a blank line). --%>
+          <%= if show_description do %>
+            <%= if header_folder.description not in [nil, ""] do %>
+              <p class="text-xs sm:text-sm text-base-content/80 max-w-2xl line-clamp-2 sm:line-clamp-none">
+                {header_folder.description}
+              </p>
+            <% else %>
+              <%!-- Placeholder so users see where a description
+                   would appear and how to add one. Opens the Edit
+                   header panel (description field) on click. Only
+                   shown when actually inside a folder (editable) —
+                   at a scoped root the header is read-only. --%>
+              <button
+                :if={@current_folder && not @readonly}
+                type="button"
+                phx-click="start_edit_folder_header"
+                phx-value-folder-uuid={@current_folder.uuid}
+                phx-target={@myself}
+                class="inline-flex items-center gap-1.5 text-sm italic text-base-content/40 hover:text-base-content/70 transition-colors"
+              >
+                <.icon name="hero-pencil-square" class="w-3.5 h-3.5 shrink-0" />
+                {gettext("No description — add one")}
+              </button>
+            <% end %>
+          <% end %>
+          <%= if show_creation_info do %>
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-base-content/70 mt-0.5">
+              <%!-- Creator / date / file-count are independent
+                   toggles; bullets render only between two visible
+                   pieces so the row never starts/ends with one. --%>
+              <span :if={show_creator} class="inline-flex items-center gap-1.5">
+                <PhoenixKitWeb.Components.Core.UserInfo.user_avatar
+                  user={@folder_creator_user}
+                  size="xs"
+                />
+                {gettext("Created by %{name}", name: @folder_creator_name)}
+              </span>
+              <span
+                :if={show_creator && (show_date || show_file_count)}
+                class="text-base-content/40"
+              >
+                •
+              </span>
+              <span :if={show_date} class="inline-flex items-center gap-1">
+                <.icon name="hero-calendar" class="w-3.5 h-3.5" />
+                {Calendar.strftime(header_folder.inserted_at, "%b %d, %Y")}
+              </span>
+              <span :if={show_date && show_file_count} class="text-base-content/40">
+                •
+              </span>
+              <span :if={show_file_count} class="inline-flex items-center gap-1">
+                <.icon name="hero-document" class="w-3.5 h-3.5" />
+                {ngettext("%{count} file", "%{count} files", @total_count)}
+              </span>
+            </div>
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+
+    <%!-- Toolbar area: in select mode it's the selection header
+         (exit + count + select-all/clear on the left, bulk
+         Move/Download/Delete on the right); otherwise the normal
+         Display/Sort/Filter + search + Add Media row. Both live
+         inside the hero so the controls don't jump on toggle. --%>
+    <%= if @select_mode do %>
+      <% selected_count =
+        MapSet.size(@selected_files) + MapSet.size(@selected_folders) %>
+      <div class="flex flex-wrap items-center gap-2 mt-1">
+        <%!-- Count on the left; every control sits in the
+             right-aligned cluster (Select all / Clear, the bulk
+             actions, then Done) to match the actions-on-the-right
+             convention used across the toolbars. --%>
+        <span class="text-sm font-semibold">
+          {ngettext("%{count} selected", "%{count} selected", selected_count)}
+        </span>
+        <div class="flex flex-wrap items-center justify-end gap-2 ml-auto">
+          <button
+            phx-click="select_all"
+            phx-target={@myself}
+            class="btn btn-xs btn-ghost"
+          >
+            {gettext("Select all")}
+          </button>
+          <%= if selected_count > 0 do %>
+            <button
+              phx-click="deselect_all"
+              phx-target={@myself}
+              class="btn btn-xs btn-ghost"
+            >
+              {gettext("Clear")}
+            </button>
+          <% end %>
+
+          <%!-- Bulk actions, only with a selection --%>
+          <%= if selected_count > 0 do %>
+            <%!-- Restore (trash view). `restore_selected` has
+                 always been here and handled files AND folders;
+                 nothing ever rendered a control for it, so the
+                 trash offered "Empty Trash" and "Delete
+                 permanently" and no way back. --%>
+            <button
+              :if={not @readonly and @filter_trash}
+              phx-click="restore_selected"
+              phx-target={@myself}
+              class="btn btn-sm btn-success gap-1"
+              title={gettext("Restore")}
+            >
+              <.icon name="hero-arrow-uturn-left" class="w-4 h-4" />
+              <span class="hidden sm:inline">{gettext("Restore")}</span>
+            </button>
+            <%!-- Move stays in the trash view: moving a trashed
+                 file INTO a folder is how you take it out of the
+                 trash, and the handler restores it there. --%>
+            <button
+              phx-click="show_move_modal"
+              phx-target={@myself}
+              class="btn btn-sm btn-primary gap-1"
+              title={gettext("Move")}
+            >
+              <.icon name="hero-folder-arrow-down" class="w-4 h-4" />
+              <span class="hidden sm:inline">{gettext("Move")}</span>
+            </button>
+            <%= if MapSet.size(@selected_files) > 0 do %>
+              <button
+                phx-click="download_selected"
+                phx-target={@myself}
+                class="btn btn-sm btn-ghost gap-1"
+                title={gettext("Download")}
+              >
+                <.icon name="hero-arrow-down-tray" class="w-4 h-4" />
+                <span class="hidden sm:inline">{gettext("Download")}</span>
+              </button>
+            <% end %>
+            <button
+              phx-click="delete_selected"
+              phx-target={@myself}
+              data-confirm={
+                delete_selected_confirm(
+                  @selected_files,
+                  @selected_folders,
+                  @filter_trash
+                )
+              }
+              class="btn btn-sm btn-error gap-1"
+              title={
+                if @filter_trash,
+                  do: gettext("Delete permanently"),
+                  else: gettext("Delete")
+              }
+            >
+              <.icon name="hero-trash" class="w-4 h-4" />
+              <span class="hidden sm:inline">
+                {if @filter_trash,
+                  do: gettext("Delete permanently"),
+                  else: gettext("Delete")}
+              </span>
+            </button>
+          <% end %>
+
+          <%!-- Cancel, not "Done": the ✕ exits selection mode
+               without applying anything — "Done" reads like a
+               confirm/apply, which this button never does. --%>
+          <button
+            phx-click="toggle_select_mode"
+            phx-target={@myself}
+            class="btn btn-sm btn-neutral gap-1.5"
+            title={gettext("Exit selection")}
+          >
+            <.icon name="hero-x-mark" class="w-4 h-4" /> {gettext("Cancel")}
+          </button>
+        </div>
+      </div>
+    <% else %>
+      <% display_options = [
+        {"grid", gettext("Grid"), "hero-squares-2x2"},
+        {"list", gettext("List"), "hero-bars-3-bottom-left"},
+        {"stacks", gettext("Stacks"), "hero-square-3-stack-3d"}
+      ] %>
+      <% {_current_view, current_view_label, current_view_icon} =
+        Enum.find(display_options, fn {v, _, _} -> v == @view_mode end) ||
+          hd(display_options) %>
+      <% sort_options = [
+        {"newest", gettext("Newest first")},
+        {"oldest", gettext("Oldest first")},
+        {"name_asc", gettext("Name A–Z")},
+        {"name_desc", gettext("Name Z–A")},
+        {"largest", gettext("Largest first")},
+        {"smallest", gettext("Smallest first")}
+      ] %>
+      <% filter_options = [
+        {"all", gettext("All types")},
+        {"image", gettext("Images")},
+        {"video", gettext("Videos")},
+        {"document", gettext("Documents")},
+        {"audio", gettext("Audio")},
+        {"archive", gettext("Archives")},
+        {"other", gettext("Other")}
+      ] %>
+      <% sort_label =
+        sort_options
+        |> Enum.find(fn {v, _} -> v == @sort_by end)
+        |> then(&(&1 && elem(&1, 1))) %>
+      <% shape_options = [
+        {"all", gettext("All shapes")},
+        {"wide", gettext("Panoramas")},
+        {"tall", gettext("Tall")}
+      ] %>
+      <% type_label =
+        filter_options
+        |> Enum.find(fn {v, _} -> v == @file_type_filter end)
+        |> then(&(&1 && elem(&1, 1))) %>
+      <% shape_label =
+        shape_options
+        |> Enum.find(fn {v, _} -> v == @shape_filter end)
+        |> then(&(&1 && elem(&1, 1))) %>
+      <%!-- The button names what is on: "All types" when nothing is
+           chosen, the type, the shape, or both. --%>
+      <% filter_label =
+        cond do
+          @shape_filter == "all" -> type_label
+          @file_type_filter == "all" -> shape_label
+          true -> type_label <> " · " <> shape_label
+        end %>
+      <div class="flex flex-wrap items-center gap-2 mt-1">
+        <%= if not @filter_trash and not @filter_orphaned do %>
+          <%!-- Display / Sort / Filter group. On mobile this hides
+               while the search field is open so search fills the
+               toolbar row as a single clean bar. --%>
+          <div class={[
+            "flex flex-wrap items-center gap-2",
+            (@show_search or @search_query != "") && "hidden sm:flex"
+          ]}>
+            <%!-- Display (grid/list) --%>
+            <div class="dropdown">
+              <div tabindex="0" role="button" class="btn btn-sm gap-2">
+                <.icon name={current_view_icon} class="w-4 h-4" />
+                <span class="hidden sm:inline">
+                  {current_view_label}
+                </span>
+                <.icon
+                  name="hero-chevron-down"
+                  class="hidden sm:inline-block w-3.5 h-3.5 opacity-60"
+                />
+              </div>
+              <ul
+                tabindex="0"
+                onclick="document.activeElement.blur()"
+                class="dropdown-content menu bg-base-100 rounded-box z-20 w-44 p-2 shadow border border-base-200"
+              >
+                <%= for {val, label, icon} <- display_options do %>
+                  <li>
+                    <button
+                      phx-click="set_view_mode"
+                      phx-value-mode={val}
+                      phx-target={@myself}
+                      class={@view_mode == val && "menu-active"}
+                    >
+                      <.icon name={icon} class="w-4 h-4" /> {label}
+                    </button>
+                  </li>
+                <% end %>
+              </ul>
+            </div>
+
+            <%!-- Sort --%>
+            <div class="dropdown">
+              <div tabindex="0" role="button" class="btn btn-sm gap-2">
+                <.icon name="hero-arrows-up-down" class="w-4 h-4" />
+                <span class="hidden sm:inline">{sort_label || gettext("Sort")}</span>
+                <.icon
+                  name="hero-chevron-down"
+                  class="hidden sm:inline-block w-3.5 h-3.5 opacity-60"
+                />
+              </div>
+              <ul
+                tabindex="0"
+                onclick="document.activeElement.blur()"
+                class="dropdown-content menu bg-base-100 rounded-box z-20 w-44 p-2 shadow border border-base-200"
+              >
+                <%= for {val, label} <- sort_options do %>
+                  <li>
+                    <button
+                      phx-click="set_sort"
+                      phx-value-sort={val}
+                      phx-target={@myself}
+                      class={@sort_by == val && "menu-active"}
+                    >
+                      {label}
+                    </button>
+                  </li>
+                <% end %>
+              </ul>
+            </div>
+
+            <%!-- Filter (file type). Hidden when the browser is
+                  locked to one type: offering a control that
+                  refuses to do anything is worse than not
+                  offering it. --%>
+            <div :if={is_nil(@only_file_type)} class="dropdown">
+              <div tabindex="0" role="button" class="btn btn-sm gap-2">
+                <.icon name="hero-funnel" class="w-4 h-4" />
+                <span class={[
+                  "sm:inline",
+                  (@file_type_filter == "all" and @shape_filter == "all") &&
+                    "hidden"
+                ]}>
+                  {filter_label}
+                </span>
+                <.icon
+                  name="hero-chevron-down"
+                  class="hidden sm:inline-block w-3.5 h-3.5 opacity-60"
+                />
+              </div>
+              <ul
+                tabindex="0"
+                onclick="document.activeElement.blur()"
+                class="dropdown-content menu bg-base-100 rounded-box z-20 w-44 p-2 shadow border border-base-200"
+              >
+                <%= for {val, label} <- filter_options do %>
+                  <li>
+                    <button
+                      phx-click="set_file_filter"
+                      phx-value-type={val}
+                      phx-target={@myself}
+                      class={@file_type_filter == val && "menu-active"}
+                    >
+                      {label}
+                    </button>
+                  </li>
+                <% end %>
+                <li class="menu-title mt-1">{gettext("Shape")}</li>
+                <%= for {val, label} <- shape_options do %>
+                  <li>
+                    <button
+                      phx-click="set_shape_filter"
+                      phx-value-shape={val}
+                      phx-target={@myself}
+                      class={@shape_filter == val && "menu-active"}
+                    >
+                      {label}
+                    </button>
+                  </li>
+                <% end %>
+              </ul>
+            </div>
+          </div>
+        <% end %>
+
+        <%!-- Actions, pushed to the right. Contextual destructive
+             actions + Search + the primary Add Media; secondary
+             actions (Select, New folder) live in the ⋯ overflow.
+             On mobile, opening search hides every sibling button
+             (and the filter group above) and the cluster goes
+             `w-full`, so the search field becomes a single clean
+             full-width bar instead of squeezing the icon toolbar. --%>
+        <div class={[
+          "flex flex-wrap items-center justify-end gap-2 ml-auto",
+          (@show_search or @search_query != "") && "w-full sm:w-auto"
+        ]}>
+          <%!-- Empty Trash (trash view) --%>
+          <%= if not @readonly and @filter_trash and @total_count > 0 do %>
+            <button
+              phx-click="empty_trash"
+              phx-target={@myself}
+              data-confirm={
+                ngettext(
+                  "Permanently delete %{count} trashed file?",
+                  "Permanently delete all %{count} trashed files?",
+                  @total_count
+                )
+              }
+              class={[
+                "btn btn-sm btn-error gap-1",
+                (@show_search or @search_query != "") && "hidden sm:inline-flex"
+              ]}
+            >
+              <.icon name="hero-trash" class="w-4 h-4" /> {gettext("Empty Trash")}
+            </button>
+          <% end %>
+
+          <%!-- Move all orphaned to the trash (orphaned view, global root only) --%>
+          <%= if not @readonly and is_nil(@scope_folder_id) and @filter_orphaned and
+                 @total_count > 0 do %>
+            <button
+              phx-click="delete_all_orphaned"
+              phx-target={@myself}
+              data-confirm={
+                ngettext(
+                  "Move %{count} orphaned file to the trash?",
+                  "Move all %{count} orphaned files to the trash?",
+                  @total_count
+                )
+              }
+              class={[
+                "btn btn-sm btn-error gap-2",
+                (@show_search or @search_query != "") && "hidden sm:inline-flex"
+              ]}
+            >
+              <.icon name="hero-trash" class="w-4 h-4" /> {gettext("Move all orphaned to trash")}
+            </button>
+          <% end %>
+
+          <%!-- Search: collapsed magnifier that expands in place
+               into an input. Collapses back when emptied (✕) or
+               blurred while empty. --%>
+          <%= if @show_search or @search_query != "" do %>
+            <form
+              id={"#{@id}-search-form"}
+              phx-change="search"
+              phx-submit="search"
+              phx-target={@myself}
+              class="w-full sm:w-auto min-w-0"
+            >
+              <label class="input input-sm flex items-center gap-1.5 w-full sm:w-44 max-w-none sm:max-w-[60vw] pr-1">
+                <.icon
+                  name="hero-magnifying-glass"
+                  class="w-4 h-4 text-base-content/40 shrink-0"
+                />
+                <input
+                  id="media-search-input"
+                  type="text"
+                  name="q"
+                  value={@search_query}
+                  placeholder={gettext("Search files...")}
+                  class="grow bg-transparent border-none outline-none focus:outline-none min-w-0"
+                  phx-debounce="300"
+                  autocomplete="off"
+                  phx-mounted={JS.focus()}
+                  phx-blur="close_search_if_empty"
+                  phx-target={@myself}
+                />
+                <button
+                  type="button"
+                  phx-click="clear_search"
+                  phx-target={@myself}
+                  class="btn btn-ghost btn-xs btn-circle shrink-0"
+                  title={gettext("Close search")}
+                >
+                  <.icon name="hero-x-mark" class="w-3.5 h-3.5" />
+                </button>
+              </label>
+            </form>
+          <% else %>
+            <button
+              phx-click="toggle_search"
+              phx-target={@myself}
+              class="btn btn-sm btn-circle btn-ghost"
+              title={gettext("Search")}
+            >
+              <.icon name="hero-magnifying-glass" class="w-4 h-4" />
+            </button>
+          <% end %>
+
+          <%!-- Add Media ⇄ Cancel: stays in place (fixed min-width)
+               so the toolbar doesn't shift when the uploader opens. --%>
+          <%= unless @filter_trash or @readonly do %>
+            <button
+              phx-click="toggle_upload"
+              phx-target={@myself}
+              class={[
+                "btn btn-sm gap-2 sm:min-w-[8.5rem]",
+                if(@show_upload, do: "btn-error", else: "btn-primary"),
+                (@show_search or @search_query != "") && "hidden sm:inline-flex"
+              ]}
+            >
+              <%= if @show_upload do %>
+                <.icon name="hero-x-mark" class="w-4 h-4" />
+                <span class="hidden sm:inline">{gettext("Cancel")}</span>
+              <% else %>
+                <.icon name="hero-plus" class="w-4 h-4" />
+                <span class="hidden sm:inline">{gettext("Add Media")}</span>
+              <% end %>
+            </button>
+          <% end %>
+
+          <%!-- Overflow: secondary actions --%>
+          <div class={[
+            "dropdown dropdown-end",
+            (@show_search or @search_query != "") && "hidden sm:block"
+          ]}>
+            <div
+              tabindex="0"
+              role="button"
+              class="btn btn-sm btn-ghost btn-circle"
+              title={gettext("More actions")}
+            >
+              <.icon name="hero-ellipsis-vertical" class="w-5 h-5" />
+            </div>
+            <%!-- The complete list of this page's media actions.
+                 Add Media + Search also have prominent
+                 quick-access controls (the primary button and the
+                 magnifier) — they're duplicated here so the ⋯ is a
+                 single place that holds everything, which also
+                 keeps them reachable when the toolbar wraps tight.
+                 Contextual destructive actions (Empty Trash /
+                 Delete all orphaned) live only on their own view's
+                 red button — not duplicated into the menu. --%>
+            <ul
+              tabindex="0"
+              onclick="document.activeElement.blur()"
+              class="dropdown-content menu bg-base-100 rounded-box z-20 w-48 p-2 shadow border border-base-200"
+            >
+              <li :if={not @filter_trash and not @readonly}>
+                <button phx-click="toggle_upload" phx-target={@myself}>
+                  <%= if @show_upload do %>
+                    <.icon name="hero-x-mark" class="w-4 h-4" /> {gettext("Cancel upload")}
+                  <% else %>
+                    <.icon name="hero-plus" class="w-4 h-4" /> {gettext("Add Media")}
+                  <% end %>
+                </button>
+              </li>
+              <li>
+                <button phx-click="toggle_search" phx-target={@myself}>
+                  <.icon name="hero-magnifying-glass" class="w-4 h-4" /> {gettext("Search")}
+                </button>
+              </li>
+              <li :if={not @readonly}>
+                <button
+                  phx-click="toggle_select_mode"
+                  phx-target={@myself}
+                  phx-disable-with={gettext("Select")}
+                >
+                  <.icon name="hero-check-circle" class="w-4 h-4" /> {gettext("Select")}
+                </button>
+              </li>
+              <li :if={not @readonly}>
+                <button phx-click="open_new_folder_modal" phx-target={@myself}>
+                  <.icon name="hero-folder-plus" class="w-4 h-4" /> {gettext("New folder")}
+                </button>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    <% end %>
+  </div>
+  <%!-- /content --%>
+</div>

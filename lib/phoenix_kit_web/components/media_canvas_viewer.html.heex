@@ -116,6 +116,9 @@
             data-file-uuid={f.file_uuid}
             data-source-version={original_source_version(f)}
             data-burn-variants="thumbnail,burned,burned_large"
+            data-burn-format={
+              PhoenixKitWeb.AnnotationBurnController.burn_format_for(Map.get(f, :mime_type))
+            }
             data-burn-mode={to_string(@burn_mode and not is_nil(@burn_canvas))}
             data-can-annotate={to_string(@can_annotate)}
             data-auto-annotate={to_string(@auto_annotate)}
@@ -254,6 +257,7 @@
                   canvas={plain_canvas(@viewer_canvas)}
                   class="w-full h-full lg:rounded"
                   invert_two_finger_pan={@invert_two_finger_pan}
+                  actual_size
                   nav_layout={:row}
                   nav_overflow={@nav_overflow}
                   nav_reverse
@@ -282,6 +286,7 @@
                     canvas={@burn_canvas}
                     class="w-full h-full lg:rounded"
                     invert_two_finger_pan={@invert_two_finger_pan}
+                    actual_size
                     nav_layout={:row}
                     nav_overflow={@nav_overflow}
                     nav_reverse
@@ -299,6 +304,7 @@
                       canvas={@viewer_canvas}
                       class="w-full h-full lg:rounded"
                       invert_two_finger_pan={@invert_two_finger_pan}
+                      actual_size
                       nav_layout={:row}
                       nav_overflow={@nav_overflow}
                       nav_reverse
@@ -306,12 +312,9 @@
                       initial_rotation={@viewer_rotation}
                       persist_rotation={@persist_rotation}
                     />
-                    <%!-- connectors={:off} is the HARD form (Etcher 0.13): the      --%>
-                    <%!-- soft default loses to the user's saved toggle, which is    --%>
-                    <%!-- shared across every Etcher surface in the browser — a      --%>
-                    <%!-- toggle flipped on a board followed people here, where the  --%>
-                    <%!-- anchors point at nothing (no arrow tool below). Hard off   --%>
-                    <%!-- also hides the toggle from the toolbar.                    --%>
+                    <%!-- No connectors={:off} any more: Etcher 0.22's arrow tool    --%>
+                    <%!-- snaps to shapes' anchors as it draws, and the shared     --%>
+                    <%!-- ⋯ toggle that once leaked in from boards is gone.         --%>
                     <%!-- panel_toggle / panel_offset: the style panel's on/off  --%>
                     <%!-- switch joins Fresco's nav row; the panel itself docks  --%>
                     <%!-- top-right, just under the close and details buttons    --%>
@@ -342,7 +345,6 @@
                       panel_offset={%{top: 12, right: if(@has_next, do: 40, else: 12)}}
                       panel_toggle={:nav}
                       tooltip_dock={:panel}
-                      connectors={:off}
                       toolbar={@can_annotate}
                       nav_buttons={if @can_annotate, do: [:pencil], else: [:visibility]}
                       tools={

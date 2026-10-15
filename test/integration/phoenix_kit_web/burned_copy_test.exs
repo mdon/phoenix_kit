@@ -193,6 +193,42 @@ defmodule PhoenixKitWeb.BurnedCopyTest do
       assert socket.assigns.burn_version == URLSigner.version(instance)
     end
 
+    # Fresco's zoom percentage counts canvas units, so the burned view is laid
+    # out in the original's pixels like the live one — 100% is a pixel of the
+    # photo, not of the 1920px copy.
+    test "lays the burn out in the original's pixels", %{stored: file} do
+      add_burn!(file, "burned_large", {1920, 1080})
+
+      sized = %Phoenix.LiveView.Socket{
+        assigns: %{__changed__: %{}, file: %{file_uuid: file.uuid, width: 3840, height: 2160}}
+      }
+
+      {:noreply, socket} =
+        MediaCanvasViewer.handle_event("burn_stored", %{"variant" => "burned_large"}, sized)
+
+      assert %Fresco.Canvas{canvas: %{width: 3840, height: 2160}, images: [image]} =
+               socket.assigns.burn_canvas
+
+      assert image.width == 3840
+      assert {image.natural_width, image.natural_height} == {1920, 1080}
+    end
+
+    test "ink spilling past one edge keeps the other edge's scale", %{stored: file} do
+      # Spill below the picture: 1920x1200 for a 3840x2160 photo is the
+      # photo at half size plus 120px of ink, so the width ratio is the
+      # true one.
+      add_burn!(file, "burned_large", {1920, 1200})
+
+      sized = %Phoenix.LiveView.Socket{
+        assigns: %{__changed__: %{}, file: %{file_uuid: file.uuid, width: 3840, height: 2160}}
+      }
+
+      {:noreply, socket} =
+        MediaCanvasViewer.handle_event("burn_stored", %{"variant" => "burned_large"}, sized)
+
+      assert %Fresco.Canvas{canvas: %{width: 3840, height: 2400}} = socket.assigns.burn_canvas
+    end
+
     test "ignores a slot that is not a burn, or one with nothing stored", %{stored: file} do
       for params <- [%{"variant" => "original"}, %{"variant" => "burned_large"}] do
         {:noreply, socket} = MediaCanvasViewer.handle_event("burn_stored", params, socket(file))
