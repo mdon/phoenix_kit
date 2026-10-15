@@ -13,6 +13,7 @@ defmodule PhoenixKit.API.KeysTest do
   alias PhoenixKit.API.Keys.Key
   alias PhoenixKit.API.Keys.Token
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Users.Permissions
 
   setup do
     register_fake_module!()
@@ -140,7 +141,7 @@ defmodule PhoenixKit.API.KeysTest do
     test "a service user whose roles are within the creator's rights can own a key" do
       {_creator, _role, scope} = api_holder(["media", "media.manage"])
       {service_role, _} = role_with(["media"])
-      service = service_user_with([service_role.name])
+      service = service_user_with([service_role.name], scope)
 
       assert {:ok, key, _} =
                Keys.create_key(service, scope, %{name: "Robot", scopes: [read_scope()]})
@@ -149,13 +150,42 @@ defmodule PhoenixKit.API.KeysTest do
       assert key.created_by_uuid == scope.user.uuid
     end
 
-    test "a service user with a role beyond the creator's rights is refused" do
-      {_creator, _role, scope} = api_holder(["media"])
-      {big_role, _} = role_with(["media", "media.manage"])
-      service = service_user_with([big_role.name])
+    test "a service user another person created is refused, whatever its rights" do
+      {_creator, _role, scope} = api_holder(["media", "media.manage"])
+      {_other, _role, other_scope} = api_holder(["media", "media.manage"])
+      {service_role, _} = role_with(["media"])
+      theirs = service_user_with([service_role.name], other_scope)
+      owners = service_user_with([service_role.name])
 
       assert {:error, :owner_not_allowed} =
-               Keys.create_key(service, scope, %{name: "Robot", scopes: [read_scope()]})
+               Keys.create_key(theirs, scope, %{name: "Robot", scopes: [read_scope()]})
+
+      assert {:error, :owner_not_allowed} =
+               Keys.create_key(owners, scope, %{name: "Robot", scopes: [read_scope()]})
+
+      # The creator themselves, and an Owner, still can.
+      assert {:ok, _key, _} =
+               Keys.create_key(theirs, other_scope, %{name: "Robot", scopes: [read_scope()]})
+
+      assert {:ok, _key, _} =
+               Keys.create_key(theirs, scope_of(owner_user()), %{
+                 name: "Robot",
+                 scopes: [read_scope()]
+               })
+    end
+
+    test "a service user with a role beyond the creator's rights is refused" do
+      # The creator made it while they held the rights, then lost one.
+      {creator, role, scope} = api_holder(["media", "media.manage"])
+      {big_role, _} = role_with(["media", "media.manage"])
+      service = service_user_with([big_role.name], scope)
+      :ok = Permissions.revoke_permission(role.uuid, "media.manage")
+
+      assert {:error, :owner_not_allowed} =
+               Keys.create_key(service, scope_of(creator), %{
+                 name: "Robot",
+                 scopes: [read_scope()]
+               })
     end
 
     test "an Owner can give a key to any service user" do
@@ -183,7 +213,7 @@ defmodule PhoenixKit.API.KeysTest do
     test "a scope is checked against the service user's permissions, not the creator's" do
       {_creator, _role, scope} = api_holder(["media", "media.manage"])
       {service_role, _} = role_with(["media"])
-      service = service_user_with([service_role.name])
+      service = service_user_with([service_role.name], scope)
 
       assert {:error, :invalid_scopes} =
                Keys.create_key(service, scope, %{name: "Robot", scopes: [write_scope()]})

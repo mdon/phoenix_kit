@@ -41,6 +41,7 @@ defmodule PhoenixKit.API.Approvals do
   alias PhoenixKit.Activity
   alias PhoenixKit.API.Actor
   alias PhoenixKit.API.Approvals.Notifier
+  alias PhoenixKit.API.Config
   alias PhoenixKit.API.Confirm
   alias PhoenixKit.API.Confirm.Confirmation
   alias PhoenixKit.API.Executor
@@ -112,6 +113,7 @@ defmodule PhoenixKit.API.Approvals do
     ])
 
     expire_key(actor.key_uuid, now)
+    supersede(actor.key_uuid, args, now)
 
     case pending_row(actor.key_uuid, args.tool, args.input_hash, now) do
       %Confirmation{} = row ->
@@ -130,6 +132,22 @@ defmodule PhoenixKit.API.Approvals do
         where:
           c.actor_key_uuid == ^key_uuid and c.kind == "approval" and c.status == "pending" and
             c.expires_at <= ^now
+      ),
+      set: [status: "expired", input: nil, updated_at: now]
+    )
+  end
+
+  # A request repeated after the values it touches changed would otherwise get the old
+  # pending row back, with its outdated preview: the approver decides on a stale view and
+  # the approval then ends as `stale`. The old row is closed instead, so the repeat gets a
+  # fresh one.
+  defp supersede(key_uuid, args, now) do
+    repo().update_all(
+      from(c in Confirmation,
+        where:
+          c.actor_key_uuid == ^key_uuid and c.kind == "approval" and c.status == "pending" and
+            c.tool == ^args.tool and c.input_hash == ^args.input_hash and
+            c.fingerprint != ^args.fingerprint
       ),
       set: [status: "expired", input: nil, updated_at: now]
     )
@@ -548,7 +566,8 @@ defmodule PhoenixKit.API.Approvals do
     approver_uuid = Scope.user_uuid(approver)
 
     outcome =
-      with {:ok, actor} <- live_actor(row),
+      with :ok <- admin_api_on(),
+           {:ok, actor} <- live_actor(row),
            {:ok, tool} <- find_tool(row, actor),
            {:ok, input} <- revalidate(tool, row),
            :ok <- same_values(tool, row, input, actor, approver_uuid),
@@ -561,6 +580,14 @@ defmodule PhoenixKit.API.Approvals do
       {:stale, error} -> finish(row, "stale", %{"error" => error})
       {:failed, error} -> finish(row, "failed", %{"error" => error})
     end
+  end
+
+  # The `api_admin_enabled` switch is the operator's way to stop the admin API at once; an
+  # approval waiting for a decision must not run once it is off.
+  defp admin_api_on do
+    if Config.admin_enabled?(),
+      do: :ok,
+      else: {:failed, error(:not_found, "The admin API is switched off. Nothing was run.")}
   end
 
   defp live_actor(row) do
@@ -726,7 +753,7 @@ defmodule PhoenixKit.API.Approvals do
   # reporting progress) and the handler then succeeds, the row is corrected to `executed`:
   # the write happened. No other outcome reopens a swept row, and a row that is not
   # `approved` or `executing` can never be run again, so this cannot run it twice.
-  defp finish(%Confirmation{uuid: uuid}, status, result) do
+  defp finish(%Confirmation{uuid: uuid} = row, status, result) do
     now = second(DateTime.utc_now())
     current = repo().get(Confirmation, uuid)
 
@@ -737,7 +764,13 @@ defmodule PhoenixKit.API.Approvals do
 
     write_final(uuid, status, result, now, status == "executed" and swept?(current))
 
-    final = repo().get!(Confirmation, uuid)
+    # The key (or its owner) can be deleted while the handler runs, which takes the row with
+    # it (ON DELETE CASCADE). The operation has run all the same: answer with what was
+    # written rather than raise after the write.
+    final =
+      repo().get(Confirmation, uuid) ||
+        %{row | status: status, result: result, input: nil, updated_at: now}
+
     log_finished(final)
     broadcast(uuid)
     final

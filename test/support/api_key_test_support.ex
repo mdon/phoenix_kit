@@ -137,10 +137,14 @@ defmodule PhoenixKit.API.KeyTestSupport do
   @doc """
   A service user (`api_only`) holding `role_names`, built through `ServiceUsers.create/2`
   by the seeded Owner, so the row has the shape production creates (username, creator,
-  address, roles). The Owner may give any role but the Owner role.
+  address, roles). The Owner may give any role but the Owner role. `creator_scope` is the
+  scope of whoever creates it (the seeded Owner by default): a service user is the
+  creator's to hand keys to.
   """
-  def service_user_with(role_names) do
-    {:ok, user} = ServiceUsers.create(scope_of(owner_user()), %{roles: role_names})
+  def service_user_with(role_names, creator_scope \\ nil) do
+    {:ok, user} =
+      ServiceUsers.create(creator_scope || scope_of(owner_user()), %{roles: role_names})
+
     user
   end
 

@@ -132,6 +132,26 @@ defmodule PhoenixKit.API.ValidatorScalarsTest do
     end
   end
 
+  describe "pattern after a length bound" do
+    test "is not run on a value that already fails maxLength" do
+      # An unanchored pattern would also fail here; only the length error is reported, so
+      # the (costly) pattern is never run over an over-long value.
+      schema = %{"type" => "string", "maxLength" => 3, "pattern" => "^[0-9]+$"}
+
+      assert {:error, [%{message: "must be at most 3 characters"}]} =
+               Validator.validate(schema, "abcdef")
+    end
+
+    test "still runs when the length is within bounds" do
+      schema = %{"type" => "string", "maxLength" => 3, "pattern" => "^[0-9]+$"}
+
+      assert {:error, [%{message: "must match the pattern ^[0-9]+$"}]} =
+               Validator.validate(schema, "abc")
+
+      assert {:ok, "123"} = Validator.validate(schema, "123")
+    end
+  end
+
   describe "pattern" do
     test "matches unanchored, as JSON Schema does" do
       schema = %{"type" => "string", "pattern" => "^[A-Z]{3}-\\d+$"}

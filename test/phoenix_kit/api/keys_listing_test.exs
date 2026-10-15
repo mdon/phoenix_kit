@@ -46,7 +46,7 @@ defmodule PhoenixKit.API.KeysListingTest do
     test "an api holder sees the keys they created for a service user too" do
       {_creator, _role, scope} = api_holder(["media"])
       {service_role, _} = role_with(["media"])
-      service = service_user_with([service_role.name])
+      service = service_user_with([service_role.name], scope)
       {key, _} = create_key!(service, scope)
 
       assert [%Key{uuid: uuid}] = Keys.list_keys(scope)

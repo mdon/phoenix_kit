@@ -344,8 +344,17 @@ defmodule PhoenixKit.API.Validator do
   # --- arrays --------------------------------------------------------------
 
   defp array(schema, list, path) do
-    {items, item_errors} = items(Map.get(schema, "items"), list, path)
-    {items, Enum.take(size_errors(schema, length(list), path) ++ item_errors, @max_errors)}
+    size = length(list)
+    max = Map.get(schema, "maxItems")
+
+    # A list over `maxItems` is refused without walking its elements: the walk is the
+    # costly part and the answer is an error whatever the elements are.
+    if is_integer(max) and size > max do
+      {list, Enum.take(size_errors(schema, size, path), @max_errors)}
+    else
+      {items, item_errors} = items(Map.get(schema, "items"), list, path)
+      {items, Enum.take(size_errors(schema, size, path) ++ item_errors, @max_errors)}
+    end
   end
 
   # Same discipline as `object/3`: errors are consed in reverse, and the walk
@@ -388,16 +397,23 @@ defmodule PhoenixKit.API.Validator do
     min = Map.get(schema, "minLength")
     max = Map.get(schema, "maxLength")
 
-    [
-      if(too_short?(value, min),
-        do: error(path, "must be at least #{plural(min, "character")}", min)
-      ),
-      if(too_long?(value, max),
-        do: error(path, "must be at most #{plural(max, "character")}", max)
-      ),
-      pattern_error(Map.get(schema, "pattern"), value, path)
-    ]
-    |> Enum.reject(&is_nil/1)
+    length_errors =
+      [
+        if(too_short?(value, min),
+          do: error(path, "must be at least #{plural(min, "character")}", min)
+        ),
+        if(too_long?(value, max),
+          do: error(path, "must be at most #{plural(max, "character")}", max)
+        )
+      ]
+      |> Enum.reject(&is_nil/1)
+
+    # The pattern is the costly check (a module-authored regex over the whole string): a
+    # value that already fails a length bound is refused without running it.
+    case length_errors do
+      [] -> Enum.reject([pattern_error(Map.get(schema, "pattern"), value, path)], &is_nil/1)
+      _failed -> length_errors
+    end
   end
 
   # Lengths count code points. A string of N bytes has between ceil(N / 4) and N

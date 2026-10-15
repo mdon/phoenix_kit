@@ -14,6 +14,7 @@ defmodule PhoenixKit.API.ApprovalsRequestTest do
   alias PhoenixKit.API.Confirm.Confirmation
   alias PhoenixKit.API.KeyTestSupport
   alias PhoenixKit.PubSub.Manager, as: PubSub
+  alias PhoenixKit.Test.ApiFlowStore
   alias PhoenixKit.Test.ApiHarness
   alias PhoenixKit.Users.Permissions
 
@@ -70,6 +71,24 @@ defmodule PhoenixKit.API.ApprovalsRequestTest do
       assert entry.actor_uuid == agent.owner.uuid
       assert entry.metadata["tool"] == @tool
       assert entry.metadata["key_prefix"] == agent.key.prefix
+    end
+
+    test "a repeat after the touched values changed closes the old approval and makes a new one",
+         %{agent: agent} do
+      {:ok, first, :created} = queue(agent, @tool, %{"ids" => ["a"]})
+      ApiFlowStore.put("a", 999)
+
+      assert {:ok, second, :created} = queue(agent, @tool, %{"ids" => ["a"]})
+
+      assert second.uuid != first.uuid
+      assert row!(first).status == "expired"
+      assert row!(first).input == nil
+      assert row!(second).status == "pending"
+      assert row!(second).fingerprint != first.fingerprint
+
+      # Asked again with nothing changed, it is the new one that comes back.
+      assert {:ok, again, :existing} = queue(agent, @tool, %{"ids" => ["a"]})
+      assert again.uuid == second.uuid
     end
 
     test "an identical pending request returns the existing approval", %{agent: agent} do

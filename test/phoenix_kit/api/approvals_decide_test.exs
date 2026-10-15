@@ -301,6 +301,16 @@ defmodule PhoenixKit.API.ApprovalsDecideTest do
       assert_nothing_written(row)
     end
 
+    test "the admin API switched off since the request: failed with not_found, nothing written",
+         %{agent: agent, owner_scope: scope} do
+      row = pending!(agent)
+      :ok = ApiHarness.put_setting("api_admin_enabled", "false")
+
+      assert {:ok, %{status: "failed"}} = Approvals.approve(row.uuid, scope)
+      assert error_code(row) == "not_found"
+      assert_nothing_written(row)
+    end
+
     test "a tool hidden by api_disabled_tools: failed with not_found", %{
       agent: agent,
       owner_scope: scope
@@ -473,6 +483,27 @@ defmodule PhoenixKit.API.ApprovalsDecideTest do
       assert Confirm.sweep_stuck() == 0
       assert {:error, :not_pending} = Approvals.approve(row.uuid, scope)
       refute_received {:held, _worker}
+    end
+
+    test "a key deleted while the handler runs does not make approve/3 raise", %{
+      agent: agent,
+      owner_scope: scope
+    } do
+      ApiFlowStore.set_gate(self())
+      row = pending!(agent, "flowkit.progress_write", %{"hold" => true})
+      caller = Task.async(fn -> Approvals.approve(row.uuid, scope) end)
+
+      assert_receive {:held, worker}, 5_000
+
+      # The confirmation row goes with its key (ON DELETE CASCADE).
+      Repo.delete_all(from(k in Key, where: k.uuid == ^agent.key.uuid))
+      assert Repo.get(Confirmation, row.uuid) == nil
+
+      send(worker, :release)
+
+      assert {:ok, done} = Task.await(caller, 5_000)
+      assert done.status == "executed"
+      assert done.uuid == row.uuid
     end
 
     test "a sweep landing between the finish's read and its write still ends executed", %{

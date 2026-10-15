@@ -144,15 +144,26 @@ defmodule PhoenixKit.API.Keys do
 
   defp owner_allowed(%User{uuid: uuid} = owner, %Scope{user: %User{uuid: uuid}}), do: {:ok, owner}
 
+  # A service user is the creator's to hand keys to (an Owner may use any), the same set
+  # `ServiceUsers.list/1` shows; and the creator must hold everything it holds.
   defp owner_allowed(%User{api_only: true} = owner, creator_scope) do
     owner_permissions = owner |> scope_of() |> Scope.accessible_modules() |> MapSet.to_list()
 
-    if Scope.has_all_module_access?(creator_scope, owner_permissions),
-      do: {:ok, owner},
-      else: {:error, :owner_not_allowed}
+    if service_user_of?(owner, creator_scope) and
+         Scope.has_all_module_access?(creator_scope, owner_permissions),
+       do: {:ok, owner},
+       else: {:error, :owner_not_allowed}
   end
 
   defp owner_allowed(_owner, _creator_scope), do: {:error, :owner_not_allowed}
+
+  defp service_user_of?(
+         %User{created_by_uuid: created_by},
+         %Scope{user: %User{uuid: uuid}} = scope
+       ),
+       do: Scope.owner?(scope) or (is_binary(created_by) and created_by == uuid)
+
+  defp service_user_of?(_owner, _scope), do: false
 
   defp authorize_scopes(owner, changeset) do
     requested = Ecto.Changeset.get_field(changeset, :scopes) || []
@@ -388,6 +399,8 @@ defmodule PhoenixKit.API.Keys do
     :ok
   rescue
     _ -> :ok
+  catch
+    :exit, _ -> :ok
   end
 
   # --- Effective scopes --------------------------------------------------

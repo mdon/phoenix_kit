@@ -127,6 +127,10 @@ defmodule PhoenixKit.ModuleRegistry do
       )
 
       false
+  catch
+    # A dead database pool exits instead of raising, and `enabled?/0` usually reads a
+    # setting. This runs on the API request path, so an exit must read as "not enabled".
+    :exit, _reason -> false
   end
 
   @doc """

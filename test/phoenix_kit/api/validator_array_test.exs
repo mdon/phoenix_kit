@@ -17,6 +17,17 @@ defmodule PhoenixKit.API.ValidatorArrayTest do
   describe "minItems, maxItems and items" do
     @list %{"type" => "array", "minItems" => 1, "maxItems" => 3, "items" => %{"type" => "string"}}
 
+    test "a list over maxItems is refused without looking at its elements" do
+      # Elements that would each fail `items` are not reported: only the size error is, so
+      # the cost of a refusal does not grow with the list.
+      schema = %{"type" => "array", "maxItems" => 2, "items" => %{"type" => "string"}}
+
+      assert [%{message: "must have at most 2 items", path: path}] =
+               errors(schema, [1, 2, 3])
+
+      assert path == ""
+    end
+
     test "accept a list within the bounds" do
       assert {:ok, ["a"]} = Validator.validate(@list, ["a"])
       assert {:ok, ["a", "b", "c"]} = Validator.validate(@list, ["a", "b", "c"])
