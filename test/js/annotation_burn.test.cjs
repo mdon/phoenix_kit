@@ -429,3 +429,8 @@ test("rubbing out the last shape re-renders the clean picture whenever a burn is
   assert.ok(section.includes('if (now === "" && !this._burned && this.el.dataset.hasBurn !== "true") return;'),
     "an empty board skips only when there is no burn — by fingerprint or by the page's own word");
 });
+
+test("a burn is never composed bigger than the picture itself", () => {
+  assert.ok(/sourceWidth = Math\.min\(sourceWidth, W\);\s*var k = sourceWidth \/ W;/.test(section),
+    "the ladder's nominal widths cannot upscale a small picture");
+});

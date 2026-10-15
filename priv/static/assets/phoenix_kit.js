@@ -4754,6 +4754,14 @@ if (typeof window.Chart === "undefined") {
         });
       } catch (_) { /* malformed list → the on-screen picture stands */ }
     }
+    // Never past the picture's own pixels. The ladder lists each rung at
+    // its configured box (large = 1920), not at the size it really came out
+    // — a 500px picture's "large" is 500px — so a small picture was composed
+    // at nearly four times its size: the burned copy then opened at 100% as
+    // a huge image beside the original's true-size one, and a clean burn of
+    // it no longer matched the picture it was made from. The canvas width
+    // IS the picture's natural width.
+    sourceWidth = Math.min(sourceWidth, W);
     var k = sourceWidth / W;
 
     // The overlay is laid out in CONTAINER px. Three image points recover
