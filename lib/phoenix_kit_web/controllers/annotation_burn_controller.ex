@@ -372,13 +372,16 @@ defmodule PhoenixKitWeb.AnnotationBurnController do
     end
   end
 
-  # A number the client sent, or nil — never a float it did not send.
-  defp layout_number(value) do
-    case Float.parse(to_string(value || "")) do
+  # A number the client sent, or nil — never a float it did not send. A
+  # nested param (`canvas_w[a]=1`) arrives as a map and is no number.
+  defp layout_number(value) when is_binary(value) do
+    case Float.parse(value) do
       {n, ""} -> n
       _ -> nil
     end
   end
+
+  defp layout_number(_), do: nil
 
   @doc false
   # The layout carried into the overlay's real size, in whole pixels.

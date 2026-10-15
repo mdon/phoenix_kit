@@ -48,6 +48,22 @@ defmodule PhoenixKitWeb.AnnotationBurnFormatTest do
     assert Burn.layout_from_params(Map.delete(params, "picture_y")) == :error
   end
 
+  test "a nested param in the layout is no number, and never crashes the request" do
+    params = %{
+      "canvas_w" => "800",
+      "canvas_h" => "600",
+      "picture_x" => "0",
+      "picture_y" => "0",
+      "picture_w" => "800",
+      "picture_h" => "600"
+    }
+
+    for nested <- [%{"a" => "1"}, ["800"], [1, 2], nil] do
+      assert Burn.layout_from_params(%{params | "canvas_w" => nested}) == :error,
+             inspect(nested)
+    end
+  end
+
   test "the fingerprint is written before the file's change is announced" do
     src = File.read!("lib/phoenix_kit_web/controllers/annotation_burn_controller.ex")
 

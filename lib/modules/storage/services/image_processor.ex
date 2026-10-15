@@ -752,6 +752,9 @@ defmodule PhoenixKit.Modules.Storage.ImageProcessor do
     with {:ok, source} <- pinned_input(source_path, if(still?, do: "[0]", else: "")),
          {:ok, overlay} <- pinned_input(overlay_path, "[0]"),
          :ok <- check_pixel_budget(cw, ch, @resize_max_pixels),
+         # The picture's box is the client's claim, scaled by the markup's real
+         # size: a tiny canvas with a huge picture asks for a gigantic resize.
+         :ok <- check_pixel_budget(w, h, @resize_max_pixels),
          :ok <- if(still?, do: :ok, else: check_composite_budget(source_path, cw, ch)) do
       out =
         if still?, do: ["png:#{output_path}"], else: ["-layers", "optimize", "gif:#{output_path}"]
