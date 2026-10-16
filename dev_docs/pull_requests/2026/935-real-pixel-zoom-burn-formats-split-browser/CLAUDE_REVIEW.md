@@ -72,3 +72,13 @@ unconditional.
 - **Replacement of an old-format burn:** `publish_variant` deletes the old row and the now-unreferenced object when the
   key changes; covered by the new integration test.
 - **Floors in `mix.exs`** (`fresco ~> 0.14.0`, `tessera ~> 0.3.9`, `etcher ~> 0.22.0`) match the lock and their comments.
+
+## Follow-up check of the Codex fixes (`cefeb66e3`)
+
+Both findings hold. `composite_animation/5` ran `-coalesce` and `-resize WxH!` on the full frames before `-extent`
+cropped them, so bounding frames × *canvas* pixels left the intermediate frames unbounded; the budget now uses the largest
+of source, resized picture and canvas, and the source passes the per-image budget (still fallback included). The capture
+cleanup moved into `finally`, which also covers the hover/selected classes my review missed (I only recorded the style
+tag). Re-run here: the burn suites (composite animation, burn formats end to end, controllers, burned copy) 69 tests,
+0 failures; `annotation_burn.test.cjs` passes. Nothing to add; the limitations Codex lists (WebP encoder, `burn_scale/3`
+estimate, no interactive browser check) are the ones recorded above.
