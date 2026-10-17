@@ -273,6 +273,7 @@ defmodule PhoenixKit.API.Executor do
       input_hash: nil,
       claim: nil,
       replayed?: false,
+      held_again?: false,
       store?: true,
       outcome: nil,
       confirmation: nil,
@@ -594,7 +595,8 @@ defmodule PhoenixKit.API.Executor do
   # A request that ended with an answer: the handler's, or one a `Flow` step
   # ended (a preview, a confirmation prompt, a replay). The audit entry is
   # written here and the idempotency claim is finished; the answer of a replay
-  # carries the `idempotent-replayed` header.
+  # carries the `idempotent-replayed` header, and so does the held answer of a
+  # call that an approval already waits for (`held_again?`).
   defp complete(%{body: body, result: result} = state) do
     log_write(state, state.outcome || "ok", nil)
     Flow.finish(state)
@@ -645,6 +647,9 @@ defmodule PhoenixKit.API.Executor do
   end
 
   defp replay_headers(%{replayed?: true, headers: headers}),
+    do: headers ++ [{"idempotent-replayed", "true"}]
+
+  defp replay_headers(%{held_again?: true, headers: headers}),
     do: headers ++ [{"idempotent-replayed", "true"}]
 
   defp replay_headers(%{headers: headers}), do: headers
