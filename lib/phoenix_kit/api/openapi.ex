@@ -20,9 +20,8 @@ defmodule PhoenixKit.API.OpenAPI do
       optional `Idempotency-Key` request header, can answer with the
       `Idempotent-Replayed` header on a replay (for the admin API also on the
       held answer of an operation that already waits for approval), and lists
-      `409` (a confirmation
-      code that is not valid, an idempotency key reused for another request or
-      still in progress);
+      `409` (a confirmation code that is not valid, an idempotency key reused
+      for another request or still in progress);
     * errors are RFC 9457 `application/problem+json`, defined once in
       `components.schemas.Problem`.
 
@@ -315,7 +314,8 @@ defmodule PhoenixKit.API.OpenAPI do
       "in" => "header",
       "required" => false,
       "description" =>
-        "Makes a retry of this write safe: the same key and request replay the first answer. " <>
+        "Makes a retry of this write safe: the same key and request replay the first answer, " <>
+          "unless that answer was not stored (a held, preview or error answer); the key is then free. " <>
           "The same value may be sent as the idempotency_key field instead; both with " <>
           "different values is a 422.",
       "schema" =>
