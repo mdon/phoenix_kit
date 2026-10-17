@@ -366,12 +366,60 @@ defmodule PhoenixKitWeb.Users.SessionMultiTest do
           @accounts_cookie => cookie_value(added, @accounts_cookie)
         })
 
-      # Both accounts are back, root first, and the restored session is signed in
-      # as the REMEMBERED identity rather than whichever account was last active.
+      # Both accounts are back, root first, and the session resumes on the
+      # account that was ACTIVE (the one just added), not on the root.
       assert [root_token, second_token] = get_session(restarted)["pk_session_accounts"]
-      assert get_session(restarted)["user_token"] == root_token
+      assert get_session(restarted)["user_token"] == second_token
       assert Auth.get_user_by_session_token(root_token).uuid == root.uuid
       assert Auth.get_user_by_session_token(second_token).uuid == other.uuid
+    end
+
+    test "the account switched to is the one a lost session resumes on" do
+      Settings.update_boolean_setting("multi_session_enabled", true)
+      root = make(nil)
+      other = make(nil)
+
+      {logged_in, added} = added_account_conn(root, other)
+      [root_row, other_row] = MultiSession.list_accounts(get_session(added))
+
+      cookies = fn conn ->
+        %{
+          @remember_me_cookie => cookie_value(logged_in, @remember_me_cookie),
+          @accounts_cookie =>
+            cookie_value(conn, @accounts_cookie) || cookie_value(added, @accounts_cookie)
+        }
+      end
+
+      # Back to the root: the marker is cleared, so the restore lands on the root.
+      to_root = put(added, Routes.path("/users/session/active"), %{"ref" => root_row.ref})
+      restarted = restart_browser(cookies.(to_root))
+      assert [root_token, _] = get_session(restarted)["pk_session_accounts"]
+      assert get_session(restarted)["user_token"] == root_token
+
+      # And forward again to the second account.
+      to_other = put(to_root, Routes.path("/users/session/active"), %{"ref" => other_row.ref})
+      restarted = restart_browser(cookies.(to_other))
+      assert [_, other_token] = get_session(restarted)["pk_session_accounts"]
+      assert get_session(restarted)["user_token"] == other_token
+    end
+
+    test "removing the active account resumes on the root" do
+      Settings.update_boolean_setting("multi_session_enabled", true)
+      root = make(nil)
+      other = make(nil)
+
+      {logged_in, added} = added_account_conn(root, other)
+      [_, second] = MultiSession.list_accounts(get_session(added))
+      removed = delete(added, Routes.path("/users/session/accounts/#{second.ref}"))
+
+      restarted =
+        restart_browser(%{
+          @remember_me_cookie => cookie_value(logged_in, @remember_me_cookie),
+          @accounts_cookie => cookie_value(removed, @accounts_cookie)
+        })
+
+      assert Auth.get_user_by_session_token(get_session(restarted)["user_token"]).uuid ==
+               root.uuid
     end
 
     test "a session-only login persists nothing" do
