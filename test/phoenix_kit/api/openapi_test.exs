@@ -88,6 +88,21 @@ defmodule PhoenixKit.API.OpenAPITest do
   defp operation(document, tool_name), do: document["paths"]["/" <> tool_name]["post"]
 
   describe "the document" do
+    test "the description says the body is read as JSON and what a held call answers" do
+      admin = doc([admin_tool([])], :admin)["info"]["description"]
+      public = doc([admin_tool([])], :public)["info"]["description"]
+
+      for text <- [admin, public],
+          do: assert(text =~ "always read as JSON, whatever its Content-Type")
+
+      assert admin =~ "HTTP 200"
+      assert admin =~ "executed: false"
+      assert admin =~ "pending_approval"
+      assert admin =~ "same approval_id"
+      assert admin =~ "Idempotent-Replayed"
+      refute public =~ "pending_approval"
+    end
+
     test "OpenAPI 3.1 with the info, the server and (admin) the bearer security" do
       document = doc([admin_tool([])], :admin, version: "1.2")
 

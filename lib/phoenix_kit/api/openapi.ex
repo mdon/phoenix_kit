@@ -137,12 +137,22 @@ defmodule PhoenixKit.API.OpenAPI do
 
   defp description(:admin) do
     "Admin tools of the shop. Every call is POST /<tool> with a JSON object; send the API key as " <>
-      "Authorization: Bearer. Errors are application/problem+json."
+      "Authorization: Bearer. " <>
+      json_body_text() <>
+      " A dangerous call from a key that needs approval is not run: it is answered with HTTP 200 " <>
+      "and executed: false, status: pending_approval, an approval_id and a preview, and runs only " <>
+      "when an owner approves it. Asking again for the same operation (with or without an " <>
+      "Idempotency-Key) answers with the same approval_id and the Idempotent-Replayed header. " <>
+      "Errors are application/problem+json."
   end
 
   defp description(:public) do
     "Public tools of the shop. Every call is POST /<tool> with a JSON object; no key is needed. " <>
-      "Errors are application/problem+json."
+      json_body_text() <> " Errors are application/problem+json."
+  end
+
+  defp json_body_text do
+    "The request body is always read as JSON, whatever its Content-Type says."
   end
 
   # --- tags and paths -----------------------------------------------------------
@@ -316,7 +326,8 @@ defmodule PhoenixKit.API.OpenAPI do
   defp replayed_header do
     %{
       "description" =>
-        "true when this is the stored answer of an earlier request with the same key.",
+        "true when this is the stored answer of an earlier request with the same key, or the " <>
+          "pending_approval answer of an operation that already waits for approval.",
       "schema" => %{"type" => "string", "enum" => ["true"]}
     }
   end

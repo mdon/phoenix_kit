@@ -63,6 +63,8 @@ defmodule PhoenixKit.API.MCPTransportTest do
       assert version == PhoenixKit.version()
       assert title =~ "admin API"
       assert result["instructions"] =~ "system_get_identity"
+      assert result["instructions"] =~ "executed false, status pending_approval"
+      assert result["instructions"] =~ "same approval_id"
     end
 
     test "echoes every supported revision", %{token: token} do
