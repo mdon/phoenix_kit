@@ -3513,11 +3513,7 @@ defmodule PhoenixKitWeb.Users.Auth do
           DialectMapper.valid_base_code?(locale) and locale_allowed?(locale) ->
             process_valid_locale(conn, locale)
 
-          # Valid predefined but not enabled → redirect to default
-          DialectMapper.valid_base_code?(locale) ->
-            redirect_invalid_locale(conn, locale)
-
-          # Invalid base code → redirect to default
+          # Disabled or invalid base code → redirect to default
           true ->
             redirect_invalid_locale(conn, locale)
         end
