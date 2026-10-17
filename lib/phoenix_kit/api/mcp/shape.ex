@@ -153,8 +153,8 @@ defmodule PhoenixKit.API.MCP.Shape do
       "A failed call comes back as a result with isError set; the code in square brackets is stable and " <>
       "the second text item is the full problem document. A dangerous call from a key that needs approval " <>
       "is not run: it comes back as a normal result with executed false, status pending_approval and an " <>
-      "approval_id, and runs only when an owner approves it; asking again for the same operation returns " <>
-      "the same approval_id with the idempotent-replayed header."
+      "approval_id, and runs only when an owner approves it; while that approval is still waiting, asking " <>
+      "again for the same operation returns the same approval_id."
   end
 
   def instructions(:public) do

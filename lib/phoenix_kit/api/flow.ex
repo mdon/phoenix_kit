@@ -15,9 +15,9 @@ defmodule PhoenixKit.API.Flow do
 
   The request state is the executor's map. Besides its own keys the steps read and set
   `control`, `dry_run?`, `input_hash`, `claim`, `replayed?`, `held_again?`, `store?`,
-  `outcome`, `confirmation`, `preview` and `result` (the answer as a decoded map, for a transport
-  that wants the map rather than the text). The executor resolves `request_context` once,
-  before the gate, for every context the steps build.
+  `outcome`, `confirmation`, `preview` and `result` (the answer as a decoded map, for a
+  transport that wants the map rather than the text). The executor resolves
+  `request_context` once, before the gate, for every context the steps build.
   """
 
   require Logger

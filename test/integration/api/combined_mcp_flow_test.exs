@@ -323,6 +323,9 @@ defmodule PhoenixKit.API.CombinedMcpFlowTest do
 
       refute structured(other)["approval_id"] == structured(first)["approval_id"]
       assert get_resp_header(other, "idempotent-replayed") == []
+
+      assert audits(gated.key.uuid) ==
+               List.duplicate({"flowkit.delete_items", "pending_approval", nil}, 4)
     end
 
     test "gets pending_approval over REST, and the same operation is one approval on both",

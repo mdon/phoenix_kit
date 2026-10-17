@@ -98,9 +98,23 @@ defmodule PhoenixKit.API.OpenAPITest do
       assert admin =~ "HTTP 200"
       assert admin =~ "executed: false"
       assert admin =~ "pending_approval"
+      assert admin =~ "still waiting"
       assert admin =~ "same approval_id"
       assert admin =~ "Idempotent-Replayed"
       refute public =~ "pending_approval"
+    end
+
+    test "the replay header says a held answer is a replay in the admin document only" do
+      tools = [admin_tool([]), write_tool(), public_tool()]
+      admin = doc(tools, :admin)["components"]["headers"]["IdempotentReplayed"]["description"]
+      public_document = doc(tools, :public)
+      public = public_document["components"]["headers"]["IdempotentReplayed"]["description"]
+
+      assert admin =~ "same key"
+      assert admin =~ "already waits for approval"
+      assert public =~ "same key"
+      refute JSON.encode!(public_document["components"]) =~ "pending_approval"
+      refute JSON.encode!(public_document["info"]) =~ "pending_approval"
     end
 
     test "OpenAPI 3.1 with the info, the server and (admin) the bearer security" do

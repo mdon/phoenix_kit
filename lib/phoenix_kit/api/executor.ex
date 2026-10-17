@@ -58,7 +58,9 @@ defmodule PhoenixKit.API.Executor do
        store, a running twin is `409`.
     8. **Danger** (`Flow.gate/1`): `dry_run` answers the preview; a dangerous
        operation answers a preview and a confirmation code, or is queued for
-       approval; with a valid code it runs.
+       approval (a repeat of an operation that already waits gets the same
+       approval back, marked with the replay header but not stored, and still
+       audited); with a valid code it runs.
 
   Each step is one function taking and returning the request state, chained
   in `execute/4`. A step may also end the request with `{:done, state}`: the

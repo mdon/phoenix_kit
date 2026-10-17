@@ -64,7 +64,9 @@ defmodule PhoenixKit.API.MCPTransportTest do
       assert title =~ "admin API"
       assert result["instructions"] =~ "system_get_identity"
       assert result["instructions"] =~ "executed false, status pending_approval"
+      assert result["instructions"] =~ "still waiting"
       assert result["instructions"] =~ "same approval_id"
+      refute result["instructions"] =~ "idempotent-replayed"
     end
 
     test "echoes every supported revision", %{token: token} do
