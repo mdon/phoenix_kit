@@ -760,6 +760,8 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   Tokens that no longer resolve to an active user are dropped *and* pruned from
   the cookie: this is the only pass that ever looks at them, so without it a
   revoked account would be re-offered for the cookie's full life.
+  The root must still resolve too: an added account cannot revive a remembered
+  identity whose session expired, was revoked, or belongs to an inactive user.
 
   Restores nothing while `multi_session_enabled` is off, and takes the cookie
   with it — turning the feature off should not leave a browser quietly holding
@@ -782,7 +784,11 @@ defmodule PhoenixKitWeb.Users.MultiSession do
         forget_persisted_accounts(conn)
 
       {tokens, active} ->
-        live = Enum.filter(tokens, &resolves_to_active_user?/1)
+        live =
+          if resolves_to_active_user?(root_token),
+            do: Enum.filter(tokens, &resolves_to_active_user?/1),
+            else: []
+
         active = if active in live, do: active
 
         conn
