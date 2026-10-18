@@ -5778,8 +5778,9 @@ defmodule PhoenixKit.Modules.Storage do
       row's dedup key (`user_file_checksum`) is one no upload can compute, so
       a later plain upload never comes back as this very row (it is a new
       row, or a clone of this one once it is active, like any active file).
-      An image edit or its revert gives the row the real key again (when the
-      uploader has no other row with it), and the row is back in dedup.
+      An image edit gives the row the key of the edited bytes, and a revert
+      the key of the original's (each only when the uploader has no other row
+      with that key), so the row is back in dedup after either.
       The stored objects are content-addressed, so the rows of one uploader
       still name the same keys; they go when the last row naming them is
       deleted (`delete_file_completely/1`). Nothing limits how many such rows
@@ -5789,7 +5790,11 @@ defmodule PhoenixKit.Modules.Storage do
       directory, which a call inside a transaction of your own holds until
       that transaction ends: call it outside one; if several files must go
       in one transaction, upload them in a stable order (by checksum, say),
-      or two such transactions can deadlock (Postgres `40P01`).
+      or two such transactions can deadlock (Postgres `40P01`). Only an
+      insert that takes the lock is safe against a deletion of another row of
+      the same bytes in the moment before its object is recorded, and a plain
+      upload does not take it: the guarantee holds when every concurrent
+      writer of those bytes passes `dedup: false`.
 
   Whatever `file_type` the caller claims is cross-checked against the mime
   evidence before the row is written (see `determine_file_type/2`) — a

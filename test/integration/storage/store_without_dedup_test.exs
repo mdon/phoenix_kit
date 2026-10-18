@@ -16,6 +16,7 @@ defmodule PhoenixKit.Modules.Storage.StoreWithoutDedupTest do
   alias PhoenixKit.Modules.Storage.Bucket
   alias PhoenixKit.Modules.Storage.Libraries
   alias PhoenixKit.Modules.Storage.Manager
+  alias PhoenixKit.Modules.Storage.VariantGenerator
   alias PhoenixKit.Users.Auth
 
   @buckets_cache :phoenix_kit_buckets_cache
@@ -439,6 +440,67 @@ defmodule PhoenixKit.Modules.Storage.StoreWithoutDedupTest do
       assert :ok = Storage.delete_stored_objects([key], ignore_uploads_of: [mine.uuid])
       refute exists?(key)
     end
+
+    # The variant job runs on a file that is still `processing`. Its own row,
+    # which has no instance for the key being dropped, must not hold the key.
+    defp prepared!(content) do
+      path =
+        Path.join(System.tmp_dir!(), "pk_no_dedup_variant_#{System.unique_integer([:positive])}")
+
+      File.write!(path, content)
+      path
+    end
+
+    test "a processing file's variant replaced under a new key loses the old object", ctx do
+      assert {:ok, file} = store(ctx.alice, "republished #{ctx.n}", dedup: false)
+      assert file.status == "processing"
+
+      old_key = Path.join(file.file_path, "old-annotated.txt")
+      {:ok, _} = Manager.store_file(prepared!("old"), path_prefix: old_key)
+
+      {:ok, _} =
+        Storage.create_file_instance(%{
+          variant_name: "annotated",
+          file_name: old_key,
+          mime_type: "text/plain",
+          ext: "txt",
+          checksum: "old",
+          size: 3,
+          processing_status: "completed",
+          file_uuid: file.uuid
+        })
+
+      assert {:ok, instance} =
+               VariantGenerator.store_prepared_variant(
+                 file,
+                 "annotated",
+                 prepared!("new"),
+                 "txt",
+                 "text/plain"
+               )
+
+      assert instance.file_name != old_key
+      assert exists?(instance.file_name)
+      refute exists?(old_key), "the file's own processing row held its replaced variant"
+    end
+
+    test "a variant dropped as stale loses its object though the file is processing", ctx do
+      assert {:ok, file} = store(ctx.alice, "stale variant #{ctx.n}", dedup: false)
+      assert file.status == "processing"
+      variant_key = Path.join(file.file_path, "#{file.file_checksum}_annotated.txt")
+
+      assert {:error, :stale_source} =
+               VariantGenerator.store_prepared_variant(
+                 file,
+                 "annotated",
+                 prepared!("stale"),
+                 "txt",
+                 "text/plain",
+                 source_key: "not/the/original.txt"
+               )
+
+      refute exists?(variant_key), "the file's own processing row held its dropped variant"
+    end
   end
 
   describe "what ignore_uploads_of: and exclude_file_uuids: are for" do
@@ -455,25 +517,33 @@ defmodule PhoenixKit.Modules.Storage.StoreWithoutDedupTest do
   end
 
   describe "inside a transaction of the caller's" do
-    defp advisory_locks_held do
+    # Whether this session holds `lock_storage_paths/1`'s advisory lock for
+    # `path`: `pg_advisory_xact_lock(hashtext(..))` shows in `pg_locks` as a
+    # single bigint key, split into `classid` (high half) and `objid`.
+    defp path_lock_held?(path) do
       %{rows: [[count]]} =
         Repo.query!(
-          "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND pid = pg_backend_pid()"
+          """
+          SELECT count(*) FROM pg_locks
+          WHERE locktype = 'advisory' AND objsubid = 1 AND pid = pg_backend_pid()
+            AND ((classid::bigint << 32) | objid::bigint) =
+                hashtext('phoenix_kit_storage_path:' || $1::text)::bigint
+          """,
+          [path]
         )
 
-      count
+      count == 1
     end
 
-    test "only a `dedup: false` upload takes the object directory's lock", ctx do
+    test "only a `dedup: false` upload takes the lock of the object's directory", ctx do
       assert {:ok, :done} =
                Repo.transaction(fn ->
-                 held = advisory_locks_held()
+                 assert {:ok, plain} = store(ctx.alice, "gate plain #{ctx.n}")
+                 refute path_lock_held?(plain.file_path)
 
-                 assert {:ok, _} = store(ctx.alice, "gate plain #{ctx.n}")
-                 assert advisory_locks_held() == held
-
-                 assert {:ok, _} = store(ctx.alice, "gate false #{ctx.n}", dedup: false)
-                 assert advisory_locks_held() == held + 1
+                 assert {:ok, locked} = store(ctx.alice, "gate false #{ctx.n}", dedup: false)
+                 assert path_lock_held?(locked.file_path)
+                 refute path_lock_held?(locked.file_path <> "-elsewhere")
 
                  :done
                end)

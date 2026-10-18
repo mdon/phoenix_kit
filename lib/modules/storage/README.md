@@ -1058,10 +1058,14 @@ made from is still the file's (`Storage.original_key?/2`).
 
 **Deleting stored objects.** An object is deleted exactly when no instance
 row references its key any more (an edited file and its backup share a
-directory; cross-user copies share keys). `Storage.delete_stored_objects/2`
-re-checks the references under the directory's advisory lock and deletes
-inside it; publishing a new object takes the same lock and checks the object
-still exists. Never delete a stored object any other way.
+directory; cross-user copies share keys) and no upload is still writing it: a
+`processing` row of the directory younger than the reconciler's grace period
+(`Reconciler.processing_grace_seconds/0`) with no instance for the key yet holds
+the key, because an upload writes the object before it records it. A caller
+that is that file passes `ignore_uploads_of:`. `Storage.delete_stored_objects/2`
+re-checks both under the directory's advisory lock and deletes inside it;
+publishing a new object takes the same lock and checks the object still exists.
+Never delete a stored object any other way.
 
 **Annotations** are drawn in pixel space, so an image with annotations
 refuses edits that change its geometry (crop, turn, mirror, straighten);
