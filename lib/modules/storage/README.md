@@ -896,16 +896,23 @@ picker only while the setting is on).
 
 - **Created with the library**, on the profile's Media tab, in one transaction:
   `Libraries.create_user_library/3` with a `"storage"` map (`mode` `only` or
-  `backup`, the user's connection, provider, bucket, region/endpoint). The bucket
-  is probed first (list, write, delete); a failure creates nothing. **The choice
-  is final**: `Profiles.set_library_profile/2` refuses to move a library off or
-  onto user storage.
-- **`only`**: the user's bucket is the profile's one `primary`. **`backup`**: the
+  `backup`, and `targets`: up to three buckets, each one of the user's
+  `object_storage` integrations plus a bucket name). The provider, region and
+  endpoint are the integration's own (`Libraries.integration_summary/2`) and are
+  not asked for. Every bucket is probed first (list, write, delete); a failure
+  creates nothing. The form lists an integration's buckets on request
+  (`Libraries.list_own_buckets/3`, S3 `ListBuckets`; a key limited to one bucket
+  is refused and the user types the name). **The choice is final**:
+  `Profiles.set_library_profile/2` refuses to move a library off or onto user
+  storage.
+- **`only`**: the user's first bucket is the profile's one `primary`; any further
+  bucket is a `backup` (a copy of every file, never served, made by the
+  reconciler). **`backup`**: the
   site's buckets keep their roles (a **snapshot of the Default profile at
   creation**; a site bucket added later is not used) and the user's bucket holds a
   `backup` of every file, including sizes and tiles. Every file gets a copy on
   each writable snapshotted site bucket, counted per kind, plus a cloud copy on
-  the backup (at most 5 copies, so four site buckets, active first). Uploads
+  the backup, one per bucket of the user's (at most 5 copies in all, so four site buckets for one backup bucket, active first). Uploads
   succeed on the Default's terms counting the site's
   copies only (`min_copies_on_write` ignores a backup: it is never served); the
   reconciler makes a backup the write missed.

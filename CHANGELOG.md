@@ -1,3 +1,34 @@
+## Unreleased
+
+### Changed
+
+- **The profile's Media tab is rebuilt on core's own components.** The libraries are a `table_default` (name with its
+  Default badge, where it is stored, visibility: Public or Private) with the usual toolbar (count, **Create library**) and a ⋮ row
+  menu (Open, Rename, Make default, Members, Renditions, Trash; Leave for a shared one), as the Integrations tab. Rename,
+  members, renditions and the new-library form are `<.modal>` dialogs with `<.input>` / `<.select>`; an empty list is an
+  `<.empty_state>` with the create button; the trash is a small table with Restore. With own storage the form asks for what
+  the integration does not already know: an **integration** (the word is used throughout; the form said "connection") and a
+  **bucket**. The provider, region and endpoint fields are gone: the bucket takes them from the integration, and the
+  integration's service and endpoint are shown under its select. With one integration it is already chosen; with none the
+  form sends the user to add one (new tab) and picks the list up again when the window regains focus.
+- **`Libraries.create_user_library/3` / `probe_own_storage/3`:** the `"storage"` map takes `"targets"` (a list, or the
+  `targets[0]` map a form posts); a single bucket given flat (`integration_uuid`, `bucket_name`, …) still works, and a
+  provider, region or endpoint sent anyway wins over the integration's.
+- **`Profiles.user_storage_for/1`** adds `buckets` (every one of the user's buckets, main first) beside `bucket`; `mode` is
+  `:only` when one of them is the primary. **`Profiles.create_user_profile/3`** takes a bucket or a list.
+
+### Added
+
+- **A library can use several of the user's integrations (V206 storage).** In "only here" the first is the main storage and
+  the others hold a copy of every file (never served); in "the site's storage, backed up here" each is a backup. Up to
+  `Profiles.max_user_buckets/0` (3), five copies in all. The library row says `Your bucket: a (+1 copy)`; purge and the
+  object clean-up already covered every bucket of a library's profile.
+- **A "List buckets" button** on the create form: `Libraries.list_own_buckets/3` asks the integration's key for its buckets
+  (S3 `ListBuckets`, under the integration check's deadline, via `S3.list_remote_buckets/1`) and the bucket field becomes a
+  dropdown. A key limited to one bucket is usually refused; the text field stays and the message says to type the name.
+- `Libraries.integration_summary/2`: what a user's integration says about itself (service, bucket provider, region,
+  endpoint), never a secret.
+
 ## 2.63.0 - 2026-10-17
 
 **Migrations V218, V219 and V220** (run `mix phoenix_kit.update`). Ships PR #932 (profile-form hardening), #933 (chart and

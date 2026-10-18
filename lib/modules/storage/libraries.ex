@@ -40,6 +40,8 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
 
   require Logger
 
+  alias PhoenixKit.Integrations
+  alias PhoenixKit.Integrations.{ObjectStorageServices, Probe}
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.Audit
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
@@ -915,18 +917,23 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
       %{"name" => "Photos",
         "storage" => %{
           "mode" => "only",               # or "backup"
-          "integration_uuid" => "…",      # one of the user's own connections
-          "provider" => "s3",             # s3 | b2 | r2 | tigris
-          "bucket_name" => "my-photos",
-          "region" => "eu-central-1",     # and/or
-          "endpoint" => "https://…"}}
+          "targets" => [
+            %{"integration_uuid" => "…",  # one of the user's own integrations
+              "bucket_name" => "my-photos"},
+            %{"integration_uuid" => "…",  # optional: a copy on a second one
+              "bucket_name" => "my-photos-copy"}]}}
 
-  `"only"` keeps everything in their bucket; `"backup"` keeps the site's
-  storage as it is and copies the originals to theirs (see
-  `Profiles.create_user_profile/3`). Needs `may_use_own_storage?/1`
-  (`{:error, :not_allowed}` otherwise).
+  Each target is a bucket on one of the user's Object Storage integrations. The
+  provider, region and endpoint are the integration's own and need not be sent
+  (one sent anyway wins). A single bucket may also be given flat, as
+  `"integration_uuid"` and `"bucket_name"` beside `"mode"`.
 
-  The bucket is probed first, reading, writing and deleting a small object
+  `"only"` keeps everything in the first bucket and copies it to the others;
+  `"backup"` keeps the site's storage as it is and copies the originals to every
+  target (see `Profiles.create_user_profile/3`). Up to `Profiles.max_user_buckets/0`
+  targets. Needs `may_use_own_storage?/1` (`{:error, :not_allowed}` otherwise).
+
+  Every bucket is probed first, reading, writing and deleting a small object
   (`:probe`, a function of the bucket params, `Storage.test_connection/1` by
   default): a library that could not store anything is not created, and the
   reason is `{:error, {:storage, message}}`. A bucket, profile or library that
@@ -979,36 +986,239 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
         {:error, :not_allowed}
 
       true ->
-        params = Map.take(storage, ~w(integration_uuid provider bucket_name region endpoint))
-        probe = Keyword.get(opts, :probe, &Storage.test_connection/1)
-
-        case probe_owned(params, user_uuid, probe) do
-          :ok -> {:ok, %{mode: String.to_existing_atom(mode), params: params}}
-          {:error, message} -> {:error, {:storage, message}}
+        with {:ok, targets} <- storage_targets(storage, user_uuid),
+             :ok <- probe_targets(targets, user_uuid, Keyword.get(opts, :probe)) do
+          {:ok, %{mode: String.to_existing_atom(mode), targets: targets}}
+        else
+          {:error, %Ecto.Changeset{}} = error -> wrap_storage_error(error)
+          {:error, message} when is_binary(message) -> {:error, {:storage, message}}
         end
     end
   end
 
   defp own_storage_request(_scope, _user_uuid, _storage, _opts), do: {:error, :not_allowed}
 
-  @doc """
-  Checks a bucket for `scope`'s user to put a library on (what the wizard's "Test
-  the bucket" asks, and what creating the library asks again): they may use their
-  own storage at all, the fields pass `Bucket.owned_changeset/4` (an S3-protocol
-  provider, their own connection, a host the server may reach), and a small
-  object can be written, read back and deleted.
+  defp wrap_storage_error({:error, %Ecto.Changeset{} = changeset}),
+    do: {:error, {:storage, changeset}}
 
-  Returns `:ok`, `{:error, :not_allowed}`, `{:error, message}` from the bucket, or
-  `{:error, %Ecto.Changeset{}}` for the fields. `:probe` replaces the network
-  check (a function of the bucket params), for tests.
+  @target_fields ~w(integration_uuid provider bucket_name region endpoint)
+
+  # The buckets a `"storage"` map asks for, as the params of a bucket each:
+  # `"targets"` (a list, or the map a form posts as `targets[0]`, `targets[1]`),
+  # else the map itself as the one target. What an integration already knows
+  # (its service, region, endpoint) fills what is left blank. A target with
+  # neither an integration nor a bucket is an empty row of the form and is left
+  # out.
+  defp storage_targets(storage, user_uuid) do
+    targets =
+      storage
+      |> raw_targets()
+      |> Enum.map(&Map.take(stringify(&1), @target_fields))
+      |> drop_empty_rows(storage)
+      |> Enum.map(&fill_from_integration(&1, user_uuid))
+
+    cond do
+      targets == [] ->
+        {:error, "Choose an integration and a bucket"}
+
+      length(targets) > Profiles.max_user_buckets() ->
+        {:error,
+         "A library can use at most #{Profiles.max_user_buckets()} integrations (one main, the rest copies)"}
+
+      duplicate_targets?(targets) ->
+        {:error, "The same bucket is chosen twice"}
+
+      true ->
+        {:ok, targets}
+    end
+  end
+
+  # Empty rows only exist in the form's list; a single bucket given flat is kept
+  # as it is so the bucket's own validation says what is missing from it.
+  defp drop_empty_rows(targets, %{"targets" => _}),
+    do: Enum.reject(targets, &(blank?(&1["integration_uuid"]) and blank?(&1["bucket_name"])))
+
+  defp drop_empty_rows(targets, _flat), do: targets
+
+  defp raw_targets(%{"targets" => targets}) when is_list(targets), do: targets
+
+  defp raw_targets(%{"targets" => %{} = targets}) do
+    targets
+    |> Enum.sort_by(fn {key, _} -> sort_index(key) end)
+    |> Enum.map(fn {_key, target} -> target end)
+  end
+
+  defp raw_targets(storage), do: [storage]
+
+  defp sort_index(key) do
+    case Integer.parse(to_string(key)) do
+      {n, ""} -> n
+      _ -> 0
+    end
+  end
+
+  defp stringify(%{} = map), do: Map.new(map, fn {k, v} -> {to_string(k), v} end)
+  defp stringify(_other), do: %{}
+
+  defp blank?(value), do: value in [nil, ""]
+
+  defp duplicate_targets?(targets) do
+    keys = Enum.map(targets, &{&1["integration_uuid"], &1["bucket_name"]})
+    length(Enum.uniq(keys)) != length(keys)
+  end
+
+  # What the user's integration says about itself, for the fields the target
+  # left blank. A connection that cannot be read here is not an error: the
+  # bucket changeset refuses a connection that is not the user's.
+  defp fill_from_integration(%{"integration_uuid" => uuid} = target, user_uuid)
+       when is_binary(uuid) and uuid != "" do
+    case integration_summary(user_uuid, uuid) do
+      nil ->
+        target
+
+      summary ->
+        target
+        |> put_blank("provider", summary.provider)
+        |> put_blank("region", summary.region)
+        |> put_blank("endpoint", summary.endpoint)
+    end
+  end
+
+  defp fill_from_integration(target, _user_uuid), do: target
+
+  defp put_blank(target, key, value) do
+    if blank?(target[key]) and not blank?(value), do: Map.put(target, key, value), else: target
+  end
+
+  @doc """
+  What one of `user_uuid`'s Object Storage integrations says about itself, for the
+  form that picks it: `%{provider: …, service: …, region: …, endpoint: …}`
+  (`provider` is the bucket provider the service is created as), or nil when it is
+  not theirs. Nothing secret.
+  """
+  @spec integration_summary(String.t(), term()) ::
+          %{
+            provider: String.t(),
+            service: String.t() | nil,
+            label: String.t() | nil,
+            region: String.t() | nil,
+            endpoint: String.t() | nil
+          }
+          | nil
+  def integration_summary(user_uuid, uuid) when is_binary(user_uuid) and is_binary(uuid) do
+    case Integrations.get_integration_by_uuid(uuid, {:user, user_uuid}) do
+      {:ok, %{provider: "object_storage", data: data}} ->
+        service = ObjectStorageServices.current(data)
+
+        %{
+          provider: ObjectStorageServices.bucket_provider(service),
+          service: service,
+          label: ObjectStorageServices.label(data),
+          region: presence(data["region"]),
+          endpoint: presence(data["endpoint"])
+        }
+
+      _ ->
+        nil
+    end
+  end
+
+  def integration_summary(_user_uuid, _uuid), do: nil
+
+  defp presence(value) when is_binary(value),
+    do: if(String.trim(value) == "", do: nil, else: value)
+
+  defp presence(_value), do: nil
+
+  # Every bucket is probed, in order, and the first that fails ends it. With
+  # several, the message names the bucket.
+  defp probe_targets(targets, user_uuid, probe) do
+    probe = probe || (&Storage.test_connection/1)
+
+    Enum.reduce_while(targets, :ok, fn target, :ok ->
+      case probe_owned(target, user_uuid, probe) do
+        :ok -> {:cont, :ok}
+        {:error, %Ecto.Changeset{}} = error -> {:halt, error}
+        {:error, message} -> {:halt, {:error, label_failure(message, target, targets)}}
+      end
+    end)
+  end
+
+  defp label_failure(message, _target, [_single]), do: message
+
+  defp label_failure(message, target, _several) when is_binary(message),
+    do: "#{target["bucket_name"]}: #{message}"
+
+  defp label_failure(message, _target, _several), do: message
+
+  @doc """
+  Checks the buckets for `scope`'s user to put a library on (what the form's "Test"
+  asks, and what creating the library asks again): they may use their own
+  storage at all, the fields pass `Bucket.owned_changeset/4` (an S3-protocol
+  provider, their own integration, a host the server may reach), and a small
+  object can be written, read back and deleted in each.
+
+  `params` is what `create_user_library/3` takes under `"storage"`: a `"targets"`
+  list, or one bucket flat. Returns `:ok`, `{:error, :not_allowed}`,
+  `{:error, message}` from the bucket, or `{:error, %Ecto.Changeset{}}` for the
+  fields. `:probe` replaces the network check (a function of the bucket params),
+  for tests.
   """
   @spec probe_own_storage(Scope.t() | nil, map(), keyword()) ::
           :ok | {:error, :not_allowed | String.t() | Ecto.Changeset.t()}
   def probe_own_storage(scope, params, opts \\ []) do
     with true <- may_use_own_storage?(scope) || {:error, :not_allowed},
-         user_uuid when is_binary(user_uuid) <- Scope.user_uuid(scope) || {:error, :not_allowed} do
-      fields = Map.take(params, ~w(integration_uuid provider bucket_name region endpoint))
-      probe_owned(fields, user_uuid, Keyword.get(opts, :probe, &Storage.test_connection/1))
+         user_uuid when is_binary(user_uuid) <- Scope.user_uuid(scope) || {:error, :not_allowed},
+         {:ok, targets} <- storage_targets(stringify(params), user_uuid) do
+      probe_targets(targets, user_uuid, Keyword.get(opts, :probe))
+    end
+  end
+
+  @doc """
+  The names of the buckets one of the user's integrations can see (S3's
+  `ListBuckets`), for the form's "List buckets" button: `{:ok, names}` or
+  `{:error, message}`. A key limited to one bucket is usually refused, and the
+  message then says to type the name instead; that is not a broken integration.
+  `:list` replaces the network call (a function of the bucket description), for
+  tests.
+  """
+  @spec list_own_buckets(Scope.t() | nil, term(), keyword()) ::
+          {:ok, [String.t()]} | {:error, :not_allowed | String.t()}
+  def list_own_buckets(scope, integration_uuid, opts \\ []) do
+    with true <- may_use_own_storage?(scope) || {:error, :not_allowed},
+         user_uuid when is_binary(user_uuid) <- Scope.user_uuid(scope) || {:error, :not_allowed},
+         %{} = summary <-
+           integration_summary(user_uuid, integration_uuid) ||
+             {:error, "That integration is not yours"} do
+      described = %Storage.Bucket{
+        name: "list",
+        provider: summary.provider,
+        region: summary.region,
+        endpoint: summary.endpoint,
+        integration_uuid: integration_uuid,
+        owner_uuid: user_uuid
+      }
+
+      list = Keyword.get(opts, :list, &list_with_deadline/1)
+      list.(described)
+    end
+  end
+
+  # Under the same hard deadline as every connection check
+  # (`Integrations.Probe`), which only carries text back: the names go through it
+  # one to a line (a bucket name cannot hold a newline).
+  defp list_with_deadline(bucket) do
+    check = fn ->
+      case S3.list_remote_buckets(bucket) do
+        {:ok, names} -> {:ok, Enum.join(names, "\n")}
+        {:error, _} = error -> error
+      end
+    end
+
+    case Probe.run(check) do
+      {:ok, names} when is_binary(names) -> {:ok, String.split(names, "\n", trim: true)}
+      {:error, message} when is_binary(message) -> {:error, message}
+      other -> {:error, "Could not list the buckets: #{inspect(other, limit: 3)}"}
     end
   end
 
@@ -1030,20 +1240,37 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
       else: {:error, changeset}
   end
 
-  # Inside the creation transaction: the bucket, its profile, then the library
+  # Inside the creation transaction: the buckets, their profile, then the library
   # pointed at it. Any failure rolls the whole library back.
   defp attach_own_storage(library, _user_uuid, nil), do: library
 
-  defp attach_own_storage(library, user_uuid, %{mode: mode, params: params}) do
-    attrs = Map.put(params, "name", library.name)
-
-    with {:ok, bucket} <- Storage.create_owned_bucket(user_uuid, attrs),
-         {:ok, profile} <- Profiles.create_user_profile(user_uuid, bucket, mode),
+  defp attach_own_storage(library, user_uuid, %{mode: mode, targets: targets}) do
+    with {:ok, buckets} <- create_owned_buckets(library, user_uuid, targets),
+         {:ok, profile} <- Profiles.create_user_profile(user_uuid, buckets, mode),
          {:ok, library} <- Profiles.assign_user_profile(library, profile) do
       library
     else
       {:error, %Ecto.Changeset{} = changeset} -> repo().rollback({:storage, changeset})
       {:error, reason} -> repo().rollback(reason)
+    end
+  end
+
+  # One bucket row per target, in order. The first carries the library's name;
+  # the others a number after it (the name is never shown to the user).
+  defp create_owned_buckets(library, user_uuid, targets) do
+    targets
+    |> Enum.with_index(1)
+    |> Enum.reduce_while({:ok, []}, fn {params, n}, {:ok, acc} ->
+      name = if n == 1, do: library.name, else: "#{library.name} (#{n})"
+
+      case Storage.create_owned_bucket(user_uuid, Map.put(params, "name", name)) do
+        {:ok, bucket} -> {:cont, {:ok, [bucket | acc]}}
+        {:error, _} = error -> {:halt, error}
+      end
+    end)
+    |> case do
+      {:ok, buckets} -> {:ok, Enum.reverse(buckets)}
+      error -> error
     end
   end
 
@@ -1524,12 +1751,14 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
 
       own ->
         reachable? =
-          Enum.all?(own, fn {_uuid, %{bucket: bucket}} ->
-            match?(
-              {key, secret}
-              when is_binary(key) and key != "" and is_binary(secret) and secret != "",
-              S3.resolve_credentials(bucket)
-            )
+          Enum.all?(own, fn {_uuid, %{buckets: buckets}} ->
+            Enum.all?(buckets, fn %{bucket: bucket} ->
+              match?(
+                {key, secret}
+                when is_binary(key) and key != "" and is_binary(secret) and secret != "",
+                S3.resolve_credentials(bucket)
+              )
+            end)
           end)
 
         if not reachable?,
