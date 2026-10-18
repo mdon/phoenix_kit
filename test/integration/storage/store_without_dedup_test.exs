@@ -563,6 +563,26 @@ defmodule PhoenixKit.Modules.Storage.StoreWithoutDedupTest do
                end)
     end
 
+    # The database refuses this one (the uploader is gone), not the changeset:
+    # a plain insert would leave the transaction aborted.
+    test "a `dedup: false` upload the database refuses answers with its changeset", ctx do
+      gone = %{uuid: UUIDv7.generate()}
+
+      assert {:error, %Ecto.Changeset{}} = store(gone, "gone alone #{ctx.n}", dedup: false)
+      assert {:error, %Ecto.Changeset{}} = store(gone, "gone plain #{ctx.n}")
+    end
+
+    test "and leaves a transaction of the caller's usable", ctx do
+      assert {:ok, {:error, %Ecto.Changeset{}, :still_usable}} =
+               Repo.transaction(fn ->
+                 {:error, changeset} =
+                   store(%{uuid: UUIDv7.generate()}, "gone in tx #{ctx.n}", dedup: false)
+
+                 assert %{rows: [[1]]} = Repo.query!("SELECT 1")
+                 {:error, changeset, :still_usable}
+               end)
+    end
+
     test "a `dedup: false` upload that can be recorded is one, and the transaction goes on",
          ctx do
       assert {:ok, {:ok, file}} =

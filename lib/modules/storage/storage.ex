@@ -6102,12 +6102,18 @@ defmodule PhoenixKit.Modules.Storage do
   # `create_file/1` under the directory's lock. Held to the end of the
   # transaction this runs in, the caller's when it has one. The answer is
   # `create_file/1`'s as it is: nothing is rolled back, so an invalid row does
-  # not spoil a transaction the caller opened.
+  # not spoil a transaction the caller opened. The insert runs in a savepoint:
+  # a constraint the database enforces (the uploader or the library is gone)
+  # would otherwise leave the transaction aborted, and its commit would answer
+  # `{:error, :rollback}` instead of the changeset.
   defp create_file_locked(file_attrs, file_path) do
     {:ok, created} =
       repo().transaction(fn ->
         lock_storage_paths([file_path])
-        create_file(file_attrs)
+
+        %PhoenixKit.Modules.Storage.File{}
+        |> PhoenixKit.Modules.Storage.File.changeset(file_attrs)
+        |> repo().insert(mode: :savepoint)
       end)
 
     created
