@@ -235,6 +235,20 @@ defmodule PhoenixKit.Modules.Storage.PublicLibrariesTest do
       refute Libraries.can?(nil, ctx.in_public, :read)
     end
 
+    # Trashing leaves the files `active`; the permanent links they already have
+    # are refused because the library answers as private.
+    test "and its files answer as private, so their permanent links stop serving", ctx do
+      refute Libraries.private_file?(ctx.in_public)
+
+      {:ok, trashed} = Libraries.trash_library(scope(ctx.owner), ctx.public)
+
+      assert Libraries.private_file?(ctx.in_public)
+      assert Libraries.private_among([ctx.public.uuid]) == [ctx.public.uuid]
+
+      {:ok, _} = Libraries.restore_library(scope(ctx.owner), trashed)
+      refute Libraries.private_file?(ctx.in_public)
+    end
+
     test "its files get ordinary links, a private library's expiring ones", ctx do
       refute Libraries.private_file?(ctx.in_public)
       assert Libraries.private_file?(ctx.in_private)

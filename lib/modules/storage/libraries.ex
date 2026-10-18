@@ -400,7 +400,8 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
 
   @doc """
   Whether files in a library are private (`visibility: "private"`, every user
-  library except a public one, and a public one while it is suspended): their
+  library except a public one, and a public one while it is suspended or in the
+  trash): their
   URLs carry a time-window token and are never answered with a redirect to a
   public object URL. Media is answered without a query; anything that is not a
   library is not private.
@@ -425,9 +426,15 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   end
 
   # A library is private when it says so, or while it is a public one an admin has
-  # suspended: it then answers as private until it is restored.
+  # suspended or its owner has trashed: it then answers as private until it is
+  # restored. Trashing a library leaves its files `active`, so without this the
+  # permanent links of a trashed public library would keep serving.
   defp private_condition do
-    dynamic([l], l.visibility == "private" or fragment("(?->>'suspended') = 'true'", l.settings))
+    dynamic(
+      [l],
+      l.visibility == "private" or not is_nil(l.trashed_at) or
+        fragment("(?->>'suspended') = 'true'", l.settings)
+    )
   end
 
   @doc """
