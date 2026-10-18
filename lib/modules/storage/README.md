@@ -875,6 +875,13 @@ members are `manager`, `contributor` or `viewer` (`Libraries.allows?/2`).
 - **Pages:** users manage their libraries on the profile's Media tab
   (`/profile/settings/media`); `/admin/libraries` browses them (moderation
   and testing). `phoenix_kit_photos` is the end-user surface.
+- **A personal library, if the host wants one:** `Libraries.ensure_personal_library/2`
+  gives a user a private library on the site's storage, made by the system (no
+  permission, no room under the limit; refused while user libraries are off), marked so it is never made twice, not even
+  after the user trashed theirs; `backfill_personal_libraries/1` does it for every
+  existing active account. **Nothing in PhoenixKit calls them**: whether accounts get
+  one is the host's call (Fotki makes one for every new account, from the
+  `:user_created` event).
 - **Trash and deletion:** a trashed library frees its name at once and is
   purged, bytes included, after `trash_retention_days` (`PurgeLibraryJob`,
   queued by the daily prune). Deleting a user trashes the libraries they own

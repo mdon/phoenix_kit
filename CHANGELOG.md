@@ -23,6 +23,10 @@
   the others hold a copy of every file (never served); in "the site's storage, backed up here" each is a backup. Up to
   `Profiles.max_user_buckets/0` (3), five copies in all. The library row says `Your bucket: a (+1 copy)`; purge and the
   object clean-up already covered every bucket of a library's profile.
+- **`Libraries.ensure_personal_library/2` and `backfill_personal_libraries/1`** — for a host that wants every account to
+  have a private library of its own. The system makes it (no permission, no room under the per-user limit), marked so a
+  user who trashed theirs is not given another. **Nothing in PhoenixKit calls them**, they make nothing while "Allow user libraries" is off
+  (`{:error, :user_libraries_off}`), and registration is unchanged; the host decides whether, when and what to call it.
 - **A "List buckets" button** on the create form: `Libraries.list_own_buckets/3` asks the integration's key for its buckets
   (S3 `ListBuckets`, under the integration check's deadline, via `S3.list_remote_buckets/1`) and the bucket field becomes a
   dropdown. A key limited to one bucket is usually refused; the text field stays and the message says to type the name.

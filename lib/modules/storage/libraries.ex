@@ -1361,6 +1361,126 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
 
   def default_user_library(_user_uuid), do: nil
 
+  # ===== A personal library, made by the system for a host that wants one =====
+
+  @personal_key "personal"
+  @personal_name_default "My library"
+
+  @doc """
+  Gives `user_uuid` a private library of their own, once, on behalf of the host.
+
+  **Nothing in PhoenixKit calls this**: whether accounts get such a library, when,
+  and what it is called is the host's decision (a photo app may make one for every
+  new account; most apps do not need it). This is only the part a host cannot do
+  with the public API, because `create_user_library/3` is the user's own act and
+  needs their permission and room under their limit.
+
+  It is governed by the same switch as every user library
+  (`user_libraries_enabled?/0`, off by default): while that is off it makes nothing
+  and returns `{:error, :user_libraries_off}`.
+
+  The system acts here, so it needs neither `may_create_library?/1` nor
+  `user_library_limit/0`. The library is marked as the personal one, and a user is
+  never given a second: one they have since renamed, or trashed, still counts, so
+  deleting it is final. It is the user's default when they have no library yet, a
+  private library on the site's storage like any made without a choice.
+
+  `:name` is its name (default "My library"); when the user already has a live
+  library of that name, a number is added.
+
+  Returns `{:ok, %Library{}}` when one was made, `{:ok, :exists}` when the user
+  already had theirs, or `{:error, reason}`.
+  """
+  @spec ensure_personal_library(String.t(), keyword()) ::
+          {:ok, Library.t() | :exists} | {:error, :user_libraries_off | term()}
+  def ensure_personal_library(user_uuid, opts \\ []) when is_binary(user_uuid) do
+    if user_libraries_enabled?(),
+      do: do_ensure_personal_library(user_uuid, personal_name(Keyword.get(opts, :name))),
+      else: {:error, :user_libraries_off}
+  end
+
+  defp do_ensure_personal_library(user_uuid, base) do
+    repo().transaction(fn ->
+      lock_user(user_uuid)
+
+      if personal_library?(user_uuid) do
+        :exists
+      else
+        owned = count_owned(user_uuid)
+        name = free_library_name(user_uuid, base)
+        library = insert_owned(%{"name" => name}, user_uuid, owned == 0)
+
+        library
+        |> Ecto.Changeset.change(settings: Map.put(library.settings || %{}, @personal_key, true))
+        |> repo().update!()
+      end
+    end)
+  end
+
+  defp personal_name(name) when is_binary(name) do
+    if String.trim(name) == "", do: @personal_name_default, else: String.trim(name)
+  end
+
+  defp personal_name(_name), do: @personal_name_default
+
+  defp personal_library?(user_uuid) do
+    repo().exists?(
+      from(l in Library,
+        where:
+          l.kind == "user" and l.owner_uuid == ^user_uuid and
+            fragment("(?->>'personal') = 'true'", l.settings)
+      )
+    )
+  end
+
+  # `base`, or `base 2`, `base 3`… when the user already has a live library of that name.
+  defp free_library_name(user_uuid, base) do
+    taken =
+      from(l in Library,
+        where: l.kind == "user" and l.owner_uuid == ^user_uuid and is_nil(l.trashed_at),
+        select: fragment("lower(?)", l.name)
+      )
+      |> repo().all()
+      |> MapSet.new()
+
+    Enum.find_value(Stream.concat([base], Stream.map(2..1000, &"#{base} #{&1}")), base, fn name ->
+      not MapSet.member?(taken, String.downcase(name)) && name
+    end)
+  end
+
+  @doc """
+  `ensure_personal_library/2` for every active, non-guest, non-API account, for a
+  host that wants the accounts that existed before it started making them to have
+  one too. Safe to repeat. Takes the same `:name`. Returns the counts
+  `%{created: n, existing: n, failed: n}`, or `{:error, :user_libraries_off}` while
+  user libraries are off (nothing is made).
+  """
+  @spec backfill_personal_libraries(keyword()) ::
+          %{created: non_neg_integer(), existing: non_neg_integer(), failed: non_neg_integer()}
+          | {:error, :user_libraries_off}
+  def backfill_personal_libraries(opts \\ []) do
+    if user_libraries_enabled?(),
+      do: do_backfill_personal_libraries(opts),
+      else: {:error, :user_libraries_off}
+  end
+
+  defp do_backfill_personal_libraries(opts) do
+    from(u in User,
+      where:
+        u.is_active and not u.api_only and
+          fragment("coalesce(?->>'source', '') <> 'guest_checkout'", u.custom_fields),
+      select: u.uuid
+    )
+    |> repo().all()
+    |> Enum.reduce(%{created: 0, existing: 0, failed: 0}, fn uuid, counts ->
+      case ensure_personal_library(uuid, opts) do
+        {:ok, :exists} -> Map.update!(counts, :existing, &(&1 + 1))
+        {:ok, %Library{}} -> Map.update!(counts, :created, &(&1 + 1))
+        {:error, _reason} -> Map.update!(counts, :failed, &(&1 + 1))
+      end
+    end)
+  end
+
   @doc """
   Trashes a user library, for its owner. Its members lose it at once; its
   files are purged, bytes included, after the trash retention period
