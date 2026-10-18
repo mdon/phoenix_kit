@@ -2599,7 +2599,7 @@ defmodule PhoenixKit.Modules.Storage do
     - `:page` — page number (default 1).
     - `:per_page` — page size (default 20).
     - `:library_uuid` — only files in this storage library. Omitted means
-      every library that is not private (`Libraries.exclude_private/1`).
+      every library that is not a user library (`Libraries.exclude_user_libraries/1`).
     - `:bounds` — only pictures with a GPS position inside this box on the map:
       `{south, west, north, east}` in degrees (`PhoenixKit.Modules.Storage.Geo`; a box that
       crosses the antimeridian has `west > east`).
@@ -3268,7 +3268,7 @@ defmodule PhoenixKit.Modules.Storage do
   # /admin/media, in host embeds that name no library, and in orphan
   # cleanup — which would then delete them, since nothing in the site
   # references a user library's files.
-  defp where_library(query, nil), do: Libraries.exclude_private(query)
+  defp where_library(query, nil), do: Libraries.exclude_user_libraries(query)
   defp where_library(query, library_uuid), do: where(query, [r], r.library_uuid == ^library_uuid)
 
   # A restricted viewer's view of a site library (`:viewer_uuid`, see
@@ -3374,8 +3374,8 @@ defmodule PhoenixKit.Modules.Storage do
     do: to_string(folder_uuid) in viewer_folder_uuids(viewer_uuid, library_uuid)
 
   defp in_library(folders, nil) do
-    private = folders |> Enum.map(& &1.library_uuid) |> Libraries.private_among()
-    Enum.reject(folders, &(to_string(&1.library_uuid) in private))
+    user = folders |> Enum.map(& &1.library_uuid) |> Libraries.user_among()
+    Enum.reject(folders, &(to_string(&1.library_uuid) in user))
   end
 
   defp in_library(folders, library_uuid) do
@@ -4151,7 +4151,7 @@ defmodule PhoenixKit.Modules.Storage do
     # whatever library a caller names: nothing in the site references them,
     # so every file at a user library's root would look unreferenced and
     # "Delete all orphaned" inside that library would delete them all.
-    base = Libraries.exclude_private(base)
+    base = Libraries.exclude_user_libraries(base)
 
     # Exclude UUIDs that the parent app has explicitly marked as protected
     base =
@@ -4655,6 +4655,12 @@ defmodule PhoenixKit.Modules.Storage do
           label: "Use their own storage",
           description:
             "Keep a library they create on their own S3-compatible bucket, when the site allows it (also needs the Integrations permission, for the bucket's keys)"
+        },
+        %{
+          key: "public_library",
+          label: "Make libraries public",
+          description:
+            "Create a library that anyone can browse without signing in. It is chosen when the library is created and cannot be changed afterwards"
         }
       ]
     }

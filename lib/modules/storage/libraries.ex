@@ -399,10 +399,11 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   end
 
   @doc """
-  Whether files in a library are private (`visibility: "private"`, every
-  user library): their URLs carry a time-window token and are never
-  answered with a redirect to a public object URL. Media is answered
-  without a query; anything that is not a library is not private.
+  Whether files in a library are private (`visibility: "private"`, every user
+  library except a public one, and a public one while it is suspended): their
+  URLs carry a time-window token and are never answered with a redirect to a
+  public object URL. Media is answered without a query; anything that is not a
+  library is not private.
   """
   @spec private?(term()) :: boolean()
   def private?(nil), do: false
@@ -413,12 +414,20 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
     else
       case Ecto.UUID.cast(uuid) do
         {:ok, uuid} ->
-          repo().exists?(from(l in Library, where: l.uuid == ^uuid and l.visibility == "private"))
+          repo().exists?(
+            from(l in Library, where: ^dynamic([l], l.uuid == ^uuid and ^private_condition()))
+          )
 
         :error ->
           false
       end
     end
+  end
+
+  # A library is private when it says so, or while it is a public one an admin has
+  # suspended: it then answers as private until it is restored.
+  defp private_condition do
+    dynamic([l], l.visibility == "private" or fragment("(?->>'suspended') = 'true'", l.settings))
   end
 
   @doc """
@@ -437,9 +446,30 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
       []
     else
       from(l in Library,
-        where: l.uuid in ^uuids and l.visibility == "private",
+        where: ^dynamic([l], l.uuid in ^uuids and ^private_condition()),
         select: l.uuid
       )
+      |> repo().all()
+      |> Enum.map(&to_string/1)
+    end
+  end
+
+  @doc """
+  Which of `library_uuids` are user libraries (private or public), in one query —
+  for a site listing that must not mix them in.
+  """
+  @spec user_among([term()]) :: [String.t()]
+  def user_among(library_uuids) do
+    uuids =
+      library_uuids
+      |> Enum.reject(&(is_nil(&1) or media?(&1)))
+      |> Enum.map(&to_string/1)
+      |> Enum.uniq()
+
+    if uuids == [] do
+      []
+    else
+      from(l in Library, where: l.uuid in ^uuids and l.kind == "user", select: l.uuid)
       |> repo().all()
       |> Enum.map(&to_string/1)
     end
@@ -606,19 +636,29 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   def private_file?(_file), do: false
 
   @doc """
-  Drops rows whose library is private.
+  Drops rows whose library is a user library, private or public.
 
   The file or folder is the query's first binding. Site listings
   (`/admin/media`, the media pickers, orphan cleanup) use this so a user
   library is not mixed into the site's media; pass that library's uuid to
-  read it. A private library's files are not orphans: nothing in the site
-  references them, and treating them as unreferenced would delete them.
+  read it. A user library's files are not orphans: nothing in the site
+  references them, and treating them as unreferenced would delete them. A
+  public library is not private, but it is still its owner's, not the site's.
   """
-  @spec exclude_private(Ecto.Query.t()) :: Ecto.Query.t()
-  def exclude_private(query) do
-    private = from(l in Library, where: l.visibility == "private", select: l.uuid)
-    where(query, [row], row.library_uuid not in subquery(private))
+  @spec exclude_user_libraries(Ecto.Query.t()) :: Ecto.Query.t()
+  def exclude_user_libraries(query) do
+    user =
+      from(l in Library,
+        where: ^dynamic([l], l.kind == "user" or ^private_condition()),
+        select: l.uuid
+      )
+
+    where(query, [row], row.library_uuid not in subquery(user))
   end
+
+  @doc "The old name of `exclude_user_libraries/1`, from when every user library was private."
+  @spec exclude_private(Ecto.Query.t()) :: Ecto.Query.t()
+  def exclude_private(query), do: exclude_user_libraries(query)
 
   @doc """
   Whether `scope` may do `action` to `file`. One predicate for every
@@ -626,7 +666,8 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
 
     * `:read` — the file's info and signed URLs: its uploader, an
       Owner/Admin (`Scope.system_role?/1`), or — for a file in a user
-      library — that library's owner or any of its members. Deliberately
+      library — that library's owner or any of its members, or **anyone**,
+      signed in or not, when the library is public (`public?/1`). Deliberately
       NOT the `"media"` permission: a single permission must not open every
       other user's file metadata (issue #687).
     * `:edit` — change the picture (image editing, annotation burn-in, the
@@ -635,7 +676,8 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
       library, or the
       owner or a manager of the user library it is in.
 
-  Anything else, and a scope without a user, is refused.
+  Anything else is refused, and a scope without a user, or none at all (`nil`),
+  can only read a file of a public library.
   """
   @spec can?(Scope.t() | nil, map(), :read | :edit) :: boolean()
   def can?(%Scope{} = scope, %{} = file, action) when action in [:read, :edit] do
@@ -645,6 +687,7 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
       library_grants?(scope, library_uuid, action)
   end
 
+  def can?(nil, %{} = file, :read), do: public?(Map.get(file, :library_uuid))
   def can?(_scope, _file, _action), do: false
 
   defp library_grants?(scope, library_uuid, action) do
@@ -664,7 +707,7 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
 
   defp grants?(scope, %Library{kind: "user", trashed_at: nil} = library, action) do
     role = role(library, Scope.user_uuid(scope))
-    if action == :read, do: role != nil, else: role in [:owner, :manager]
+    if action == :read, do: role != nil or public?(library), else: role in [:owner, :manager]
   end
 
   defp grants?(_scope, _library, _action), do: false
@@ -951,9 +994,11 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   def create_user_library(scope, attrs, opts \\ []) do
     attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
     {storage, attrs} = Map.pop(attrs, "storage")
+    {visibility, attrs} = Map.pop(attrs, "visibility")
 
     with true <- may_create_library?(scope) || {:error, :not_allowed},
          user_uuid when is_binary(user_uuid) <- Scope.user_uuid(scope) || {:error, :not_allowed},
+         {:ok, visibility} <- visibility_request(scope, visibility),
          {:ok, own} <- own_storage_request(scope, user_uuid, storage, opts) do
       repo().transaction(fn ->
         # One creation per user at a time, so two tabs cannot both pass the
@@ -964,12 +1009,38 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
         if owned >= user_library_limit() do
           repo().rollback(:limit_reached)
         else
-          library = insert_owned(attrs, user_uuid, owned == 0)
+          library = insert_owned(Map.put(attrs, "visibility", visibility), user_uuid, owned == 0)
           attach_own_storage(library, user_uuid, own)
         end
       end)
+      |> tap(fn result -> log_published(result, scope) end)
     end
   end
+
+  # What the user asked for. Private is the default and needs nothing; public
+  # needs the `storage.public_library` permission, and anything else is refused.
+  defp visibility_request(_scope, nil), do: {:ok, "private"}
+  defp visibility_request(_scope, "private"), do: {:ok, "private"}
+
+  defp visibility_request(scope, "public"),
+    do: if(may_create_public_library?(scope), do: {:ok, "site"}, else: {:error, :not_allowed})
+
+  defp visibility_request(_scope, _other), do: {:error, :not_allowed}
+
+  # Making a library public is written to the history: who, which, when.
+  defp log_published({:ok, %Library{visibility: "site"} = library}, scope) do
+    Audit.log(
+      "storage.library_published",
+      "library",
+      library.uuid,
+      [actor_uuid: Scope.user_uuid(scope)],
+      %{"name" => library.name}
+    )
+
+    :ok
+  end
+
+  defp log_published(_result, _scope), do: :ok
 
   # No `"storage"` (or the site's own): the library stays on the Default.
   defp own_storage_request(_scope, _user_uuid, nil, _opts), do: {:ok, nil}
@@ -1360,6 +1431,112 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   end
 
   def default_user_library(_user_uuid), do: nil
+
+  # ===== Public user libraries =====
+
+  @doc """
+  Whether a library is **public**: a user library whose owner made it so when they
+  created it (`visibility: "site"`), not in the trash and not suspended. Anyone,
+  signed in or not, may read what is in it (`can?/3` with `:read`,
+  `can_read_library?/2`). Media is the site's own library, not a public one in this
+  sense: its files have ordinary links but only their uploader and the admins may
+  list them.
+
+  Takes a library or a uuid.
+  """
+  @spec public?(Library.t() | term()) :: boolean()
+  def public?(%Library{kind: "user", visibility: "site", trashed_at: nil} = library),
+    do: not suspended?(library)
+
+  def public?(%Library{}), do: false
+  def public?(nil), do: false
+
+  def public?(uuid) do
+    if media?(uuid), do: false, else: public?(get_library(uuid))
+  end
+
+  @doc "Whether an admin has suspended a (public) library: it then answers as private."
+  @spec suspended?(Library.t() | nil) :: boolean()
+  def suspended?(%Library{settings: %{"suspended" => true}}), do: true
+  def suspended?(_library), do: false
+
+  @doc """
+  Whether `scope` may create a **public** library: `may_create_library?/1` and the
+  `"storage.public_library"` permission. Nobody has that until the site grants it.
+  """
+  @spec may_create_public_library?(Scope.t() | nil) :: boolean()
+  def may_create_public_library?(%Scope{} = scope) do
+    may_create_library?(scope) and Scope.can?(scope, "storage.public_library")
+  end
+
+  def may_create_public_library?(_scope), do: false
+
+  @doc """
+  Whether `scope` (or nobody, `nil`) may see the library as a whole, to list it:
+  anyone for a public library, otherwise an Owner/Admin or one of its members. The
+  one question a feature built on a library (timeline, albums, map…) asks before it
+  shows a library's contents; `can?/3` is the same question for one file.
+  """
+  @spec can_read_library?(Scope.t() | nil, Library.t() | nil) :: boolean()
+  def can_read_library?(_scope, nil), do: false
+
+  def can_read_library?(scope, %Library{} = library) do
+    public?(library) or
+      (match?(%Scope{}, scope) and
+         (Scope.system_role?(scope) or role(library, Scope.user_uuid(scope)) != nil))
+  end
+
+  @doc """
+  Suspends a public library, for an Owner or Admin: it answers as private (expiring
+  links, no anonymous reading) until `unsuspend_library/2`, with nothing deleted.
+  The reason is kept with the entry in the history.
+  """
+  @spec suspend_library(Scope.t() | nil, Library.t(), String.t() | nil) ::
+          {:ok, Library.t()} | {:error, :not_allowed}
+  def suspend_library(scope, %Library{} = library, reason \\ nil) do
+    if Scope.system_role?(scope) and library.kind == "user" and library.visibility == "site" do
+      set_suspended(scope, library, true, reason, "storage.library_suspended")
+    else
+      {:error, :not_allowed}
+    end
+  end
+
+  @doc "Lifts a suspension, for an Owner or Admin."
+  @spec unsuspend_library(Scope.t() | nil, Library.t()) ::
+          {:ok, Library.t()} | {:error, :not_allowed}
+  def unsuspend_library(scope, %Library{} = library) do
+    if Scope.system_role?(scope) and suspended?(library),
+      do: set_suspended(scope, library, false, nil, "storage.library_unsuspended"),
+      else: {:error, :not_allowed}
+  end
+
+  defp set_suspended(scope, library, suspended?, reason, action) do
+    settings =
+      if suspended? do
+        Map.merge(library.settings || %{}, %{"suspended" => true, "suspended_reason" => reason})
+      else
+        Map.drop(library.settings || %{}, ["suspended", "suspended_reason"])
+      end
+
+    Audit.transaction(fn ->
+      with {:ok, updated} <-
+             library |> Ecto.Changeset.change(settings: settings) |> repo().update(),
+           {:ok, _entry} <-
+             Audit.log(
+               action,
+               "library",
+               library.uuid,
+               [actor_uuid: Scope.user_uuid(scope)],
+               %{
+                 "name" => library.name,
+                 "owner_uuid" => to_string(library.owner_uuid),
+                 "reason" => reason
+               }
+             ) do
+        {:ok, updated}
+      end
+    end)
+  end
 
   # ===== A personal library, made by the system for a host that wants one =====
 

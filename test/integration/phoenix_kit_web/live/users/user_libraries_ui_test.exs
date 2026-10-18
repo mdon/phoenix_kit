@@ -287,6 +287,83 @@ defmodule PhoenixKitWeb.Live.Users.UserLibrariesUITest do
       assert Libraries.role(library, member.uuid) == :contributor
     end
 
+    test "the create dialog offers Private or Public only to someone who may publish", %{
+      conn: conn,
+      role: role
+    } do
+      {:ok, publisher_role} =
+        Roles.create_role(%{name: "Publishers #{System.unique_integer([:positive])}"})
+
+      for key <- ~w(storage storage.create_library storage.public_library),
+          do: {:ok, _} = Permissions.grant_permission(publisher_role.uuid, key)
+
+      {:ok, view, _html} =
+        live(log_in_user(conn, user!(publisher_role)), Routes.path("/profile/settings/media"))
+
+      html = view |> element("#profile-library-settings-open-create") |> render_click()
+      assert html =~ "Who can see it"
+      assert html =~ "Anyone in the world can browse everything in it"
+
+      html =
+        view
+        |> form("#profile-library-settings-create", %{library: %{name: "G", visibility: "public"}})
+        |> render_change()
+
+      assert html =~ "public at once"
+
+      {:ok, view, _html} =
+        live(log_in_user(build_conn(), user!(role)), Routes.path("/profile/settings/media"))
+
+      html = view |> element("#profile-library-settings-open-create") |> render_click()
+      refute html =~ "Who can see it"
+    end
+
+    test "a public library is made and listed as Public; a spoofed request makes a private one",
+         %{
+           conn: conn,
+           role: role
+         } do
+      {:ok, publisher_role} =
+        Roles.create_role(%{name: "Publishers #{System.unique_integer([:positive])}"})
+
+      for key <- ~w(storage storage.create_library storage.public_library),
+          do: {:ok, _} = Permissions.grant_permission(publisher_role.uuid, key)
+
+      publisher = user!(publisher_role)
+
+      {:ok, view, _html} =
+        live(log_in_user(conn, publisher), Routes.path("/profile/settings/media"))
+
+      view |> element("#profile-library-settings-open-create") |> render_click()
+
+      view
+      |> form("#profile-library-settings-create", %{
+        library: %{name: "Gallery", visibility: "public"}
+      })
+      |> render_submit()
+
+      assert [%{library: gallery}] = Libraries.list_user_libraries(publisher.uuid)
+      assert gallery.visibility == "site"
+      assert Libraries.public?(gallery)
+      assert render(view) =~ "Public"
+
+      # Someone without the permission cannot get one by posting the field: the
+      # dialog never sends it for them, and `Libraries` would refuse it anyway.
+      plain = user!(role)
+
+      {:ok, view, _html} =
+        live(log_in_user(build_conn(), plain), Routes.path("/profile/settings/media"))
+
+      view |> element("#profile-library-settings-open-create") |> render_click()
+
+      view
+      |> form("#profile-library-settings-create", %{library: %{name: "Sneaky"}})
+      |> render_submit(%{library: %{name: "Sneaky", visibility: "public"}})
+
+      assert [%{library: sneaky}] = Libraries.list_user_libraries(plain.uuid)
+      assert sneaky.visibility == "private"
+    end
+
     test "the libraries are a table: name with its Default badge, where it is stored, access", %{
       conn: conn,
       role: role

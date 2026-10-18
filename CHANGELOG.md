@@ -23,6 +23,14 @@
   the others hold a copy of every file (never served); in "the site's storage, backed up here" each is a backup. Up to
   `Profiles.max_user_buckets/0` (3), five copies in all. The library row says `Your bucket: a (+1 copy)`; purge and the
   object clean-up already covered every bucket of a library's profile.
+- **Public user libraries (phase 1 of `dev_docs/plans/2026-10-18-public-user-libraries.md`).** A user with the new
+  `storage.public_library` sub-permission (granted to nobody by default) can create a library as **Public** (a Private or
+  Public choice in the create dialog, with a warning; final once made). Anyone, signed in or not, can read what is in it
+  (`Libraries.can?/3` with a `nil` scope, `can_read_library?/2`, `public?/1`); editing is unchanged. Its files get ordinary
+  links; it never appears in site media (`Libraries.exclude_user_libraries/1` replaces `exclude_private/1`, which still
+  works, in the media browser, the pickers, the folder listing and the orphan cleanup). An Owner or Admin can suspend one
+  (`suspend_library/3`, `unsuspend_library/2`, a Suspend/Restore button in the admin list): it answers as private until
+  restored. Publishing and suspending are in the history. Nothing is public unless a user with the permission makes it so.
 - **`Libraries.ensure_personal_library/2` and `backfill_personal_libraries/1`** — for a host that wants every account to
   have a private library of its own. The system makes it (no permission, no room under the per-user limit), marked so a
   user who trashed theirs is not given another. **Nothing in PhoenixKit calls them**, they make nothing while "Allow user libraries" is off

@@ -864,8 +864,9 @@ when it is renamed (`Libraries.get_system_library_by_slug/1`).
 Off until the install turns them on (`storage_user_libraries_enabled`,
 Settings → Media → Libraries). A user with the `"storage"` permission uses
 the libraries they own or are a member of; `"storage.create_library"`
-creates them, up to `storage_user_library_limit`. Each is `private`, and its
-members are `manager`, `contributor` or `viewer` (`Libraries.allows?/2`).
+creates them, up to `storage_user_library_limit`. Each is `private` unless its
+owner makes it **public** when creating it (below), and its members are `manager`,
+`contributor` or `viewer` (`Libraries.allows?/2`).
 
 - **API:** `Libraries.create_user_library/2`, `list_user_libraries/1`,
   `get_user_library/2` (by uuid, or the owner's own slug), `add_member/4`,
@@ -875,6 +876,20 @@ members are `manager`, `contributor` or `viewer` (`Libraries.allows?/2`).
 - **Pages:** users manage their libraries on the profile's Media tab
   (`/profile/settings/media`); `/admin/libraries` browses them (moderation
   and testing). `phoenix_kit_photos` is the end-user surface.
+- **Public libraries:** a holder of `"storage.public_library"` (nobody, until the site
+  grants it) may create a library with `"visibility" => "public"`
+  (`Libraries.create_user_library/3`; stored as `visibility: "site"`). It is chosen once,
+  at creation, and cannot be changed; writing it to the history (`storage.library_published`).
+  **Anyone, signed in or not, may read what is in it**: `Libraries.can?(scope_or_nil, file,
+  :read)` and `Libraries.can_read_library?/2` say yes, and every feature built on a library
+  asks them, never its own check. Editing stays with the owner and managers. Its files get
+  ordinary (permanent) links, like Media's. It never appears in the site's media
+  (`Libraries.exclude_user_libraries/1`, which replaced `exclude_private/1` for the media
+  browser, the pickers, the folder listing and the orphan cleanup; the old name still works).
+  An Owner or Admin can **suspend** one (`suspend_library/3`, `unsuspend_library/2`, the
+  Suspend button on Settings → Media → Libraries): it then answers as private (expiring links,
+  no anonymous reading) with nothing deleted, and the history records who and why. Plan:
+  `dev_docs/plans/2026-10-18-public-user-libraries.md`.
 - **A personal library, if the host wants one:** `Libraries.ensure_personal_library/2`
   gives a user a private library on the site's storage, made by the system (no
   permission, no room under the limit; refused while user libraries are off), marked so it is never made twice, not even

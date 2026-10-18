@@ -75,6 +75,7 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
     |> assign(:shared, shared)
     |> assign(:media, media_row(scope))
     |> assign(:can_create, Libraries.may_create_library?(scope))
+    |> assign(:can_public, Libraries.may_create_public_library?(scope))
     |> assign(:can_own_storage, Libraries.may_use_own_storage?(scope))
     |> assign(:connections, connections(scope))
     |> assign(:own_storage, Profiles.user_storage_for(Enum.map(owned, & &1.library)))
@@ -263,6 +264,12 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
     socket = merge_form(socket, params)
     form = socket.assigns.form
     attrs = %{"name" => form["name"]}
+
+    # Asked for only by someone who may; `Libraries` refuses it to anyone else.
+    attrs =
+      if socket.assigns.can_public and form["visibility"] == "public",
+        do: Map.put(attrs, "visibility", "public"),
+        else: attrs
 
     if form["kind"] == "own" and socket.assigns.can_own_storage do
       create_on_own_storage(socket, form, attrs)
@@ -542,7 +549,13 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
   defp probe_message({:error, message}) when is_binary(message), do: {:error, message}
 
   defp new_form,
-    do: %{"name" => "", "kind" => "site", "mode" => "only", "targets" => [blank_target()]}
+    do: %{
+      "name" => "",
+      "visibility" => "private",
+      "kind" => "site",
+      "mode" => "only",
+      "targets" => [blank_target()]
+    }
 
   defp blank_target, do: %{"integration_uuid" => "", "bucket_name" => ""}
 
@@ -572,6 +585,7 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
     form =
       old
       |> Map.put("name", params["name"] || old["name"] || "")
+      |> Map.put("visibility", pick(params["visibility"], ~w(private public), old["visibility"]))
       |> Map.put("kind", pick(storage["kind"], ~w(site own), old["kind"]))
       |> Map.put("mode", pick(storage["mode"], ~w(only backup), old["mode"]))
       |> Map.put("targets", targets)
@@ -1173,6 +1187,21 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
   # Who a library's files are open to, from its `visibility`: a `site` library
   # (Media) is served like the site's media, with ordinary links; a `private` one
   # only to its owner and members, through links that expire.
+  defp visibility_badge(%{library: %{settings: %{"suspended" => true}}} = assigns) do
+    ~H"""
+    <span
+      class="badge badge-warning badge-soft badge-sm gap-1"
+      title={
+        gettext(
+          "The site's administrators have taken this library offline. Only you and its members can open it."
+        )
+      }
+    >
+      <.icon name="hero-no-symbol" class="w-3 h-3" /> {gettext("Suspended")}
+    </span>
+    """
+  end
+
   defp visibility_badge(%{library: %{visibility: "private"}} = assigns) do
     ~H"""
     <span
@@ -1223,6 +1252,51 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
           autocomplete="off"
           placeholder={gettext("Family photos")}
         />
+
+        <fieldset :if={@can_public} class="flex flex-col gap-2">
+          <legend class="font-semibold mb-1">{gettext("Who can see it")}</legend>
+          <label class={[
+            "flex items-start gap-3 rounded-lg border p-3 cursor-pointer",
+            (@form["visibility"] != "public" && "border-primary bg-primary/5") || "border-base-300"
+          ]}>
+            <input
+              type="radio"
+              name="library[visibility]"
+              value="private"
+              checked={@form["visibility"] != "public"}
+              class="radio radio-sm radio-primary mt-0.5"
+            />
+            <span class="text-sm">
+              <.icon name="hero-lock-closed" class="w-4 h-4 inline" /> {gettext("Private")}
+              <span class="block text-xs text-base-content/60">
+                {gettext("Only you and the members you add.")}
+              </span>
+            </span>
+          </label>
+          <label class={[
+            "flex items-start gap-3 rounded-lg border p-3 cursor-pointer",
+            (@form["visibility"] == "public" && "border-primary bg-primary/5") || "border-base-300"
+          ]}>
+            <input
+              type="radio"
+              name="library[visibility]"
+              value="public"
+              checked={@form["visibility"] == "public"}
+              class="radio radio-sm radio-primary mt-0.5"
+            />
+            <span class="text-sm">
+              <.icon name="hero-globe-alt" class="w-4 h-4 inline" /> {gettext("Public")}
+              <span class="block text-xs text-base-content/60">
+                {gettext("Anyone in the world can browse everything in it, without signing in.")}
+              </span>
+            </span>
+          </label>
+          <p :if={@form["visibility"] == "public"} class="text-xs text-warning">
+            {gettext(
+              "Whatever you add to a public library is public at once. This cannot be changed once the library is created."
+            )}
+          </p>
+        </fieldset>
 
         <fieldset :if={@can_own_storage} class="flex flex-col gap-2">
           <legend class="font-semibold mb-1">{gettext("Where its files are kept")}</legend>
