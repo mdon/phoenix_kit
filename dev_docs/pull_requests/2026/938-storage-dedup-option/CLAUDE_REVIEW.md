@@ -59,3 +59,17 @@ this needs a caller already doing the wrong thing; not worth a special case in t
 - Image edit / revert give a `nodedup:` row the edited / original bytes' key only when no other row of
   the uploader has it (`duplicate?/3`) — matches the docstring.
 - Plain (locked-less) uploads racing a delete are documented as unprotected; accepted.
+
+## Follow-up — Codex's corrections (`b5ae6da42`), re-checked
+
+- **Checksum backfill keeps `nodedup:` keys — confirmed.** This is the nitpick above, now fixed.
+  `record/2` keeps a `nodedup:` key and the update is guarded on the key read earlier. Run against
+  the pre-fix worker, both new `checksum_backfill_test.exs` tests fail; with the fix all 7 pass.
+- **Invalid root can no longer restore an added account — confirmed.** The previous commit makes the
+  remembered active account the session token before the plug resolves it, so the root's own
+  validation was bypassed. `do_restore/2` now requires the root to resolve to an active user, else
+  `live = []` and the persisted cookie is dropped (via `prune_persisted` → `forget_persisted_accounts`),
+  leaving the plug to reject the root as before. The three new `session_multi_test.exs` tests
+  (revoked, expired, deactivated root) fail on the pre-fix `multi_session.ex`; all 25 pass with it.
+- No new issues found. The extra `root_user_from_token/1` lookup runs only when a non-empty,
+  root-bound mirror exists, i.e. at remember-me recovery.
