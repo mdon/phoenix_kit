@@ -852,6 +852,12 @@ when it is renamed (`Libraries.get_system_library_by_slug/1`).
 - **Dedup is per library:** one copy per uploader per library. Media keeps
   the key it always had; any other library folds itself into
   `user_file_checksum` (`Storage.calculate_user_file_checksum/3`).
+  `store_file_in_buckets(..., dedup: false)` opts one upload out: it is always
+  a row of its own (`{:ok, file}`, never `:duplicate`, no cross-user clone) with
+  a `user_file_checksum` no upload can match (`"nodedup:<file uuid>"`), for
+  records that merely hold the same bytes. The stored objects are still
+  content-addressed, so the rows name the same keys and the last delete removes
+  them.
 
 ### User libraries (V203)
 
