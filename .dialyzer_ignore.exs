@@ -97,6 +97,8 @@
   # Same reason for anything else whose spec names Scope.t(): the struct carries
   # an opaque MapSet field, so declaring it in a contract is flagged.
   {"lib/phoenix_kit/test/fixtures.ex", :contract_with_opaque},
+  # `Keys.actor/3` returns an `Actor`, which carries the owner's `Scope.t()` (`:scope`).
+  {"lib/phoenix_kit/api/keys.ex", :contract_with_opaque},
   # Callers of Scope.admin?/1 inherit the opaque mismatch from Scope.for_user/1
   {"lib/modules/maintenance/web/plugs/maintenance_mode.ex", :call_without_opaque},
   # Same inheritance: the storage API controllers build a scope from the

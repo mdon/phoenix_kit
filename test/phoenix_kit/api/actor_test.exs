@@ -8,6 +8,7 @@ defmodule PhoenixKit.API.ActorTest do
 
     assert actor.kind == :anonymous
     assert actor.scopes == []
+    assert actor.scope == nil
     assert actor.requires_approval == false
     assert actor.key_uuid == nil
     assert actor.user_uuid == nil
@@ -23,6 +24,7 @@ defmodule PhoenixKit.API.ActorTest do
                :key_prefix,
                :user_uuid,
                :scopes,
+               :scope,
                :requires_approval,
                :cart_token_hash,
                :ip
@@ -30,6 +32,6 @@ defmodule PhoenixKit.API.ActorTest do
   end
 
   test "an unknown field is refused, so a typo cannot build an actor" do
-    assert_raise KeyError, fn -> struct!(Actor, kind: :key, scope: ["x"]) end
+    assert_raise KeyError, fn -> struct!(Actor, kind: :key, scopez: ["x"]) end
   end
 end
