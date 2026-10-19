@@ -713,10 +713,12 @@ defmodule PhoenixKit.Module do
     * `live_view` - the LiveView module.
     * `id` - the DOM id of the nested LiveView. Keep it stable: it is what lets the widget
       survive admin navigation (`sticky: true`) with its state and subscriptions.
-    * `session_fun` - `(layout_assigns -> session)`. It gets the assigns of the admin layout
-      (`:socket`, `:phoenix_kit_current_scope`, `:phoenix_kit_current_user`,
-      `:current_locale`, ...) and returns the session map of the nested LiveView: **string**
-      keys, values that can be signed into the page (ids and strings, not structs).
+    * `session_fun` - `(layout_assigns -> session | nil)`. It gets the assigns of the admin
+      layout (`:socket`, `:phoenix_kit_current_scope`, `:phoenix_kit_current_user`,
+      `:current_locale`, `:impersonating?`, ...) and returns the session map of the nested
+      LiveView: **string** keys, values that can be signed into the page (ids and strings,
+      not structs). `nil` means "no widget for this user": nothing is rendered, no dock, no
+      warning.
 
   Collected from **enabled** modules by `PhoenixKit.ModuleRegistry.all_header_widgets/0`.
   The admin layout renders a widget only when it has the parent LiveView's socket and a
@@ -728,14 +730,23 @@ defmodule PhoenixKit.Module do
 
   ## Who may see the widget
 
-  Nothing in core decides that; the widget does. A nested sticky LiveView does **not** go
-  through the `live_session`'s `on_mount` hooks and gets no `current_scope`: it starts from
-  nothing but its session map. And `session_fun` runs, and the widget mounts, for **every**
-  signed-in user of a page with the admin layout, including a user with no admin permission
-  at all who lands on the `/admin` page. So the widget must check the permission itself in
-  `mount/3` (and render nothing, or stop, without it), rebuilding the user from the session
-  the way the notifications bell does with its `user_uuid`. Put only server-derived ids and
-  strings into the session, never a value that came from the browser.
+  Core decides only whether the widget can be shown at all (enabled module, socket, signed-in
+  user); who of the users may see it, the module does, in `session_fun`: it gets the scope
+  and returns `nil` for a user who may not, so that no process is started for him. A nested
+  sticky LiveView does **not** go through the `live_session`'s `on_mount` hooks and gets no
+  `current_scope`: it starts from nothing but its session map. And `session_fun` runs for
+  **every** signed-in user of a page with the admin layout, including a user with no admin
+  permission at all who lands on the `/admin` page. So check the permission there, and check
+  it again in `mount/3` (rebuilding the user from the session the way the notifications bell
+  does with its `user_uuid`), which is what holds when the session was made for someone else.
+  Put only server-derived ids and strings into the session, never a value that came from the
+  browser. The session is signed, not encrypted: whoever has the page can read it, so no
+  secret and no token in it.
+
+  `:impersonating?` in the assigns is `true` while the session acts as an account other than
+  the root of the browser's multi-session stack (`PhoenixKit.HeaderWidget.impersonating?/1`:
+  an operator's "log in as this user" looks like that, and so does an account the user added
+  with a password). A widget that must not run for a borrowed session returns `nil` then.
 
   ## The dock column
 
@@ -746,15 +757,16 @@ defmodule PhoenixKit.Module do
   `PhoenixKitWeb.Components.AdminDock`):
 
     * the container is `#pk-dock`; it is empty and hidden;
-    * the widget opens and closes it with the class `pk-dock-open` on `#admin-drawer`
-      (`AdminDock.open/1`, `close/1`, `toggle/1`) or on an element inside it, after which the
-      work area is narrower by the column's width instead of being overlapped; below `lg` the
-      column covers the screen under the header. The class on `#admin-drawer` is lost on a
-      live redirect to another LiveView (the usual admin navigation); a class on an element
-      of the widget's own markup is not, so a widget that wants the dock to stay open across
-      navigation renders that class itself from its own state;
+    * the widget opens and closes it with the class `pk-dock-open` on `<body>`
+      (`AdminDock.open/1`, `close/1`, `toggle/1`) or on an element of its own markup in the
+      header, after which the work area is narrower by the column's width instead of being
+      overlapped; below `lg` the column covers the screen under the header. `<body>` is the
+      element above both the header (where the widget is) and `#admin-drawer` (where the
+      dock is), and LiveView does not patch it: the state survives a live redirect to another
+      LiveView and a patch; only a full page load resets it;
     * the width comes from the CSS variable `--pk-dock-width` (default `25rem`), which the
-      widget or the host may set on `#admin-drawer` or higher up.
+      widget or the host sets on `:root` or `<body>` so that both the dock and a panel in the
+      header see it.
 
   ## Example
 
@@ -762,11 +774,15 @@ defmodule PhoenixKit.Module do
       def header_widgets do
         [
           {MyModule.Web.Assistant, "my-assistant",
-           fn assigns ->
-             %{
-               "user_uuid" => assigns.phoenix_kit_current_user.uuid,
-               "locale" => assigns[:current_locale_base]
-             }
+           fn
+             %{impersonating?: true} ->
+               nil
+
+             assigns ->
+               %{
+                 "user_uuid" => assigns.phoenix_kit_current_user.uuid,
+                 "locale" => assigns[:current_locale_base]
+               }
            end, dock: true}
         ]
       end

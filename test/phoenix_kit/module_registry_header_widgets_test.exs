@@ -11,6 +11,7 @@ defmodule PhoenixKit.ModuleRegistryHeaderWidgetsTest do
 
   alias PhoenixKit.HeaderWidget
   alias PhoenixKit.ModuleRegistry
+  alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKitWeb.Test.HeaderWidgetProbeLive, as: Probe
 
   defmodule UsingModule do
@@ -118,6 +119,26 @@ defmodule PhoenixKit.ModuleRegistryHeaderWidgetsTest do
     end
   end
 
+  # `warn_once` remembers in :persistent_term, which outlives a test (and a rerun of the file
+  # in the same VM); forget the keys these tests use so each one sees its first warning.
+  @warned_keys [
+    {:bad_header_widget, BrokenModule},
+    {:header_widgets_failed, RaisingModule},
+    {:duplicate_header_widget, "hw-on-plain"},
+    {:header_widget_session, SessionModule, "hw-s-raises"},
+    {:header_widget_session, SessionModule, "hw-s-nil"},
+    {:header_widget_session, SessionModule, "hw-s-atom-keys"}
+  ]
+
+  setup do
+    forget_warnings()
+    on_exit(&forget_warnings/0)
+  end
+
+  defp forget_warnings do
+    Enum.each(@warned_keys, &:persistent_term.erase({ModuleRegistry, :warned, &1}))
+  end
+
   defp with_registered(modules, fun) do
     Enum.each(modules, &ModuleRegistry.register/1)
 
@@ -127,6 +148,10 @@ defmodule PhoenixKit.ModuleRegistryHeaderWidgetsTest do
       Enum.each(modules, &ModuleRegistry.unregister/1)
     end
   end
+
+  defp scope_with(accounts), do: %Scope{multi_session_accounts: accounts}
+
+  defp count(log, text), do: length(String.split(log, text)) - 1
 
   defp ids(widgets), do: widgets |> Enum.map(& &1.id) |> Enum.sort()
 
@@ -191,6 +216,13 @@ defmodule PhoenixKit.ModuleRegistryHeaderWidgetsTest do
 
         # One warning per module, however many entries are wrong and however often it runs.
         assert log =~ "BrokenModule.header_widgets/0 returned an invalid widget"
+        assert 1 == count(log, "BrokenModule.header_widgets/0 returned an invalid widget")
+
+        assert "" ==
+                 capture_log(fn ->
+                   assert ["hw-broken-ok"] ==
+                            ModuleRegistry.all_header_widgets() |> mine([BrokenModule]) |> ids()
+                 end)
       end)
     end
 
@@ -204,18 +236,25 @@ defmodule PhoenixKit.ModuleRegistryHeaderWidgetsTest do
           end)
 
         assert log =~ "RaisingModule.header_widgets/0 failed: boom"
+
+        # Reported once: the layout asks again on every render.
+        assert "" == capture_log(fn -> ModuleRegistry.all_header_widgets() end)
       end)
     end
 
-    test "an id declared twice keeps the first widget registered" do
+    test "an id declared twice keeps the first widget registered, and says so once" do
       with_registered([OnModule, DuplicateModule], fn ->
-        capture_log(fn ->
-          widgets = ModuleRegistry.all_header_widgets()
+        log =
+          capture_log(fn ->
+            widgets = ModuleRegistry.all_header_widgets()
 
-          assert [] == mine(widgets, [DuplicateModule])
-          assert [_, _] = mine(widgets, [OnModule])
-          assert 1 == Enum.count(widgets, &(&1.id == "hw-on-plain"))
-        end)
+            assert [] == mine(widgets, [DuplicateModule])
+            assert [_, _] = mine(widgets, [OnModule])
+            assert 1 == Enum.count(widgets, &(&1.id == "hw-on-plain"))
+          end)
+
+        assert 1 == count(log, ~s(declares the header widget "hw-on-plain"))
+        assert "" == capture_log(fn -> ModuleRegistry.all_header_widgets() end)
       end)
     end
   end
@@ -241,7 +280,44 @@ defmodule PhoenixKit.ModuleRegistryHeaderWidgetsTest do
           end)
 
         assert log =~ "skipped: the session function raised: nope"
+        assert log =~ ~s("hw-s-atom-keys" skipped: the session has a key that is not a string)
+
+        # Once per widget, not on every render of the layout.
+        assert "" == capture_log(fn -> ModuleRegistry.header_widgets_for(%{}) end)
       end)
+    end
+
+    test "a session function that returns nil means: no widget for this user, and no warning" do
+      with_registered([SessionModule], fn ->
+        log =
+          capture_log(fn ->
+            assert "hw-s-nil" not in ids(
+                     ModuleRegistry.header_widgets_for(%{})
+                     |> mine([SessionModule])
+                   )
+          end)
+
+        refute log =~ "hw-s-nil"
+      end)
+    end
+  end
+
+  describe "PhoenixKit.HeaderWidget.impersonating?/1" do
+    test "is false without a multi-session stack" do
+      refute HeaderWidget.impersonating?(nil)
+      refute HeaderWidget.impersonating?(scope_with([]))
+    end
+
+    test "is false while the root account of the stack is the active one" do
+      refute HeaderWidget.impersonating?(
+               scope_with([%{active?: true, root?: true}, %{active?: false, root?: false}])
+             )
+    end
+
+    test "is true while an account other than the root is the active one" do
+      assert HeaderWidget.impersonating?(
+               scope_with([%{active?: false, root?: true}, %{active?: true, root?: false}])
+             )
     end
   end
 

@@ -31,8 +31,30 @@ defmodule PhoenixKitWeb.Live.HeaderWidgetsTest do
       %{
         "label" => "plain",
         "user_uuid" => assigns.phoenix_kit_current_user.uuid,
-        "locale" => assigns[:current_locale_base]
+        "locale" => assigns[:current_locale_base],
+        "impersonating" => to_string(assigns[:impersonating?])
       }
+    end
+  end
+
+  # A widget that keeps the dock open from its own state: the open class is on its root
+  # element, which sits in the header.
+  defmodule OpenDockModule do
+    def enabled?, do: true
+
+    def header_widgets do
+      [{HeaderWidgetProbeLive, "pk-test-open-widget", &__MODULE__.session/1, dock: true}]
+    end
+
+    def session(_assigns), do: %{"label" => "open", "open" => true}
+  end
+
+  # "No widget for this user": the session function says so with nil.
+  defmodule NilSessionModule do
+    def enabled?, do: true
+
+    def header_widgets do
+      [{HeaderWidgetProbeLive, "pk-test-nil-widget", fn _assigns -> nil end, dock: true}]
     end
   end
 
@@ -122,6 +144,33 @@ defmodule PhoenixKitWeb.Live.HeaderWidgetsTest do
     |> String.split()
   end
 
+  defp page(conn) do
+    {admin, _} = create_admin_user()
+
+    conn
+    |> log_in_user(admin)
+    |> get(@path)
+    |> html_response(200)
+    |> LazyHTML.from_document()
+  end
+
+  defp matches?(document, selector), do: LazyHTML.query(document, selector) |> Enum.any?()
+
+  # `[SELECTOR_&]:block` is "SELECTOR ancestor of the element"; return SELECTOR.
+  defp ancestor_selectors(document) do
+    document
+    |> LazyHTML.query("#pk-dock")
+    |> LazyHTML.attribute("class")
+    |> List.first()
+    |> String.split()
+    |> Enum.flat_map(fn token ->
+      case Regex.run(~r/^\[(.+)_&\]:block$/, token) do
+        [_, selector] -> [String.replace(selector, "_", " ")]
+        nil -> []
+      end
+    end)
+  end
+
   # Where a marker sits in the document: widgets must come before the bell.
   defp position(html, marker) do
     case :binary.match(html, marker) do
@@ -200,20 +249,96 @@ defmodule PhoenixKitWeb.Live.HeaderWidgetsTest do
       end)
     end
 
-    test "is shown by the open class on the drawer or on any element inside it", %{conn: conn} do
+    test "keeps the layout tokens that make it a column of the grid, sized by the variable", %{
+      conn: conn
+    } do
       with_registered([DockModule], fn ->
         {_admin, view, _html} = admin_live(conn)
-
-        # The class on #admin-drawer is lost when a live redirect swaps the page; a class on
-        # an element inside the sticky widget travels with the widget. Both open the dock.
         tokens = class_tokens(view, "#pk-dock")
 
-        assert "[.#{AdminDock.open_class()}_&]:block" in tokens
+        for token <- [
+              "col-start-3",
+              "w-[var(--pk-dock-width,25rem)]",
+              "max-lg:fixed",
+              "max-lg:inset-x-0",
+              "max-lg:top-16"
+            ] do
+          assert token in tokens, "#pk-dock lost #{token}"
+        end
+      end)
+    end
+  end
 
-        assert "[##{AdminDock.drawer_id()}:has(.#{AdminDock.open_class()})_&]:block" in tokens
+  # The dock is opened by CSS alone: the layout's classes on #pk-dock are selectors, and they
+  # only work if the element that carries the open class is where they look. These tests
+  # evaluate those selectors against the page the browser would get, with the widget in the
+  # header and #pk-dock in #admin-drawer, which are siblings.
+  describe "where the open class has to be for the dock to show" do
+    test "the dock's open-class selectors hold for a widget that carries the class in the header",
+         %{conn: conn} do
+      with_registered([OpenDockModule], fn ->
+        document = page(conn)
+
+        assert matches?(document, "header #pk-test-open-widget .pk-dock-open")
+        assert matches?(document, "#admin-drawer #pk-dock")
+
+        # Some selector of #pk-dock matches this page: the class on the widget opens it.
+        selectors = ancestor_selectors(document)
+        assert selectors != []
+
+        assert Enum.any?(selectors, fn selector -> matches?(document, selector <> " #pk-dock") end),
+               "no selector of #pk-dock matches with the open class on the widget: " <>
+                 inspect(selectors)
       end)
     end
 
+    test "the closed dock matches none of its selectors", %{conn: conn} do
+      with_registered([DockModule], fn ->
+        document = page(conn)
+
+        refute Enum.any?(ancestor_selectors(document), fn selector ->
+                 matches?(document, selector <> " #pk-dock")
+               end)
+      end)
+    end
+
+    test "the element the commands address is an ancestor of the widget and of the dock",
+         %{conn: conn} do
+      with_registered([DockModule], fn ->
+        document = page(conn)
+        [[_, %{to: target}]] = AdminDock.open().ops
+
+        assert matches?(document, "#{target} header #pk-test-dock-widget")
+        assert matches?(document, "#{target} #pk-dock")
+        # ... and the class on it is one of the selectors of #pk-dock (an ancestor with it).
+        assert ".pk-dock-open" in ancestor_selectors(document)
+      end)
+    end
+  end
+
+  describe "a widget whose session function returns nil" do
+    test "is not rendered, and does not bring the dock", %{conn: conn} do
+      with_registered([NilSessionModule], fn ->
+        {_admin, view, html} = admin_live(conn)
+
+        refute html =~ "pk-test-nil-widget"
+        refute has_element?(view, "#pk-dock")
+      end)
+    end
+  end
+
+  describe "the impersonation flag" do
+    test "reaches the session function; false for a plain session", %{conn: conn} do
+      with_registered([PlainModule], fn ->
+        {_admin, view, _html} = admin_live(conn)
+
+        child = find_live_child(view, "pk-test-widget")
+        assert render(child) =~ ~s(data-impersonating="false")
+      end)
+    end
+  end
+
+  describe "a dock widget in a layout without the data" do
     test "a layout rendered with no socket and no user gets neither widget nor dock" do
       with_registered([DockModule], fn ->
         assigns = %{}
@@ -268,13 +393,13 @@ defmodule PhoenixKitWeb.Live.HeaderWidgetsTest do
   end
 
   describe "PhoenixKitWeb.Components.AdminDock commands" do
-    test "open, close and toggle address the class on #admin-drawer" do
+    test "open, close and toggle address the class on body, the ancestor that survives a live redirect" do
       for {js, op} <- [
             {AdminDock.open(), "add_class"},
             {AdminDock.close(), "remove_class"},
             {AdminDock.toggle(), "toggle_class"}
           ] do
-        assert [[^op, %{to: "#admin-drawer", names: ["pk-dock-open"]}]] = js.ops
+        assert [[^op, %{to: "body", names: ["pk-dock-open"]}]] = js.ops
       end
     end
 

@@ -989,7 +989,8 @@ defmodule PhoenixKit.ModuleRegistry do
   The header widgets to render for one layout render: `all_header_widgets/0`, each with
   `:session` computed by its session function from `assigns` (the layout's assigns).
 
-  A widget whose session function raises, or returns something that is not a map with
+  A widget whose session function returns `nil` is dropped without a word (no widget for
+  this user); one whose session function raises, or returns something that is not a map with
   string keys, is dropped with one warning.
   """
   @spec header_widgets_for(map()) :: [HeaderWidget.t()]
@@ -998,6 +999,9 @@ defmodule PhoenixKit.ModuleRegistry do
       case HeaderWidget.resolve_session(widget, assigns) do
         {:ok, resolved} ->
           [resolved]
+
+        :skip ->
+          []
 
         {:error, reason} ->
           warn_once(

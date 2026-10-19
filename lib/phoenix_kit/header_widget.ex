@@ -17,10 +17,13 @@ defmodule PhoenixKit.HeaderWidget do
     * `:session_fun` - `(layout_assigns -> session)`, called on every render of the
       layout with the layout's assigns. They include `:socket` (the parent LiveView's
       socket), `:phoenix_kit_current_scope` and `:phoenix_kit_current_user` (the user of
-      the scope, filled in when the caller passed only the scope), `:current_locale` and
-      `:current_locale_base`. It returns the session of the nested LiveView: a map with
-      **string** keys and values that survive being signed into the page, so ids and
-      strings, not structs.
+      the scope, filled in when the caller passed only the scope), `:current_locale`,
+      `:current_locale_base` and `:impersonating?` (see `impersonating?/1`). It returns the
+      session of the nested LiveView: a map with **string** keys and values that survive
+      being signed into the page, so ids and strings, not structs. Or `nil`: no widget for
+      this user, nothing is rendered (and no dock) and nothing is logged. Check what the
+      user may see here, where the scope is at hand, rather than after the widget's process
+      has started.
     * `:dock` - `true` when the widget uses the dock column (`#pk-dock`, see
       `PhoenixKitWeb.Components.AdminDock`). The column exists only while a rendered widget
       declares it.
@@ -30,13 +33,16 @@ defmodule PhoenixKit.HeaderWidget do
 
   ## Authority
 
+  The session is signed, not encrypted: whoever has the page can read it. Ids and strings the
+  widget needs, never a secret or a token.
+
   The session is all the widget gets: a nested sticky LiveView is mounted without the
   `live_session`'s `on_mount` hooks and without `current_scope`, and for every signed-in user
   of an admin-layout page. The widget has to check the permission itself from the session
   (see `c:PhoenixKit.Module.header_widgets/0`).
   """
 
-  @type session_fun :: (map() -> map())
+  @type session_fun :: (map() -> map() | nil)
 
   @typedoc "What `c:PhoenixKit.Module.header_widgets/0` returns, one element per widget."
   @type entry ::
@@ -87,13 +93,16 @@ defmodule PhoenixKit.HeaderWidget do
   @doc """
   Run the widget's session function against the layout's assigns.
 
-  Returns `{:ok, widget}` with `:session` filled in, or `{:error, reason}` when the
-  function raises or returns something `live_render/3` cannot take (not a map, or a key that
-  is not a string).
+  Returns `{:ok, widget}` with `:session` filled in, `:skip` when the function returned
+  `nil` (no widget for this user), or `{:error, reason}` when the function raises or returns
+  something `live_render/3` cannot take (not a map, or a key that is not a string).
   """
-  @spec resolve_session(t(), map()) :: {:ok, t()} | {:error, String.t()}
+  @spec resolve_session(t(), map()) :: {:ok, t()} | :skip | {:error, String.t()}
   def resolve_session(%__MODULE__{session_fun: fun} = widget, assigns) do
     case fun.(assigns) do
+      nil ->
+        :skip
+
       session when is_map(session) and not is_struct(session) ->
         if Enum.all?(session, fn {key, _} -> is_binary(key) end) do
           {:ok, %{widget | session: session}}
@@ -109,6 +118,24 @@ defmodule PhoenixKit.HeaderWidget do
   catch
     kind, reason -> {:error, "the session function failed: #{inspect({kind, reason})}"}
   end
+
+  @doc """
+  True while the account the session acts as is not the root account of the browser's
+  multi-session stack, which is what an impersonation ("log in as this user") looks like.
+
+  The layout passes this as `:impersonating?` to the session functions. It is an
+  over-approximation: the stack does not tell an impersonated account from one the user
+  added with a password, so both read as `true`. False without a stack (the
+  `multi_session_enabled` setting off, or a single account). A widget that must not run for
+  an operator borrowing a user's session returns `nil` from its session function when it is
+  `true`.
+  """
+  @spec impersonating?(PhoenixKit.Users.Auth.Scope.t() | nil) :: boolean()
+  def impersonating?(%{multi_session_accounts: [_ | _] = accounts}) do
+    Enum.any?(accounts, &(&1.active? and not &1.root?))
+  end
+
+  def impersonating?(_scope), do: false
 
   defp check_live_view(live_view) when is_atom(live_view) and not is_nil(live_view) do
     if Code.ensure_loaded?(live_view) and function_exported?(live_view, :__live__, 0) do

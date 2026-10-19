@@ -48,6 +48,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   alias Phoenix.HTML
   alias Phoenix.LiveView.TagEngine
   alias PhoenixKit.Config
+  alias PhoenixKit.HeaderWidget
   alias PhoenixKit.ModuleRegistry
   alias PhoenixKit.Modules.Crawlers
   alias PhoenixKit.Modules.Languages
@@ -942,6 +943,10 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
     if assigns[:socket] && user do
       assigns
       |> Map.put(:phoenix_kit_current_user, user)
+      |> Map.put(
+        :impersonating?,
+        HeaderWidget.impersonating?(assigns[:phoenix_kit_current_scope])
+      )
       |> ModuleRegistry.header_widgets_for()
     else
       []
@@ -1356,17 +1361,19 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
               <%!-- Dock column: rendered only while a rendered header widget declares
                    `dock: true`, so a layout without one has no trace of it. Hidden until
-                   `pk-dock-open` is on #admin-drawer or on an element inside it (the
-                   second form survives a live redirect, which replaces #admin-drawer;
-                   see `PhoenixKitWeb.Components.AdminDock`). From `lg` it is the drawer
-                   grid's third column and the work area narrows by its width
+                   `pk-dock-open` is on <body> or on any element inside it, the widget in
+                   the header included (<header> and #admin-drawer are siblings, so <body>
+                   is the nearest element above both; it is also never patched, so the
+                   class survives a live redirect). See
+                   `PhoenixKitWeb.Components.AdminDock`. From `lg` it is the drawer grid's
+                   third column and the work area narrows by its width
                    (`--pk-dock-width`, 25rem by default); below `lg` it covers the screen
                    under the header. --%>
               <aside
                 :if={Enum.any?(@header_widgets, & &1.dock)}
                 id="pk-dock"
                 class={[
-                  "hidden [.pk-dock-open_&]:block [#admin-drawer:has(.pk-dock-open)_&]:block",
+                  "hidden [.pk-dock-open_&]:block [body:has(.pk-dock-open)_&]:block",
                   "col-start-3 row-start-1 self-start sticky top-16 z-30",
                   "h-[calc(100dvh-4rem)] w-[var(--pk-dock-width,25rem)] overflow-y-auto",
                   "border-l border-base-300 bg-base-100",

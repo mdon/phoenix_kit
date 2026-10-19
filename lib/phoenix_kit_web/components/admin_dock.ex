@@ -12,25 +12,26 @@ defmodule PhoenixKitWeb.Components.AdminDock do
     * **Container**: `#pk-dock` (`container_id/0`), the last child of `#admin-drawer`. It is
       an empty `<aside>` that is `display: none` until opened. What goes into it is the
       widget's business: the widget can position its own panel over the column (the column
-      holds the width free, the panel sits at `right-0` with `w-[var(--pk-dock-width)]`), or
-      move its panel element into the container with a hook.
-    * **State**: the class `pk-dock-open` (`open_class/0`), on `#admin-drawer`
-      (`drawer_id/0`) **or on any element inside it**; either opens the dock. Which one to
-      use depends on how long the state has to live:
-        * The JS commands below put the class on `#admin-drawer`. LiveView re-applies it after
-          every patch of the page, so it survives `push_patch` and other updates of the same
-          LiveView. It does **not** survive a live redirect to another LiveView (the usual
-          admin navigation, e.g. a sidebar link): that builds a new `#admin-drawer`, and the
-          class is gone, while the sticky widget is moved over untouched and is not mounted
-          again. A full page load (another `live_session`) resets it as well.
-        * A class on an element of the widget itself travels with the widget. A widget that
-          wants the dock to stay open across navigation keeps "open" in its own assigns and
-          renders `class={[@open? && "pk-dock-open"]}` on its root element (inside the header,
-          so inside `#admin-drawer`); the layout's CSS (`#admin-drawer:has(.pk-dock-open)`)
-          shows the dock for as long as that element has the class. It needs no JavaScript and
-          no replay on mount.
-    * **Width**: the CSS variable `--pk-dock-width` (`width_var/0`), `25rem` when unset. Set
-      it on `#admin-drawer` or any ancestor, from CSS or a style attribute.
+      holds the width free, the panel sits at `right-0` with `w-[var(--pk-dock-width,25rem)]`),
+      or move its panel element into the container with a hook.
+    * **State**: the class `pk-dock-open` (`open_class/0`) on `<body>` (`target/0`) or on
+      **any element inside it**, the widget's own markup included; either opens the dock.
+      The page is laid out as `<body> > header` (where the widgets live) next to
+      `<body> > ... > #admin-drawer > #pk-dock`, so `<body>` is the one element above both
+      and the CSS looks there. Which form to use depends on how long the state has to live:
+        * The JS commands below put the class on `<body>`. LiveView never patches `<body>`, so
+          the class survives `push_patch`, a live redirect to another LiveView (the usual
+          admin navigation, e.g. a sidebar link), and the sticky widget is not mounted again.
+          A full page load resets it.
+        * A class on an element of the widget itself (in the header) travels with the sticky
+          widget as well. A widget that keeps "open" in its own assigns renders
+          `class={[@open? && "pk-dock-open"]}` on an element of its own, and the dock is shown
+          for as long as that element has the class. It needs no JavaScript and no replay on
+          mount.
+    * **Width**: the CSS variable `--pk-dock-width` (`width_var/0`), `25rem` when unset. The
+      dock reads it inside `#admin-drawer`, a widget panel in the header reads it from the
+      header: set it on `:root` or `<body>` (above both), from CSS or a style attribute, and
+      write `var(--pk-dock-width,25rem)` wherever you read it.
     * **Layout**: from `lg` up the dock is a third column of the drawer grid, so the work
       area gets narrower by the dock's width; the dock is as tall as the viewport below the
       header and scrolls itself. Below `lg` it covers the whole screen under the header.
@@ -40,35 +41,36 @@ defmodule PhoenixKitWeb.Components.AdminDock do
       <button phx-click={AdminDock.toggle()}>Chat</button>
       <button phx-click={AdminDock.close() |> JS.push("forget_panel")}>Close</button>
 
-  The commands target `#admin-drawer` by selector, so they work from the widget's nested
-  LiveView, which sits in the header. They change the class on `#admin-drawer` only; mind the
-  lifetime of that state above. A widget that keeps its own class on an element of its own
+  The commands target `<body>` by selector, so they work from the widget's nested LiveView,
+  which sits in the header. A widget that also keeps its own class on an element of its own
   must not mix the two: when it closes, it removes the class from its element and runs
   `close/1`.
 
   ## Not covered by tests
 
   `Phoenix.LiveViewTest` has no notion of sticky LiveViews moving to the new page on a live
-  redirect, so the ExUnit tests pin the markup (the container, the class variants) and the
-  JS ops, not the survival across a navigation. That is LiveView's own behaviour.
+  redirect, so the ExUnit tests pin the markup (the container, the class variants), the
+  JS ops, and that the element the commands address, and the one the CSS looks at, is an
+  ancestor of both the widget and the dock; not the survival across a navigation. That is
+  LiveView's own behaviour.
   """
 
   alias Phoenix.LiveView.JS
 
-  @drawer_id "admin-drawer"
+  @target "body"
   @container_id "pk-dock"
   @open_class "pk-dock-open"
   @width_var "--pk-dock-width"
 
-  @doc "The id of the element that carries the open class."
-  @spec drawer_id() :: String.t()
-  def drawer_id, do: @drawer_id
+  @doc "The selector of the element the commands put the open class on."
+  @spec target() :: String.t()
+  def target, do: @target
 
   @doc "The id of the dock container."
   @spec container_id() :: String.t()
   def container_id, do: @container_id
 
-  @doc "The class on the drawer while the dock is open."
+  @doc "The class that opens the dock."
   @spec open_class() :: String.t()
   def open_class, do: @open_class
 
@@ -78,13 +80,13 @@ defmodule PhoenixKitWeb.Components.AdminDock do
 
   @doc "Open the dock."
   @spec open(JS.t()) :: JS.t()
-  def open(js \\ %JS{}), do: JS.add_class(js, @open_class, to: "#" <> @drawer_id)
+  def open(js \\ %JS{}), do: JS.add_class(js, @open_class, to: @target)
 
   @doc "Close the dock."
   @spec close(JS.t()) :: JS.t()
-  def close(js \\ %JS{}), do: JS.remove_class(js, @open_class, to: "#" <> @drawer_id)
+  def close(js \\ %JS{}), do: JS.remove_class(js, @open_class, to: @target)
 
   @doc "Open the dock if it is closed, close it if it is open."
   @spec toggle(JS.t()) :: JS.t()
-  def toggle(js \\ %JS{}), do: JS.toggle_class(js, @open_class, to: "#" <> @drawer_id)
+  def toggle(js \\ %JS{}), do: JS.toggle_class(js, @open_class, to: @target)
 end
