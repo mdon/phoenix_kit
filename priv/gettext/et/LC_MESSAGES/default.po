@@ -20657,3 +20657,58 @@ msgstr "Mooduli API on seadetes (Seaded -> API) välja lülitatud."
 #, elixir-autogen, elixir-format
 msgid "The module's API is on, but nothing can call it now: the module is disabled or the API it serves is switched off."
 msgstr "Mooduli API on sees, kuid praegu ei saa seda keegi kutsuda: moodul on keelatud või API, mida see teenindab, on välja lülitatud."
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Clear date"
+msgstr "Tühjenda kuupäev"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Clear date for %{name}"
+msgstr "Tühjenda kuupäev: %{name}"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Open calendar"
+msgstr "Ava kalender"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Open calendar for %{name}"
+msgstr "Ava kalender: %{name}"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Expected %{example}"
+msgstr "Vorming: %{example}"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Previous month"
+msgstr "Eelmine kuu"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Next month"
+msgstr "Järgmine kuu"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Calendar"
+msgstr "Kalender"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Pick a date between %{min} and %{max}"
+msgstr "Vali kuupäev vahemikus %{min} – %{max}"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Pick a date on or after %{min}"
+msgstr "Vali kuupäev alates %{min}"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Pick a date on or before %{max}"
+msgstr "Vali kuupäev kuni %{max}"

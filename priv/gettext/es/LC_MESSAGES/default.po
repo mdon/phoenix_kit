@@ -20657,3 +20657,58 @@ msgstr "La API del módulo está desactivada en Ajustes -> API."
 #, elixir-autogen, elixir-format
 msgid "The module's API is on, but nothing can call it now: the module is disabled or the API it serves is switched off."
 msgstr "La API del módulo está activada, pero ahora nadie puede llamarla: el módulo está deshabilitado o la API a la que sirve está desactivada."
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Clear date"
+msgstr "Borrar fecha"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Clear date for %{name}"
+msgstr "Borrar fecha: %{name}"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Open calendar"
+msgstr "Abrir calendario"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Open calendar for %{name}"
+msgstr "Abrir calendario: %{name}"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Expected %{example}"
+msgstr "Formato: %{example}"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Previous month"
+msgstr "Mes anterior"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Next month"
+msgstr "Mes siguiente"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Calendar"
+msgstr "Calendario"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Pick a date between %{min} and %{max}"
+msgstr "Elige una fecha entre %{min} y %{max}"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Pick a date on or after %{min}"
+msgstr "Elige una fecha a partir del %{min}"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Pick a date on or before %{max}"
+msgstr "Elige una fecha hasta el %{max}"

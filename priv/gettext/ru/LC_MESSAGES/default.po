@@ -20724,3 +20724,58 @@ msgstr "API модуля выключен в разделе Настройки -
 #, elixir-autogen, elixir-format
 msgid "The module's API is on, but nothing can call it now: the module is disabled or the API it serves is switched off."
 msgstr "API модуля включён, но сейчас его никто не может вызвать: модуль отключён или API, который он обслуживает, выключен."
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Clear date"
+msgstr "Очистить дату"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Clear date for %{name}"
+msgstr "Очистить дату: %{name}"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Open calendar"
+msgstr "Открыть календарь"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Open calendar for %{name}"
+msgstr "Открыть календарь: %{name}"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Expected %{example}"
+msgstr "Формат: %{example}"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Previous month"
+msgstr "Предыдущий месяц"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Next month"
+msgstr "Следующий месяц"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Calendar"
+msgstr "Календарь"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Pick a date between %{min} and %{max}"
+msgstr "Выберите дату от %{min} до %{max}"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Pick a date on or after %{min}"
+msgstr "Выберите дату не раньше %{min}"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Pick a date on or before %{max}"
+msgstr "Выберите дату не позже %{max}"

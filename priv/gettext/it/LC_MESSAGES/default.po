@@ -20648,3 +20648,58 @@ msgstr "L'API del modulo è disattivata in Impostazioni -> API."
 #, elixir-autogen, elixir-format
 msgid "The module's API is on, but nothing can call it now: the module is disabled or the API it serves is switched off."
 msgstr "L'API del modulo è attiva, ma al momento nessuno può chiamarla: il modulo è disattivato o l'API che serve è disattivata."
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Clear date"
+msgstr "Cancella data"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Clear date for %{name}"
+msgstr "Cancella data: %{name}"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Open calendar"
+msgstr "Apri calendario"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Open calendar for %{name}"
+msgstr "Apri calendario: %{name}"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Expected %{example}"
+msgstr "Formato: %{example}"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Previous month"
+msgstr "Mese precedente"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Next month"
+msgstr "Mese successivo"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Calendar"
+msgstr "Calendario"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Pick a date between %{min} and %{max}"
+msgstr "Scegli una data tra %{min} e %{max}"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Pick a date on or after %{min}"
+msgstr "Scegli una data a partire dal %{min}"
+
+#: lib/phoenix_kit_web/components/core/date_input.ex
+#, elixir-autogen, elixir-format
+msgid "Pick a date on or before %{max}"
+msgstr "Scegli una data fino al %{max}"
