@@ -29,11 +29,13 @@ defmodule PhoenixKit.API.Approvals.View do
 
   @max_rows 25
   @max_text 160
+  @max_reasons 5
   @label_keys ~w(name ref id)
   @row_keys ~w(name ref id action changes warnings error)
   @top_keys ~w(rows totals warnings)
   @error_text_keys ~w(message detail)
   @error_keys ~w(code message detail context)
+  @reason_keys ~w(path message)
 
   @type change :: %{field: String.t(), from: term(), to: term(), pct: String.t() | nil}
   @type row :: %{
@@ -43,7 +45,8 @@ defmodule PhoenixKit.API.Approvals.View do
           changes: [change()],
           warnings: [String.t()],
           error: String.t() | nil,
-          error_code: String.t() | nil
+          error_code: String.t() | nil,
+          error_reasons: [String.t()]
         }
   @type t :: %{
           count: non_neg_integer() | nil,
@@ -75,7 +78,7 @@ defmodule PhoenixKit.API.Approvals.View do
     %{
       count: count,
       rows: for({:ok, row, _clean?} <- parsed, do: row),
-      hidden: max((count || 0) - length(shown), 0),
+      hidden: max(max(count || 0, length(all_rows)) - length(shown), 0),
       summary: summary,
       warnings: warnings,
       technical: if(understood?, do: nil, else: technical(preview, shown))
@@ -113,7 +116,7 @@ defmodule PhoenixKit.API.Approvals.View do
       {label, sub} ->
         {changes, changes_ok?} = changes(row["changes"])
         {warnings, warnings_ok?} = warnings(row["warnings"])
-        {error, error_code, error_ok?} = error(row["error"])
+        {error, error_code, error_reasons, error_ok?} = error(row["error"])
         {action, action_ok?} = text(row["action"])
 
         clean? =
@@ -128,7 +131,8 @@ defmodule PhoenixKit.API.Approvals.View do
            changes: changes,
            warnings: warnings,
            error: error,
-           error_code: error_code
+           error_code: error_code,
+           error_reasons: error_reasons
          }, clean?}
 
       nil ->
@@ -176,21 +180,86 @@ defmodule PhoenixKit.API.Approvals.View do
 
   defp warnings(_other), do: {[], false}
 
-  # A row's error is a sentence, or the tools' `%{"code", "message", "context"}`; the
-  # context is for the technical details of a caller, not for the table.
-  defp error(nil), do: {nil, nil, true}
-  defp error(text) when is_binary(text), do: {text, nil, true}
+  # A row's error is a sentence, or the tools' `%{"code", "message", "context"}`. Of the
+  # context, the field errors (`%{"errors" => [%{"path", "message"}]}`) are read as reasons;
+  # any other context is for the technical details of a caller, not for the table.
+  defp error(nil), do: {nil, nil, [], true}
+  defp error(text) when is_binary(text), do: {blank_to_nil(text), nil, [], true}
 
   defp error(%{} = map) do
-    message = Enum.find_value(@error_text_keys, &binary_value(map, &1))
-    code = binary_value(map, "code")
+    case error_message(map) do
+      nil ->
+        {nil, nil, [], false}
 
-    if message != nil and Enum.all?(Map.keys(map), &(&1 in @error_keys)),
-      do: {message, code, true},
-      else: {nil, nil, false}
+      message ->
+        code = map["code"]
+        {reasons, context_ok?} = reasons(map["context"])
+
+        clean? =
+          (is_nil(code) or is_binary(code)) and context_ok? and
+            Enum.all?(Map.keys(map), &(&1 in @error_keys))
+
+        {message, if(is_binary(code), do: blank_to_nil(code)), reasons, clean?}
+    end
   end
 
-  defp error(_other), do: {nil, nil, false}
+  defp error(_other), do: {nil, nil, [], false}
+
+  # Both the message and the detail, the message first, when the tool wrote both.
+  defp error_message(map) do
+    @error_text_keys
+    |> Enum.map(&binary_value(map, &1))
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+    |> case do
+      [] -> nil
+      texts -> Enum.join(texts, " ")
+    end
+  end
+
+  defp reasons(nil), do: {[], true}
+  defp reasons(context) when context == %{}, do: {[], true}
+
+  defp reasons(%{"errors" => errors} = context) when is_list(errors) and map_size(context) == 1 do
+    parsed = Enum.map(errors, &reason/1)
+    shown = for {:ok, text, _clean?} <- Enum.take(parsed, @max_reasons), do: text
+
+    ok? =
+      length(errors) <= @max_reasons and
+        Enum.all?(parsed, &match?({:ok, _text, true}, &1))
+
+    {shown, ok?}
+  end
+
+  defp reasons(_other), do: {[], false}
+
+  # `{:ok, "path: message", clean?}`; `clean?` is false for text that was cut or for keys
+  # of the entry that were not shown.
+  defp reason(%{} = entry) do
+    path = binary_value(entry, "path")
+
+    case binary_value(entry, "message") do
+      nil ->
+        :error
+
+      message ->
+        {text, cut?} = cap(if(path, do: path <> ": " <> message, else: message))
+
+        clean? =
+          not cut? and Enum.all?(Map.keys(entry), &(&1 in @reason_keys)) and
+            (is_nil(entry["path"]) or is_binary(entry["path"]))
+
+        {:ok, text, clean?}
+    end
+  end
+
+  defp reason(_other), do: :error
+
+  defp cap(text) do
+    if String.length(text) > @max_text,
+      do: {String.slice(text, 0, @max_text - 1) <> "…", true},
+      else: {text, false}
+  end
 
   defp binary_value(map, key) do
     case map[key] do
@@ -199,8 +268,11 @@ defmodule PhoenixKit.API.Approvals.View do
     end
   end
 
+  defp blank_to_nil(""), do: nil
+  defp blank_to_nil(value), do: value
+
   defp text(nil), do: {nil, true}
-  defp text(text) when is_binary(text), do: {text, true}
+  defp text(text) when is_binary(text), do: {blank_to_nil(text), true}
   defp text(_other), do: {nil, false}
 
   # -- totals ------------------------------------------------------------------

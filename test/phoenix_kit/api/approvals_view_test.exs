@@ -65,11 +65,16 @@ defmodule PhoenixKit.API.Approvals.ViewTest do
       assert view.technical == nil
     end
 
-    test "a row error in the shape of the first-party tools is read: code and message" do
+    test "a row error in the shape of the first-party tools is read: code, message, reasons" do
       error = %{
         "code" => "validation_failed",
-        "message" => "price must be a number",
-        "context" => %{"errors" => [%{"path" => "price", "message" => "is invalid"}]}
+        "message" => "The row does not pass validation.",
+        "context" => %{
+          "errors" => [
+            %{"path" => "price", "message" => "must be a number"},
+            %{"message" => "the row is empty"}
+          ]
+        }
       }
 
       view =
@@ -80,11 +85,130 @@ defmodule PhoenixKit.API.Approvals.ViewTest do
       assert [
                %{
                  action: "error",
-                 error: "price must be a number",
-                 error_code: "validation_failed"
+                 error: "The row does not pass validation.",
+                 error_code: "validation_failed",
+                 error_reasons: ["price: must be a number", "the row is empty"]
                }
-             ] =
-               view.rows
+             ] = view.rows
+
+      assert view.technical == nil
+    end
+
+    test "a row error with an empty context is clean and has no reasons" do
+      error = %{
+        "code" => "not_found",
+        "message" => "The product no longer exists.",
+        "context" => %{}
+      }
+
+      view = View.preview(%{"rows" => [%{"ref" => "a", "error" => error}]})
+
+      assert [%{error_code: "not_found", error_reasons: []}] = view.rows
+      assert view.technical == nil
+    end
+
+    test "a row error whose context is not the list of field errors keeps the preview as technical details" do
+      for context <- [
+            %{"ref" => "SKU-9"},
+            %{"candidates" => ["a", "b"]},
+            %{"reason" => "timeout"},
+            %{"images" => [%{"url" => "x", "reason" => "404"}]},
+            %{"errors" => [%{"path" => "price", "message" => "bad"}], "ref" => "SKU-9"},
+            %{"errors" => "price is bad"},
+            "context"
+          ] do
+        preview = %{
+          "rows" => [
+            %{
+              "ref" => "a",
+              "error" => %{"code" => "x", "message" => "Failed.", "context" => context}
+            }
+          ]
+        }
+
+        view = View.preview(preview)
+
+        assert [%{error: "Failed.", error_reasons: []}] = view.rows
+        assert view.technical == preview, inspect(context)
+      end
+    end
+
+    test "field errors the page cannot read in full keep the preview as technical details" do
+      shapes = [
+        [%{"path" => "price", "message" => "must be a number", "allowed" => ["a"]}],
+        [%{"path" => "price"}],
+        [%{"path" => 5, "message" => "bad"}],
+        ["price is bad"]
+      ]
+
+      for errors <- shapes do
+        error = %{"message" => "Failed.", "context" => %{"errors" => errors}}
+        preview = %{"rows" => [%{"ref" => "a", "error" => error}]}
+
+        assert View.preview(preview).technical == preview, inspect(errors)
+      end
+    end
+
+    test "the reasons are bounded: five entries, 160 characters each, and the rest in the technical details" do
+      errors = for n <- 1..7, do: %{"path" => "f#{n}", "message" => "bad #{n}"}
+      error = %{"message" => "Failed.", "context" => %{"errors" => errors}}
+      preview = %{"rows" => [%{"ref" => "a", "error" => error}]}
+      view = View.preview(preview)
+
+      assert [%{error_reasons: reasons}] = view.rows
+      assert reasons == for(n <- 1..5, do: "f#{n}: bad #{n}")
+      assert view.technical == preview
+
+      long = String.duplicate("x", 500)
+      error = %{"message" => "Failed.", "context" => %{"errors" => [%{"message" => long}]}}
+      preview = %{"rows" => [%{"ref" => "a", "error" => error}]}
+      view = View.preview(preview)
+
+      assert [%{error_reasons: [reason]}] = view.rows
+      assert String.length(reason) == 160
+      assert String.ends_with?(reason, "…")
+      assert view.technical == preview
+    end
+
+    test "message and detail are both shown, the message first" do
+      error = %{"message" => "The product could not be saved.", "detail" => "Try again later."}
+      view = View.preview(%{"rows" => [%{"ref" => "a", "error" => error}]})
+
+      assert [%{error: "The product could not be saved. Try again later."}] = view.rows
+      assert view.technical == nil
+
+      view =
+        View.preview(%{"rows" => [%{"ref" => "a", "error" => %{"detail" => "Only detail."}}]})
+
+      assert [%{error: "Only detail."}] = view.rows
+
+      same = %{"message" => "Same.", "detail" => "Same."}
+      view = View.preview(%{"rows" => [%{"ref" => "a", "error" => same}]})
+      assert [%{error: "Same."}] = view.rows
+    end
+
+    test "a code that is not text is ignored but the row is not clean" do
+      preview = %{"rows" => [%{"ref" => "a", "error" => %{"code" => 42, "message" => "Failed."}}]}
+      view = View.preview(preview)
+
+      assert [%{error: "Failed.", error_code: nil}] = view.rows
+      assert view.technical == preview
+    end
+
+    test "empty strings are no action, no error and no code" do
+      preview = %{
+        "rows" => [
+          %{"ref" => "a", "action" => "", "error" => ""},
+          %{"ref" => "b", "error" => %{"code" => "", "message" => "Failed."}}
+        ]
+      }
+
+      view = View.preview(preview)
+
+      assert [
+               %{action: nil, error: nil, error_code: nil},
+               %{action: nil, error: "Failed.", error_code: nil}
+             ] = view.rows
 
       assert view.technical == nil
     end
@@ -126,11 +250,11 @@ defmodule PhoenixKit.API.Approvals.ViewTest do
       assert view.hidden == 275
     end
 
-    test "totals that count fewer rows than are listed hide nothing" do
+    test "totals that count fewer rows than are listed still count the rows left out" do
       rows = for n <- 1..30, do: %{"ref" => "item-#{n}"}
       view = View.preview(%{"rows" => rows, "totals" => %{"rows" => 3}})
 
-      assert view.hidden == 0
+      assert view.hidden == 5
     end
 
     test "top-level warnings are kept when they are text" do
