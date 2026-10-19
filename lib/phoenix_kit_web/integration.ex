@@ -397,7 +397,9 @@ defmodule PhoenixKitWeb.Integration do
       # llms.txt rides along: same public, session-free shape, and policy files
       # must stay fetchable even by bots the Crawlers module blocks.
       scope unquote(url_prefix) do
-        get "/llms.txt", PhoenixKit.Modules.Crawlers.Web.Controller, :llms_txt
+        get "/llms.txt", PhoenixKit.Modules.Crawlers.Web.Controller, :llms_txt,
+          metadata: %{sitemap: false}
+
         get "/sitemap.xml", PhoenixKit.Modules.Sitemap.Web.Controller, :xml
         get "/sitemap.html", PhoenixKit.Modules.Sitemap.Web.Controller, :html
         get "/sitemaps/:filename", PhoenixKit.Modules.Sitemap.Web.Controller, :module_sitemap
@@ -1685,7 +1687,9 @@ defmodule PhoenixKitWeb.Integration do
   defp root_sitemap_routes(_url_prefix) do
     quote do
       scope "/" do
-        get "/llms.txt", PhoenixKit.Modules.Crawlers.Web.Controller, :llms_txt
+        get "/llms.txt", PhoenixKit.Modules.Crawlers.Web.Controller, :llms_txt,
+          metadata: %{sitemap: false}
+
         get "/sitemap.xml", PhoenixKit.Modules.Sitemap.Web.Controller, :xml
         get "/sitemap.html", PhoenixKit.Modules.Sitemap.Web.Controller, :html
         get "/sitemaps/:filename", PhoenixKit.Modules.Sitemap.Web.Controller, :module_sitemap
@@ -1708,7 +1712,7 @@ defmodule PhoenixKitWeb.Integration do
   # discovery pages are answered by `PhoenixKitWeb.Controllers.ApiDiscovery`.
   defp api_guide_routes do
     quote do
-      get "/mcp", PhoenixKitWeb.Controllers.ApiDiscovery, :guide
+      get "/mcp", PhoenixKitWeb.Controllers.ApiDiscovery, :guide, metadata: %{sitemap: false}
       match :*, "/mcp", PhoenixKitWeb.Controllers.ApiDiscovery, :not_allowed
     end
   end
@@ -1718,7 +1722,8 @@ defmodule PhoenixKitWeb.Integration do
   # never under a prefix.
   defp api_catalog_route(:root) do
     quote do
-      get "/.well-known/api-catalog", PhoenixKitWeb.Controllers.ApiDiscovery, :api_catalog
+      get "/.well-known/api-catalog", PhoenixKitWeb.Controllers.ApiDiscovery, :api_catalog,
+        metadata: %{sitemap: false}
     end
   end
 
