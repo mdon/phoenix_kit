@@ -8925,6 +8925,8 @@ if (typeof window.Chart === "undefined") {
         var dir = e.detail && e.detail.direction === "left" ? "next" : "prev";
         if (self.el.dataset[dir === "next" ? "hasNext" : "hasPrev"] !== "true") return;
         if (self._pane.querySelector(".etcher-pencil-active")) return;
+        // Gallery mode slides between pictures itself (ViewerGallery).
+        if (document.querySelector('[phx-hook="ViewerGallery"]')) return;
         self.pushEventTo(self.el.dataset.target, "step_viewer", { dir: dir });
       };
       if (this._pane) this._pane.addEventListener("fresco:swipe", this._onSwipe);
@@ -8932,6 +8934,164 @@ if (typeof window.Chart === "undefined") {
 
     destroyed() {
       if (this._pane) this._pane.removeEventListener("fresco:swipe", this._onSwipe);
+    }
+  };
+
+  // ============================================================================
+  // ViewerGallery — the Apple Photos way of stepping through pictures
+  // ============================================================================
+  //
+  // Gallery mode (MediaBrowser `gallery_mode`). A drag, a swipe or a sideways
+  // trackpad scroll on a picture at its opening zoom slides the next picture
+  // in beside it, already decoded — Fresco.gallery draws the strip over the
+  // viewer. Nothing waits on the server: once the strip settles the hook
+  // names the new file (`gallery_go`), the viewer patches to it underneath,
+  // and the strip hands over as soon as that viewer's picture has painted.
+  // The arrow keys and the side tabs slide the same way.
+  //
+  // Not while annotating (a drag is a stroke there) and not zoomed in (a drag
+  // is a pan): the viewer keeps those gestures, exactly as before.
+  // ----------------------------------------------------------------------------
+
+  var GALLERY_SETTLE_MS = 180;    // after the strip lands, before telling the server
+  var GALLERY_HOLD_MAX_MS = 8000; // the viewer never painted: stop covering it
+
+  window.PhoenixKitHooks.ViewerGallery = {
+    mounted() {
+      var self = this;
+      if (!window.Fresco || !window.Fresco.gallery) return;
+      self._modal = self.el.parentElement;
+      // The strip goes in the ignored layer beside this element: a child the
+      // template does not render would be dropped by the next patch.
+      var layer = document.getElementById(self.el.id + "-layer") || self._modal;
+
+      function canvasEl() {
+        return self._modal && self._modal.querySelector('[phx-hook="FrescoCanvas"]');
+      }
+      function handle() {
+        var c = canvasEl();
+        return c && window.Fresco.viewerFor(c.id);
+      }
+      function canvasImg(c) {
+        return c && c.querySelector("img[data-fresco-canvas-img]");
+      }
+      // The pane colour behind the picture, so the strip's gaps match it.
+      function background() {
+        var n = canvasEl();
+        while (n && n !== document.body) {
+          var bg = window.getComputedStyle(n).backgroundColor;
+          if (bg && bg !== "transparent" && !/rgba\(.*,\s*0\)$/.test(bg)) return bg;
+          n = n.parentElement;
+        }
+        return "#000";
+      }
+      // Where the viewer has its picture on screen, unturned.
+      function currentRect() {
+        var img = canvasImg(canvasEl());
+        var h = handle();
+        if (!img) return null;
+        var r = img.getBoundingClientRect();
+        var rot = h && h.getRotation ? ((((h.getRotation() || 0) % 360) + 360) % 360) : 0;
+        var quarter = rot === 90 || rot === 270;
+        return {
+          cx: r.left + r.width / 2, cy: r.top + r.height / 2,
+          w: quarter ? r.height : r.width, h: quarter ? r.width : r.height,
+          rotation: rot
+        };
+      }
+
+      self._gallery = window.Fresco.gallery({
+        container: layer,
+        getRect: function() { var c = canvasEl(); return c ? c.getBoundingClientRect() : null; },
+        getTarget: canvasEl,
+        background: background,
+        canStart: function() {
+          if (self._modal.querySelector(".etcher-pencil-active, .etcher-actionbar.is-active")) return false;
+          var h = handle();
+          return !h || !h.isAtHome || h.isAtHome();
+        },
+        getCurrentRect: currentRect,
+        onChange: function(_i, item) {
+          clearTimeout(self._goTimer);
+          self._goTimer = setTimeout(function() {
+            if (item && item.key) self.pushEventTo(self.el, "gallery_go", { uuid: item.key });
+          }, GALLERY_SETTLE_MS);
+          self._watchFor(item && item.key);
+        }
+      });
+
+      // Hand over once the viewer shows `key`: its canvas (the file uuid is
+      // in its id) is mounted and its picture loaded.
+      self._watchFor = function(key) {
+        clearInterval(self._watch);
+        if (!key) return;
+        var started = Date.now();
+        self._watch = setInterval(function() {
+          var g = self._gallery;
+          if (!g || !g.isShown() || g.currentKey() !== key) { clearInterval(self._watch); return; }
+          var c = canvasEl();
+          var img = canvasImg(c);
+          if (c && c.id.indexOf(key) !== -1 && img && img.complete && img.naturalWidth > 0) {
+            // A frame for the viewer to lay it out, then glide onto it.
+            requestAnimationFrame(function() {
+              if (g.release(key, currentRect())) clearInterval(self._watch);
+            });
+          } else if (Date.now() - started > GALLERY_HOLD_MAX_MS) {
+            clearInterval(self._watch);
+            g.hide();
+          }
+        }, 50);
+      };
+
+      self._load = function() {
+        var data;
+        try { data = JSON.parse(self.el.dataset.gallery || "{}"); } catch (_e) { data = {}; }
+        self._gallery.setItems(data.items || [], data.index || 0);
+      };
+      self._load();
+
+      // Arrow keys and the side tabs: the same slide. Captured on window so
+      // the viewer's own step (ViewerKeydown, the tab's phx-click) does not
+      // also run; when the strip cannot slide they pass through untouched.
+      self._onKey = function(e) {
+        if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
+        var t = document.activeElement;
+        if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable === true)) return;
+        if (!self._gallery.isShown() && !self.galleryAllowed()) return;
+        if (self._gallery.step(e.key === "ArrowLeft" ? -1 : 1)) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+        }
+      };
+      self._onTab = function(e) {
+        var btn = e.target && e.target.closest && e.target.closest('[phx-click="step_viewer"]');
+        if (!btn || !self._modal.contains(btn)) return;
+        if (!self._gallery.isShown() && !self.galleryAllowed()) return;
+        var dir = btn.getAttribute("phx-value-dir") === "prev" ? -1 : 1;
+        if (self._gallery.step(dir)) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+        }
+      };
+      self.galleryAllowed = function() {
+        return !self._modal.querySelector(".etcher-pencil-active, .etcher-actionbar.is-active");
+      };
+      window.addEventListener("keydown", self._onKey, true);
+      window.addEventListener("click", self._onTab, true);
+    },
+
+    updated() {
+      if (this._load) this._load();
+    },
+
+    destroyed() {
+      clearTimeout(this._goTimer);
+      clearInterval(this._watch);
+      if (this._onKey) window.removeEventListener("keydown", this._onKey, true);
+      if (this._onTab) window.removeEventListener("click", this._onTab, true);
+      if (this._gallery) this._gallery.destroy();
+      this._gallery = null;
     }
   };
 
