@@ -187,6 +187,26 @@ defmodule PhoenixKit.API.Approvals.ViewTest do
       assert [%{error: "Same."}] = view.rows
     end
 
+    test "a message or detail that is not text next to a text one keeps the preview as technical details" do
+      errors = [
+        %{"message" => "Failed.", "detail" => %{"a" => 1}},
+        %{"message" => "Failed.", "detail" => 5},
+        %{"message" => ["x"], "detail" => "Why."}
+      ]
+
+      for error <- errors do
+        preview = %{"rows" => [%{"ref" => "a", "error" => error}]}
+        view = View.preview(preview)
+
+        assert [%{error: text}] = view.rows
+        assert is_binary(text)
+        assert view.technical == preview
+      end
+
+      empty = %{"rows" => [%{"ref" => "a", "error" => %{"message" => "Failed.", "detail" => ""}}]}
+      assert View.preview(empty).technical == nil
+    end
+
     test "a code that is not text is ignored but the row is not clean" do
       preview = %{"rows" => [%{"ref" => "a", "error" => %{"code" => 42, "message" => "Failed."}}]}
       view = View.preview(preview)
@@ -255,6 +275,33 @@ defmodule PhoenixKit.API.Approvals.ViewTest do
       view = View.preview(%{"rows" => rows, "totals" => %{"rows" => 3}})
 
       assert view.hidden == 5
+    end
+
+    test "the catalogue tools' shape is read: summary like totals, requires_confirmation known" do
+      preview = %{
+        "rows" => [%{"ref" => "SKU-1", "action" => "updated", "id" => "0198-aaaa"}],
+        "summary" => %{"updated" => 1},
+        "requires_confirmation" => true
+      }
+
+      view = View.preview(preview)
+
+      assert view.summary == [{"updated", 1}]
+      assert view.count == 1
+      assert view.technical == nil
+    end
+
+    test "totals win over summary, and both together keep the preview as technical details" do
+      preview = %{
+        "rows" => [%{"ref" => "a"}],
+        "totals" => %{"update" => 1},
+        "summary" => %{"updated" => 1}
+      }
+
+      view = View.preview(preview)
+
+      assert view.summary == [{"update", 1}]
+      assert view.technical == preview
     end
 
     test "top-level warnings are kept when they are text" do

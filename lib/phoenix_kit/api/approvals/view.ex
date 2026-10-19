@@ -17,6 +17,9 @@ defmodule PhoenixKit.API.Approvals.View do
         "warnings" => ["..."]
       }
 
+  The catalogue tools write the counts as `"summary"` (and may add `"requires_confirmation"`);
+  that is read like `"totals"` when there are no `"totals"`.
+
   `preview/1` reads it into a table (`Item | Field | Was | Becomes | Delta`), a list of
   totals and the warnings. Whatever does not fit (a key the table has no column for, a row
   without a name, `changes` that are not from/to pairs, totals that are not plain values)
@@ -32,7 +35,7 @@ defmodule PhoenixKit.API.Approvals.View do
   @max_reasons 5
   @label_keys ~w(name ref id)
   @row_keys ~w(name ref id action changes warnings error)
-  @top_keys ~w(rows totals warnings)
+  @top_keys ~w(rows totals summary warnings requires_confirmation)
   @error_text_keys ~w(message detail)
   @error_keys ~w(code message detail context)
   @reason_keys ~w(path message)
@@ -68,7 +71,7 @@ defmodule PhoenixKit.API.Approvals.View do
     shown = Enum.take(all_rows, @max_rows)
     count = count(preview, all_rows)
     parsed = Enum.map(shown, &row/1)
-    {summary, totals_ok?} = totals(preview["totals"])
+    {summary, totals_ok?} = totals(preview)
     {warnings, warnings_ok?} = warnings(preview["warnings"])
 
     understood? =
@@ -197,6 +200,7 @@ defmodule PhoenixKit.API.Approvals.View do
 
         clean? =
           (is_nil(code) or is_binary(code)) and context_ok? and
+            Enum.all?(@error_text_keys, &text_or_blank?(map[&1])) and
             Enum.all?(Map.keys(map), &(&1 in @error_keys))
 
         {message, if(is_binary(code), do: blank_to_nil(code)), reasons, clean?}
@@ -217,11 +221,13 @@ defmodule PhoenixKit.API.Approvals.View do
     end
   end
 
+  defp text_or_blank?(value), do: is_nil(value) or is_binary(value)
+
   defp reasons(nil), do: {[], true}
   defp reasons(context) when context == %{}, do: {[], true}
 
   defp reasons(%{"errors" => errors} = context) when is_list(errors) and map_size(context) == 1 do
-    parsed = Enum.map(errors, &reason/1)
+    parsed = errors |> Enum.take(@max_reasons + 1) |> Enum.map(&reason/1)
     shown = for {:ok, text, _clean?} <- Enum.take(parsed, @max_reasons), do: text
 
     ok? =
@@ -277,16 +283,27 @@ defmodule PhoenixKit.API.Approvals.View do
 
   # -- totals ------------------------------------------------------------------
 
-  # The plain values of `totals`, in key order; the `rows` count has its own place.
-  defp totals(nil), do: {[], true}
+  # The plain values of `totals`, or of `summary` (the catalogue tools' name for the same
+  # counts) when there are no `totals`, in key order; the `rows` count has its own place. A
+  # preview with both is not read twice: the `summary` is left to the technical details.
+  defp totals(%{"totals" => totals, "summary" => _summary}) do
+    {plain, _ok?} = counts(totals)
+    {plain, false}
+  end
 
-  defp totals(%{} = totals) do
+  defp totals(%{"totals" => totals}), do: counts(totals)
+  defp totals(%{"summary" => summary}), do: counts(summary)
+  defp totals(_preview), do: {[], true}
+
+  defp counts(nil), do: {[], true}
+
+  defp counts(%{} = totals) do
     entries = totals |> Map.delete("rows") |> Enum.sort()
     plain = for {key, value} <- entries, plain?(value), do: {to_string(key), value}
     {plain, length(plain) == length(entries)}
   end
 
-  defp totals(_other), do: {[], false}
+  defp counts(_other), do: {[], false}
 
   defp plain?(value) when is_number(value) or is_boolean(value), do: true
   defp plain?(value) when is_binary(value), do: byte_size(value) <= @max_text
