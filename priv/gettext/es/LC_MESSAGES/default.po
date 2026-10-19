@@ -20594,7 +20594,7 @@ msgstr "Borrar fecha"
 #: lib/phoenix_kit_web/components/core/date_input.ex
 #, elixir-autogen, elixir-format
 msgid "Clear date for %{name}"
-msgstr "Borrar fecha de %{name}"
+msgstr "Borrar fecha: %{name}"
 
 #: lib/phoenix_kit_web/components/core/date_input.ex
 #, elixir-autogen, elixir-format
@@ -20604,7 +20604,7 @@ msgstr "Abrir calendario"
 #: lib/phoenix_kit_web/components/core/date_input.ex
 #, elixir-autogen, elixir-format
 msgid "Open calendar for %{name}"
-msgstr "Abrir calendario de %{name}"
+msgstr "Abrir calendario: %{name}"
 
 #: lib/phoenix_kit_web/components/core/date_input.ex
 #, elixir-autogen, elixir-format
