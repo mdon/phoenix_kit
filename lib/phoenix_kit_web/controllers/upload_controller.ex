@@ -10,6 +10,7 @@ defmodule PhoenixKitWeb.UploadController do
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.RateLimiter
+  alias PhoenixKit.Utils.FileHash
   alias PhoenixKit.Utils.Format
 
   @upload_config %{
@@ -221,13 +222,8 @@ defmodule PhoenixKitWeb.UploadController do
   # to be two files. Rows stored with the old MD5 are recomputed by
   # `Storage.Workers.ChecksumBackfillJob`.
   defp safe_calculate_file_hash(file_path) do
-    case File.read(file_path) do
-      {:ok, data} ->
-        hash =
-          data
-          |> then(&:crypto.hash(:sha256, &1))
-          |> Base.encode16(case: :lower)
-
+    case FileHash.sha256(file_path) do
+      {:ok, hash} ->
         {:ok, hash}
 
       {:error, reason} ->

@@ -39,6 +39,7 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
   alias PhoenixKit.Modules.Storage.PdfProcessor
   alias PhoenixKit.Modules.Storage.Shape
   alias PhoenixKit.Modules.Storage.VariantSets
+  alias PhoenixKit.Utils.FileHash
 
   require Logger
 
@@ -998,12 +999,7 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
 
   defp still_quality_args(_dimension), do: []
 
-  defp calculate_file_checksum(file_path) do
-    file_path
-    |> File.read!()
-    |> then(fn data -> :crypto.hash(:sha256, data) end)
-    |> Base.encode16(case: :lower)
-  end
+  defp calculate_file_checksum(file_path), do: FileHash.sha256!(file_path)
 
   # HDR keeps the camera's orientation tag instead of turning its pixels.
   # Rendition dimensions describe what viewers display, including the full

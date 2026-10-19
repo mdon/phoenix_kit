@@ -748,6 +748,18 @@ token is still valid). **That is not authorization**: check the viewer's
 rights to the uuid separately. Only the path is checked, never the scheme or
 host — act on the returned uuid, never fetch or render the string itself.
 
+## Large files are read from disk, never into memory
+
+A video can be gigabytes. Every checksum of a file on disk is taken in 1 MiB chunks
+(`PhoenixKit.Utils.FileHash`: `sha256/2`, `md5/2`, `hashes/3` for several digests in one
+pass, and the `!` forms that raise `File.Error` as `File.read!/1` did): the original's
+SHA-256 and MD5 at upload (`Storage.store_file_in_buckets/7`, `Auth.calculate_file_hash/1`),
+each rendition's, `Storage.store_from_url/2`, the dedup backfill and `POST /api/upload`.
+What a hash costs in memory is the chunk, not the file. Bytes move the same way: a bucket
+download is streamed to a file (`ExAws.S3.download_file`), a local bucket writes to a
+temporary name and renames, and S3 uploads of 5 MB or more are multipart streams. A test
+stores a 160 MiB file and fails if binary memory rises by more than 64 MiB.
+
 ## Storing a file from a URL
 
 `Storage.store_from_url(url, user_uuid: …)` downloads a URL and stores it

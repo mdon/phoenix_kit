@@ -135,6 +135,7 @@ defmodule PhoenixKit.Modules.Storage do
   alias PhoenixKit.Modules.Storage.VariantSets
   alias PhoenixKit.Modules.Storage.Workers.ReconcileJob
   alias PhoenixKit.Settings
+  alias PhoenixKit.Utils.FileHash
   alias PhoenixKit.Utils.TreeQuery
 
   @default_path "priv/uploads"
@@ -5990,11 +5991,7 @@ defmodule PhoenixKit.Modules.Storage do
          opts
        ) do
     # Calculate MD5 hash for path structure
-    md5_hash =
-      source_path
-      |> Elixir.File.read!()
-      |> then(fn data -> :crypto.hash(:md5, data) end)
-      |> Base.encode16(case: :lower)
+    md5_hash = FileHash.md5!(source_path)
 
     # Generate UUIDv7 for file UUID
     file_uuid = UUIDv7.generate()
@@ -6637,8 +6634,7 @@ defmodule PhoenixKit.Modules.Storage do
           filename = opts[:filename] || name
           ext = mime |> MIME.extensions() |> List.first() || "bin"
 
-          checksum =
-            :sha256 |> :crypto.hash(Elixir.File.read!(path)) |> Base.encode16(case: :lower)
+          checksum = FileHash.sha256!(path)
 
           store_file_in_buckets(
             path,
@@ -7142,12 +7138,7 @@ defmodule PhoenixKit.Modules.Storage do
     end
   end
 
-  defp calculate_file_hash(file_path) do
-    file_path
-    |> Elixir.File.read!()
-    |> then(fn data -> :crypto.hash(:sha256, data) end)
-    |> Base.encode16(case: :lower)
-  end
+  defp calculate_file_hash(file_path), do: FileHash.sha256!(file_path)
 
   # Extensions the browser and `MIME.from_path/1` both routinely hand back as
   # `application/octet-stream` — `.m4a` (what an iPhone records), `.flac`,

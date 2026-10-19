@@ -41,6 +41,14 @@
 - `Libraries.integration_summary/2`: what a user's integration says about itself (service, bucket provider, region,
   endpoint), never a secret.
 
+### Fixed
+
+- **Large files are no longer read into memory to be hashed.** Every checksum of a file on disk (the original's SHA-256 and MD5
+  at upload, each rendition's, a URL import, the dedup backfill, `POST /api/upload`) read the whole file with `File.read!/1`
+  and held it, twice over, while it hashed; a video of a few gigabytes cost a few gigabytes. They go through the new
+  `PhoenixKit.Utils.FileHash` (1 MiB chunks, several digests in one pass), so what a hash costs in memory is the chunk. A test
+  stores a 160 MiB file and fails if binary memory rises by more than 64 MiB (the old code rose by 293 MiB).
+
 ## 2.63.0 - 2026-10-17
 
 **Migrations V218, V219 and V220** (run `mix phoenix_kit.update`). Ships PR #932 (profile-form hardening), #933 (chart and
