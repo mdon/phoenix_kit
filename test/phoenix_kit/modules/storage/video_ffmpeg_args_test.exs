@@ -177,6 +177,47 @@ defmodule PhoenixKit.Modules.Storage.VideoFfmpegArgsTest do
     end
   end
 
+  describe "the frame for an HDR poster" do
+    defp frame_args(attrs \\ []) do
+      VariantGenerator.hdr_frame_args(
+        "in.mov",
+        "out.jpg.pfm",
+        dimension(
+          Keyword.merge(
+            [name: "video_thumbnail", width: 640, height: 360, format: "jpg", quality: 85],
+            attrs
+          )
+        ),
+        %{hdr?: true, hlg?: true, duration: 1.0}
+      )
+    end
+
+    test "is one linear-light float frame, written as a PFM, at the poster's size and time" do
+      args = frame_args()
+
+      assert option(args, "-pix_fmt") == "gbrpf32le"
+      assert option(args, "-c:v") == "pfm"
+      assert option(args, "-vframes") == "1"
+      assert option(args, "-ss") == "00:00:00.500"
+      assert List.last(args) == "out.jpg.pfm"
+
+      filter = option(args, "-vf")
+      assert filter =~ "scale=w='min(640,iw)'"
+      assert filter =~ "zscale=t=linear"
+      assert filter =~ "format=gbrpf32le"
+    end
+
+    test "is NOT tone-mapped: the highlights are what the gain map keeps" do
+      refute option(frame_args(), "-vf") =~ "tonemap"
+    end
+
+    test "has no JPEG options" do
+      args = frame_args()
+      assert option(args, "-q:v") == nil
+      assert option(args, "-crf") == nil
+    end
+  end
+
   describe "the output is 8-bit 4:2:0, which is what a browser plays" do
     test "for H.264 and for VP9" do
       assert args(format: "mp4") |> option("-pix_fmt") == "yuv420p"

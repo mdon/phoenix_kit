@@ -1321,6 +1321,7 @@ defmodule PhoenixKit.Modules.Storage do
           applies_to: "video",
           enabled: true,
           alternative_formats: [],
+          keep_hdr: true,
           order: 8,
           inserted_at: now,
           updated_at: now

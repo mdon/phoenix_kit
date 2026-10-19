@@ -491,6 +491,13 @@ stops serving them, and the ones made stay stored.
   or halfway for a clip under two seconds (`VideoSource.poster_second/1`), and a
   run of FFmpeg that wrote no file is an error rather than a later `:enoent`.
   A tone-mapping that fails falls back to the ordinary rendition with a warning.
+- **The poster of an HLG video is an HDR photo** (`VideoHdrPoster`) when its size keeps
+  HDR (`keep_hdr`, on for the seeded `video_thumbnail`) and `hdr_renditions` is on:
+  `VariantGenerator.hdr_frame_args/4` has ffmpeg write one frame as linear light in
+  BT.709 (a PFM of floats, 1.0 = 1000 nits), and libvips' `uhdrsave` writes the JPEG
+  with its gain map (scaled so SDR white, 203 nits, is 1.0). Anything that fails, a
+  missing `vix` or `uhdrsave` (libvips 8.17+) included, makes the tone-mapped SDR poster
+  instead. PQ and Dolby Vision profile 5 sources keep the SDR poster.
 - **Cropping around the subject** (V210, `Storage.FocalPoint`). A fixed image
   rendition (a box the photo is scaled to fill and cropped to) has a
   `crop_mode`: `center` (the default: every existing rendition) or `focus`, which

@@ -39,6 +39,7 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
   alias PhoenixKit.Modules.Storage.PdfProcessor
   alias PhoenixKit.Modules.Storage.Shape
   alias PhoenixKit.Modules.Storage.VariantSets
+  alias PhoenixKit.Modules.Storage.VideoHdrPoster
   alias PhoenixKit.Modules.Storage.VideoSource
   alias PhoenixKit.Utils.FileHash
 
@@ -880,9 +881,17 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
     end
   end
 
-  defp process_video_variant(input_path, output_path, _mime_type, dimension) do
+  @doc false
+  def process_video_variant(input_path, output_path, _mime_type, dimension) do
     source = VideoSource.probe(input_path)
 
+    case hdr_poster(input_path, output_path, dimension, source) do
+      {:ok, _path} = ok -> ok
+      :skip -> video_variant(input_path, output_path, dimension, source)
+    end
+  end
+
+  defp video_variant(input_path, output_path, dimension, source) do
     case run_ffmpeg(ffmpeg_args(input_path, output_path, dimension, source), output_path) do
       {:ok, _path} = ok ->
         ok
@@ -904,6 +913,74 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
       error ->
         error
     end
+  end
+
+  # The poster of an HLG video as an HDR photo (a JPEG with a gain map), when the size
+  # keeps HDR (`Dimension.keep_hdr?/1`, the size's option) and the site has HDR
+  # renditions on. Anything that goes wrong is a warning and `:skip`: the SDR poster,
+  # tone-mapped, is made as it always was.
+  defp hdr_poster(input_path, output_path, dimension, source) do
+    if hdr_poster?(dimension, source) do
+      frame = output_path <> ".pfm"
+
+      try do
+        with {:ok, _path} <-
+               run_ffmpeg(hdr_frame_args(input_path, frame, dimension, source), frame),
+             {:ok, _size} <-
+               VideoHdrPoster.from_pfm(frame, output_path, quality: dimension.quality || 85),
+             true <- File.regular?(output_path) do
+          {:ok, output_path}
+        else
+          other ->
+            Logger.warning(
+              "HDR poster of #{Path.basename(input_path)} not made " <>
+                "(#{inspect(other) |> String.slice(0, 300)}); making the ordinary one"
+            )
+
+            :skip
+        end
+      after
+        File.rm(frame)
+      end
+    else
+      :skip
+    end
+  end
+
+  defp hdr_poster?(dimension, source) do
+    Application.get_env(:phoenix_kit, :hdr_renditions, true) and
+      Map.get(source, :hlg?, false) and
+      Dimension.keep_hdr?(dimension) and
+      String.downcase(to_string(dimension.format)) in ["jpg", "jpeg"] and
+      VideoHdrPoster.available?()
+  end
+
+  @doc false
+  # The FFmpeg arguments for the poster's frame as linear-light floats (a PFM): the
+  # same size and time as the SDR poster, no tone-mapping.
+  def hdr_frame_args(input_path, output_path, dimension, source) do
+    chain =
+      case video_filter_args(dimension) do
+        ["-vf", scale] -> scale <> "," <> VideoSource.linear_filter()
+        [] -> VideoSource.linear_filter()
+      end
+
+    [
+      "-i",
+      input_path,
+      "-y",
+      "-ss",
+      VideoSource.poster_second(source),
+      "-vframes",
+      "1",
+      "-vf",
+      chain,
+      "-pix_fmt",
+      "gbrpf32le",
+      "-c:v",
+      "pfm",
+      output_path
+    ]
   end
 
   defp run_ffmpeg(args, output_path) do

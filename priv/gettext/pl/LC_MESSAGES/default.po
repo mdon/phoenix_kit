@@ -19930,6 +19930,16 @@ msgstr "Zdjęcie z iPhone’a lub Pixela zawiera mapę wzmocnienia HDR, dzięki 
 msgid "HDR photos"
 msgstr "Zdjęcia HDR"
 
+#: lib/modules/storage/web/dimension_form.html.heex:257
+#, elixir-autogen, elixir-format
+msgid "HDR video poster"
+msgstr "Miniatura filmu HDR"
+
+#: lib/modules/storage/web/dimension_form.html.heex:270
+#, elixir-autogen, elixir-format
+msgid "The picture shown for an HDR video (an iPhone's HLG recording) is made as an HDR photo, with a gain map, so bright areas glow on an HDR screen; other screens show the ordinary picture. Without it the picture is an ordinary one. It applies to videos processed from now on."
+msgstr "Obraz pokazywany dla filmu HDR (nagrania HLG z iPhone'a) jest tworzony jako zdjęcie HDR z mapą wzmocnienia (gain map), dzięki czemu jasne obszary świecą na ekranie HDR; inne ekrany pokazują zwykły obraz. Bez tej opcji obraz jest zwykły. Dotyczy filmów przetwarzanych od teraz."
+
 #: lib/modules/storage/web/dimension_form.html.heex:261
 #, elixir-autogen, elixir-format
 msgid "Keep the HDR (gain map)"

@@ -40,6 +40,15 @@
   dropdown. A key limited to one bucket is usually refused; the text field stays and the message says to type the name.
 - `Libraries.integration_summary/2`: what a user's integration says about itself (service, bucket provider, region,
   endpoint), never a secret.
+- **The poster of an HDR video is an HDR photo.** For an HLG video (every iPhone recording) whose `video_thumbnail` size keeps
+  HDR, the poster is a JPEG with a gain map (Ultra HDR, ISO 21496-1): an HDR screen shows the highlights above white, any other
+  shows the ordinary picture. `VideoHdrPoster` makes it with libvips' `uhdrsave` (in the library `vix` ships; nothing to
+  install): ffmpeg writes the frame as linear-light floats, scaled so SDR white (203 nits) is 1.0, and libvips computes the map.
+  The switches are the photos' own: the size's `keep_hdr` option (now **on by default** for `video_thumbnail`, and offered in the
+  size form for a video JPEG size) and `config :phoenix_kit, hdr_renditions`. Without `vix`, with a libvips older than 8.17, or
+  if anything fails, the ordinary tone-mapped poster is made and a warning logged. PQ sources and Dolby Vision profile 5 keep the
+  ordinary poster. Existing sites keep what their size says until `keep_hdr` is turned on; videos already made are remade by
+  regenerating them.
 
 ### Fixed
 

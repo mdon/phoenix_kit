@@ -16,6 +16,31 @@ defmodule PhoenixKit.Modules.Storage.VideoSourceTest do
       assert %{hdr?: true} = VideoSource.parse(json("smpte2084", "8.0"))
     end
 
+    test "only HLG is flagged as HLG (PQ is HDR, but not HLG)" do
+      assert %{hdr?: true, hlg?: true} = VideoSource.parse(json("arib-std-b67", "8.0"))
+      assert %{hdr?: true, hlg?: false} = VideoSource.parse(json("smpte2084", "8.0"))
+      assert %{hdr?: false, hlg?: false} = VideoSource.parse(json("bt709", "8.0"))
+    end
+
+    test "Dolby Vision profile 5 (no HLG or PQ base) is left alone; profile 8 is HDR" do
+      dolby = fn profile ->
+        Jason.encode!(%{
+          "streams" => [
+            %{
+              "color_transfer" => "smpte2084",
+              "side_data_list" => [
+                %{"side_data_type" => "DOVI configuration record", "dv_profile" => profile}
+              ]
+            }
+          ],
+          "format" => %{"duration" => "5.0"}
+        })
+      end
+
+      assert %{hdr?: false, hlg?: false} = VideoSource.parse(dolby.(5))
+      assert %{hdr?: true} = VideoSource.parse(dolby.(8))
+    end
+
     test "an ordinary video is not" do
       for transfer <- ["bt709", "unknown", "iec61966-2-1", nil] do
         assert %{hdr?: false} = VideoSource.parse(json(transfer, "8.0"))

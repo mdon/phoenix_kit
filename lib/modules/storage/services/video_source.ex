@@ -25,7 +25,12 @@ defmodule PhoenixKit.Modules.Storage.VideoSource do
   the file, so a rendition is still attempted exactly as before.
   """
 
-  @hdr_transfers ~w(arib-std-b67 smpte2084)
+  @hlg "arib-std-b67"
+  @hdr_transfers [@hlg, "smpte2084"]
+
+  # Dolby Vision profile 5 has no HLG or PQ base layer (its pictures are IPT-PQ-C2):
+  # no tone-mapping from a transfer function can decode it, so it is left as it is.
+  @dolby_vision_ipt 5
 
   # 203 nits is the reference white of HDR in an SDR container (ITU-R BT.2408):
   # ordinary scene brightness lands where an SDR video puts it, and the
@@ -33,11 +38,18 @@ defmodule PhoenixKit.Modules.Storage.VideoSource do
   @tonemap "zscale=t=linear:npl=203,format=gbrpf32le,zscale=p=bt709," <>
              "tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p"
 
-  @type t :: %{hdr?: boolean(), duration: float() | nil}
+  # The same frame as linear light for an HDR poster: BT.709 primaries, float, 1.0 =
+  # `hlg_peak_nits/0` (what `npl` says the signal's peak is). No tone-mapping: the
+  # highlights above SDR white are what the poster's gain map keeps.
+  @hlg_peak_nits 1000
+  @reference_white_nits 203
+  @linear "zscale=t=linear:npl=#{@hlg_peak_nits},format=gbrpf32le,zscale=p=bt709"
+
+  @type t :: %{hdr?: boolean(), hlg?: boolean(), duration: float() | nil}
 
   @doc "What is known when nothing could be read: not HDR, no duration."
   @spec unknown() :: t()
-  def unknown, do: %{hdr?: false, duration: nil}
+  def unknown, do: %{hdr?: false, hlg?: false, duration: nil}
 
   @doc "Reads the first video stream of the file at `path`."
   @spec probe(Path.t()) :: t()
@@ -48,7 +60,7 @@ defmodule PhoenixKit.Modules.Storage.VideoSource do
       "-select_streams",
       "v:0",
       "-show_entries",
-      "stream=color_transfer:format=duration",
+      "stream=color_transfer:stream_side_data:format=duration",
       "-of",
       "json",
       path
@@ -69,15 +81,31 @@ defmodule PhoenixKit.Modules.Storage.VideoSource do
     case Jason.decode(json) do
       {:ok, %{} = data} ->
         stream = data |> Map.get("streams") |> List.wrap() |> List.first() || %{}
+        transfer = Map.get(stream, "color_transfer")
+        hdr? = transfer in @hdr_transfers and not dolby_vision_ipt?(stream)
 
         %{
-          hdr?: Map.get(stream, "color_transfer") in @hdr_transfers,
+          hdr?: hdr?,
+          hlg?: hdr? and transfer == @hlg,
           duration: data |> get_in(["format", "duration"]) |> duration()
         }
 
       _ ->
         unknown()
     end
+  end
+
+  defp dolby_vision_ipt?(stream) do
+    stream
+    |> Map.get("side_data_list")
+    |> List.wrap()
+    |> Enum.any?(fn
+      %{"side_data_type" => "DOVI configuration record", "dv_profile" => @dolby_vision_ipt} ->
+        true
+
+      _ ->
+        false
+    end)
   end
 
   defp duration(value) when is_binary(value) do
@@ -92,6 +120,21 @@ defmodule PhoenixKit.Modules.Storage.VideoSource do
   @doc "The FFmpeg filters that turn an HDR picture into an SDR one (BT.709, 8-bit)."
   @spec tonemap_filter() :: String.t()
   def tonemap_filter, do: @tonemap
+
+  @doc """
+  The filters that give an HDR frame as linear light (BT.709, float), 1.0 being
+  `hlg_peak_nits/0`, for `VideoHdrPoster`. Ends in `gbrpf32le`.
+  """
+  @spec linear_filter() :: String.t()
+  def linear_filter, do: @linear
+
+  @doc "The peak, in nits, that 1.0 is in `linear_filter/0`'s output."
+  @spec hlg_peak_nits() :: pos_integer()
+  def hlg_peak_nits, do: @hlg_peak_nits
+
+  @doc "SDR white, in nits (ITU-R BT.2408): what 1.0 is in an SDR picture."
+  @spec reference_white_nits() :: pos_integer()
+  def reference_white_nits, do: @reference_white_nits
 
   @doc """
   When to take the poster, as FFmpeg's `-ss` value (`"00:00:01.000"`): one second
