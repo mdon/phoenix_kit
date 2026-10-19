@@ -224,12 +224,12 @@ defmodule PhoenixKit.API.Auth do
     )
   end
 
-  # The public API has no Authorization header: its only credential is the cart token.
+  # The public API has no Authorization header: the cart token travels in the request body.
   defp token_in_url(conn, :public) do
     Problem.send(
       conn,
       :token_in_url,
-      "A cart token must be sent in the request body, never in the URL.",
+      "Credentials and cart tokens must be sent in the request body, never in the URL.",
       %{}
     )
   end

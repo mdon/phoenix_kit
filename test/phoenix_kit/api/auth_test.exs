@@ -380,14 +380,22 @@ defmodule PhoenixKit.API.AuthTest do
       _ = token
     end
 
-    test "tells a public caller to send the cart token in the request body" do
-      for query <- ["?cart_token=abc", "?token=abc", "?x=pk_abcdef01_whatever"] do
+    test "tells a public caller to send a credential or cart token in the request body" do
+      queries = [
+        "?cart_token=abc",
+        "?confirm_token=abc",
+        "?api_key=abc",
+        "?token=abc",
+        "?x=pk_abcdef01_whatever"
+      ]
+
+      for query <- queries do
         conn = :post |> api_conn("/x" <> query) |> public()
 
         assert conn.status == 400, query
 
         assert json(conn)["detail"] ==
-                 "A cart token must be sent in the request body, never in the URL.",
+                 "Credentials and cart tokens must be sent in the request body, never in the URL.",
                query
       end
     end
