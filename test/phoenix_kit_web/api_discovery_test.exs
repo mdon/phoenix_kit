@@ -854,19 +854,32 @@ defmodule PhoenixKitWeb.APIDiscoveryTest do
         {"rest list", fetch(conn, Routes.path("/api/shop/v1"), ip: ip)},
         {"openapi", fetch(conn, Routes.path("/api/shop/v1/openapi.json"), ip: ip)},
         {"mcp 405", fetch(conn, Routes.path("/mcp/shop"), ip: ip)},
-        {"mcp tools/list", mcp_list(conn, ip)}
+        {"mcp tools/list", mcp_list(conn, ip)},
+        {"mcp initialize", mcp_initialize(conn, ip)}
       ]
     end
 
-    defp mcp_list(conn, ip) do
+    defp mcp_list(conn, ip), do: mcp_call(conn, ip, "tools/list", nil)
+
+    defp mcp_initialize(conn, ip) do
+      params = %{
+        "protocolVersion" => "2025-03-26",
+        "capabilities" => %{},
+        "clientInfo" => %{"name" => "leak-test", "version" => "1"}
+      }
+
+      mcp_call(conn, ip, "initialize", params)
+    end
+
+    defp mcp_call(conn, ip, method, params) do
+      request = %{"jsonrpc" => "2.0", "id" => 1, "method" => method}
+      request = if params, do: Map.put(request, "params", params), else: request
+
       conn
       |> with_client_ip(ip)
       |> put_req_header("content-type", "application/json")
       |> put_req_header("accept", "application/json")
-      |> post(
-        Routes.path("/mcp/shop"),
-        JSON.encode!(%{"jsonrpc" => "2.0", "id" => 1, "method" => "tools/list"})
-      )
+      |> post(Routes.path("/mcp/shop"), JSON.encode!(request))
     end
 
     # The admin side as the registry has it right now.
@@ -927,13 +940,14 @@ defmodule PhoenixKitWeb.APIDiscoveryTest do
                "rest list" => 200,
                "openapi" => 200,
                "mcp 405" => 405,
-               "mcp tools/list" => 200
+               "mcp tools/list" => 200,
+               "mcp initialize" => 200
              }
     end
 
     test "no generated public document says \"approval\" in any form (compound identifiers too)",
          %{conn: conn} do
-      for {label, response} <- public_responses(conn), response.status == 200 do
+      for {label, response} <- public_responses(conn) do
         refute response |> text_of() |> String.downcase() |> String.contains?("approval"),
                "#{label} mentions approvals"
       end
