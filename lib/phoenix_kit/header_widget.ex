@@ -10,7 +10,8 @@ defmodule PhoenixKit.HeaderWidget do
   ## Fields
 
     * `:live_view` - the LiveView module to render.
-    * `:id` - the DOM id of the nested LiveView. Stable: a sticky LiveView keeps its state
+    * `:id` - the DOM id of the nested LiveView (not one the admin layout uses itself, see
+      `reserved_ids/0`). Stable: a sticky LiveView keeps its state
       (and its PubSub subscriptions) across admin navigation only while the id is the same.
       Two widgets with one id cannot both be rendered; the first one registered wins.
     * `:session_fun` - `(layout_assigns -> session)`, called on every render of the
@@ -26,6 +27,13 @@ defmodule PhoenixKit.HeaderWidget do
     * `:module` - the module that declared the widget. Filled in by the registry.
     * `:session` - the result of `:session_fun`, filled in by
       `PhoenixKit.ModuleRegistry.header_widgets_for/1`.
+
+  ## Authority
+
+  The session is all the widget gets: a nested sticky LiveView is mounted without the
+  `live_session`'s `on_mount` hooks and without `current_scope`, and for every signed-in user
+  of an admin-layout page. The widget has to check the permission itself from the session
+  (see `c:PhoenixKit.Module.header_widgets/0`).
   """
 
   @type session_fun :: (map() -> map())
@@ -44,8 +52,15 @@ defmodule PhoenixKit.HeaderWidget do
           session: map() | nil
         }
 
+  # DOM ids the admin layout already uses; a widget with one of them would clash with it.
+  @reserved_ids ["pk-notifications-bell", "pk-dock", "admin-drawer"]
+
   @enforce_keys [:live_view, :id, :session_fun]
   defstruct [:module, :live_view, :id, :session_fun, :session, dock: false]
+
+  @doc "The DOM ids of the admin layout that a widget may not use."
+  @spec reserved_ids() :: [String.t()]
+  def reserved_ids, do: @reserved_ids
 
   @doc """
   Normalise one entry of `c:PhoenixKit.Module.header_widgets/0`.
@@ -104,6 +119,9 @@ defmodule PhoenixKit.HeaderWidget do
   end
 
   defp check_live_view(live_view), do: {:error, "#{inspect(live_view)} is not a LiveView module"}
+
+  defp check_id(id) when id in @reserved_ids,
+    do: {:error, "the id #{inspect(id)} is reserved by the admin layout"}
 
   defp check_id(id) when is_binary(id) and id != "", do: :ok
   defp check_id(id), do: {:error, "the id must be a non-empty string, got #{inspect(id)}"}

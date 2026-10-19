@@ -262,5 +262,16 @@ defmodule PhoenixKit.ModuleRegistryHeaderWidgetsTest do
       assert {:error, _} = HeaderWidget.new({Probe, "a", fn -> %{} end})
       assert {:error, _} = HeaderWidget.new({Probe, "a", fn _ -> %{} end, :dock})
     end
+
+    test "refuses an id that is already a DOM id of the admin layout" do
+      for id <- HeaderWidget.reserved_ids() do
+        assert {:error, reason} = HeaderWidget.new({Probe, id, fn _ -> %{} end})
+        assert reason =~ "reserved"
+      end
+
+      assert "pk-notifications-bell" in HeaderWidget.reserved_ids()
+      assert "pk-dock" in HeaderWidget.reserved_ids()
+      assert "admin-drawer" in HeaderWidget.reserved_ids()
+    end
   end
 end

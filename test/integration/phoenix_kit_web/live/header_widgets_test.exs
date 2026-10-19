@@ -46,6 +46,18 @@ defmodule PhoenixKitWeb.Live.HeaderWidgetsTest do
     end
   end
 
+  # Its session function reads nothing from the assigns, so a widget that is rendered when it
+  # should not be cannot be hidden by the registry dropping it for a raising session function.
+  defmodule BareDockModule do
+    def enabled?, do: true
+
+    def header_widgets do
+      [{HeaderWidgetProbeLive, "pk-test-bare-widget", &__MODULE__.session/1, dock: true}]
+    end
+
+    def session(_assigns), do: %{"label" => "bare"}
+  end
+
   defmodule OffModule do
     def enabled?, do: false
 
@@ -70,6 +82,44 @@ defmodule PhoenixKitWeb.Live.HeaderWidgetsTest do
     {admin, _} = create_admin_user()
     {:ok, view, html} = live(log_in_user(conn, admin), path)
     {admin, view, html}
+  end
+
+  @owner_scope %PhoenixKit.Users.Auth.Scope{
+    user: %PhoenixKit.Users.Auth.User{
+      uuid: "0193a5e4-0000-7000-8000-0000000000d1",
+      email: "head@example.com"
+    },
+    authenticated?: true,
+    cached_roles: ["Owner"],
+    cached_permissions: MapSet.new(PhoenixKit.Users.Permissions.all_module_keys())
+  }
+
+  # The admin layout rendered outside a connected LiveView, with the given socket and scope.
+  defp render_layout(socket, scope) do
+    assigns = %{socket: socket, scope: scope}
+
+    rendered_to_string(~H"""
+    <PhoenixKitWeb.Components.LayoutWrapper.app_layout
+      flash={%{}}
+      socket={@socket}
+      current_path="/admin"
+      page_title="Dashboard"
+      project_title="Acme"
+      phoenix_kit_current_scope={@scope}
+    >
+      body
+    </PhoenixKitWeb.Components.LayoutWrapper.app_layout>
+    """)
+  end
+
+  defp class_tokens(view, selector) do
+    view
+    |> element(selector)
+    |> render()
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.attribute("class")
+    |> List.first()
+    |> String.split()
   end
 
   # Where a marker sits in the document: widgets must come before the bell.
@@ -145,7 +195,22 @@ defmodule PhoenixKitWeb.Live.HeaderWidgetsTest do
 
         # Closed: the layout does not set the open class, the widget's command does.
         refute has_element?(view, "#admin-drawer.#{AdminDock.open_class()}")
-        assert html =~ "hidden"
+        assert "hidden" in class_tokens(view, "#pk-dock")
+        assert html =~ ~s(id="pk-dock")
+      end)
+    end
+
+    test "is shown by the open class on the drawer or on any element inside it", %{conn: conn} do
+      with_registered([DockModule], fn ->
+        {_admin, view, _html} = admin_live(conn)
+
+        # The class on #admin-drawer is lost when a live redirect swaps the page; a class on
+        # an element inside the sticky widget travels with the widget. Both open the dock.
+        tokens = class_tokens(view, "#pk-dock")
+
+        assert "[.#{AdminDock.open_class()}_&]:block" in tokens
+
+        assert "[##{AdminDock.drawer_id()}:has(.#{AdminDock.open_class()})_&]:block" in tokens
       end)
     end
 
@@ -176,6 +241,28 @@ defmodule PhoenixKitWeb.Live.HeaderWidgetsTest do
 
         refute html =~ "pk-dock"
         refute html =~ "pk-test-dock-widget"
+      end)
+    end
+  end
+
+  describe "the layout's guards" do
+    test "a signed-in user but no socket: no widget, no dock, no crash" do
+      with_registered([BareDockModule], fn ->
+        html = render_layout(nil, @owner_scope)
+
+        assert html =~ ~s(id="admin-drawer")
+        refute html =~ "pk-test-bare-widget"
+        refute html =~ "pk-dock"
+      end)
+    end
+
+    test "a socket but no user: no widget, no dock, no crash" do
+      with_registered([BareDockModule], fn ->
+        html = render_layout(%Phoenix.LiveView.Socket{}, %{@owner_scope | user: nil})
+
+        assert html =~ ~s(id="admin-drawer")
+        refute html =~ "pk-test-bare-widget"
+        refute html =~ "pk-dock"
       end)
     end
   end

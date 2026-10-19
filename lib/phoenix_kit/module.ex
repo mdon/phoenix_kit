@@ -721,10 +721,21 @@ defmodule PhoenixKit.Module do
   Collected from **enabled** modules by `PhoenixKit.ModuleRegistry.all_header_widgets/0`.
   The admin layout renders a widget only when it has the parent LiveView's socket and a
   signed-in user, with `Phoenix.Component.live_render/3`, `sticky: true`; a widget whose
-  session function raises is skipped, and so is an invalid entry (one warning per module).
-  The callback runs on every render of the layout, so keep it a cheap list of literals; the
-  permission to see the widget is the widget LiveView's own business (it can render nothing).
-  The user dashboard has its own header and does not render widgets.
+  session function raises is skipped (one warning per module and widget id), and so is an
+  invalid entry (one warning per module).
+  The callback runs on every render of the layout, so keep it a cheap list of literals. The
+  user dashboard has its own header and does not render widgets.
+
+  ## Who may see the widget
+
+  Nothing in core decides that; the widget does. A nested sticky LiveView does **not** go
+  through the `live_session`'s `on_mount` hooks and gets no `current_scope`: it starts from
+  nothing but its session map. And `session_fun` runs, and the widget mounts, for **every**
+  signed-in user of a page with the admin layout, including a user with no admin permission
+  at all who lands on the `/admin` page. So the widget must check the permission itself in
+  `mount/3` (and render nothing, or stop, without it), rebuilding the user from the session
+  the way the notifications bell does with its `user_uuid`. Put only server-derived ids and
+  strings into the session, never a value that came from the browser.
 
   ## The dock column
 
@@ -736,9 +747,12 @@ defmodule PhoenixKit.Module do
 
     * the container is `#pk-dock`; it is empty and hidden;
     * the widget opens and closes it with the class `pk-dock-open` on `#admin-drawer`
-      (`AdminDock.open/1`, `close/1`, `toggle/1`), after which the work area is narrower by
-      the column's width instead of being overlapped; below `lg` the column covers the
-      screen under the header;
+      (`AdminDock.open/1`, `close/1`, `toggle/1`) or on an element inside it, after which the
+      work area is narrower by the column's width instead of being overlapped; below `lg` the
+      column covers the screen under the header. The class on `#admin-drawer` is lost on a
+      live redirect to another LiveView (the usual admin navigation); a class on an element
+      of the widget's own markup is not, so a widget that wants the dock to stay open across
+      navigation renders that class itself from its own state;
     * the width comes from the CSS variable `--pk-dock-width` (default `25rem`), which the
       widget or the host may set on `#admin-drawer` or higher up.
 

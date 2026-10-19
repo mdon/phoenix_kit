@@ -14,12 +14,21 @@ defmodule PhoenixKitWeb.Components.AdminDock do
       widget's business: the widget can position its own panel over the column (the column
       holds the width free, the panel sits at `right-0` with `w-[var(--pk-dock-width)]`), or
       move its panel element into the container with a hook.
-    * **State**: the class `pk-dock-open` (`open_class/0`) on `#admin-drawer`
-      (`drawer_id/0`). Set it with the JS commands below, not by hand. They are
-      `Phoenix.LiveView.JS` class operations, which LiveView re-applies after every patch of
-      the layout, so the dock stays open while the page changes under it. A full page load
-      (another `live_session`) resets it; a widget that wants to survive that keeps the state
-      in `localStorage` and replays `open/1` on mount.
+    * **State**: the class `pk-dock-open` (`open_class/0`), on `#admin-drawer`
+      (`drawer_id/0`) **or on any element inside it**; either opens the dock. Which one to
+      use depends on how long the state has to live:
+        * The JS commands below put the class on `#admin-drawer`. LiveView re-applies it after
+          every patch of the page, so it survives `push_patch` and other updates of the same
+          LiveView. It does **not** survive a live redirect to another LiveView (the usual
+          admin navigation, e.g. a sidebar link): that builds a new `#admin-drawer`, and the
+          class is gone, while the sticky widget is moved over untouched and is not mounted
+          again. A full page load (another `live_session`) resets it as well.
+        * A class on an element of the widget itself travels with the widget. A widget that
+          wants the dock to stay open across navigation keeps "open" in its own assigns and
+          renders `class={[@open? && "pk-dock-open"]}` on its root element (inside the header,
+          so inside `#admin-drawer`); the layout's CSS (`#admin-drawer:has(.pk-dock-open)`)
+          shows the dock for as long as that element has the class. It needs no JavaScript and
+          no replay on mount.
     * **Width**: the CSS variable `--pk-dock-width` (`width_var/0`), `25rem` when unset. Set
       it on `#admin-drawer` or any ancestor, from CSS or a style attribute.
     * **Layout**: from `lg` up the dock is a third column of the drawer grid, so the work
@@ -32,7 +41,16 @@ defmodule PhoenixKitWeb.Components.AdminDock do
       <button phx-click={AdminDock.close() |> JS.push("forget_panel")}>Close</button>
 
   The commands target `#admin-drawer` by selector, so they work from the widget's nested
-  LiveView, which sits in the header.
+  LiveView, which sits in the header. They change the class on `#admin-drawer` only; mind the
+  lifetime of that state above. A widget that keeps its own class on an element of its own
+  must not mix the two: when it closes, it removes the class from its element and runs
+  `close/1`.
+
+  ## Not covered by tests
+
+  `Phoenix.LiveViewTest` has no notion of sticky LiveViews moving to the new page on a live
+  redirect, so the ExUnit tests pin the markup (the container, the class variants) and the
+  JS ops, not the survival across a navigation. That is LiveView's own behaviour.
   """
 
   alias Phoenix.LiveView.JS

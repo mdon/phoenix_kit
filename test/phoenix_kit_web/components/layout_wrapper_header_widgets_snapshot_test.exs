@@ -54,13 +54,49 @@ defmodule PhoenixKitWeb.Components.LayoutWrapperHeaderWidgetsSnapshotTest do
     |> rendered_to_string()
   end
 
-  # The CSRF token is the only thing that differs from one render to the next.
+  # The CSRF token differs from one render to the next, and so does the key order of the
+  # JSON in the `phx-*` JS commands (`JS.dispatch` and friends): it is the order a small map
+  # has, which follows the atom table of the VM, so a cold compile can flip it. Neither is
+  # compared; the markup is.
   defp normalize(html) do
     html
     |> String.replace(~r/(name="csrf-token" content|data-csrf)="[^"]*"/, ~s(\\1="CSRF"))
+    |> canonical_js_commands()
     |> String.replace(~r/>\s+</, "><")
     |> String.replace(~r/\s+/, " ")
     |> String.trim()
+  end
+
+  # `="[[&quot;dispatch&quot;,{...}]]"`: the attribute value of a JS command, HTML-escaped.
+  defp canonical_js_commands(html) do
+    Regex.replace(~r/="(\[\[&quot;[^"]*)"/, html, fn _all, escaped ->
+      json =
+        escaped
+        |> String.replace("&quot;", ~s("))
+        |> String.replace("&#39;", "'")
+        |> String.replace("&lt;", "<")
+        |> String.replace("&gt;", ">")
+        |> String.replace("&amp;", "&")
+
+      case Jason.decode(json) do
+        {:ok, term} -> "=" <> inspect(term, custom_options: [sort_maps: true], limit: :infinity)
+        {:error, _} -> "=\"" <> escaped <> "\""
+      end
+    end)
+  end
+
+  test "the comparison ignores the key order of JS command JSON" do
+    one =
+      ~s(<a phx-click="[[&quot;dispatch&quot;,{&quot;event&quot;:&quot;x&quot;,&quot;detail&quot;:{&quot;a&quot;:1,&quot;b&quot;:2}}]]">)
+
+    other =
+      ~s(<a phx-click="[[&quot;dispatch&quot;,{&quot;detail&quot;:{&quot;b&quot;:2,&quot;a&quot;:1},&quot;event&quot;:&quot;x&quot;}]]">)
+
+    changed =
+      ~s(<a phx-click="[[&quot;dispatch&quot;,{&quot;event&quot;:&quot;y&quot;,&quot;detail&quot;:{&quot;a&quot;:1,&quot;b&quot;:2}}]]">)
+
+    assert normalize(one) == normalize(other)
+    refute normalize(one) == normalize(changed)
   end
 
   test "without a header widget the admin layout is the layout it was" do
