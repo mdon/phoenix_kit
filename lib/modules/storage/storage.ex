@@ -469,7 +469,10 @@ defmodule PhoenixKit.Modules.Storage do
     {profile, opts} = Keyword.pop(opts, :profile, :default)
 
     repo().transaction(fn ->
-      with {:ok, bucket} <- %Bucket{} |> Bucket.changeset(attrs) |> repo().insert(),
+      # `log: false` on every bucket write: the row carries `access_key_id` and
+      # the `enc:v1:` ciphertext of `secret_access_key`, which Ecto's SQL debug
+      # logger would otherwise print as bound parameters.
+      with {:ok, bucket} <- %Bucket{} |> Bucket.changeset(attrs) |> repo().insert(log: false),
            :ok <- place_new_bucket(bucket, profile, opts) do
         bucket
       else
@@ -536,7 +539,7 @@ defmodule PhoenixKit.Modules.Storage do
     |> Bucket.owned_changeset(attrs, owner_uuid,
       connection_owned?: &owns_connection?(owner_uuid, &1)
     )
-    |> repo().insert()
+    |> repo().insert(log: false)
     |> tap(&bucket_changed/1)
   end
 
@@ -603,7 +606,7 @@ defmodule PhoenixKit.Modules.Storage do
 
   defp update_bucket_row(changeset, opts) do
     repo().transaction(fn ->
-      case repo().update(changeset) do
+      case repo().update(changeset, log: false) do
         {:ok, updated} ->
           updated
 
