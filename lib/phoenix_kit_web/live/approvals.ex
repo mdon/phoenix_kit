@@ -394,16 +394,27 @@ defmodule PhoenixKitWeb.Live.Approvals do
   defp fact_label(key), do: key |> String.replace(["_", "."], " ") |> String.trim()
 
   # What a row of a preview will do, as a short badge: the preview is of something still
-  # waiting for a decision, so these are not the past tense of the counts above. A word nobody
-  # here knows is shown as the tool wrote it.
-  defp row_action("create"), do: pgettext("approval row action", "create")
-  defp row_action("update"), do: pgettext("approval row action", "update")
-  defp row_action("delete"), do: pgettext("approval row action", "delete")
-  defp row_action("remove"), do: pgettext("approval row action", "remove")
-  defp row_action("skip"), do: pgettext("approval row action", "skip")
+  # waiting for a decision, so these are not the past tense of the counts above. Tools write
+  # either form ("update" and "updated"); a word nobody here knows is shown as the tool wrote
+  # it, cleaned up like a count word.
+  defp row_action(action) when action in ["create", "created"],
+    do: pgettext("approval row action", "create")
+
+  defp row_action(action) when action in ["update", "updated"],
+    do: pgettext("approval row action", "update")
+
+  defp row_action(action) when action in ["delete", "deleted"],
+    do: pgettext("approval row action", "delete")
+
+  defp row_action(action) when action in ["remove", "removed"],
+    do: pgettext("approval row action", "remove")
+
+  defp row_action(action) when action in ["skip", "skipped"],
+    do: pgettext("approval row action", "skip")
+
   defp row_action("unchanged"), do: pgettext("approval row action", "unchanged")
   defp row_action("error"), do: pgettext("approval row action", "error")
-  defp row_action(action), do: action
+  defp row_action(action), do: action |> String.replace(["_", "."], " ") |> String.trim()
 
   defp expires_in(%DateTime{} = expires_at) do
     seconds = DateTime.diff(expires_at, DateTime.utc_now(), :second)

@@ -5307,7 +5307,7 @@ msgstr "Медіа"
 
 #: lib/phoenix_kit_web/components/core/badge.ex:125
 #: lib/phoenix_kit_web/components/core/badge.ex:128
-#: lib/phoenix_kit_web/live/approvals.ex:425
+#: lib/phoenix_kit_web/live/approvals.ex:436
 #: lib/phoenix_kit_web/live/settings/api.ex:904
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:272
 #, elixir-autogen, elixir-format
@@ -17086,7 +17086,7 @@ msgstr "Тривалість"
 
 #: lib/modules/storage/web/bucket_page.html.heex:526
 #: lib/phoenix_kit_web/components/media_canvas_viewer.ex:838
-#: lib/phoenix_kit_web/live/approvals.ex:422
+#: lib/phoenix_kit_web/live/approvals.ex:433
 #: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:299
 #: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:355
 #: lib/phoenix_kit_web/live/users/media_storage.ex:564
@@ -17218,7 +17218,7 @@ msgstr "Відновлено"
 msgid "Retry"
 msgstr "Повторити"
 
-#: lib/phoenix_kit_web/live/approvals.ex:426
+#: lib/phoenix_kit_web/live/approvals.ex:437
 #: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:294
 #, elixir-autogen, elixir-format
 msgid "Running"
@@ -20559,17 +20559,17 @@ msgstr "Нещодавно вирішені"
 msgid "Decided"
 msgstr "Вирішено"
 
-#: lib/phoenix_kit_web/live/approvals.ex:421
+#: lib/phoenix_kit_web/live/approvals.ex:432
 #, elixir-autogen, elixir-format
 msgid "Executed"
 msgstr "Виконано"
 
-#: lib/phoenix_kit_web/live/approvals.ex:423
+#: lib/phoenix_kit_web/live/approvals.ex:434
 #, elixir-autogen, elixir-format
 msgid "Rejected"
 msgstr "Відхилено"
 
-#: lib/phoenix_kit_web/live/approvals.ex:424
+#: lib/phoenix_kit_web/live/approvals.ex:435
 #, elixir-autogen, elixir-format
 msgid "Stale"
 msgstr "Застаріло"
@@ -20635,37 +20635,37 @@ msgstr "Ми переробляємо роботу глибокого збіль
 msgid "Approvals"
 msgstr "Схвалення"
 
-#: lib/phoenix_kit_web/live/approvals.ex:437
+#: lib/phoenix_kit_web/live/approvals.ex:448
 #, elixir-autogen, elixir-format
 msgid "Done."
 msgstr "Готово."
 
-#: lib/phoenix_kit_web/live/approvals.ex:438
+#: lib/phoenix_kit_web/live/approvals.ex:449
 #, elixir-autogen, elixir-format
 msgid "Done: %{summary}"
 msgstr "Готово: %{summary}"
 
-#: lib/phoenix_kit_web/live/approvals.ex:446
+#: lib/phoenix_kit_web/live/approvals.ex:457
 #, elixir-autogen, elixir-format
 msgid "Not executed: the data changed since the request; nothing was written."
 msgstr "Не виконано: дані змінилися з моменту запиту; нічого не записано."
 
-#: lib/phoenix_kit_web/live/approvals.ex:451
+#: lib/phoenix_kit_web/live/approvals.ex:462
 #, elixir-autogen, elixir-format
 msgid "Failed: %{code}"
 msgstr "Помилка: %{code}"
 
-#: lib/phoenix_kit_web/live/approvals.ex:455
+#: lib/phoenix_kit_web/live/approvals.ex:466
 #, elixir-autogen, elixir-format
 msgid "Rejected: nothing was run."
 msgstr "Відхилено: нічого не виконувалось."
 
-#: lib/phoenix_kit_web/live/approvals.ex:458
+#: lib/phoenix_kit_web/live/approvals.ex:469
 #, elixir-autogen, elixir-format
 msgid "Expired: nobody decided in time, nothing was run."
 msgstr "Минув строк: ніхто не вирішив вчасно, нічого не виконувалось."
 
-#: lib/phoenix_kit_web/live/approvals.ex:460
+#: lib/phoenix_kit_web/live/approvals.ex:471
 #, elixir-autogen, elixir-format
 msgid "Running."
 msgstr "Виконується."
@@ -20726,63 +20726,63 @@ msgstr "Технічні деталі (JSON)"
 msgid "Operation"
 msgstr "Операція"
 
-#: lib/phoenix_kit_web/live/approvals.ex:415
+#: lib/phoenix_kit_web/live/approvals.ex:426
 #, elixir-autogen, elixir-format
 msgid "Expires in %{count} d"
 msgstr "Спливає через %{count} дн."
 
-#: lib/phoenix_kit_web/live/approvals.ex:414
+#: lib/phoenix_kit_web/live/approvals.ex:425
 #, elixir-autogen, elixir-format
 msgid "Expires in %{count} h"
 msgstr "Спливає через %{count} год"
 
-#: lib/phoenix_kit_web/live/approvals.ex:413
+#: lib/phoenix_kit_web/live/approvals.ex:424
 #, elixir-autogen, elixir-format
 msgid "Expires in %{count} min"
 msgstr "Спливає через %{count} хв"
 
-#: lib/phoenix_kit_web/live/approvals.ex:412
+#: lib/phoenix_kit_web/live/approvals.ex:423
 #, elixir-autogen, elixir-format
 msgid "Expires in less than a minute"
 msgstr "Спливає менш ніж за хвилину"
 
-#: lib/phoenix_kit_web/live/approvals.ex:399
+#: lib/phoenix_kit_web/live/approvals.ex:401
 #, elixir-autogen, elixir-format
 msgctxt "approval row action"
 msgid "create"
 msgstr "створити"
 
-#: lib/phoenix_kit_web/live/approvals.ex:401
+#: lib/phoenix_kit_web/live/approvals.ex:407
 #, elixir-autogen, elixir-format
 msgctxt "approval row action"
 msgid "delete"
 msgstr "видалити"
 
-#: lib/phoenix_kit_web/live/approvals.ex:405
+#: lib/phoenix_kit_web/live/approvals.ex:416
 #, elixir-autogen, elixir-format
 msgctxt "approval row action"
 msgid "error"
 msgstr "помилка"
 
-#: lib/phoenix_kit_web/live/approvals.ex:402
+#: lib/phoenix_kit_web/live/approvals.ex:410
 #, elixir-autogen, elixir-format
 msgctxt "approval row action"
 msgid "remove"
 msgstr "прибрати"
 
-#: lib/phoenix_kit_web/live/approvals.ex:403
+#: lib/phoenix_kit_web/live/approvals.ex:413
 #, elixir-autogen, elixir-format
 msgctxt "approval row action"
 msgid "skip"
 msgstr "пропустити"
 
-#: lib/phoenix_kit_web/live/approvals.ex:404
+#: lib/phoenix_kit_web/live/approvals.ex:415
 #, elixir-autogen, elixir-format
 msgctxt "approval row action"
 msgid "unchanged"
 msgstr "без змін"
 
-#: lib/phoenix_kit_web/live/approvals.ex:400
+#: lib/phoenix_kit_web/live/approvals.ex:404
 #, elixir-autogen, elixir-format
 msgctxt "approval row action"
 msgid "update"

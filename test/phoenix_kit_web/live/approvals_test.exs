@@ -533,6 +533,38 @@ defmodule PhoenixKitWeb.Live.ApprovalsTest do
       assert has_element?(view, "#approval-totals-#{row.uuid}", "deleted 1")
     end
 
+    test "a row action written in the past tense reads the same, an unknown one is cleaned up", %{
+      conn: conn,
+      agent: agent
+    } do
+      row =
+        pending_with_preview!(agent, %{
+          "rows" => [
+            %{"ref" => "a", "action" => "updated"},
+            %{"ref" => "b", "action" => "created"},
+            %{"ref" => "c", "action" => "removed"},
+            %{"ref" => "d", "action" => "skipped"},
+            %{"ref" => "e", "action" => "deleted"},
+            %{"ref" => "f", "action" => "create_version"}
+          ]
+        })
+
+      {:ok, view, _html} = live(conn, @path)
+
+      text = fn i ->
+        view |> element("#approval-row-#{row.uuid}-#{i}-action") |> render() |> text_of()
+      end
+
+      assert Enum.map(0..5, text) == [
+               "update",
+               "create",
+               "remove",
+               "skip",
+               "delete",
+               "create version"
+             ]
+    end
+
     test "the technical details stay open while the page is redrawn", %{
       conn: conn,
       agent: agent
