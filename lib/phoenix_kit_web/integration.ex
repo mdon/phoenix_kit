@@ -631,6 +631,7 @@ defmodule PhoenixKitWeb.Integration do
       # API keys, service users and the shop API switches (gated by "api").
       live "/admin/settings/api", Live.Settings.Api, :index
       live "/admin/settings/api/approvals", Live.Settings.ApiApprovals, :index
+      live "/admin/settings/api/guide", Live.Settings.ApiGuide, :index
 
       # The approvals queue of API keys: a menu entry of its own (gated by "api"); the old
       # Settings path above redirects here.
