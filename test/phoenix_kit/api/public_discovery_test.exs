@@ -104,7 +104,7 @@ defmodule PhoenixKit.API.PublicDiscoveryTest do
     test "the project title as [a-z0-9-], 32 characters at most" do
       assert Guide.slug("Acme Print") == "acme-print"
       assert Guide.slug("  Acme   &  Sons, Ltd. ") == "acme-sons-ltd"
-      assert Guide.slug("Ünïcode Shop!!") == "n-code-shop"
+      assert Guide.slug("Ünïcode Shop!!") == "unicode-shop"
       assert Guide.slug("a-b_c") == "a-b-c"
 
       long = Guide.slug(String.duplicate("abcd ", 20))
@@ -113,8 +113,14 @@ defmodule PhoenixKit.API.PublicDiscoveryTest do
       assert long =~ ~r/\A[a-z0-9-]+\z/
     end
 
+    test "romanizes the title, as the admin guide does" do
+      assert Guide.slug("Декор для дома") == "dekor-dlya-doma"
+      assert Guide.slug("Café Déco") == "cafe-deco"
+      assert Guide.slug("Магазин") == "magazin"
+    end
+
     test "falls back to shop" do
-      for title <- [nil, "", "   ", "!!!", "Магазин", "店"] do
+      for title <- [nil, "", "   ", "!!!", "店"] do
         assert Guide.slug(title) == "shop", inspect(title)
       end
     end

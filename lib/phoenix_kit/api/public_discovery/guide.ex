@@ -27,6 +27,7 @@ defmodule PhoenixKit.API.PublicDiscovery.Guide do
   alias PhoenixKit.API.PublicDiscovery
   alias PhoenixKit.API.Tool
   alias PhoenixKit.Modules.Crawlers
+  alias PhoenixKit.Utils.Slug
 
   @default_name "shop"
   @name_max 32
@@ -195,18 +196,15 @@ defmodule PhoenixKit.API.PublicDiscovery.Guide do
 
   # --- snippets -------------------------------------------------------------------
 
-  # `<name>` of the client snippets: the project title as `[a-z0-9-]`, 32 at most.
+  # `<name>` of the client snippets: the project title as a romanized slug, the
+  # same rule as the admin guide's server name.
   @doc false
   @spec slug(String.t() | nil) :: String.t()
   def slug(title) do
-    slug =
-      (title || "")
-      |> String.downcase()
-      |> String.replace(~r/[^a-z0-9]+/, "-")
-      |> String.slice(0, @name_max)
-      |> String.trim("-")
-
-    if slug == "", do: @default_name, else: slug
+    case Slug.slugify(title, max_length: @name_max) do
+      "" -> @default_name
+      slug -> slug
+    end
   end
 
   defp shell_quote(text), do: "'" <> String.replace(text, "'", "'\\''") <> "'"
