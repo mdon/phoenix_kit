@@ -423,6 +423,18 @@ defmodule PhoenixKit.API.OpenAPITest do
       end
     end
 
+    test "a write tool that cannot replay lists neither the Idempotency-Key nor the replay header" do
+      tool = %{public_write_tool() | replay: false}
+      operation = operation(doc([tool], :public), tool.name)
+
+      refute Map.has_key?(operation, "parameters")
+      refute Map.has_key?(operation["responses"]["200"], "headers")
+      assert operation["responses"]["409"] == %{"$ref" => "#/components/responses/Conflict"}
+
+      properties = operation["requestBody"]["content"]["application/json"]["schema"]["properties"]
+      assert Map.keys(properties) |> Enum.sort() == ["confirm_token", "dry_run"]
+    end
+
     test "are not listed on a read operation" do
       read = operation(doc([admin_tool([])]), "demo.list_things")
 

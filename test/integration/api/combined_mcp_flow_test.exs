@@ -475,6 +475,19 @@ defmodule PhoenixKit.API.CombinedMcpFlowTest do
       assert %{"type" => "string", "minLength" => 16, "maxLength" => 128} = key
     end
 
+    test "the public tools/list leaves idempotency_key off a tool that cannot replay", %{
+      conn: conn
+    } do
+      tools = tools_list(conn, "/mcp/shop", nil)
+
+      properties = tools["flowkit_mint_cart"]["inputSchema"]["properties"]
+      assert Map.keys(properties) |> Enum.sort() == ["confirm_token", "dry_run"]
+
+      refused = shop_call(conn, "flowkit_mint_cart", %{"idempotency_key" => idem()})
+      assert result(refused)["isError"] == true
+      assert text(result(refused)) =~ "[validation_failed] "
+    end
+
     test "the public tools/list shows them on public write tools", %{conn: conn} do
       tools = tools_list(conn, "/mcp/shop", nil)
 
