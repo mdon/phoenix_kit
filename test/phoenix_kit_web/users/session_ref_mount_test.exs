@@ -1,12 +1,14 @@
 defmodule PhoenixKitWeb.Users.SessionRefMountTest do
   @moduledoc """
-  How a LiveView rendered beside the page (a sticky `live_render`) learns which browser
-  session it runs in: on mount it reads the cookie session's `"user_token"` and keeps
-  only the id of the token row and its user (`SessionRef.from_session/1`), plus whether
-  the active account is borrowed (`MultiSession.impersonated?/1`). Neither value is a
-  secret, so both may travel in the signed (not encrypted) session map of a nested
-  LiveView; the raw token never leaves the cookie session. The host page reads them and
-  hands them to the sticky LiveView in its `:session`.
+  How a LiveView rendered beside the page (a sticky `live_render`, e.g. a widget in the
+  core layout) learns which browser session it runs in: in its own connected mount it
+  reads the session map, where LiveView merges the cookie session's `"user_token"`, and
+  keeps only the id of the token row and its user (`SessionRef.from_session/1`), plus
+  whether the active account is borrowed (`MultiSession.impersonated?/1`). The host page
+  does not take part: it has no cookie session to pass on and hands the nested LiveView
+  a session without any token. Neither value is a secret; the raw token never leaves the
+  cookie session. In a static render there is no cookie session, so there is no
+  reference.
   """
   use PhoenixKitWeb.ConnCase, async: false
 
@@ -49,30 +51,13 @@ defmodule PhoenixKitWeb.Users.SessionRefMountTest do
     end
   end
 
-  # A page that hosts the sticky LiveView: it reads the reference from its own session
-  # (the cookie session) and hands the sticky LiveView only the non-secret values.
+  # A page that hosts the sticky LiveView. It passes a session without any token: the
+  # nested LiveView must find the reference itself.
   defmodule Host do
     @moduledoc false
     use Phoenix.LiveView
 
-    alias PhoenixKit.Users.Auth.SessionRef
-    alias PhoenixKitWeb.Users.MultiSession
-
-    def mount(_params, session, socket) do
-      ref =
-        case SessionRef.from_session(session) do
-          {:ok, {token_uuid, user_uuid}} -> [token_uuid, user_uuid]
-          :error -> nil
-        end
-
-      {:ok,
-       Phoenix.Component.assign(socket,
-         child_session: %{
-           "pk_session_ref" => ref,
-           "pk_impersonated" => MultiSession.impersonated?(session)
-         }
-       )}
-    end
+    def mount(_params, _session, socket), do: {:ok, socket}
 
     def render(assigns) do
       ~H"""
@@ -80,26 +65,33 @@ defmodule PhoenixKitWeb.Users.SessionRefMountTest do
         {live_render(@socket, PhoenixKitWeb.Users.SessionRefMountTest.Sticky,
           id: "sticky-assistant",
           sticky: true,
-          session: @child_session
+          session: %{"x" => "1"}
         )}
       </div>
       """
     end
   end
 
-  # The sticky LiveView: it reads only what the host passed, never the cookie session.
+  # The sticky LiveView: it asks for the reference only in its connected mount.
   defmodule Sticky do
     @moduledoc false
     use Phoenix.LiveView
 
+    alias PhoenixKit.Users.Auth.SessionRef
+    alias PhoenixKitWeb.Users.MultiSession
+
     def mount(_params, session, socket) do
-      [token_uuid, user_uuid] = session["pk_session_ref"] || ["none", "none"]
+      {token_uuid, user_uuid} =
+        case SessionRef.from_session(session) do
+          {:ok, {token_uuid, user_uuid}} -> {token_uuid, user_uuid}
+          :error -> {"none", "none"}
+        end
 
       {:ok,
        Phoenix.Component.assign(socket,
          token_uuid: token_uuid,
          user_uuid: user_uuid,
-         impersonated: session["pk_impersonated"] == true,
+         impersonated: MultiSession.impersonated?(session),
          connected: connected?(socket)
        )}
     end
@@ -173,9 +165,7 @@ defmodule PhoenixKitWeb.Users.SessionRefMountTest do
     assert has_element?(view, "#session-ref-probe[data-impersonated='true']")
   end
 
-  test "a sticky LiveView gets the reference from its host page, in a connected mount", %{
-    conn: conn
-  } do
+  test "a sticky LiveView finds the reference itself in a connected mount", %{conn: conn} do
     operator = user!()
     target = user!()
     root = Auth.generate_user_session_token(operator)
@@ -193,6 +183,16 @@ defmodule PhoenixKitWeb.Users.SessionRefMountTest do
     assert has_element?(sticky, "#sticky-probe[data-token-uuid='#{borrowed_uuid}']")
     assert has_element?(sticky, "#sticky-probe[data-user-uuid='#{target.uuid}']")
     assert has_element?(sticky, "#sticky-probe[data-impersonated='true']")
+  end
+
+  test "a static render has no cookie session, so no reference" do
+    # What a static render hands the LiveView: the session the host gave, no cookie session.
+    socket = %Phoenix.LiveView.Socket{}
+    {:ok, socket} = Sticky.mount(%{}, %{"x" => "1"}, socket)
+    assert socket.assigns.token_uuid == "none"
+    assert socket.assigns.user_uuid == "none"
+    assert socket.assigns.impersonated == false
+    assert socket.assigns.connected == false
   end
 
   test "an anonymous or logged-out session gives no reference", %{conn: conn} do

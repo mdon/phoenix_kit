@@ -161,6 +161,39 @@ defmodule PhoenixKit.API.ExecutorSessionTest do
       assert @read_items in visible_names(ref)
       assert {:ok, %{result: %{"limit" => 10}}, _headers} = run(ref, @read_items)
     end
+
+    test "a key's handler still gets the owner's full scope, not narrowed to a role" do
+      {owner, _roles} = user_with_roles([["api", "dashboard"], ["api", "settings"]])
+      {_key, token} = issue_key(owner, ["testkit.items:read"])
+
+      conn =
+        :post
+        |> api_conn("/", token: token)
+        |> ApiAuth.call(ApiAuth.init(audience: :admin))
+
+      assert {:ok, _, _} = Executor.execute(conn, :admin, @read_items, %{})
+      assert_received {:read_items, _input, key_ctx}
+
+      # The owner holds two switchable roles and the switcher is on, so a narrowed scope
+      # would act as one of them; the key's scope must be the union.
+      assert Scope.active_role(key_ctx.scope) == nil
+      assert Scope.can?(key_ctx.scope, "dashboard")
+      assert Scope.can?(key_ctx.scope, "settings")
+    end
+  end
+
+  describe "a service user's session" do
+    test "is refused as gone and the handler does not run" do
+      {user, _} = user_with_roles([["dashboard"]])
+      ref = session!(user)
+
+      Repo.update_all(from(u in User, where: u.uuid == ^user.uuid), set: [api_only: true])
+
+      assert {:error, :unauthorized, _detail, %{reason: :session_gone}, []} =
+               run(ref, @read_items)
+
+      refute_received {:read_items, _, _}
+    end
   end
 
   describe "a session that can no longer act" do

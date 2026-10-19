@@ -20,6 +20,14 @@ defmodule PhoenixKit.Users.Auth.SessionRef do
   effect on the next call.
 
   `from_session/1` reads the reference from a LiveView's session map.
+
+  The pair is not a secret, but it is an in-process credential: any code that hands it to
+  `PhoenixKit.API.Executor.execute_as/5` or `visible_for/3` acts as that session. Take it
+  only from the signed session of the LiveView that runs in that session
+  (`from_session/1` in its connected mount), never from params or client events.
+
+  Maintenance mode is deliberately not checked on this path: the web shows the maintenance
+  layout at mount, where nothing that calls the Executor is rendered.
   """
 
   alias PhoenixKit.RepoHelper
@@ -66,11 +74,14 @@ defmodule PhoenixKit.Users.Auth.SessionRef do
   `"user_token"` of the cookie session resolved to `{session_token_uuid, user_uuid}`.
   `:error` when there is no token or it is not a live session.
 
-  Call it where the cookie session is at hand: in the page's own LiveView (or a plug).
-  A nested LiveView (a sticky `live_render`) sees the cookie session in a connected
-  mount only when the endpoint's socket declares `connect_info: [session: ...]`, so the
-  host page reads the reference and passes it (and `PhoenixKitWeb.Users.MultiSession.impersonated?/1`)
-  in the nested LiveView's `:session`.
+  Call it in the nested LiveView itself (a sticky `live_render` beside the page, e.g. a
+  widget in the layout), in its connected mount: LiveView merges the cookie session from
+  the socket's `connect_info: [session: ...]` into the session of every LiveView, nested
+  ones included. A static render has no cookie session, so there the answer is `:error`.
+  Do not have a host page read the reference and pass it in the nested LiveView's
+  `:session`: a widget rendered by the core layout has no host that holds the cookie
+  session. Like `PhoenixKitWeb.Users.MultiSession.impersonated?/1`, call it where the
+  session is signed and trusted, never with data from params or events.
   """
   @spec from_session(map()) :: {:ok, t()} | :error
   def from_session(%{"user_token" => token}) when is_binary(token) do

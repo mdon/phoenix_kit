@@ -95,6 +95,11 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   must never act inside a borrowed account (an assistant spending the account's limits,
   reading its history) errs on the safe side. Takes the string-keyed session map, so
   it works in a plug and in a LiveView mount alike; reads no database.
+
+  A nested (sticky) LiveView calls it itself, in its connected mount, with the session
+  LiveView hands it: the cookie session is merged into the session of every LiveView
+  (`SessionRef.from_session/1` follows the same rule). In a static render the cookie
+  session is absent, so the answer is `false` there.
   """
   @spec impersonated?(map()) :: boolean()
   def impersonated?(session) when is_map(session) do

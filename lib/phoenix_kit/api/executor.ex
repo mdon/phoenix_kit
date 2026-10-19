@@ -142,7 +142,14 @@ defmodule PhoenixKit.API.Executor do
       `Plug.Conn`) is not called;
     * the rate limit is the user's own bucket (`RateLimit.check_user/2`), shared by the
       user's sessions; `api_admin_enabled` does not apply (it switches the HTTP API);
-    * reads are not audited, as for a key.
+    * reads are not audited, as for a key;
+    * maintenance mode is not checked on this path: the web shows the maintenance layout
+      at mount, where nothing that calls the Executor is rendered.
+
+  The `{session_token_uuid, user_uuid}` pair is not a secret, but it is an in-process
+  credential: whatever code passes it to `execute_as/5` or `visible_for/3` acts as that
+  session. Take it only from the signed session of the LiveView that runs in that session
+  (`SessionRef.from_session/1` in its connected mount), never from params or client events.
   """
 
   import Plug.Conn
@@ -528,10 +535,11 @@ defmodule PhoenixKit.API.Executor do
     end
   end
 
-  # The effective scopes are the key's scopes filtered by its owner's
-  # permissions right now. `Keys.verify/2` computed them for this very
-  # request (never cached: blocking the owner or removing a role takes effect
-  # on the next call) and put them on the actor; they are not computed again.
+  # The effective scopes are already on the actor and are not computed again. For a
+  # `:key`, `Keys.verify/2` filtered the key's scopes by its owner's permissions for this
+  # very request (never cached: blocking the owner or removing a role takes effect on the
+  # next call). For a `:user`, `session_actor/1` took `Keys.held_scopes_of/1` of the
+  # session's scope on this call.
   defp take_scopes(%{actor: %Actor{kind: kind, scopes: scopes}} = state)
        when kind in [:key, :user],
        do: {:ok, %{state | scopes: scopes}}

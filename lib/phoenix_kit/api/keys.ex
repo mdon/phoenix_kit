@@ -249,8 +249,8 @@ defmodule PhoenixKit.API.Keys do
   end
 
   # A scope is held when the owner holds the permission of EVERY enabled admin tool that
-  # declares it. For a key the Executor trusts `actor.scopes` and checks nothing else (for a
-  # live session it also checks the tool's own permission, `Scope.can?/2`), so a scope that
+  # declares it. The Executor checks a key's tool against `actor.scopes` only (for a live
+  # session it also checks the tool's own permission, `Scope.can?/2`), so a scope that
   # two tools share with different permissions must not reach an owner who holds only one of
   # them: that would let the key call the tool whose permission the owner lacks. A scope no
   # enabled tool declares (its module is disabled, or the tool is hidden) is never held.
