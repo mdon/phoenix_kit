@@ -5,7 +5,8 @@ defmodule PhoenixKitWeb.Users.SessionRefMountTest do
   only the id of the token row and its user (`SessionRef.from_session/1`), plus whether
   the active account is borrowed (`MultiSession.impersonated?/1`). Neither value is a
   secret, so both may travel in the signed (not encrypted) session map of a nested
-  LiveView; the raw token never leaves the cookie session.
+  LiveView; the raw token never leaves the cookie session. The host page reads them and
+  hands them to the sticky LiveView in its `:session`.
   """
   use PhoenixKitWeb.ConnCase, async: false
 
@@ -48,6 +49,75 @@ defmodule PhoenixKitWeb.Users.SessionRefMountTest do
     end
   end
 
+  # A page that hosts the sticky LiveView: it reads the reference from its own session
+  # (the cookie session) and hands the sticky LiveView only the non-secret values.
+  defmodule Host do
+    @moduledoc false
+    use Phoenix.LiveView
+
+    alias PhoenixKit.Users.Auth.SessionRef
+    alias PhoenixKitWeb.Users.MultiSession
+
+    def mount(_params, session, socket) do
+      ref =
+        case SessionRef.from_session(session) do
+          {:ok, {token_uuid, user_uuid}} -> [token_uuid, user_uuid]
+          :error -> nil
+        end
+
+      {:ok,
+       Phoenix.Component.assign(socket,
+         child_session: %{
+           "pk_session_ref" => ref,
+           "pk_impersonated" => MultiSession.impersonated?(session)
+         }
+       )}
+    end
+
+    def render(assigns) do
+      ~H"""
+      <div id="host-page">
+        {live_render(@socket, PhoenixKitWeb.Users.SessionRefMountTest.Sticky,
+          id: "sticky-assistant",
+          sticky: true,
+          session: @child_session
+        )}
+      </div>
+      """
+    end
+  end
+
+  # The sticky LiveView: it reads only what the host passed, never the cookie session.
+  defmodule Sticky do
+    @moduledoc false
+    use Phoenix.LiveView
+
+    def mount(_params, session, socket) do
+      [token_uuid, user_uuid] = session["pk_session_ref"] || ["none", "none"]
+
+      {:ok,
+       Phoenix.Component.assign(socket,
+         token_uuid: token_uuid,
+         user_uuid: user_uuid,
+         impersonated: session["pk_impersonated"] == true,
+         connected: connected?(socket)
+       )}
+    end
+
+    def render(assigns) do
+      ~H"""
+      <div
+        id="sticky-probe"
+        data-token-uuid={@token_uuid}
+        data-user-uuid={@user_uuid}
+        data-impersonated={to_string(@impersonated)}
+        data-connected={to_string(@connected)}
+      >
+      </div>
+      """
+    end
+  end
+
   defp user! do
     {:ok, user} =
       Auth.register_user(%{
@@ -55,7 +125,11 @@ defmodule PhoenixKitWeb.Users.SessionRefMountTest do
         password: "ValidPassword123!"
       })
 
+    # Confirmed: an unconfirmed account's session cannot act while confirmation is
+    # required (`SessionRef.scope_for_session/2`).
     user
+    |> Ecto.Changeset.change(confirmed_at: DateTime.truncate(DateTime.utc_now(), :second))
+    |> PhoenixKit.RepoHelper.repo().update!()
   end
 
   defp probe(conn, session) do
@@ -97,6 +171,28 @@ defmodule PhoenixKitWeb.Users.SessionRefMountTest do
 
     assert has_element?(view, "#session-ref-probe[data-user-uuid='#{target.uuid}']")
     assert has_element?(view, "#session-ref-probe[data-impersonated='true']")
+  end
+
+  test "a sticky LiveView gets the reference from its host page, in a connected mount", %{
+    conn: conn
+  } do
+    operator = user!()
+    target = user!()
+    root = Auth.generate_user_session_token(operator)
+    borrowed = Auth.generate_user_session_token(target)
+    borrowed_uuid = Auth.get_session_token_record(borrowed).uuid
+
+    {:ok, host, _html} =
+      conn
+      |> init_test_session(%{"user_token" => borrowed, "pk_session_accounts" => [root, borrowed]})
+      |> live_isolated(Host)
+
+    sticky = find_live_child(host, "sticky-assistant")
+
+    assert has_element?(sticky, "#sticky-probe[data-connected='true']")
+    assert has_element?(sticky, "#sticky-probe[data-token-uuid='#{borrowed_uuid}']")
+    assert has_element?(sticky, "#sticky-probe[data-user-uuid='#{target.uuid}']")
+    assert has_element?(sticky, "#sticky-probe[data-impersonated='true']")
   end
 
   test "an anonymous or logged-out session gives no reference", %{conn: conn} do

@@ -31,6 +31,15 @@ defmodule PhoenixKit.API.ActorTest do
              ])
   end
 
+  test "inspecting an actor does not print the person behind its scope" do
+    user = %PhoenixKit.Users.Auth.User{uuid: "u-1", email: "owner@example.com"}
+    scope = %PhoenixKit.Users.Auth.Scope{user: user, authenticated?: true}
+    shown = inspect(%Actor{kind: :key, user_uuid: "u-1", scope: scope})
+
+    assert shown =~ "u-1"
+    refute shown =~ "owner@example.com"
+  end
+
   test "an unknown field is refused, so a typo cannot build an actor" do
     assert_raise KeyError, fn -> struct!(Actor, kind: :key, scopez: ["x"]) end
   end

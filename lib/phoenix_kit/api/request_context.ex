@@ -53,23 +53,25 @@ defmodule PhoenixKit.API.RequestContext do
   @doc """
   The context of a call without a connection, from `options` (`:language`, `:currency`,
   `:hosts`, `:base_url`). A missing option, or one of the wrong type, gets the default:
-  the install's primary language, no currency, no hosts, no base URL.
+  the install's primary language, no currency, no hosts, no base URL. An element of
+  `options` that is not a `{key, value}` pair is ignored.
   """
   @spec from_options(keyword()) :: t()
   def from_options(options) when is_list(options) do
+    given =
+      for {key, value} <- options,
+          key in [:language, :currency, :hosts, :base_url],
+          into: %{},
+          do: {key, value}
+
     base_url =
-      case Keyword.get(options, :base_url) do
+      case Map.get(given, :base_url) do
         url when is_binary(url) and url != "" -> url
         _other -> nil
       end
 
     %{language: Multilang.primary_language(), currency: nil, hosts: [], base_url: base_url}
-    |> Map.merge(
-      options
-      |> Keyword.take([:language, :currency, :hosts])
-      |> Map.new()
-      |> sanitize()
-    )
+    |> Map.merge(given |> Map.delete(:base_url) |> sanitize())
   end
 
   defp defaults(conn) do

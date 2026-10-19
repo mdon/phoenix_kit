@@ -194,6 +194,32 @@ defmodule PhoenixKit.API.ExecutorSessionTest do
       refute_received {:read_items, _, _}
     end
 
+    test "a user the web's account gate stops is refused and the handler does not run" do
+      {user, _} = user_with_roles([["dashboard"]])
+      ref = session!(user)
+
+      Repo.update_all(from(u in User, where: u.uuid == ^user.uuid), set: [confirmed_at: nil])
+
+      assert {:error, :unauthorized, _detail, %{reason: :unconfirmed}, []} =
+               run(ref, @read_items)
+
+      assert {:error, :unauthorized, _, %{reason: :unconfirmed}, []} =
+               Executor.visible_for(ref, :admin, [])
+
+      refute_received {:read_items, _, _}
+    end
+
+    test "a reference that is not a pair is refused as gone, never an exception" do
+      for ref <- [nil, "token", {:a, :b, :c}, %{}] do
+        assert {:error, :unauthorized, _, %{reason: :session_gone}, []} = run(ref, @read_items)
+
+        assert {:error, :unauthorized, _, %{reason: :session_gone}, []} =
+                 Executor.visible_for(ref, :admin, [])
+      end
+
+      refute_received {:read_items, _, _}
+    end
+
     test "a permission taken away takes effect on the next call" do
       {user, [role]} = user_with_roles([["dashboard"]])
       ref = session!(user)
@@ -381,6 +407,24 @@ defmodule PhoenixKit.API.ExecutorSessionTest do
       assert ctx.hosts == []
       assert ctx.currency == nil
       assert ctx.request_id == nil
+    end
+
+    test "a malformed request context gives the defaults, never an exception" do
+      {user, _} = user_with_roles([["dashboard"]])
+      ref = session!(user)
+
+      assert {:ok, _, _} =
+               run(ref, @read_items, %{}, request_context: [:junk, {"language", "et"}, ip: 42])
+
+      assert_received {:read_items, _input, ctx}
+      assert ctx.language == Multilang.primary_language()
+      assert ctx.actor.ip == nil
+
+      assert {:ok, _, _} = run(ref, @read_items, %{}, request_context: %{language: "et"})
+      assert_received {:read_items, _input, %{language: "et"}}
+
+      assert {:ok, _, _} = run(ref, @read_items, %{}, request_context: "et")
+      assert_received {:read_items, _input, _ctx}
     end
 
     test "a key's handler gets the owner's full scope, the one its scopes are computed from" do

@@ -100,9 +100,12 @@ defmodule PhoenixKit.API.Executor do
     * `:scope`, the `PhoenixKit.Users.Auth.Scope` behind those scopes, for a handler that
       filters rows by the caller's rights: the key owner's full scope
       (`Scope.for_user(owner, narrow: false)`) for a key, the session's scope for a live
-      session, `nil` for a public caller (a handler answers nothing it would filter by it);
+      session, `nil` for a public caller (a handler answers nothing it would filter by it).
+      A key's own scopes do not narrow it: rows filtered by `ctx.scope` are the ones the
+      owner sees, whatever the key's scopes;
     * `:audience`, `:language`, `:currency`, `:hosts`, `:base_url` (see
-      `PhoenixKit.API.RequestContext`);
+      `PhoenixKit.API.RequestContext`); `:base_url` is `nil` for a live session whose
+      caller passed none;
     * `:request_id`;
     * `:dry_run?`, `true` while the danger gate asks for a preview (the handler
       must then write nothing and answer `{:preview, preview, fingerprint}`, where `fingerprint`
@@ -124,8 +127,10 @@ defmodule PhoenixKit.API.Executor do
 
     * the scope is rebuilt from the session **on every call**
       (`SessionRef.scope_for_session/2`): a logged-out or revoked session, a blocked
-      user, a session of another user is `401 unauthorized`, and the scope is narrowed to
-      the role the session acts as;
+      user, a user the web's account gate would stop (unconfirmed email, missing
+      referral code), a session of another user, or a reference that is not a
+      `{session_token_uuid, user_uuid}` pair is `401 unauthorized`, and the scope is
+      narrowed to the role the session acts as;
     * the effective scopes are `PhoenixKit.API.Keys.held_scopes_of/1` of that scope, and
       the tool's own permission is checked too (`Scope.can?/2`); a tool without a
       permission (`system.*`, which describe the calling key) is not callable;
@@ -376,20 +381,29 @@ defmodule PhoenixKit.API.Executor do
   # A call on behalf of a live session: no connection, so the request context is taken
   # from the options (never from the host hook, which expects a `Plug.Conn`) and the
   # actor is resolved from the session by `session_actor/1`.
-  defp session_state({_token_uuid, _user_uuid} = session_ref, tool_name, input, opts) do
+  # A reference that is not a `{session_token_uuid, user_uuid}` pair names no session:
+  # `session_actor/1` refuses it as gone.
+  defp session_state(session_ref, tool_name, input, opts) do
     request = request_options(Keyword.get(opts, :request_context, []))
 
     :admin
     |> base_state(tool_name, input, idempotency_header: false)
     |> Map.merge(%{
-      session_ref: session_ref,
+      session_ref: session_pair(session_ref),
       client_ip: binary_option(request, :ip),
       request_id: binary_option(request, :request_id),
       request_context: RequestContext.from_options(request)
     })
   end
 
-  defp request_options(options) when is_list(options), do: options
+  defp session_pair({_token_uuid, _user_uuid} = session_ref), do: session_ref
+  defp session_pair(_other), do: nil
+
+  # Only `{atom, value}` pairs count: anything else in the list (or a list that is not a
+  # keyword list at all) is dropped, so a malformed context gets the defaults.
+  defp request_options(options) when is_list(options) or is_map(options),
+    do: Enum.filter(options, &match?({key, _value} when is_atom(key), &1))
+
   defp request_options(_other), do: []
 
   defp binary_option(options, key) do
@@ -461,7 +475,8 @@ defmodule PhoenixKit.API.Executor do
     do: {:error, :unauthorized, "Authentication is required.", %{}, state}
 
   # The scope of a live session, rebuilt for this call: the session must still be alive,
-  # belong to the user named in the reference, and its user be active.
+  # belong to the user named in the reference, and its user be active and pass the
+  # account gate of the web (`SessionRef.scope_for_session/2`).
   defp session_actor(%{session_ref: {token_uuid, user_uuid}} = state) do
     case SessionRef.scope_for_session(token_uuid, user_uuid) do
       {:ok, %Scope{} = scope} ->
@@ -476,13 +491,20 @@ defmodule PhoenixKit.API.Executor do
         {:ok, %{state | actor: actor}}
 
       {:error, reason} ->
-        {:error, :unauthorized, session_refusal(reason), %{reason: reason}, state}
+        session_refused(state, reason)
     end
   end
+
+  defp session_actor(state), do: session_refused(state, :session_gone)
+
+  defp session_refused(state, reason),
+    do: {:error, :unauthorized, session_refusal(reason), %{reason: reason}, state}
 
   defp session_refusal(:session_gone), do: "The session has ended."
   defp session_refusal(:mismatch), do: "The session belongs to another user."
   defp session_refusal(:inactive), do: "The user is blocked."
+  defp session_refusal(:unconfirmed), do: "The user's email is not confirmed."
+  defp session_refusal(:referral_required), do: "The user has not entered a referral code."
 
   defp find_tool(%{name: name} = state) when not is_binary(name),
     do: {:error, :not_found, "Unknown tool.", %{}, state}

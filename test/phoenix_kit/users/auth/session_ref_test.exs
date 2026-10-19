@@ -9,6 +9,7 @@ defmodule PhoenixKit.Users.Auth.SessionRefTest do
   import ExUnit.CaptureLog
   import PhoenixKit.API.KeyTestSupport, only: [register_user!: 0, role_with: 1]
 
+  alias PhoenixKit.ModuleRegistry
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.Scope
@@ -16,6 +17,23 @@ defmodule PhoenixKit.Users.Auth.SessionRefTest do
   alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Users.Auth.UserToken
   alias PhoenixKit.Users.Roles
+
+  defmodule InviteOnly do
+    @moduledoc false
+    def module_key, do: "referrals"
+    def get_config, do: %{enabled: true, required: true}
+  end
+
+  defp unconfirmed_user! do
+    {:ok, user} =
+      Auth.register_user(%{
+        email: "session_ref_unconfirmed_#{System.unique_integer([:positive])}@example.com",
+        password: "ValidPassword123!"
+      })
+
+    nil = user.confirmed_at
+    user
+  end
 
   defp session!(user) do
     token = Auth.generate_user_session_token(user)
@@ -92,6 +110,50 @@ defmodule PhoenixKit.Users.Auth.SessionRefTest do
         end)
 
       assert log =~ "Inactive user #{user.uuid}"
+    end
+
+    test "a service user's session row is not a session" do
+      user = register_user!()
+      {_token, uuid} = session!(user)
+
+      Repo.update_all(from(u in User, where: u.uuid == ^user.uuid), set: [api_only: true])
+
+      assert {:error, :session_gone} = SessionRef.scope_for_session(uuid, user.uuid)
+    end
+
+    test "an unconfirmed user is refused while confirmation is required, as on the web" do
+      user = unconfirmed_user!()
+      {_token, uuid} = session!(user)
+
+      # `require_email_confirmation` is on by default.
+      assert {:error, :unconfirmed} = SessionRef.scope_for_session(uuid, user.uuid)
+
+      capture_log(fn ->
+        {:ok, _} = Settings.update_boolean_setting("require_email_confirmation", false)
+      end)
+
+      assert {:ok, %Scope{}} = SessionRef.scope_for_session(uuid, user.uuid)
+    end
+
+    test "an account parked by the invite-only gate is refused, as on the web" do
+      user = register_user!()
+      {_token, uuid} = session!(user)
+
+      ModuleRegistry.register(InviteOnly)
+      on_exit(fn -> ModuleRegistry.unregister(InviteOnly) end)
+
+      capture_log(fn ->
+        {:ok, _} = Settings.update_boolean_setting("referral_codes_required", true)
+        {:ok, _} = Settings.update_boolean_setting("referral_grandfather_existing", false)
+      end)
+
+      assert {:error, :referral_required} = SessionRef.scope_for_session(uuid, user.uuid)
+
+      capture_log(fn ->
+        {:ok, _} = Settings.update_boolean_setting("referral_codes_required", false)
+      end)
+
+      assert {:ok, %Scope{}} = SessionRef.scope_for_session(uuid, user.uuid)
     end
 
     test "an unknown or malformed reference is gone, never an exception" do

@@ -19,8 +19,12 @@ defmodule PhoenixKit.API.Actor do
     * `ip` - the address the request came from, as a string.
 
   The default is the least-privileged value: anonymous, no scopes, no approval.
+
+  `inspect/1` leaves `scope` out: it holds the user (email, name), and the actor sits in
+  `conn.assigns` on every API request, where error reports and debug pages print it.
   """
 
+  @derive {Inspect, except: [:scope]}
   defstruct kind: :anonymous,
             key_uuid: nil,
             key_prefix: nil,

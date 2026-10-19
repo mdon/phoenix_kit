@@ -12,17 +12,23 @@ defmodule PhoenixKit.Users.Auth.SessionRef do
   on every call, by the rules a web request follows
   (`PhoenixKit.Users.Auth.UserToken.verify_session_token_uuid_query/1`): the row is a
   `"session"` row and has not expired, its user is not a service user, and the scope is
-  narrowed to the role this session acts as (`PhoenixKit.Users.ActiveRole`). Logging out,
-  revoking the session or blocking the user takes effect on the next call.
+  narrowed to the role this session acts as (`PhoenixKit.Users.ActiveRole`). The account
+  must also pass the gate every authenticated page applies: a confirmed email while
+  `require_email_confirmation` is on, and the invite-only gate
+  (`PhoenixKit.Users.Referrals.access_satisfied?/1`), so a session acts with no more than
+  its pages would let it. Logging out, revoking the session or blocking the user takes
+  effect on the next call.
 
   `from_session/1` reads the reference from a LiveView's session map.
   """
 
   alias PhoenixKit.RepoHelper
+  alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Users.Auth.UserToken
+  alias PhoenixKit.Users.Referrals
   alias PhoenixKit.Utils.UUID, as: UUIDUtils
 
   @typedoc "`{session_token_uuid, user_uuid}`."
@@ -31,9 +37,11 @@ defmodule PhoenixKit.Users.Auth.SessionRef do
   @typedoc """
   Why a session cannot act: `:session_gone` (no such live session: logged out, revoked,
   expired, not a session row, or a service user's), `:mismatch` (the session belongs to
-  another user) or `:inactive` (the user is blocked).
+  another user), `:inactive` (the user is blocked), `:unconfirmed` (the email is not
+  confirmed and confirmation is required) or `:referral_required` (the invite-only gate
+  still asks for a referral code).
   """
-  @type refusal :: :session_gone | :mismatch | :inactive
+  @type refusal :: :session_gone | :mismatch | :inactive | :unconfirmed | :referral_required
 
   @doc """
   The scope of the live session `session_token_uuid`, which must belong to `user_uuid`.
@@ -45,8 +53,11 @@ defmodule PhoenixKit.Users.Auth.SessionRef do
   def scope_for_session(session_token_uuid, user_uuid) do
     with {:ok, %User{} = user} <- session_user(session_token_uuid),
          :ok <- same_user(user, user_uuid),
-         %User{} = active <- Auth.ensure_active_user(user) || {:error, :inactive} do
-      {:ok, Scope.for_user(active)}
+         %User{} = active <- Auth.ensure_active_user(user) || {:error, :inactive},
+         :ok <- confirmed(active),
+         scope = Scope.for_user(active),
+         :ok <- referral_satisfied(scope) do
+      {:ok, scope}
     end
   end
 
@@ -54,6 +65,12 @@ defmodule PhoenixKit.Users.Auth.SessionRef do
   The reference of the session a LiveView runs in, read from its session map: the
   `"user_token"` of the cookie session resolved to `{session_token_uuid, user_uuid}`.
   `:error` when there is no token or it is not a live session.
+
+  Call it where the cookie session is at hand: in the page's own LiveView (or a plug).
+  A nested LiveView (a sticky `live_render`) sees the cookie session in a connected
+  mount only when the endpoint's socket declares `connect_info: [session: ...]`, so the
+  host page reads the reference and passes it (and `PhoenixKitWeb.Users.MultiSession.impersonated?/1`)
+  in the nested LiveView's `:session`.
   """
   @spec from_session(map()) :: {:ok, t()} | :error
   def from_session(%{"user_token" => token}) when is_binary(token) do
@@ -83,4 +100,18 @@ defmodule PhoenixKit.Users.Auth.SessionRef do
 
   defp same_user(%User{uuid: uuid}, uuid), do: :ok
   defp same_user(%User{}, _user_uuid), do: {:error, :mismatch}
+
+  # The two halts of the web's account gate (`PhoenixKitWeb.Users.Auth`, behind every
+  # authenticated `on_mount` hook and plug), in its order. The confirmation rule is the
+  # one `PhoenixKit.API.Keys.active_owner/1` applies to a key's owner.
+  defp confirmed(%User{confirmed_at: %DateTime{}}), do: :ok
+
+  defp confirmed(%User{}) do
+    if Settings.get_boolean_setting("require_email_confirmation", true),
+      do: {:error, :unconfirmed},
+      else: :ok
+  end
+
+  defp referral_satisfied(%Scope{} = scope),
+    do: if(Referrals.access_satisfied?(scope), do: :ok, else: {:error, :referral_required})
 end
