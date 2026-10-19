@@ -44,7 +44,7 @@ defmodule PhoenixKitWeb.Components.Dashboard.AdminSidebar do
 
   require Logger
 
-  alias PhoenixKit.Dashboard.{Group, Registry, Tab, TabHelpers}
+  alias PhoenixKit.Dashboard.{AdminTabs, Group, Registry, Tab, TabHelpers}
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKitWeb.Components.Dashboard.TabItem
   alias PhoenixKitWeb.Users.Auth
@@ -66,6 +66,12 @@ defmodule PhoenixKitWeb.Components.Dashboard.AdminSidebar do
   attr :scope, :any, default: nil
   attr :locale, :string, default: nil
   attr :class, :string, default: ""
+
+  attr :refresh, :any,
+    default: nil,
+    doc:
+      "Any value; a page changes it to have the menu drawn again, so a number on a tab " <>
+        "(the approvals waiting) follows what the page just did"
 
   def admin_sidebar(assigns) do
     # Get admin tabs, already filtered by level, permission, and module-enabled
@@ -160,6 +166,7 @@ defmodule PhoenixKitWeb.Components.Dashboard.AdminSidebar do
       Registry.get_admin_tabs(scope: scope)
       |> expand_dynamic_children(scope, locale)
       |> reachable_tabs(scope)
+      |> AdminTabs.with_scope_badges(scope)
     else
       []
     end

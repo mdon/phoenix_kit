@@ -1,7 +1,7 @@
 defmodule PhoenixKitWeb.Live.Settings.ApiFlowTranslationsTest do
   @moduledoc """
-  Every string of the approvals page is in the template and has a translation in every
-  shipped locale (the strings added to Settings -> API itself are guarded by
+  Every string of the approvals page and of its menu entry is in the template and has a
+  translation in every shipped locale (the strings added to Settings -> API itself are guarded by
   `ApiTranslationsTest`). There is no automatic check of the catalogues, and a missing
   entry only shows as English text in the browser, so this test reads the `gettext/1`
   calls of the page's sources and looks each msgid up in the `.pot` and in the eight
@@ -10,21 +10,24 @@ defmodule PhoenixKitWeb.Live.Settings.ApiFlowTranslationsTest do
   use ExUnit.Case, async: true
 
   @page_sources ~w(
-    lib/phoenix_kit_web/live/settings/api_approvals.ex
-    lib/phoenix_kit_web/live/settings/api_approvals.html.heex
+    lib/phoenix_kit_web/live/approvals.ex
+    lib/phoenix_kit_web/live/approvals.html.heex
   )
+  # The admin menu entry of the page (`gettext_noop` in `PhoenixKit.Dashboard.AdminTabs`).
+  @extra_msgids ["Approvals"]
   @locales ~w(de es et fr it pl ru uk)
   @root Path.expand("../../../..", __DIR__)
 
   # Every literal first argument of a `gettext(...)` call in the page's sources.
   defp page_msgids do
-    @page_sources
-    |> Enum.flat_map(fn source ->
-      ~r/gettext\(\s*"((?:[^"\\]|\\.)*)"/s
-      |> Regex.scan(File.read!(Path.join(@root, source)))
-      |> Enum.map(&List.last/1)
-    end)
-    |> Enum.uniq()
+    scanned =
+      Enum.flat_map(@page_sources, fn source ->
+        ~r/gettext\(\s*"((?:[^"\\]|\\.)*)"/s
+        |> Regex.scan(File.read!(Path.join(@root, source)))
+        |> Enum.map(&List.last/1)
+      end)
+
+    Enum.uniq(scanned ++ @extra_msgids)
   end
 
   defp catalogue(path) do
@@ -36,7 +39,7 @@ defmodule PhoenixKitWeb.Live.Settings.ApiFlowTranslationsTest do
   end
 
   test "the page has strings to translate" do
-    assert length(page_msgids()) > 15
+    assert length(page_msgids()) > 50
   end
 
   test "the template (.pot) has every msgid" do
