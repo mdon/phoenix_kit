@@ -1,6 +1,7 @@
 defmodule PhoenixKit.Integrations.EventsTest do
   use ExUnit.Case, async: true
 
+  alias PhoenixKit.Integrations.Encryption
   alias PhoenixKit.Integrations.Events
 
   describe "subscribe/0 and broadcasts" do
@@ -14,6 +15,34 @@ defmodule PhoenixKit.Integrations.EventsTest do
       :ok = Events.subscribe()
       :ok = Events.broadcast_connected("google", %{"status" => "connected"})
       assert_receive {:integration_connected, "google", %{"status" => "connected"}}
+    end
+
+    test "setup_saved and connected payloads never carry a field Encryption treats as sensitive, or oauth_state" do
+      :ok = Events.subscribe()
+
+      data =
+        Map.new(Encryption.sensitive_fields() ++ ["oauth_state"], &{&1, "secret-" <> &1})
+        |> Map.merge(%{"status" => "configured", "name" => "default"})
+
+      :ok = Events.broadcast_setup_saved("google", data)
+      assert_receive {:integration_setup_saved, "google", redacted_saved}
+
+      :ok = Events.broadcast_connected("google", data)
+      assert_receive {:integration_connected, "google", redacted_connected}
+
+      for redacted <- [redacted_saved, redacted_connected] do
+        assert redacted == %{"status" => "configured", "name" => "default"}
+      end
+    end
+
+    test "oauth_state is still redacted from broadcasts" do
+      :ok = Events.subscribe()
+
+      :ok =
+        Events.broadcast_connected("google", %{"oauth_state" => "csrf-nonce", "status" => "ok"})
+
+      assert_receive {:integration_connected, "google", payload}
+      assert payload == %{"status" => "ok"}
     end
 
     test "subscribe and receive disconnected event" do
