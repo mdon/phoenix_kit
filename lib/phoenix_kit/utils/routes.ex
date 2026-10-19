@@ -1447,6 +1447,173 @@ defmodule PhoenixKit.Utils.Routes do
   @spec base_url() :: String.t()
   def base_url, do: String.trim_trailing(get_base_url_for_emails(), "/")
 
+  @doc """
+  The host a language is served from, as the host application's
+  `config :phoenix_kit, :canonical_host_resolver, {mod, fun}` MFA says, or
+  `nil`.
+
+  This is the one place that calls the resolver. The resolver is host code, so
+  a failure in it must never crash the page or API call that asked: it is run
+  under `rescue` and `catch :exit` (a connection-pool failure exits rather than
+  raises), and `nil` is the answer when it is absent, fails, or returns
+  anything but a non-blank string.
+
+  The resolver is called with the **base** language code (`"de"`, also for
+  `"de-DE"`), the contract every resolver already works to.
+
+  ## Examples
+
+      iex> PhoenixKit.Utils.Routes.canonical_host(nil)
+      nil
+
+  """
+  @spec canonical_host(String.t() | nil) :: String.t() | nil
+  def canonical_host(language) do
+    with base when is_binary(base) <- language_base(language),
+         {mod, fun} <- Application.get_env(:phoenix_kit, :canonical_host_resolver) do
+      mod |> apply(fun, [base]) |> usable_host()
+    else
+      _ -> nil
+    end
+  rescue
+    error ->
+      Logger.warning(
+        "[Routes] canonical_host_resolver raised, falling back to site base: " <>
+          Exception.message(error)
+      )
+
+      nil
+  catch
+    # A connection-pool failure under the host's resolver EXITS rather than
+    # raising (see `get_default_language_base/0` for the same class of bug) —
+    # `rescue` alone does not catch it.
+    :exit, reason ->
+      Logger.warning(
+        "[Routes] canonical_host_resolver exited, falling back to site base: " <>
+          inspect(reason)
+      )
+
+      nil
+  end
+
+  defp usable_host(nil), do: nil
+
+  defp usable_host(host) when is_binary(host) do
+    case String.trim(host) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp usable_host(other) do
+    Logger.warning(
+      "[Routes] canonical_host_resolver returned a non-string, falling back to site base: " <>
+        inspect(other)
+    )
+
+    nil
+  end
+
+  defp language_base(language) when is_binary(language) do
+    if String.trim(language) == "", do: nil, else: DialectMapper.extract_base(language)
+  end
+
+  defp language_base(_language), do: nil
+
+  @doc """
+  `"https://" <> host` for the host `canonical_host/1` finds, or `nil`.
+
+  `nil` means the language has no host of its own: fall back to `base_url/0`
+  and keep the language segment in the path. `canonical_url/2` and
+  `canonical_absolute/3` do exactly that, so build URLs with them rather than
+  with the origin.
+  """
+  @spec canonical_origin(String.t() | nil) :: String.t() | nil
+  def canonical_origin(language) do
+    case canonical_host(language) do
+      nil -> nil
+      host -> "https://" <> host
+    end
+  end
+
+  @doc """
+  Absolute public URL of a canonical path (the argument of `path/2`, e.g.
+  `"/users/register"`) in `language`.
+
+  Where the language has its own host (`canonical_origin/1`) the host carries
+  the language, so the URL has no language segment:
+  `https://de.example.com/phoenix_kit/users/register`. Otherwise it is the
+  site's `base_url/0` plus the language-prefixed `path/2`.
+
+  Use `canonical_absolute/3` for a path that is already built.
+  """
+  @spec canonical_url(String.t(), String.t() | nil) :: String.t()
+  def canonical_url("/" <> _ = url_path, language) do
+    case canonical_origin(language) do
+      nil -> base_url() <> path(url_path, locale: language_base(language))
+      origin -> origin <> path(url_path, locale: :none)
+    end
+  end
+
+  @doc """
+  Absolute public URL of a path that is **already built** (mount prefix and
+  language segment included, as `path/2` or a module's own URL builder returns
+  it), in `language`. This is what a module API wants when it holds the paths
+  of its pages and must hand out URLs.
+
+  Where the language has its own host (`canonical_origin/1`) the language
+  segment is removed and the host put in front. Without a host the path is
+  kept as it is behind `base_url/0`. Only the segment that belongs to the
+  language is removed, and only straight after the mount prefix: `"de"` and
+  `"de-DE"` both remove `/de`, `"en-GB"` removes `/en-GB` (or `/en`), and a page
+  named like another language (`/pages/de`) stays.
+
+  ## Options
+
+    * `:segment` - the language segment the path was built with, when it is not
+      the language's base code (two dialects of one language on the same site,
+      where one of them is `/en-gb`). Only that segment is removed then.
+
+  ## Examples
+
+      Routes.canonical_absolute("/de/pages/home", "de-DE")
+      #=> "https://de.example.com/pages/home"  # resolver gives de.example.com
+      #=> "https://example.com/de/pages/home"  # resolver gives nothing
+  """
+  @spec canonical_absolute(String.t(), String.t() | nil, keyword()) :: String.t()
+  def canonical_absolute("/" <> _ = built_path, language, opts \\ []) do
+    case canonical_origin(language) do
+      nil -> base_url() <> built_path
+      origin -> origin <> strip_language_segment(built_path, language, opts)
+    end
+  end
+
+  defp strip_language_segment(built_path, language, opts) do
+    {prefix, rest} = split_served_prefix(built_path)
+
+    with [_, segment, tail] <- Regex.run(~r{\A/([^/?#]*)(.*)\z}s, rest),
+         true <- String.downcase(segment) in strippable_segments(language, opts) do
+      root_if_empty(prefix, tail)
+    else
+      _ -> built_path
+    end
+  end
+
+  defp strippable_segments(language, opts) do
+    case Keyword.get(opts, :segment) do
+      segment when is_binary(segment) -> [String.downcase(segment)]
+      _ -> Enum.uniq([String.downcase(language), language_base(language)])
+    end
+  end
+
+  # What is left of the path once the segment is gone: "" is the site root and
+  # "?x" / "#x" is the root with a query or fragment.
+  defp root_if_empty("", tail) do
+    if tail == "" or String.starts_with?(tail, ["?", "#"]), do: "/" <> tail, else: tail
+  end
+
+  defp root_if_empty(prefix, tail), do: prefix <> tail
+
   # Gets the base URL for email links.
   #
   # Priority:
