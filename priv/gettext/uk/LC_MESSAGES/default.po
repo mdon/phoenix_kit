@@ -20832,8 +20832,8 @@ msgstr[2] "Небезпечна операція спочатку поверта
 #, elixir-autogen, elixir-format
 msgid "Any write that touches more than %{count} row is dangerous too."
 msgid_plural "Any write that touches more than %{count} rows is dangerous too."
-msgstr[0] "Будь-який запис, що зачіпає понад %{count} рядка, теж вважається небезпечним."
-msgstr[1] "Будь-який запис, що зачіпає понад %{count} рядків, теж вважається небезпечним."
+msgstr[0] "Будь-який запис, що зачіпає понад %{count} рядок, теж вважається небезпечним."
+msgstr[1] "Будь-який запис, що зачіпає понад %{count} рядки, теж вважається небезпечним."
 msgstr[2] "Будь-який запис, що зачіпає понад %{count} рядків, теж вважається небезпечним."
 
 #: lib/phoenix_kit_web/live/settings/api_guide.html.heex:284
