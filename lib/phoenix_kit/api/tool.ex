@@ -46,6 +46,9 @@ defmodule PhoenixKit.API.Tool do
       The tool then takes no `idempotency_key`: the schemas, MCP and OpenAPI do not offer it, a
       body that sends it is a `422`, and the `Idempotency-Key` header is ignored, as it is on a
       read tool. Say in the description that a repeated call is not the same call.
+      The field is newer than core 2.63.0, where `new/1` refuses it. A module that must also
+      run there passes it only when `Code.ensure_loaded?(PhoenixKit.API.ControlFields) and
+      function_exported?(PhoenixKit.API.ControlFields, :replay_tool?, 1)`.
     * `:max_items` - the largest batch the tool accepts, or `nil`.
     * `:cost` - the rate-limit units one call costs. `nil` (default) means the executor's
       rule: 1, or for a non-read-only admin tool `max(1, ceil(longest list / 50))`. A

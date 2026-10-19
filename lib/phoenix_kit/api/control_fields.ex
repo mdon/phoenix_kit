@@ -1,7 +1,7 @@
 defmodule PhoenixKit.API.ControlFields do
   @moduledoc """
-  The fields the executor adds to the input of every write tool:
-  modules never declare them.
+  The fields the executor adds to the input of a write tool: modules never declare them.
+  `idempotency_key` is left out for a write tool that cannot replay (see below).
 
     * `dry_run` (boolean) - run the handler without side effects and return the
       preview; never creates a code or an approval.
@@ -44,7 +44,7 @@ defmodule PhoenixKit.API.ControlFields do
   @spec properties(Tool.t()) :: map()
   def properties(%Tool{} = tool) do
     if write_tool?(tool) do
-      all = %{
+      base = %{
         "dry_run" => %{
           "type" => "boolean",
           "description" =>
@@ -56,23 +56,25 @@ defmodule PhoenixKit.API.ControlFields do
           "maxLength" => 200,
           "description" =>
             "The one-time code returned with the preview of a dangerous operation. Send it with the same arguments."
-        },
-        "idempotency_key" => %{
-          "type" => "string",
-          "minLength" => 16,
-          "maxLength" => 128,
-          # `(?![\s\S])` means "nothing follows" in PCRE and in ECMA 262 alike, and the same
-          # text is published to MCP and OpenAPI clients, where `\A` and `\z` do not exist.
-          "pattern" => "^[A-Za-z0-9_-]{16,128}(?![\\s\\S])",
-          "description" =>
-            "Makes a retry safe: the same key and arguments return the first answer."
         }
       }
 
-      if replay_tool?(tool), do: all, else: Map.delete(all, "idempotency_key")
+      if replay_tool?(tool), do: Map.put(base, "idempotency_key", idempotency_key()), else: base
     else
       %{}
     end
+  end
+
+  defp idempotency_key do
+    %{
+      "type" => "string",
+      "minLength" => 16,
+      "maxLength" => 128,
+      # `(?![\s\S])` means "nothing follows" in PCRE and in ECMA 262 alike, and the same
+      # text is published to MCP and OpenAPI clients, where `\A` and `\z` do not exist.
+      "pattern" => "^[A-Za-z0-9_-]{16,128}(?![\\s\\S])",
+      "description" => "Makes a retry safe: the same key and arguments return the first answer."
+    }
   end
 
   @doc "Splits a request body into the control fields and the tool's own input."
