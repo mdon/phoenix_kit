@@ -10,10 +10,25 @@ defmodule PhoenixKit.Modules.Storage.HiddenLibraryTest do
 
   use PhoenixKit.DataCase, async: false
 
+  import Ecto.Query, only: [from: 2]
   import Plug.Test
 
   alias PhoenixKit.Modules.Storage
-  alias PhoenixKit.Modules.Storage.{Libraries, Library, URLSigner}
+
+  alias PhoenixKit.Modules.Storage.{
+    Audit,
+    Bucket,
+    ImageEditing,
+    Libraries,
+    Library,
+    Profiles,
+    Reconciler,
+    RepairLog,
+    URLSigner
+  }
+
+  alias PhoenixKit.Modules.Storage.Jobs.{PurgeLibrary, Reconcile}
+
   alias PhoenixKit.Users.{Auth, Permissions, Roles}
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKitWeb.FileController
@@ -25,8 +40,10 @@ defmodule PhoenixKit.Modules.Storage.HiddenLibraryTest do
     :persistent_term.erase(@buckets_cache)
     n = System.unique_integer([:positive])
     root = Path.join(System.tmp_dir!(), "pk_hidden_library_#{n}")
+    # Only this test's bucket takes uploads, whatever the database already holds.
+    Repo.update_all(Bucket, set: [enabled: false])
 
-    {:ok, _bucket} =
+    {:ok, bucket} =
       Storage.create_bucket(%{
         name: "hidden-library-#{n}",
         provider: "local",
@@ -56,6 +73,7 @@ defmodule PhoenixKit.Modules.Storage.HiddenLibraryTest do
 
     %{
       n: n,
+      bucket: bucket,
       hidden: hidden,
       uploader: user!("uploader"),
       manager: user!("manager", manager_role)
@@ -115,6 +133,50 @@ defmodule PhoenixKit.Modules.Storage.HiddenLibraryTest do
 
       assert library.visibility == "site"
       refute Libraries.hidden?(library)
+    end
+
+    test "a hidden one is made with the slug it is asked for, or not at all", %{n: n} do
+      assert {:error, changeset} =
+               Libraries.create_system_library(%{name: "No slug #{n}"}, hidden: true)
+
+      assert "can't be blank" in errors_on(changeset).slug
+
+      # A taken slug is refused, not replaced by "<slug>-2" the module would not find.
+      {:ok, site} = Libraries.create_system_library(%{name: "Taken #{n}"})
+
+      assert {:error, changeset} =
+               Libraries.create_system_library(%{name: "Other #{n}", slug: site.slug},
+                 hidden: true
+               )
+
+      assert errors_on(changeset).slug != []
+      refute Libraries.get_hidden_library_by_slug(site.slug)
+
+      # A site library still picks a free slug when none is given.
+      {:ok, again} = Libraries.create_system_library(%{name: "Taken-#{n}"})
+      assert again.slug == site.slug <> "-2"
+    end
+
+    test "audit: false leaves its creation out of the Storage history", %{hidden: hidden, n: n} do
+      created = fn library ->
+        Repo.exists?(
+          from(e in PhoenixKit.Activity.Entry,
+            where:
+              e.resource_uuid == ^to_string(library.uuid) and
+                e.action == "storage.library.created"
+          )
+        )
+      end
+
+      assert created.(hidden)
+
+      {:ok, quiet} =
+        Libraries.create_system_library(%{name: "Quiet #{n}", slug: "quiet-#{n}"},
+          hidden: true,
+          audit: false
+        )
+
+      refute created.(quiet)
     end
   end
 
@@ -231,6 +293,51 @@ defmodule PhoenixKit.Modules.Storage.HiddenLibraryTest do
 
       assert conn.status == 200
     end
+
+    test "the edit gate (unedited original, burn-in) refuses a holder of media.view_all",
+         %{hidden: hidden, uploader: uploader, manager: manager, n: n} do
+      {:ok, plain} = Libraries.create_system_library(%{name: "Edits #{n}"})
+      {:ok, site_file} = store(uploader, plain.uuid, "site edit gate #{n}")
+      {:ok, hidden_file} = store(uploader, hidden.uuid, "hidden edit gate #{n}")
+
+      assert ImageEditing.can_edit?(site_file, scope(manager))
+      refute ImageEditing.can_edit?(hidden_file, scope(manager))
+      assert ImageEditing.can_edit?(hidden_file, scope(uploader))
+    end
+
+    test "the unedited original of a hidden file is a 404 for a holder of media.view_all",
+         %{hidden: hidden, uploader: uploader, manager: manager, n: n} do
+      {:ok, plain} = Libraries.create_system_library(%{name: "Unedited #{n}"})
+      site_file = edited!(uploader, plain.uuid, "site unedited #{n}")
+      hidden_file = edited!(uploader, hidden.uuid, "hidden unedited #{n}")
+
+      unedited = fn user, file ->
+        conn(:get, "/")
+        |> Plug.Conn.assign(:phoenix_kit_current_user, user)
+        |> FileController.unedited(%{"file_uuid" => file.uuid})
+      end
+
+      assert unedited.(manager, site_file).status == 200
+      assert unedited.(manager, hidden_file).status == 404
+      assert unedited.(uploader, hidden_file).status == 200
+    end
+  end
+
+  # A file of `library_uuid` with an unedited original behind it (what an image
+  # edit leaves): a second upload made into the first one's hidden backup.
+  defp edited!(user, library_uuid, content) do
+    {:ok, file} = store(user, library_uuid, content)
+    {:ok, original} = store(user, library_uuid, content <> " original")
+
+    original
+    |> Ecto.Changeset.change(
+      parent_file_uuid: file.uuid,
+      system_managed: true,
+      file_name: ImageEditing.backup_name()
+    )
+    |> Repo.update!()
+
+    file |> Ecto.Changeset.change(original_file_uuid: original.uuid) |> Repo.update!()
   end
 
   describe "dedup" do
@@ -276,6 +383,34 @@ defmodule PhoenixKit.Modules.Storage.HiddenLibraryTest do
       refute other.file_path == hidden_file.file_path
     end
 
+    test "store_file/2 with only a hidden copy of the bytes gives a new Media file", %{
+      hidden: hidden,
+      uploader: uploader,
+      n: n
+    } do
+      content = "only hidden #{n}"
+      {:ok, hidden_file} = store(uploader, hidden.uuid, content)
+
+      source = Path.join(System.tmp_dir!(), "pk_hidden_only_#{n}")
+      File.write!(source, content)
+
+      {{:ok, plain}, _log} =
+        ExUnit.CaptureLog.with_log(fn ->
+          Storage.store_file(source,
+            filename: "a.jpg",
+            content_type: "image/jpeg",
+            size_bytes: byte_size(content),
+            user_uuid: uploader.uuid
+          )
+        end)
+
+      File.rm(source)
+      assert plain.uuid != hidden_file.uuid
+      assert plain.library_uuid == @media
+      refute Libraries.private_file?(plain)
+      assert Storage.get_file(hidden_file.uuid).library_uuid == hidden.uuid
+    end
+
     test "inside the hidden library a second upload is the same file", %{
       hidden: hidden,
       uploader: uploader,
@@ -287,6 +422,90 @@ defmodule PhoenixKit.Modules.Storage.HiddenLibraryTest do
       assert {:ok, again, :duplicate} = store(uploader, hidden.uuid, content)
       assert again.uuid == first.uuid
       assert again.library_uuid == hidden.uuid
+    end
+  end
+
+  describe "Settings pages, which name the site's libraries" do
+    test "Health does not list a hidden library's stale file, but counts it", %{
+      hidden: hidden,
+      uploader: uploader,
+      n: n
+    } do
+      {:ok, plain} = Libraries.create_system_library(%{name: "Stale site #{n}"})
+      {:ok, site_file} = store(uploader, plain.uuid, "stale site #{n}")
+      {:ok, hidden_file} = store(uploader, hidden.uuid, "stale hidden #{n}")
+
+      for file <- [site_file, hidden_file],
+          do: Repo.update!(Ecto.Changeset.change(file, status: "active", placed_revision: 0))
+
+      listed = Enum.map(Reconciler.stale_files(), & &1.file_uuid)
+      assert site_file.uuid in listed
+      refute hidden_file.uuid in listed
+      assert Reconciler.stale_count() == 2
+    end
+
+    test "a bucket's contents count the hidden library with the private ones, unnamed", %{
+      bucket: bucket,
+      hidden: hidden,
+      uploader: uploader,
+      n: n
+    } do
+      {:ok, _} = store(uploader, nil, "bucket media #{n}")
+      {:ok, _} = store(uploader, hidden.uuid, "bucket hidden #{n}")
+
+      contents = Storage.bucket_contents(bucket.uuid)
+      refute hidden.uuid in Enum.map(contents.libraries, & &1.uuid)
+      refute hidden.name in Enum.map(contents.libraries, & &1.name)
+      assert @media in Enum.map(contents.libraries, & &1.uuid)
+      assert contents.personal.libraries == 1
+      assert contents.personal.files == 1
+      assert contents.files == 2
+    end
+
+    test "a profile's users count the hidden library without naming it", %{n: n} do
+      {:ok, profile} = Profiles.create_profile(%{name: "Hidden profile #{n}"})
+
+      {:ok, hidden} =
+        Libraries.create_system_library(
+          %{name: "On profile #{n}", slug: "on-profile-#{n}", storage_profile_uuid: profile.uuid},
+          hidden: true
+        )
+
+      {:ok, site} =
+        Libraries.create_system_library(%{
+          name: "Site on profile #{n}",
+          storage_profile_uuid: profile.uuid
+        })
+
+      assert %{names: [site.name], user_libraries: 1} ==
+               Profiles.library_names_using(profile.uuid)
+
+      refute hidden.name in Profiles.library_names_using(Profiles.default_uuid()).names
+    end
+
+    test "job titles and the repair log do not name it", %{
+      bucket: bucket,
+      hidden: hidden,
+      uploader: uploader,
+      n: n
+    } do
+      {:ok, plain} = Libraries.create_system_library(%{name: "Titled #{n}"})
+
+      for job <- [Reconcile, PurgeLibrary] do
+        assert job.title(%{}, {"library", plain.uuid}) =~ plain.name
+        refute job.title(%{}, {"library", hidden.uuid}) =~ hidden.name
+      end
+
+      # The repair log writes nothing about a private library's file (`Audit.log_damage/3`).
+      {:ok, file} = store(uploader, hidden.uuid, "repair log #{n}")
+
+      Audit.log_damage(
+        file,
+        [%{name: "original", bucket: bucket, path: "k/o.bin", result: :not_found}],
+        actor_uuid: uploader.uuid
+      )
+
+      assert %{rows: []} = RepairLog.list(file_uuid: file.uuid)
     end
   end
 end

@@ -17,8 +17,9 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   ## Hidden system libraries
 
   A module that keeps files of its own (a chat's attachments, say) can create a
-  **hidden** one: `create_system_library(attrs, hidden: true)`. It is a system
-  library with `visibility: "private"`, and nothing in the site shows it:
+  **hidden** one: `create_system_library(attrs, hidden: true)` with a `"slug"`
+  of its own. It is a system library with `visibility: "private"`, and the site
+  neither lists it nor opens it:
 
     * it is not listed with the site's libraries (`list_system_libraries/0`, so
       not in Media's switcher nor in Settings), and `get_system_library/1` and
@@ -28,10 +29,19 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
     * its files and folders are left out of every listing that names no library
       (`exclude_user_libraries/1`: the media pickers, orphan cleanup) and are only
       browsed where the module names the library;
+    * the Settings pages that name libraries (Health's stale files, a bucket's
+      contents, a storage profile's libraries) and the job titles count it with
+      the private libraries and never name it;
     * its files are private (`private?/1`): their URLs carry a time-window token
-      and the permanent one is refused;
+      and the permanent one is refused, and the repair log writes nothing about
+      them;
     * `can?/3` grants its files to their uploader and to an Owner/Admin
-      (`Scope.system_role?/1`) only: `media.view_all` opens none of them.
+      (`Scope.system_role?/1`) only: `media.view_all` opens none of them. An
+      Owner/Admin reads any file of Storage by design, a hidden one included.
+
+  Its name and slug are not secret: the Storage history records its creation by
+  name (unless the module passes `audit: false`), and they are taken in the one
+  namespace all system libraries share (see `create_system_library/2`).
 
   Dedup keys fold the library in (`Storage.calculate_user_file_checksum/3`), so
   an upload outside the hidden library never comes back as one of its files.
@@ -280,7 +290,14 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
 
   `hidden: true` among the options makes it a hidden library (see "Hidden
   system libraries" above), for a module's own files. Only this option hides
-  one: a `"visibility"` in `attrs` is ignored.
+  one: a `"visibility"` in `attrs` is ignored. A hidden library needs its
+  `"slug"` in `attrs`: it is not derived, and a taken one is an error (on
+  `:slug`), never `"<slug>-2"`, so the module finds the library again with
+  `get_hidden_library_by_slug/1`. System libraries share one namespace of
+  names and of slugs, so give both a prefix of the module's own
+  (`"phoenix-kit-ai"`, say); a site library cannot then take that name later
+  without "is already the name of another library". `audit: false` among the
+  options leaves the creation out of the Storage history, which names it.
   """
   @spec create_system_library(map(), keyword()) ::
           {:ok, Library.t()} | {:error, Ecto.Changeset.t()}
@@ -292,14 +309,17 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
     attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
     attrs = Map.put_new_lazy(attrs, "key_prefix", &generate_key_prefix/0)
 
+    hidden? = Keyword.get(opts, :hidden) == true
+
     with {:ok, storage} <- creation_storage(attrs) do
-      storage =
-        if Keyword.get(opts, :hidden) == true,
-          do: Keyword.put(storage, :visibility, "private"),
-          else: storage
+      storage = if hidden?, do: Keyword.put(storage, :visibility, "private"), else: storage
 
       case attrs do
         %{"slug" => _} ->
+          insert_system_library(attrs, storage)
+
+        # A hidden one is found again by its slug: none is made up for it.
+        _ when hidden? ->
           insert_system_library(attrs, storage)
 
         _ ->
@@ -510,7 +530,17 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   builds URLs for many files at once.
   """
   @spec private_among([term()]) :: [String.t()]
-  def private_among(library_uuids) do
+  def private_among(library_uuids), do: among(library_uuids, private_condition())
+
+  @doc """
+  Which of `library_uuids` are user libraries or hidden system libraries
+  (`hidden?/1`), in one query — the ones a site's folder tree leaves out.
+  """
+  @spec user_or_hidden_among([term()]) :: [String.t()]
+  def user_or_hidden_among(library_uuids),
+    do: among(library_uuids, dynamic([l], l.kind == "user" or l.visibility == "private"))
+
+  defp among(library_uuids, condition) do
     uuids =
       library_uuids
       |> Enum.reject(&(is_nil(&1) or media?(&1)))
@@ -520,10 +550,7 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
     if uuids == [] do
       []
     else
-      from(l in Library,
-        where: ^dynamic([l], l.uuid in ^uuids and ^private_condition()),
-        select: l.uuid
-      )
+      from(l in Library, where: ^dynamic([l], l.uuid in ^uuids and ^condition), select: l.uuid)
       |> repo().all()
       |> Enum.map(&to_string/1)
     end

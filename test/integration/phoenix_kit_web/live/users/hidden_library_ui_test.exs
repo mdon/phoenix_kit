@@ -67,6 +67,7 @@ defmodule PhoenixKitWeb.Live.Users.HiddenLibraryUITest do
       hidden: hidden,
       folder: folder,
       media_folder: media_folder,
+      uploader: uploader,
       hidden_file: file!("HIDDEN-FILE-#{n}", uploader, hidden.uuid, folder),
       media_file: file!("MEDIA-FILE-#{n}", uploader, nil, media_folder)
     }
@@ -181,6 +182,77 @@ defmodule PhoenixKitWeb.Live.Users.HiddenLibraryUITest do
 
       {:ok, _view, html} = live(conn, Routes.path("/admin/media/#{hidden_file.uuid}/storage"))
       refute html =~ hidden_file.original_file_name
+    end
+
+    test "a file of it named in an event is refused, not trashed", %{
+      conn: conn,
+      manager: manager,
+      hidden_file: hidden_file,
+      media_file: media_file
+    } do
+      {:ok, view, _html} = live(log_in_user(conn, manager), @media_path)
+
+      {_html, log} =
+        ExUnit.CaptureLog.with_log(fn ->
+          view
+          |> with_target("#media-browser")
+          |> render_hook("trash_file", %{"file_uuid" => hidden_file.uuid})
+        end)
+
+      assert log =~ "refused"
+      assert Storage.get_file(hidden_file.uuid).status == "active"
+
+      # The same event trashes a Media file.
+      view
+      |> with_target("#media-browser")
+      |> render_hook("trash_file", %{"file_uuid" => media_file.uuid})
+
+      assert Storage.get_file(media_file.uuid).status == "trashed"
+    end
+
+    test "its file's old address opens Media, not the hidden library's slug", %{
+      conn: conn,
+      uploader: uploader,
+      hidden: hidden,
+      hidden_file: hidden_file
+    } do
+      assert {:error, {:live_redirect, %{to: to}}} =
+               live(log_in_user(conn, uploader), Routes.path("/admin/media/#{hidden_file.uuid}"))
+
+      assert to == @media_path <> "?file=#{hidden_file.uuid}"
+      refute to =~ hidden.slug
+    end
+
+    test "an Admin's storage page of its file links to no library page", %{
+      conn: conn,
+      uploader: uploader,
+      hidden: hidden,
+      hidden_file: hidden_file
+    } do
+      {:ok, view, _html} =
+        live(log_in_user(conn, uploader), Routes.path("/admin/media/#{hidden_file.uuid}/storage"))
+
+      refute has_element?(view, ~s(a[href*="/admin/media/library/#{hidden.slug}"]))
+      refute has_element?(view, ~s(a[href*="/admin/settings/media/libraries/#{hidden.uuid}"]))
+    end
+  end
+
+  describe "Settings → Media → Health" do
+    test "does not name a stale file of it", %{
+      conn: conn,
+      manager: manager,
+      hidden: hidden,
+      hidden_file: hidden_file
+    } do
+      Repo.update!(Ecto.Changeset.change(hidden_file, placed_revision: 0))
+
+      {:ok, view, _html} =
+        live(log_in_user(conn, manager), Routes.path("/admin/settings/media?tab=health"))
+
+      assert has_element?(view, "#media-health")
+      refute has_element?(view, "#media-health a[href*='#{hidden_file.uuid}']")
+      refute view |> element("#media-health") |> render() =~ hidden_file.original_file_name
+      refute view |> element("#media-health") |> render() =~ hidden.name
     end
   end
 
