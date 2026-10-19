@@ -40,11 +40,13 @@
   dropdown. A key limited to one bucket is usually refused; the text field stays and the message says to type the name.
 - `Libraries.integration_summary/2`: what a user's integration says about itself (service, bucket provider, region,
   endpoint), never a secret.
-- **A library can choose its viewer (`Libraries.setting(library, :viewer)`).** A per-library setting like `deep_zoom`, but a
-  name: `Libraries.put_setting(library, :viewer, "photoswipe")` (lowercase letters, digits, `_` and `-`, up to 32; anything
-  else is `{:error, :invalid_value}`), `nil` to follow the host's default. Core keeps the name and checks only its shape; which
-  viewers exist is the host's to say (`phoenix_kit_photos` offers `"photoswipe"` and `"classic"`), and a stored name the host
-  does not offer reads as no choice. Needs no migration.
+- **A module can keep its own settings for a library (`Libraries.module_setting/3`, `put_module_setting/5`).** A package that
+  is not core has settings of its own for a library (the photos package's choice of viewer, say), and core should not have to
+  name them. `put_module_setting(library, "photos", "viewer", "classic")` keeps the value under the module's namespace in the
+  library's `settings` (`settings["modules"]["photos"]["viewer"]`), nil removes it (and the namespace when it was the last
+  key). Core keeps the namespacing, the update of only that key, the lock and the history (`photos.viewer`, from and to); it
+  knows no key and checks no value beyond a boolean, a number or a string of at most 255 bytes. The namespace and key are
+  lowercase words (`{:error, :invalid_namespace | :invalid_key | :invalid_value}` otherwise). Needs no migration.
 - **The poster of an HDR video is an HDR photo.** For an HLG video (every iPhone recording) whose `video_thumbnail` size keeps
   HDR, the poster is a JPEG with a gain map (Ultra HDR, ISO 21496-1): an HDR screen shows the highlights above white, any other
   shows the ordinary picture. `VideoHdrPoster` makes it with libvips' `uhdrsave` (in the library `vix` ships; nothing to

@@ -95,71 +95,147 @@ defmodule PhoenixKit.Modules.Storage.LibrarySettingsTest do
     end
   end
 
-  describe "viewer" do
-    test "is a name: set, changed and removed, and the library follows the host's default again" do
-      library = library!()
-      assert Libraries.setting(library, :viewer) == nil
+  describe "a module's own settings" do
+    alias PhoenixKit.Modules.Storage.Library
+    alias PhoenixKit.RepoHelper
 
-      assert {:ok, updated} = Libraries.put_setting(library, :viewer, "photoswipe")
-      assert Libraries.setting(updated, :viewer) == "photoswipe"
-      assert Libraries.setting(library.uuid, :viewer) == "photoswipe"
+    defp raw_settings(library), do: Libraries.get_library(library.uuid).settings
 
-      assert {:ok, _} = Libraries.put_setting(library, :viewer, "classic")
-      assert Libraries.setting(library.uuid, :viewer) == "classic"
-
-      assert {:ok, _} = Libraries.put_setting(library, :viewer, nil)
-      assert Libraries.setting(library.uuid, :viewer) == nil
+    defp store_raw!(library, settings) do
+      {1, _} =
+        RepoHelper.repo().update_all(
+          Ecto.Query.from(l in Library, where: l.uuid == ^library.uuid),
+          set: [settings: settings]
+        )
     end
 
-    test "refuses what is not a name, and changes nothing" do
+    test "a library has none until one is set, and Media is a library like another" do
+      library = library!()
+      assert Libraries.module_setting(library, "photos", "viewer") == nil
+      assert Libraries.module_setting(library.uuid, "photos", "viewer") == nil
+
+      assert Libraries.module_setting(nil, "photos", "viewer") ==
+               Libraries.module_setting(Libraries.media_uuid(), "photos", "viewer")
+    end
+
+    test "sets, changes and removes a value, kept under the module's namespace" do
       library = library!()
 
-      for bad <- [
-            "",
-            "Photo Swipe",
-            "UPPER",
-            "a/b",
-            String.duplicate("a", 33),
-            true,
-            1,
-            "x\" onclick=\""
-          ] do
-        assert {:error, :invalid_value} = Libraries.put_setting(library, :viewer, bad)
+      assert {:ok, updated} =
+               Libraries.put_module_setting(library, "photos", "viewer", "photoswipe")
+
+      assert Libraries.module_setting(updated, "photos", "viewer") == "photoswipe"
+      assert Libraries.module_setting(library.uuid, "photos", "viewer") == "photoswipe"
+      assert raw_settings(library) == %{"modules" => %{"photos" => %{"viewer" => "photoswipe"}}}
+
+      assert {:ok, _} = Libraries.put_module_setting(library, "photos", "viewer", "classic")
+      assert Libraries.module_setting(library.uuid, "photos", "viewer") == "classic"
+
+      assert {:ok, _} = Libraries.put_module_setting(library, "photos", "viewer", nil)
+      assert Libraries.module_setting(library.uuid, "photos", "viewer") == nil
+    end
+
+    test "takes a boolean, a number or a short string, and nothing else" do
+      library = library!()
+
+      for good <- [true, false, 0, 7, -3, 1.5, "", "text", String.duplicate("a", 255), "é"] do
+        assert {:ok, _} = Libraries.put_module_setting(library, "photos", "value", good)
+        assert Libraries.module_setting(library.uuid, "photos", "value") == good
       end
 
-      assert Libraries.get_library(library.uuid).settings == %{}
+      for bad <- [String.duplicate("a", 256), <<255, 254>>, %{"a" => 1}, [1], :atom, {1}] do
+        assert {:error, :invalid_value} =
+                 Libraries.put_module_setting(library, "photos", "value", bad)
+      end
+
+      assert Libraries.module_setting(library.uuid, "photos", "value") == "é"
     end
 
-    test "a stored value that is not a name reads as none" do
+    test "refuses a namespace or key that is not a lowercase word, and changes nothing" do
       library = library!()
 
-      {1, _} =
-        PhoenixKit.RepoHelper.repo().update_all(
-          Ecto.Query.from(l in PhoenixKit.Modules.Storage.Library,
-            where: l.uuid == ^library.uuid
-          ),
-          set: [settings: %{"viewer" => "Not A Name"}]
-        )
+      for bad <- ["", "Photos", "a-b", "a b", "1a", "a.b", String.duplicate("a", 33), nil, 1] do
+        assert {:error, :invalid_namespace} = Libraries.put_module_setting(library, bad, "k", "v")
+      end
 
-      assert Libraries.setting(library.uuid, :viewer) == nil
+      for bad <- ["", "Key", "k-1", "1k", "a.b", String.duplicate("a", 65), nil, :k] do
+        assert {:error, :invalid_key} = Libraries.put_module_setting(library, "photos", bad, "v")
+      end
+
+      assert raw_settings(library) == %{}
+      assert Libraries.module_setting(library, "Photos", "viewer") == nil
+      assert Libraries.module_setting(library, nil, nil) == nil
     end
 
-    test "setting_among/2 gives each library its own" do
-      a = library!()
-      b = library!()
-      none = library!()
-      {:ok, _} = Libraries.put_setting(a, :viewer, "photoswipe")
-      {:ok, _} = Libraries.put_setting(b, :viewer, "classic")
-
-      assert Libraries.setting_among([a.uuid, b.uuid, none.uuid], :viewer) ==
-               %{to_string(a.uuid) => "photoswipe", to_string(b.uuid) => "classic"}
-    end
-
-    test "its own key does not disturb the others" do
+    test "one key does not disturb another, another module's, or core's own settings" do
       library = library!()
       {:ok, _} = Libraries.put_setting(library, :annotated_thumbnails, true)
-      {:ok, updated} = Libraries.put_setting(library, :viewer, "photoswipe")
-      assert updated.settings == %{"annotated_thumbnails" => true, "viewer" => "photoswipe"}
+      {:ok, _} = Libraries.put_module_setting(library, "photos", "viewer", "classic")
+      {:ok, _} = Libraries.put_module_setting(library, "photos", "columns", 5)
+      {:ok, _} = Libraries.put_module_setting(library, "shop", "layout", "wide")
+
+      assert raw_settings(library) == %{
+               "annotated_thumbnails" => true,
+               "modules" => %{
+                 "photos" => %{"viewer" => "classic", "columns" => 5},
+                 "shop" => %{"layout" => "wide"}
+               }
+             }
+
+      {:ok, _} = Libraries.put_setting(library, :deep_zoom, false)
+      {:ok, _} = Libraries.put_setting(library, :annotated_thumbnails, nil)
+      assert Libraries.module_setting(library.uuid, "photos", "viewer") == "classic"
+      assert Libraries.module_setting(library.uuid, "shop", "layout") == "wide"
+    end
+
+    test "removing the last key leaves nothing behind, and the purge marker is kept" do
+      library = library!()
+      store_raw!(library, %{"purging" => true})
+      {:ok, _} = Libraries.put_module_setting(library, "photos", "viewer", "classic")
+      {:ok, _} = Libraries.put_module_setting(library, "shop", "layout", "wide")
+
+      {:ok, _} = Libraries.put_module_setting(library, "photos", "viewer", nil)
+
+      assert raw_settings(library) == %{
+               "purging" => true,
+               "modules" => %{"shop" => %{"layout" => "wide"}}
+             }
+
+      {:ok, _} = Libraries.put_module_setting(library, "shop", "layout", nil)
+      assert raw_settings(library) == %{"purging" => true}
+
+      # Removing what is not there is not an error.
+      assert {:ok, _} = Libraries.put_module_setting(library, "photos", "viewer", nil)
+      assert raw_settings(library) == %{"purging" => true}
+    end
+
+    test "settings that are not the shape of a module's read as none" do
+      library = library!()
+
+      for odd <- [
+            %{"modules" => "x"},
+            %{"modules" => %{"photos" => 1}},
+            %{"modules" => %{"photos" => %{"viewer" => %{"a" => 1}}}},
+            %{"modules" => %{"photos" => %{"viewer" => String.duplicate("a", 300)}}},
+            %{"modules" => %{"photos" => %{"viewer" => nil}}}
+          ] do
+        store_raw!(library, odd)
+        assert Libraries.module_setting(library.uuid, "photos", "viewer") == nil
+      end
+    end
+
+    test "a library that is gone answers none, and refuses a write" do
+      assert Libraries.module_setting(Ecto.UUID.generate(), "photos", "viewer") == nil
+      assert Libraries.module_setting("not a uuid", "photos", "viewer") == nil
+
+      library = library!()
+      {:ok, _} = Libraries.delete_library(library)
+      assert {:error, :not_found} = Libraries.put_module_setting(library, "photos", "viewer", "x")
+    end
+
+    test "core's own list does not name a module's key" do
+      library = library!()
+      assert {:error, :unknown_setting} = Libraries.put_setting(library, :viewer, "photoswipe")
     end
   end
 
