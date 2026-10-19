@@ -178,6 +178,25 @@ defmodule PhoenixKit.Modules.Storage.HiddenLibraryTest do
 
       refute created.(quiet)
     end
+
+    test "after its creation, nothing names a hidden library in the Storage history", %{
+      hidden: hidden,
+      n: n
+    } do
+      {:ok, renamed} = Libraries.rename_library(hidden, "Renamed #{n}")
+      {:ok, _} = Libraries.put_setting(renamed, :annotated_thumbnails, true)
+      {:ok, _} = Libraries.delete_library(renamed)
+
+      actions =
+        Repo.all(
+          from(e in PhoenixKit.Activity.Entry,
+            where: e.resource_uuid == ^to_string(hidden.uuid),
+            select: e.action
+          )
+        )
+
+      assert actions == ["storage.library.created"]
+    end
   end
 
   describe "listing" do
@@ -422,6 +441,30 @@ defmodule PhoenixKit.Modules.Storage.HiddenLibraryTest do
       assert {:ok, again, :duplicate} = store(uploader, hidden.uuid, content)
       assert again.uuid == first.uuid
       assert again.library_uuid == hidden.uuid
+    end
+  end
+
+  describe "orphan cleanup" do
+    test "a hidden library's unreferenced file is not an orphan and is not queued", %{
+      hidden: hidden,
+      uploader: uploader,
+      n: n
+    } do
+      {:ok, hidden_file} = store(uploader, hidden.uuid, "hidden orphan #{n}")
+      {:ok, media_file} = store(uploader, nil, "media orphan #{n}")
+
+      # Media's own unreferenced file is the control: it is an orphan.
+      assert media_file.uuid in uuids(Storage.find_orphaned_files())
+      assert Storage.file_orphaned?(media_file.uuid)
+
+      refute hidden_file.uuid in uuids(Storage.find_orphaned_files())
+      refute hidden_file.uuid in uuids(Storage.find_orphaned_files(library_uuid: hidden.uuid))
+      assert Storage.find_orphaned_files(library_uuid: hidden.uuid) == []
+      assert Storage.count_orphaned_files(nil, library_uuid: hidden.uuid) == 0
+      refute Storage.file_orphaned?(hidden_file.uuid)
+
+      # "Delete all orphaned" queues what find_orphaned_files returns.
+      assert hidden_file.uuid not in uuids(Storage.find_orphaned_files(limit: 100_000))
     end
   end
 

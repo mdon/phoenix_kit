@@ -716,6 +716,8 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
 
   # A system library moving to another profile: from and to, by name. A user's
   # library is theirs and private, and is not in the history.
+  defp audit_library_profile(%Library{visibility: "private"}, _before, _opts), do: :ok
+
   defp audit_library_profile(%Library{kind: "system"} = library, before_uuid, opts) do
     now = profile_uuid_for(library)
 

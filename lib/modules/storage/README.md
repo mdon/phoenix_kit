@@ -891,8 +891,9 @@ when it is renamed (`Libraries.get_system_library_by_slug/1`).
   as before.
 - **Access:** `Storage.Libraries.can?(scope, file, :read | :edit)` is the
   single per-file check: the uploader, an Owner/Admin, the `"media"` key
-  (edit, system libraries only, not a hidden one), and a user library's owner
-  and members.
+  (edit, system libraries only), `media.view_all` (read) — neither opens a
+  hidden library (see "Hidden system libraries" below) — and a user library's
+  owner and members.
 - **Dedup is per library:** one copy per uploader per library. Media keeps
   the key it always had; any other library folds itself into
   `user_file_checksum` (`Storage.calculate_user_file_checksum/3`).
@@ -915,7 +916,8 @@ A module that keeps files of its own (a chat's attachments, say) creates a
   `get_library/1`). The slug is required and never derived — a taken one is an
   error on `:slug`, not `"<slug>-2"`. Names and slugs of system libraries share
   one namespace, so prefix both with the module's own name. Its creation is
-  in the Storage history by name unless `audit: false` is passed.
+  in the Storage history by name unless `audit: false` is passed; its renames,
+  deletion, settings, profile and variant-set changes are never written there.
 - **Not shown:** not in `list_system_libraries/0` (Media's switcher, Settings
   → Media → Libraries), not found by `get_system_library/1` /
   `get_system_library_by_slug/1` (so `/admin/media/library/<slug>` is "Library

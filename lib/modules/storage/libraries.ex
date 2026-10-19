@@ -142,9 +142,11 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   def hidden?(%Library{}), do: false
   def hidden?(nil), do: false
 
-  def hidden?(uuid) do
+  def hidden?(uuid) when is_binary(uuid) do
     if media?(uuid), do: false, else: hidden?(get_library(uuid))
   end
+
+  def hidden?(_), do: false
 
   @doc """
   The live hidden system library whose slug is `slug`, or nil — how the module
@@ -383,6 +385,21 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   end
 
   # The site's libraries are in the history; a user's library is theirs and private.
+  # A hidden one is named only when it is created (and `audit: false` skips that).
+  defp audit_library(
+         action,
+         %Library{kind: "system", visibility: "private"} = library,
+         opts,
+         metadata
+       )
+       when action == "storage.library.created" do
+    Audit.log(action, "storage_library", library.uuid, opts, metadata)
+    :ok
+  end
+
+  defp audit_library(_action, %Library{kind: "system", visibility: "private"}, _opts, _metadata),
+    do: :ok
+
   defp audit_library(action, %Library{kind: "system"} = library, opts, metadata) do
     Audit.log(action, "storage_library", library.uuid, opts, metadata)
     :ok
