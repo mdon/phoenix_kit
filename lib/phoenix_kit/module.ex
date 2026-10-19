@@ -121,6 +121,8 @@ defmodule PhoenixKit.Module do
     (default: `[]`).
   - `api_tools/0` - `PhoenixKit.API.Tool` structs this module offers through the
     shop/admin API (default: `[]`).
+  - `header_widgets/0` - Sticky LiveViews this module puts into the admin header, before
+    the notifications bell. No default: it is called only on a module that defines it.
   """
 
   @typedoc """
@@ -701,6 +703,68 @@ defmodule PhoenixKit.Module do
   """
   @callback api_tools() :: [PhoenixKit.API.Tool.t()]
 
+  @doc """
+  Returns the sticky LiveViews this module puts into the admin header, before the
+  notifications bell (`PhoenixKit.HeaderWidget`).
+
+  Each entry is `{live_view, id, session_fun}`, or `{live_view, id, session_fun, opts}` with
+  `opts = [dock: true]` for a widget that uses the dock column (see below):
+
+    * `live_view` - the LiveView module.
+    * `id` - the DOM id of the nested LiveView. Keep it stable: it is what lets the widget
+      survive admin navigation (`sticky: true`) with its state and subscriptions.
+    * `session_fun` - `(layout_assigns -> session)`. It gets the assigns of the admin layout
+      (`:socket`, `:phoenix_kit_current_scope`, `:phoenix_kit_current_user`,
+      `:current_locale`, ...) and returns the session map of the nested LiveView: **string**
+      keys, values that can be signed into the page (ids and strings, not structs).
+
+  Collected from **enabled** modules by `PhoenixKit.ModuleRegistry.all_header_widgets/0`.
+  The admin layout renders a widget only when it has the parent LiveView's socket and a
+  signed-in user, with `Phoenix.Component.live_render/3`, `sticky: true`; a widget whose
+  session function raises is skipped, and so is an invalid entry (one warning per module).
+  The callback runs on every render of the layout, so keep it a cheap list of literals; the
+  permission to see the widget is the widget LiveView's own business (it can render nothing).
+  The user dashboard has its own header and does not render widgets.
+
+  ## The dock column
+
+  A widget may need room beside the page: a chat panel, for instance. The admin layout has
+  an optional right-hand column for it, `#pk-dock` inside `#admin-drawer`. It is rendered
+  **only while a rendered widget declares `dock: true`**, so a layout without such a widget
+  is exactly the layout it has always been. The contract (details and the JS commands:
+  `PhoenixKitWeb.Components.AdminDock`):
+
+    * the container is `#pk-dock`; it is empty and hidden;
+    * the widget opens and closes it with the class `pk-dock-open` on `#admin-drawer`
+      (`AdminDock.open/1`, `close/1`, `toggle/1`), after which the work area is narrower by
+      the column's width instead of being overlapped; below `lg` the column covers the
+      screen under the header;
+    * the width comes from the CSS variable `--pk-dock-width` (default `25rem`), which the
+      widget or the host may set on `#admin-drawer` or higher up.
+
+  ## Example
+
+      @impl PhoenixKit.Module
+      def header_widgets do
+        [
+          {MyModule.Web.Assistant, "my-assistant",
+           fn assigns ->
+             %{
+               "user_uuid" => assigns.phoenix_kit_current_user.uuid,
+               "locale" => assigns[:current_locale_base]
+             }
+           end, dock: true}
+        ]
+      end
+
+  A module that must also compile against an older core, which has no such callback,
+  defines `header_widgets/0` without `@impl` (with `@impl` that compile warns).
+
+  Modules with no header widget skip this callback; there is no default, so that the
+  registry asks only the modules that define it.
+  """
+  @callback header_widgets() :: [PhoenixKit.HeaderWidget.entry()]
+
   @optional_callbacks [
     get_config: 0,
     permission_metadata: 0,
@@ -729,7 +793,8 @@ defmodule PhoenixKit.Module do
     email_templates: 0,
     media_reorganizer: 0,
     job_kinds: 0,
-    api_tools: 0
+    api_tools: 0,
+    header_widgets: 0
   ]
 
   defmacro __using__(_opts) do
