@@ -17,6 +17,7 @@ defmodule PhoenixKitWeb.Live.Modules do
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Date, as: UtilsDate
+  alias PhoenixKit.Utils.Routes
 
   # ============================================================================
   # Mount
@@ -68,11 +69,63 @@ defmodule PhoenixKitWeb.Live.Modules do
     {:ok, socket}
   end
 
-  # Module key -> whether its API is switched on, for the modules that declare API tools.
+  # Module key -> the state of its API, for the modules that declare API tools:
+  # `:off` its switch in Settings -> API is off, `:idle` the switch is on but nothing can
+  # call it now (the module is disabled, or every audience it serves is switched off), `:on`
+  # it can be called.
   defp api_modules do
+    sides = %{admin: APIConfig.admin_enabled?(), public: APIConfig.public_enabled?()}
     disabled = APIConfig.disabled_modules()
-    Map.new(ModuleRegistry.api_modules(), &{&1.key, &1.key not in disabled})
+    Map.new(ModuleRegistry.api_modules(), &{&1.key, api_state(&1, disabled, sides)})
   end
+
+  defp api_state(mod, disabled, sides) do
+    cond do
+      mod.key in disabled -> :off
+      not mod.enabled? or not Enum.any?(mod.audiences, &Map.fetch!(sides, &1)) -> :idle
+      true -> :on
+    end
+  end
+
+  attr :id, :string, required: true
+  attr :state, :atom, values: [:on, :off, :idle], required: true
+  attr :link?, :boolean, required: true
+
+  defp api_badge(assigns) do
+    assigns =
+      assigns
+      |> assign(:class, [
+        "badge",
+        case assigns.state do
+          :on -> "badge-success"
+          :off -> "badge-warning"
+          :idle -> "badge-ghost"
+        end
+      ])
+      |> assign(:text, api_badge_text(assigns.state))
+      |> assign(:title, api_badge_title(assigns.state))
+      |> assign(:href, Routes.path("/admin/settings/api") <> "#api-modules-card")
+
+    ~H"""
+    <.link :if={@link?} id={@id} navigate={@href} class={@class} title={@title}>{@text}</.link>
+    <span :if={not @link?} id={@id} class={@class} title={@title}>{@text}</span>
+    """
+  end
+
+  defp api_badge_text(:on), do: gettext("API on")
+  defp api_badge_text(:off), do: gettext("API off")
+  defp api_badge_text(:idle), do: gettext("API idle")
+
+  defp api_badge_title(:on), do: gettext("The module's tools can be called through the API.")
+
+  defp api_badge_title(:off),
+    do: gettext("The module's API is switched off in Settings -> API.")
+
+  defp api_badge_title(:idle),
+    do:
+      gettext(
+        "The module's API is on, but nothing can call it now: the module is disabled or the API it serves is switched off."
+      )
 
   # ============================================================================
   # Tab Switching

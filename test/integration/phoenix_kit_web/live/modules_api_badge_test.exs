@@ -1,7 +1,9 @@
 defmodule PhoenixKitWeb.Live.ModulesApiBadgeTest do
   @moduledoc """
-  The Modules page marks a module that declares API tools with an "API on" or "API off"
-  badge, linking to the module's switch in Settings -> API.
+  The Modules page marks a module that declares API tools with a badge, linking to the
+  module's switch in Settings -> API: "API off" when the module's switch is off, "API idle"
+  when the switch is on but nothing can call the module now (it is disabled, or every
+  audience it serves is switched off), "API on" otherwise.
   """
   use PhoenixKitWeb.ConnCase, async: false
 
@@ -28,8 +30,8 @@ defmodule PhoenixKitWeb.Live.ModulesApiBadgeTest do
         description: "A test module."
       }
 
-    def enabled?, do: true
-    def get_config, do: %{enabled: true}
+    def enabled?, do: :persistent_term.get({__MODULE__, :enabled}, true)
+    def get_config, do: %{enabled: enabled?()}
 
     def api_tools do
       [Tool.new!(name: "badge_with_tools.search", audience: :public, handler: {__MODULE__, :run})]
@@ -55,6 +57,7 @@ defmodule PhoenixKitWeb.Live.ModulesApiBadgeTest do
   end
 
   setup %{conn: conn} do
+    :persistent_term.put({WithTools, :enabled}, true)
     for mod <- [WithTools, WithoutTools], do: ModuleRegistry.register(mod)
     # The page lists external modules from the discovery cache; put these two in it.
     :persistent_term.put({ModuleDiscovery, :external_modules}, [WithTools, WithoutTools])
@@ -62,13 +65,18 @@ defmodule PhoenixKitWeb.Live.ModulesApiBadgeTest do
     on_exit(fn ->
       for mod <- [WithTools, WithoutTools], do: ModuleRegistry.unregister(mod)
       ModuleDiscovery.clear_cache()
+      :persistent_term.erase({WithTools, :enabled})
     end)
 
     owner = Auth.get_user_by_email("seed-owner@phoenixkit.test")
     %{conn: log_in_user(conn, owner)}
   end
 
+  defp public_api!(state), do: {:ok, _} = Settings.update_setting("api_public_enabled", state)
+  defp admin_api!(state), do: {:ok, _} = Settings.update_setting("api_admin_enabled", state)
+
   test "a module with tools shows API on, one without shows nothing", %{conn: conn} do
+    public_api!("true")
     {:ok, view, _html} = live(conn, @modules_path)
 
     assert has_element?(view, "#module-api-badge-badge_with_tools", "API on")
@@ -82,16 +90,51 @@ defmodule PhoenixKitWeb.Live.ModulesApiBadgeTest do
     assert href == Routes.path("/admin/settings/api") <> "#api-modules-card"
   end
 
-  test "the badge follows the module's switch", %{conn: conn} do
+  test "the badge follows the module's switch, whatever the API sides are", %{conn: conn} do
+    public_api!("true")
     {:ok, _} = Settings.update_setting("api_disabled_modules", "badge_with_tools")
 
     {:ok, view, _html} = live(conn, @modules_path)
 
     assert has_element?(view, "#module-api-badge-badge_with_tools", "API off")
     refute has_element?(view, "#module-api-badge-badge_with_tools", "API on")
+
+    public_api!("false")
+    {:ok, view, _html} = live(conn, @modules_path)
+    assert has_element?(view, "#module-api-badge-badge_with_tools", "API off")
+  end
+
+  describe "a module whose switch is on but which nothing can call" do
+    test "on a default install, both API sides are off: idle, not on", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @modules_path)
+
+      assert has_element?(view, "#module-api-badge-badge_with_tools", "API idle")
+      refute has_element?(view, "#module-api-badge-badge_with_tools", "API on")
+    end
+
+    test "only the side the module does not serve is on: idle; the side it serves: on",
+         %{conn: conn} do
+      admin_api!("true")
+      {:ok, view, _html} = live(conn, @modules_path)
+      assert has_element?(view, "#module-api-badge-badge_with_tools", "API idle")
+
+      public_api!("true")
+      {:ok, view, _html} = live(conn, @modules_path)
+      assert has_element?(view, "#module-api-badge-badge_with_tools", "API on")
+    end
+
+    test "the module itself is disabled: idle", %{conn: conn} do
+      public_api!("true")
+      :persistent_term.put({WithTools, :enabled}, false)
+
+      {:ok, view, _html} = live(conn, @modules_path <> "?tab=disabled")
+
+      assert has_element?(view, "#module-api-badge-badge_with_tools", "API idle")
+    end
   end
 
   test "a person without the api permission sees the state but gets no link" do
+    public_api!("true")
     {admin, _token} = create_admin_user()
     role = Roles.get_role_by_name("Admin")
     {:ok, _} = Permissions.grant_permission(role.uuid, "badge_with_tools")

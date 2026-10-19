@@ -910,7 +910,8 @@ defmodule PhoenixKit.ModuleRegistry do
 
   @doc """
   The registered modules that declare at least one valid API tool, switched on or off,
-  sorted by name: `%{module, key, name, enabled?, tools}` (`tools` is how many).
+  sorted by name: `%{module, key, name, enabled?, tools, audiences}` (`tools` is how many,
+  `audiences` the audiences they serve).
 
   For the screens that list them (the API switch per module in Settings -> API, the badge
   on the Modules page). It is not a gate: `PhoenixKit.API.Registry` decides what is callable.
@@ -921,7 +922,8 @@ defmodule PhoenixKit.ModuleRegistry do
             key: String.t(),
             name: String.t(),
             enabled?: boolean(),
-            tools: pos_integer()
+            tools: pos_integer(),
+            audiences: [Tool.audience()]
           }
         ]
   def api_modules do
@@ -937,7 +939,8 @@ defmodule PhoenixKit.ModuleRegistry do
             key: key,
             name: safe_call(mod, :module_name, inspect(mod)),
             enabled?: mod in enabled,
-            tools: length(tools)
+            tools: length(tools),
+            audiences: tools |> Enum.map(& &1.audience) |> Enum.uniq() |> Enum.sort()
           }
         ]
       else
