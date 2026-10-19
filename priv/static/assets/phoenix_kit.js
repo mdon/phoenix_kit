@@ -3366,12 +3366,21 @@ if (typeof window.Chart === "undefined") {
         // partial `16.10.20` must not be committed under the caret).
         if (document.activeElement === t) this.baseText = t.defaultValue;
         else this.commit();
+      } else if (v.value === "" && t.value.trim() !== "") {
+        // The server echoed a date the browser cannot hold (`03.05.2024`): the
+        // text shows it, the date input is empty, and a save would erase it
+        // without a word. Mark the field so the person corrects or clears it.
+        this.reject("format");
       }
       this.refresh();
 
       // `autofocus` sits on the text field, which was `hidden` when the
-      // browser looked for something to focus.
-      if (t.hasAttribute("autofocus")) t.focus();
+      // browser looked for something to focus. The socket connects after the
+      // person may have started typing elsewhere: take the focus only when
+      // nothing holds it (the date input's own focus went to the text field in
+      // `enhance`).
+      var active = document.activeElement;
+      if (t.hasAttribute("autofocus") && (!active || active === document.body)) t.focus();
     },
 
     updated() {

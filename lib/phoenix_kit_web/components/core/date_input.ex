@@ -65,6 +65,11 @@ defmodule PhoenixKitWeb.Components.Core.DateInput do
   (a changeset echoing bad input) is shown as given in the text field; the
   value element is rendered with it, but a browser sanitises a non-ISO
   `value` of a date input to `""`, which the hook does not take for a pick.
+  The hook marks such a field rejected at mount (the hint, `input-error`,
+  `setCustomValidity`), so a submit from a button or Enter, `phx-submit`
+  included (the browser fires no `submit` event on an invalid form), waits
+  until the person corrects or clears it. A `phx-click` save, `novalidate` or a
+  dispatched `submit` still save the empty date input.
 
   ## Attributes: where `rest` goes
 
@@ -75,7 +80,8 @@ defmodule PhoenixKitWeb.Components.Core.DateInput do
       `phx-blur`, `phx-focus`, `phx-keydown`, `phx-keyup`, `phx-key`, `lang`,
       `spellcheck`, `onkeydown`/`onkeyup`/`onfocus`/`onblur`/`oninput`,
       `style`, `title`, `autofocus` (the hook focuses the field on mount, the
-      browser cannot: the field is `hidden` when it is inserted),
+      browser cannot: the field is `hidden` when it is inserted; not when the
+      person already focused another field),
       `autocomplete` and `inputmode` (which replace the defaults `off` and
       `numeric`/`text`), `aria-*`, … (the value element cannot be clicked or
       focused by a person).

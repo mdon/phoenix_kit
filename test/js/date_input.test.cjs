@@ -291,7 +291,7 @@ function makeHook({ iso = "", text, format = "d.m.Y", required = false, submitFo
     },
   };
   const hook = Object.assign(Object.create(hookDef), { el });
-  global.document.activeElement = extra.focusValue ? valueEl : null;
+  global.document.activeElement = extra.focusValue ? valueEl : extra.active || null;
   hook.mounted();
   return { hook, el, textEl, valueEl, clearBtn, hintEl, events, attrs, dispatched, listeners, formListeners, inside };
 }
@@ -798,6 +798,54 @@ test("autofocus on the text field is honoured at mount", () => {
 
   const g = makeHook({ iso: "2026-10-16" });
   assert.equal(global.document.activeElement, null, "no autofocus, no focus");
+
+  // The page body holds the focus when nothing was clicked: that is "nothing".
+  const b = makeHook({ iso: "2026-10-16", extra: { attrs: { autofocus: "" }, active: global.document.body } });
+  assert.equal(global.document.activeElement, b.textEl);
+
+  // The native date input holding it at connect is the field's own.
+  const n = makeHook({ iso: "2026-10-16", extra: { attrs: { autofocus: "" }, focusValue: true } });
+  assert.equal(global.document.activeElement, n.textEl);
+});
+
+test("autofocus never takes the focus from a field the person is already using", () => {
+  const other = { name: "another text field" };
+  const h = makeHook({ iso: "2026-10-16", extra: { attrs: { autofocus: "" }, active: other } });
+  assert.equal(global.document.activeElement, other);
+});
+
+test("a stored value the date input cannot hold is marked at mount, not silently erased on save", () => {
+  for (const echoed of ["03.05.2024", "2024-5-3", "garbage"]) {
+    const h = makeHook({ iso: "", text: echoed, extra: { defaultIso: echoed, defaultText: echoed } });
+    assert.deepEqual(h.events, [], `${echoed}: nothing is sent`);
+    assert.equal(h.textEl.value, echoed, `${echoed}: shown as given`);
+    assert.ok(h.textEl.classList.contains("input-error"), echoed);
+    assert.equal(h.attrs["aria-invalid"], "true", echoed);
+    assert.equal(h.textEl.validity, "Expected 16.10.2026", `${echoed}: blocks a submit`);
+    assert.equal(h.hintEl.textContent, "Expected 16.10.2026", echoed);
+    assert.deepEqual(h.hook.rejected, { text: echoed, reason: "format" }, echoed);
+  }
+
+  // Correcting it clears the mark; a patch before that keeps the shown text.
+  const h = makeHook({ iso: "", text: "03.05.2024", extra: { defaultIso: "03.05.2024", defaultText: "03.05.2024" } });
+  h.hook.updated();
+  assert.equal(h.textEl.value, "03.05.2024");
+  assert.ok(h.textEl.classList.contains("input-error"));
+  h.textEl.value = "04.05.2024";
+  assert.equal(h.hook.commit(), true);
+  assert.deepEqual(h.events, [["input", "2024-05-04"]]);
+  assert.ok(!h.textEl.classList.contains("input-error"));
+  assert.equal(h.textEl.validity, "");
+
+  // An empty field, a real date and a typed-before-connect date are not marked.
+  for (const m of [
+    makeHook({ iso: "", text: "" }),
+    makeHook({ iso: "2026-10-16" }),
+    makeHook({ iso: "2026-10-16", text: "20.10.2026", extra: { defaultText: "16.10.2026" } }),
+  ]) {
+    assert.equal(m.hook.rejected, null);
+    assert.ok(!m.textEl.classList.contains("input-error"));
+  }
 });
 
 // ---------------------------------------------------------------------------
