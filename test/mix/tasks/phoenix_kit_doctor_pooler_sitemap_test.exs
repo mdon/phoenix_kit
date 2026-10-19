@@ -112,6 +112,20 @@ defmodule Mix.Tasks.PhoenixKit.DoctorPoolerSitemapTest do
       assert finding =~ "/llms.txt"
     end
 
+    test "the guide and the API catalog are checked too" do
+      routes = [
+        route("/mcp", HostWeb.McpController),
+        route("/mcp", PhoenixKitWeb.Controllers.ApiDiscovery),
+        route("/.well-known/api-catalog", HostWeb.CatalogController),
+        route("/.well-known/api-catalog", PhoenixKitWeb.Controllers.ApiDiscovery)
+      ]
+
+      assert [catalog, guide] = Doctor.duplicate_root_route_findings(routes)
+      assert guide =~ "GET /mcp is declared 2 times"
+      assert guide =~ "HostWeb.McpController answers it"
+      assert catalog =~ "GET /.well-known/api-catalog is declared 2 times"
+    end
+
     test "a repeat that points at the same controller and action is not reported" do
       # A host declares /sitemap.xml ahead of `scope "/:locale"` (otherwise
       # `:locale` captures "sitemap.xml"); the kit declares it again. Both lead

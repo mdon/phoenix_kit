@@ -2830,8 +2830,9 @@ defmodule Mix.Tasks.PhoenixKit.Doctor do
 
   # The root-level paths PhoenixKit's router macro declares (outside its URL
   # prefix). 1.7 told hosts to declare the sitemap routes themselves; the kit
-  # took that over, so an upgraded host can declare the same path twice.
-  @kit_root_paths ~w(/llms.txt /sitemap.xml /sitemap.html /sitemaps/:filename /sitemap.xsl)
+  # took that over, so an upgraded host can declare the same path twice. `/mcp`
+  # and the API catalog are new: a host route for either is shadowed or shadows.
+  @kit_root_paths ~w(/llms.txt /sitemap.xml /sitemap.html /sitemaps/:filename /sitemap.xsl /mcp /.well-known/api-catalog)
 
   @doc false
   # Pure: one finding per kit root path declared more than once WITH different
