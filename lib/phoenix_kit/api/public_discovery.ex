@@ -33,6 +33,12 @@ defmodule PhoenixKit.API.PublicDiscovery do
   `PhoenixKit.API.MCP.Origin.canonical_origin/0`. Never
   `PhoenixKit.Utils.Routes.base_url/0`, which reads the database uncached.
 
+  The scheme and the port never come from the request either, whatever its
+  `Host` port or `X-Forwarded-Proto` say: the canonical host is named by
+  `canonical_origin/0` as it is, any other known host takes the canonical
+  scheme and the canonical port (none when that is the scheme's default).
+  The documents are cached publicly, so a request must not shape them.
+
   The API and the guide live under the kit's URL prefix (`PhoenixKit.Utils.Routes.path/1`);
   `/llms.txt` and `/.well-known/*` are origin-root URLs.
   """
@@ -89,26 +95,28 @@ defmodule PhoenixKit.API.PublicDiscovery do
 
   @doc """
   The origin (`scheme://host[:port]`) the documents for `conn` name, by the
-  rule of the moduledoc. `context` is `RequestContext.resolve(conn)`; pass it
-  when it is at hand, as the host app's hook may be costly.
+  rule of the moduledoc.
   """
-  @spec origin(Plug.Conn.t(), RequestContext.t()) :: String.t()
-  def origin(%Plug.Conn{host: host} = conn, context) when is_binary(host) do
+  @spec origin(Plug.Conn.t()) :: String.t()
+  def origin(%Plug.Conn{host: host} = conn) do
+    canonical = Origin.canonical_origin()
+    %URI{scheme: scheme, host: canonical_host, port: port} = URI.parse(canonical)
     host = String.downcase(host)
 
-    if Regex.match?(@host_grammar, host) and host in Origin.known_hosts(conn) do
-      %URI{scheme: scheme, port: port} = URI.parse(context.base_url)
-      suffix = if port in [nil, URI.default_port(scheme)], do: "", else: ":#{port}"
-      "#{scheme}://#{host}#{suffix}"
-    else
-      Origin.canonical_origin()
+    cond do
+      host == canonical_host ->
+        canonical
+
+      Regex.match?(@host_grammar, host) and host in Origin.known_hosts(conn) ->
+        "#{scheme}://#{host}#{port_suffix(scheme, port)}"
+
+      true ->
+        canonical
     end
   end
 
-  def origin(_conn, _context), do: Origin.canonical_origin()
-
-  @spec origin(Plug.Conn.t()) :: String.t()
-  def origin(%Plug.Conn{} = conn), do: origin(conn, RequestContext.resolve(conn))
+  defp port_suffix(scheme, port),
+    do: if(port in [nil, URI.default_port(scheme)], do: "", else: ":#{port}")
 
   @doc "The URL of the guide under `origin`."
   @spec guide_url(String.t()) :: String.t()
@@ -157,7 +165,7 @@ defmodule PhoenixKit.API.PublicDiscovery do
   @spec guide(Plug.Conn.t(), [Tool.t()]) :: map()
   def guide(%Plug.Conn{} = conn, tools) when is_list(tools) do
     context = RequestContext.resolve(conn)
-    Guide.build(origin(conn, context), language(context), tools, Settings.get_project_title())
+    Guide.build(origin(conn), language(context), tools, Settings.get_project_title())
   end
 
   # --- the API catalog ------------------------------------------------------------
@@ -185,6 +193,16 @@ defmodule PhoenixKit.API.PublicDiscovery do
 
   # --- Link headers -----------------------------------------------------------------
 
+  @doc """
+  Adds `value` to the `Link` header of `conn`, after the value an earlier plug
+  may have set (one header, values joined by a comma, as RFC 8288 allows).
+  """
+  @spec put_link(Plug.Conn.t(), String.t()) :: Plug.Conn.t()
+  def put_link(%Plug.Conn{} = conn, value) when is_binary(value) do
+    links = Plug.Conn.get_resp_header(conn, "link") ++ [value]
+    Plug.Conn.put_resp_header(conn, "link", Enum.join(links, ", "))
+  end
+
   @doc "The `Link` header value that points to the API catalog."
   @spec catalog_link(String.t()) :: String.t()
   def catalog_link(origin), do: ~s(<#{catalog_url(origin)}>; rel="api-catalog")
@@ -200,9 +218,8 @@ defmodule PhoenixKit.API.PublicDiscovery do
       with 200 <- conn.status, true <- visible?(conn) do
         origin = origin(conn)
 
-        Plug.Conn.put_resp_header(
+        put_link(
           conn,
-          "link",
           ~s(<#{openapi_url(origin)}>; rel="service-desc", <#{guide_url(origin)}>; rel="service-doc")
         )
       else
@@ -218,7 +235,7 @@ defmodule PhoenixKit.API.PublicDiscovery do
   @spec put_service_doc_link(Plug.Conn.t()) :: Plug.Conn.t()
   def put_service_doc_link(%Plug.Conn{} = conn) do
     if visible?(conn) do
-      Plug.Conn.put_resp_header(conn, "link", ~s(<#{guide_url(origin(conn))}>; rel="service-doc"))
+      put_link(conn, ~s(<#{guide_url(origin(conn))}>; rel="service-doc"))
     else
       conn
     end

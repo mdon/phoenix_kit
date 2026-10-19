@@ -56,7 +56,7 @@ defmodule PhoenixKitWeb.Controllers.ApiDiscovery do
         |> put_resp_header("content-type", PublicDiscovery.catalog_content_type())
         |> put_resp_header("access-control-allow-origin", "*")
         |> put_resp_header("cache-control", PublicDiscovery.cache_control())
-        |> put_resp_header("link", PublicDiscovery.catalog_link(origin))
+        |> PublicDiscovery.put_link(PublicDiscovery.catalog_link(origin))
         |> send_resp(200, JSON.encode!(PublicDiscovery.api_catalog(origin)))
 
       :hidden ->
@@ -88,7 +88,7 @@ defmodule PhoenixKitWeb.Controllers.ApiDiscovery do
     |> put_resp_header("content-language", guide.language)
     |> put_resp_header("vary", "accept")
     |> put_resp_header("cache-control", PublicDiscovery.cache_control())
-    |> put_resp_header("link", PublicDiscovery.catalog_link(guide.origin))
+    |> PublicDiscovery.put_link(PublicDiscovery.catalog_link(guide.origin))
     |> send_resp(200, body)
   end
 

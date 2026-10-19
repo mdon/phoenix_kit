@@ -39,7 +39,7 @@ defmodule PhoenixKit.Modules.Crawlers.Web.Controller do
         origin = PublicDiscovery.origin(conn)
 
         conn
-        |> put_resp_header("link", PublicDiscovery.catalog_link(origin))
+        |> PublicDiscovery.put_link(PublicDiscovery.catalog_link(origin))
         |> put_gate_cache_control()
         |> send_resp(200, LlmsTxt.build(api_section: PublicDiscovery.llms_section(origin)))
 

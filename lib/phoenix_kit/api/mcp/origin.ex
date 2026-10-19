@@ -48,6 +48,8 @@ defmodule PhoenixKit.API.MCP.Origin do
 
   require Logger
 
+  @last_resort_origin "http://localhost:4000"
+
   @doc """
   Passes `conn` when it has no `Origin` header or an allowed one; otherwise
   sends `403 origin_not_allowed` and halts.
@@ -108,17 +110,20 @@ defmodule PhoenixKit.API.MCP.Origin do
   @doc """
   The canonical origin, `scheme://host[:port]`: that of the `site_url` setting
   (read through the settings cache), else of the endpoint's URL, else of the
-  static configuration. The host is lowercase and a default port is left out.
+  static configuration, else `http://localhost:4000`. The host is lowercase and
+  a default port is left out.
 
   The same source as `PhoenixKit.Utils.Routes.base_url/0`, but without its
   uncached database read, so a public request can use it.
   """
   @spec canonical_origin() :: String.t()
   def canonical_origin do
-    origin_of(base_url()) || origin_of(PhoenixKit.Config.get_base_url())
+    origin_of(base_url()) || static_origin()
   rescue
-    _ -> origin_of(PhoenixKit.Config.get_base_url())
+    _ -> static_origin()
   end
+
+  defp static_origin, do: origin_of(PhoenixKit.Config.get_base_url()) || @last_resort_origin
 
   defp origin_of(url) when is_binary(url) do
     case URI.new(url) do

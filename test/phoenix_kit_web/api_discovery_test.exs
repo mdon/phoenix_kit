@@ -18,10 +18,10 @@ defmodule PhoenixKitWeb.APIDiscoveryTest do
   alias PhoenixKit.API.PublicDiscovery
   alias PhoenixKit.API.RateLimit
   alias PhoenixKit.API.Registry
-  alias PhoenixKit.API.RequestContext
   alias PhoenixKit.API.Validator
   alias PhoenixKit.Modules.Crawlers
   alias PhoenixKit.Modules.Crawlers.LlmsTxt
+  alias PhoenixKit.Modules.Crawlers.Web.Controller, as: CrawlersController
   alias PhoenixKit.Settings
   alias PhoenixKit.Test.DiscoveryTools
   alias PhoenixKit.Utils.Routes
@@ -417,22 +417,46 @@ defmodule PhoenixKitWeb.APIDiscoveryTest do
       refute body =~ "www.example.com"
     end
 
-    test "a hook that lists two hosts: each gets its own base, scheme and port from the request",
+    test "a hook that lists two hosts: each gets its own host, the scheme and port are the canonical ones",
          %{conn: conn} do
       hook(:two_domains)
 
       a = fetch(conn, Routes.path("/mcp") <> "?format=md", host: "a.test").resp_body
       b = fetch(conn, Routes.path("/mcp") <> "?format=md", host: "b.test", port: 4000).resp_body
 
-      assert a =~ "http://a.test" <> Routes.path("/mcp/shop")
-      assert b =~ "http://b.test:4000" <> Routes.path("/mcp/shop")
+      assert a =~ "https://a.test" <> Routes.path("/mcp/shop")
+      assert b =~ "https://b.test" <> Routes.path("/mcp/shop")
+      refute b =~ "b.test:4000"
     end
 
-    test "the request host is downcased and the canonical host is accepted in any case", %{
-      conn: conn
-    } do
-      body = fetch(conn, Routes.path("/mcp") <> "?format=md", host: "SHOP.Test").resp_body
-      assert body =~ "http://shop.test" <> Routes.path("/mcp/shop")
+    test "the request's port and scheme never reach a URL, whatever the host", %{conn: conn} do
+      hook(:two_domains)
+
+      for host <- ["shop.test", "a.test"] do
+        response =
+          fetch(conn, Routes.path("/mcp") <> "?format=md", host: host, port: 1337)
+
+        assert response.resp_body =~ "https://#{host}" <> Routes.path("/mcp/shop"), host
+        refute response.resp_body =~ "1337", host
+        refute response.resp_body =~ "http://#{host}", host
+
+        catalog = fetch(conn, "/.well-known/api-catalog", host: host, port: 1337)
+        refute catalog.resp_body =~ "1337", host
+        refute header(catalog, "link") =~ "1337", host
+      end
+    end
+
+    test "a canonical origin with a scheme and a port is given to its own host and to the hook hosts",
+         %{conn: conn} do
+      put_setting("site_url", "http://shop.test:8443")
+      hook(:two_domains)
+
+      for host <- ["shop.test", "a.test"] do
+        body = fetch(conn, Routes.path("/mcp") <> "?format=md", host: host, port: 1337).resp_body
+
+        assert body =~ "http://#{host}:8443" <> Routes.path("/mcp/shop"), host
+        refute body =~ "1337", host
+      end
     end
 
     test "a hook with no :hosts, with a bad list, or that raises: only the canonical host", %{
@@ -483,12 +507,14 @@ defmodule PhoenixKitWeb.APIDiscoveryTest do
       end
 
       body = fetch(conn, Routes.path("/mcp") <> "?format=md", host: "a.test").resp_body
-      assert body =~ "http://a.test" <> Routes.path("/mcp/shop")
+      assert body =~ "https://a.test" <> Routes.path("/mcp/shop")
     end
 
-    test "X-Forwarded-Proto is believed from a local peer only", %{conn: conn} do
+    test "X-Forwarded-Proto is believed from nobody: the scheme is the canonical one", %{
+      conn: conn
+    } do
       hook(:two_domains)
-      forwarded = [{"x-forwarded-proto", "https"}]
+      forwarded = [{"x-forwarded-proto", "http"}]
       path = Routes.path("/mcp") <> "?format=md"
 
       local = fetch(conn, path, host: "a.test", headers: forwarded).resp_body
@@ -497,16 +523,14 @@ defmodule PhoenixKitWeb.APIDiscoveryTest do
         fetch(conn, path, host: "a.test", headers: forwarded, peer: {203, 0, 113, 9}).resp_body
 
       assert local =~ "https://a.test" <> Routes.path("/mcp/shop")
-      assert stranger =~ "http://a.test" <> Routes.path("/mcp/shop")
+      assert stranger =~ "https://a.test" <> Routes.path("/mcp/shop")
     end
 
     test "the fallback reads no database row once the settings are cached" do
       conn = %{Plug.Test.conn(:get, Routes.path("/mcp")) | host: "evil.example"}
-      context = RequestContext.resolve(conn)
-      _warm = PublicDiscovery.origin(conn, context)
+      _warm = PublicDiscovery.origin(conn)
 
-      {origin, queries} =
-        count_queries(fn -> PublicDiscovery.origin(conn, context) end)
+      {origin, queries} = count_queries(fn -> PublicDiscovery.origin(conn) end)
 
       assert origin == "https://shop.test"
       assert queries == 0
@@ -688,12 +712,11 @@ defmodule PhoenixKitWeb.APIDiscoveryTest do
                  ~s(<https://shop.test#{Routes.path("/mcp")}>; rel="service-doc")
     end
 
-    test "the REST list has no Link when no public tool is visible (and is not a 200 either)", %{
-      conn: conn
-    } do
+    test "the REST list answers 200 with no Link when no public tool is visible", %{conn: conn} do
       DiscoveryTools.set_enabled(false)
       conn = fetch(conn, Routes.path("/api/shop/v1"))
 
+      assert conn.status == 200
       assert header(conn, "link") == nil
     end
 
@@ -713,6 +736,33 @@ defmodule PhoenixKitWeb.APIDiscoveryTest do
 
       assert header(conn, "link") ==
                ~s(<https://shop.test#{Routes.path("/mcp")}>; rel="service-doc")
+    end
+
+    test "a Link header an earlier plug set is kept: ours is appended to it" do
+      earlier = ~s(<https://host.test/preload>; rel="preload")
+      base = Plug.Test.conn(:get, Routes.path("/mcp/shop"))
+      base = %{base | host: "shop.test"} |> put_resp_header("link", earlier)
+
+      assert base |> PublicDiscovery.put_service_doc_link() |> header("link") ==
+               earlier <> ", " <> ~s(<https://shop.test#{Routes.path("/mcp")}>; rel="service-doc")
+
+      listed =
+        base
+        |> PublicDiscovery.put_list_links()
+        |> send_resp(200, "")
+
+      assert header(listed, "link") =~ earlier <> ", <https://shop.test"
+      assert header(listed, "link") =~ ~s(rel="service-desc")
+      assert header(listed, "link") =~ ~s(rel="service-doc")
+
+      for action <- [:guide, :api_catalog] do
+        answered = apply(ApiDiscovery, action, [base, %{}])
+
+        assert header(answered, "link") == earlier <> ", " <> @catalog, "#{action}"
+      end
+
+      llms = CrawlersController.llms_txt(base, %{})
+      assert header(llms, "link") == earlier <> ", " <> @catalog
     end
 
     test "the 405 of GET /mcp/shop has no Link when no tool is visible", %{conn: conn} do
@@ -879,6 +929,14 @@ defmodule PhoenixKitWeb.APIDiscoveryTest do
                "mcp 405" => 405,
                "mcp tools/list" => 200
              }
+    end
+
+    test "no generated public document says \"approval\" in any form (compound identifiers too)",
+         %{conn: conn} do
+      for {label, response} <- public_responses(conn), response.status == 200 do
+        refute response |> text_of() |> String.downcase() |> String.contains?("approval"),
+               "#{label} mentions approvals"
+      end
     end
 
     test "the hidden 404 holds no banned term either", %{conn: conn} do

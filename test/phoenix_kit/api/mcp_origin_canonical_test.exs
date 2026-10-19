@@ -62,6 +62,22 @@ defmodule PhoenixKit.API.MCP.OriginCanonicalTest do
       end
     end
 
+    test "with nothing usable anywhere it is still a string: the literal last resort" do
+      scheme = Application.fetch_env(:phoenix_kit, :scheme)
+      Application.put_env(:phoenix_kit, :scheme, "gopher")
+
+      on_exit(fn ->
+        case scheme do
+          {:ok, value} -> Application.put_env(:phoenix_kit, :scheme, value)
+          :error -> Application.delete_env(:phoenix_kit, :scheme)
+        end
+      end)
+
+      put_setting("site_url", "ftp://shop.test")
+
+      assert Origin.canonical_origin() == "http://localhost:4000"
+    end
+
     test "reads the settings cache, not the database" do
       put_setting("site_url", "https://shop.test")
       _warm = Origin.canonical_origin()
