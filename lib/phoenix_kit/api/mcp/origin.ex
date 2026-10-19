@@ -87,7 +87,60 @@ defmodule PhoenixKit.API.MCP.Origin do
 
   # --- the list of hosts ------------------------------------------------------
 
-  defp known_hosts(conn), do: Enum.uniq(canonical_hosts() ++ hook_hosts(conn))
+  @doc """
+  The hostnames this install is known to serve, lowercase and without ports:
+  the canonical host first, then the hosts the `:api_request_context` hook
+  explicitly returns (see the moduledoc). The request's own `Host` header is
+  never on the list.
+
+  Public for the other documents the install publishes about itself
+  (`PhoenixKit.API.PublicDiscovery`), which must not trust the `Host` header
+  either.
+  """
+  @spec known_hosts(Plug.Conn.t()) :: [String.t()]
+  def known_hosts(conn) do
+    (canonical_hosts() ++ hook_hosts(conn))
+    |> Enum.map(&hostname/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
+  @doc """
+  The canonical origin, `scheme://host[:port]`: that of the `site_url` setting
+  (read through the settings cache), else of the endpoint's URL, else of the
+  static configuration. The host is lowercase and a default port is left out.
+
+  The same source as `PhoenixKit.Utils.Routes.base_url/0`, but without its
+  uncached database read, so a public request can use it.
+  """
+  @spec canonical_origin() :: String.t()
+  def canonical_origin do
+    origin_of(base_url()) || origin_of(PhoenixKit.Config.get_base_url())
+  rescue
+    _ -> origin_of(PhoenixKit.Config.get_base_url())
+  end
+
+  defp origin_of(url) when is_binary(url) do
+    case URI.new(url) do
+      {:ok, %URI{scheme: scheme, host: host, port: port}}
+      when scheme in ["http", "https"] and is_binary(host) and host != "" ->
+        "#{scheme}://#{host_text(host)}#{port_suffix(scheme, port)}"
+
+      _unusable ->
+        nil
+    end
+  end
+
+  defp origin_of(_url), do: nil
+
+  defp host_text(host) do
+    host = String.downcase(host)
+    if String.contains?(host, ":"), do: "[" <> host <> "]", else: host
+  end
+
+  defp port_suffix(scheme, port) do
+    if port in [nil, URI.default_port(scheme)], do: "", else: ":#{port}"
+  end
 
   # Not `Routes.base_url/0`: it reads the `site_url` setting uncached, and this
   # check runs for every request that carries an Origin, before any limiter.
@@ -102,7 +155,7 @@ defmodule PhoenixKit.API.MCP.Origin do
   end
 
   defp base_url do
-    case Settings.get_setting_cached("site_url", "") do
+    case cached_site_url() do
       site_url when is_binary(site_url) and site_url != "" ->
         String.trim_trailing(site_url, "/")
 
@@ -110,6 +163,8 @@ defmodule PhoenixKit.API.MCP.Origin do
         PhoenixKit.Config.get_dynamic_base_url()
     end
   end
+
+  defp cached_site_url, do: Settings.get_setting_cached("site_url", "")
 
   # The hosts the host app's hook EXPLICITLY returns, else []. Never the Host
   # header: `RequestContext.resolve/1` is not used here because its merge
