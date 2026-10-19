@@ -703,9 +703,55 @@ defmodule PhoenixKitWeb.Components.Core.DateInputTest do
 
       assert value_tag(html) =~ ~s(step="7")
       assert text_tag(html) =~ ~s(tabindex="2")
-      assert text_tag(html) =~ ~s(autocomplete="bday")
       refute html =~ "pattern"
       refute html =~ "maxlength"
+    end
+
+    # The attributes as a browser reads them: the first of a repeated one wins.
+    defp text_attrs(html) do
+      html
+      |> LazyHTML.from_fragment()
+      |> LazyHTML.query("[data-date-text]")
+      |> Enum.at(0)
+      |> LazyHTML.attributes()
+      |> List.first()
+      |> Enum.reverse()
+      |> Map.new()
+    end
+
+    defp count_attr(tag, name), do: length(Regex.scan(~r/\s#{name}=/, tag))
+
+    test "the visible input defaults to autocomplete=off and a numeric keyboard, once" do
+      html = date()
+      attrs = text_attrs(html)
+
+      assert attrs["autocomplete"] == "off"
+      assert attrs["inputmode"] == "numeric"
+      assert count_attr(text_tag(html), "autocomplete") == 1
+      assert count_attr(text_tag(html), "inputmode") == 1
+
+      assert text_attrs(date(format: "F j, Y"))["inputmode"] == "text"
+    end
+
+    test "a caller's autocomplete and inputmode replace the defaults instead of repeating them" do
+      html = date(autocomplete: "bday", inputmode: "decimal")
+      attrs = text_attrs(html)
+
+      assert attrs["autocomplete"] == "bday"
+      assert attrs["inputmode"] == "decimal"
+      assert count_attr(text_tag(html), "autocomplete") == 1
+      assert count_attr(text_tag(html), "inputmode") == 1
+      refute value_tag(html) =~ "autocomplete"
+
+      via_input = input_date(autocomplete: "bday")
+      assert text_attrs(via_input)["autocomplete"] == "bday"
+      assert count_attr(text_tag(via_input), "autocomplete") == 1
+    end
+
+    test "autofocus is on the visible input, where the hook focuses it" do
+      html = date(autofocus: true)
+      assert Map.has_key?(text_attrs(html), "autofocus")
+      refute value_tag(html) =~ "autofocus"
     end
 
     test "size is the HTML size there, so it is not passed on" do

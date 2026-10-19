@@ -32,6 +32,9 @@ defmodule PhoenixKitWeb.Components.Core.DateInput do
       `display:none`: LiveViewTest can set it with `form/3`, every receiver
       (`Date.from_iso8601/1`, Ecto `:date`) keeps working, and `showPicker()`
       works on it.
+    * `id` should be passed. Without one it is derived from `name`; callers
+      whose names repeat on a page (filter chips, table rows) must pass
+      distinct ids.
 
   ## Without LiveView
 
@@ -44,16 +47,24 @@ defmodule PhoenixKitWeb.Components.Core.DateInput do
   `group-data-[enhanced]/pk-date:` classes swap the two roles) and moves
   `required` to the text field. In a LiveView page that means the browser's
   date input shows for the moment between the first paint and the socket
-  connecting; a date picked in it then is carried over. Pass `native` to skip
-  the widget altogether.
-    * `id` should be passed. Without one it is derived from `name`; callers
-      whose names repeat on a page (filter chips, table rows) must pass
-      distinct ids.
+  connecting. Pass `native` to skip the widget altogether.
 
-  The visible text is formatted on the server, so the first paint is right.
-  A value that is not a date (a changeset echoing bad input) is shown as
-  given; the value element is rendered with it, but a browser sanitises a
-  non-ISO `value` of a date input to `""`.
+  A date picked in the browser's input during that moment is carried over
+  only while that input still has the focus when the socket connects: the
+  join patch resets every other form control to the server's value. The hook
+  then moves the focus to the text field, the control that is displayed from
+  then on. A host stylesheet that predates these classes lacks the
+  `group-data-[enhanced]` utilities: rebuild the CSS, until then the page
+  keeps the browser's date input.
+
+  `<label for>` points at the text field (it carries the `id`), which is
+  `hidden` on a page where no hook runs, so a click on the label does nothing
+  there; the date input is named by its `aria-label`.
+
+  The text shown first is formatted on the server. A value that is not a date
+  (a changeset echoing bad input) is shown as given in the text field; the
+  value element is rendered with it, but a browser sanitises a non-ISO
+  `value` of a date input to `""`, which the hook does not take for a pick.
 
   ## Attributes: where `rest` goes
 
@@ -63,8 +74,11 @@ defmodule PhoenixKitWeb.Components.Core.DateInput do
     * Everything else goes to the visible input: `tabindex`, `phx-click`,
       `phx-blur`, `phx-focus`, `phx-keydown`, `phx-keyup`, `phx-key`, `lang`,
       `spellcheck`, `onkeydown`/`onkeyup`/`onfocus`/`onblur`/`oninput`,
-      `style`, `title`, `autofocus`, `aria-*`, … (the value element cannot be
-      clicked or focused by a person).
+      `style`, `title`, `autofocus` (the hook focuses the field on mount, the
+      browser cannot: the field is `hidden` when it is inserted),
+      `autocomplete` and `inputmode` (which replace the defaults `off` and
+      `numeric`/`text`), `aria-*`, … (the value element cannot be clicked or
+      focused by a person).
     * Dropped: `phx-debounce` (commits are discrete: a `"blur"` debounce on a
       never-focused element would swallow the change) and the attributes that
       mean nothing for a date (`pattern`, `maxlength`, `minlength`, `size`,
@@ -142,7 +156,8 @@ defmodule PhoenixKitWeb.Components.Core.DateInput do
   ## `<.input type="date">`
 
   `input/1` renders a `date_input` for `type="date"` (without `size`; the
-  other native-only attributes are dropped, see above). Opt out per call with `<.input type="date" native>`, or for the whole host with
+  other native-only attributes are dropped, see above). Opt out per call with
+  `<.input type="date" native>`, or for the whole host with
   `config :phoenix_kit, native_date_inputs: true`. `datetime-local`, `time`,
   `month`, `week` are untouched.
   """
@@ -309,7 +324,7 @@ defmodule PhoenixKitWeb.Components.Core.DateInput do
     {iso, text} = value_and_text(assigns.value, format)
     rest = Map.merge(assigns.rest, assigns.html)
     {value_rest, text_rest} = split_rest(rest)
-    text_rest = bare_label(text_rest, assigns)
+    text_rest = text_rest |> text_defaults(format) |> bare_label(assigns)
     field_name = text_rest[:"aria-label"] || blank_to_nil(assigns.label)
     text_rest = describe_by(text_rest, id)
 
@@ -445,8 +460,6 @@ defmodule PhoenixKitWeb.Components.Core.DateInput do
         type="text"
         id={@id}
         value={@text}
-        inputmode={if @format == "F j, Y", do: "text", else: "numeric"}
-        autocomplete="off"
         placeholder={@placeholder}
         data-date-text
         data-has-errors={@errors != [] && "true"}
@@ -599,6 +612,15 @@ defmodule PhoenixKitWeb.Components.Core.DateInput do
 
   defp blank_to_nil(value) when value in [nil, ""], do: nil
   defp blank_to_nil(value), do: value
+
+  # What the visible input gets unless the caller says otherwise: written once,
+  # so a caller's `autocomplete`/`inputmode` is not a second attribute that the
+  # browser then ignores.
+  defp text_defaults(text_rest, format) do
+    text_rest
+    |> Map.put_new(:autocomplete, "off")
+    |> Map.put_new(:inputmode, if(format == "F j, Y", do: "text", else: "numeric"))
+  end
 
   defp bare_label(text_rest, %{bare: true, label: label})
        when is_binary(label) and label != "" do
