@@ -7,6 +7,8 @@ defmodule PhoenixKit.API.RegistryDisabledModulesTest do
   # async: false - modules are registered globally and settings are shared.
   use PhoenixKit.DataCase, async: false
 
+  import ExUnit.CaptureLog
+
   alias PhoenixKit.API.Config
   alias PhoenixKit.API.Registry
   alias PhoenixKit.API.Tool
@@ -61,6 +63,45 @@ defmodule PhoenixKit.API.RegistryDisabledModulesTest do
     def enabled?, do: true
   end
 
+  # Declares tools, but its module_key/0 raises.
+  defmodule RaisingKeyFake do
+    def module_key, do: raise("no key today")
+    def module_name, do: "Raising key"
+    def enabled?, do: true
+
+    def api_tools do
+      [Tool.new!(name: "regmod_raising.search", audience: :public, handler: {__MODULE__, :run})]
+    end
+
+    def run(_input, _ctx), do: {:ok, %{}}
+  end
+
+  # Declares tools, but has no usable key, and its name is not a string.
+  defmodule NoKeyFake do
+    def module_key, do: nil
+    def module_name, do: 42
+    def enabled?, do: true
+
+    def api_tools do
+      [Tool.new!(name: "regmod_nokey.search", audience: :public, handler: {__MODULE__, :run})]
+    end
+
+    def run(_input, _ctx), do: {:ok, %{}}
+  end
+
+  # A module with a key but a name that is not a string.
+  defmodule OddNameFake do
+    def module_key, do: "regmod_oddname"
+    def module_name, do: :not_a_string
+    def enabled?, do: true
+
+    def api_tools do
+      [Tool.new!(name: "regmod_oddname.search", audience: :public, handler: {__MODULE__, :run})]
+    end
+
+    def run(_input, _ctx), do: {:ok, %{}}
+  end
+
   setup do
     :persistent_term.put({AlphaFake, :enabled}, true)
     for mod <- [AlphaFake, BetaFake, QuietFake], do: ModuleRegistry.register(mod)
@@ -97,15 +138,8 @@ defmodule PhoenixKit.API.RegistryDisabledModulesTest do
     assert {:error, :not_found} = Registry.find("regmod_alpha.search", :public)
     assert {:ok, %Tool{}} = Registry.find("regmod_beta.list_things", :admin)
 
-    assert Registry.visible_tools(:admin, :all)
-           |> Enum.map(& &1.name)
-           |> Enum.member?("regmod_alpha.list_things") ==
-             false
-
-    assert Registry.visible_tools(:public, :all)
-           |> Enum.map(& &1.name)
-           |> Enum.member?("regmod_alpha.search") ==
-             false
+    refute "regmod_alpha.list_things" in Enum.map(Registry.visible_tools(:admin, :all), & &1.name)
+    refute "regmod_alpha.search" in Enum.map(Registry.visible_tools(:public, :all), & &1.name)
   end
 
   test "switching it back restores the tools" do
@@ -159,10 +193,68 @@ defmodule PhoenixKit.API.RegistryDisabledModulesTest do
                Enum.find(ModuleRegistry.api_modules(), &(&1.key == "regmod_alpha"))
     end
 
+    test "lists the audiences the tools serve" do
+      modules = ModuleRegistry.api_modules()
+
+      assert %{audiences: [:admin, :public]} = Enum.find(modules, &(&1.key == "regmod_alpha"))
+      assert %{audiences: [:admin]} = Enum.find(modules, &(&1.key == "regmod_beta"))
+    end
+
     test "is not narrowed by api_disabled_modules" do
       switch_off(["regmod_alpha"])
 
       assert "regmod_alpha" in Enum.map(ModuleRegistry.api_modules(), & &1.key)
+    end
+  end
+
+  describe "modules with a broken key or name" do
+    @describetag capture_log: true
+
+    setup do
+      mods = [RaisingKeyFake, NoKeyFake, OddNameFake]
+      for mod <- mods, do: ModuleRegistry.register(mod)
+
+      warned = fn ->
+        for mod <- mods,
+            tag <- [:module_key_failed, :api_module_without_key],
+            do: :persistent_term.erase({ModuleRegistry, :warned, {tag, mod}})
+      end
+
+      warned.()
+
+      on_exit(fn ->
+        for mod <- mods, do: ModuleRegistry.unregister(mod)
+        warned.()
+      end)
+    end
+
+    test "a module_key/0 that raises is reported once, however many requests ask" do
+      switch_off(["regmod_alpha"])
+
+      log =
+        capture_log(fn ->
+          for _ <- 1..3, do: Registry.all_tools()
+        end)
+
+      assert length(String.split(log, "RaisingKeyFake.module_key/0 failed")) == 2
+      # Its key is unknown, so the module cannot be switched off and its tool stays callable.
+      assert "regmod_raising.search" in names()
+      refute "regmod_alpha.list_things" in names()
+    end
+
+    test "a module with tools but no key is left out of the list and reported once" do
+      log =
+        capture_log(fn ->
+          for _ <- 1..3, do: ModuleRegistry.api_modules()
+        end)
+
+      refute Enum.any?(ModuleRegistry.api_modules(), &(&1.module == NoKeyFake))
+      assert length(String.split(log, "NoKeyFake declares API tools but has no usable")) == 2
+    end
+
+    test "a name that is not a string falls back to the module's own name" do
+      assert %{name: "PhoenixKit.API.RegistryDisabledModulesTest.OddNameFake"} =
+               Enum.find(ModuleRegistry.api_modules(), &(&1.key == "regmod_oddname"))
     end
   end
 end

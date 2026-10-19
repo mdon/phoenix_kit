@@ -852,12 +852,17 @@ defmodule PhoenixKit.ModuleRegistry do
   A disabled module's tools cannot be called, so they are left out (`disabled_api_tool?/3`
   is the other side of that). So are the tools of a module whose key is in `hidden_keys`
   (the install's `api_disabled_modules` setting: the module's API is switched off). An entry
-  that is not a valid `PhoenixKit.API.Tool`
-  (`PhoenixKit.API.Tool.validate/1`) is dropped with one warning per module, and so is a
-  tool in core's `system.` namespace (those skip the scope and permission checks and belong
-  to `PhoenixKit.API.CoreTools` alone). A name declared twice for one audience keeps the
-  first (registration order), again with one warning. A module whose `api_tools/0` raises
-  contributes nothing and is reported once.
+  that is not a valid `PhoenixKit.API.Tool` (`PhoenixKit.API.Tool.validate/1`) is dropped
+  with one warning per module, and so is a tool in core's `system.` namespace (those skip
+  the scope and permission checks and belong to `PhoenixKit.API.CoreTools` alone). A name
+  declared twice for one audience keeps the first (registration order), again with one
+  warning; the keys are removed before that, so switching the first module off hands the
+  name to the second. A module whose `api_tools/0` raises contributes nothing and is
+  reported once.
+
+  This is not a gate. With the default `hidden_keys` it returns the tools of modules whose
+  API is switched off; only `PhoenixKit.API.Registry` applies the install's settings, so a
+  transport must ask it for tools.
 
   Every call asks every module again (`enabled?/0` and `api_tools/0` are not cached), so a
   caller that serves requests should call it once per request and keep the result.
@@ -931,27 +936,67 @@ defmodule PhoenixKit.ModuleRegistry do
 
     all_modules()
     |> Enum.flat_map(fn mod ->
-      with [_ | _] = tools <- module_api_tools(mod),
-           key when is_binary(key) <- safe_call(mod, :module_key, nil) do
-        [
-          %{
-            module: mod,
-            key: key,
-            name: safe_call(mod, :module_name, inspect(mod)),
-            enabled?: mod in enabled,
-            tools: length(tools),
-            audiences: tools |> Enum.map(& &1.audience) |> Enum.uniq() |> Enum.sort()
-          }
-        ]
-      else
-        _ -> []
+      case {module_api_tools(mod), api_module_key(mod)} do
+        {[_ | _] = tools, key} when is_binary(key) ->
+          [
+            %{
+              module: mod,
+              key: key,
+              name: api_module_name(mod),
+              enabled?: mod in enabled,
+              tools: length(tools),
+              audiences: tools |> Enum.map(& &1.audience) |> Enum.uniq() |> Enum.sort()
+            }
+          ]
+
+        {[_ | _], _no_key} ->
+          warn_once(
+            {:api_module_without_key, mod},
+            "[ModuleRegistry] #{inspect(mod)} declares API tools but has no usable " <>
+              "module_key/0, so its API cannot be switched off"
+          )
+
+          []
+
+        {[], _key} ->
+          []
       end
     end)
     |> Enum.sort_by(&String.downcase(&1.name))
   end
 
+  defp api_module_name(mod) do
+    case safe_call(mod, :module_name, nil) do
+      name when is_binary(name) -> name
+      _ -> inspect(mod)
+    end
+  end
+
   defp api_hidden?(_mod, []), do: false
-  defp api_hidden?(mod, hidden_keys), do: safe_call(mod, :module_key, nil) in hidden_keys
+  defp api_hidden?(mod, hidden_keys), do: api_module_key(mod) in hidden_keys
+
+  # Like `call_api_tools/1`, a failing `module_key/0` is reported once per module: the
+  # switch is read on the request path, where `safe_call/3` would log on every request.
+  defp api_module_key(mod) do
+    if Code.ensure_loaded?(mod) and function_exported?(mod, :module_key, 0) do
+      mod.module_key()
+    end
+  rescue
+    error ->
+      warn_module_key_failed(mod, Exception.message(error))
+  catch
+    kind, reason ->
+      warn_module_key_failed(mod, inspect({kind, reason}))
+  end
+
+  defp warn_module_key_failed(mod, detail) do
+    warn_once(
+      {:module_key_failed, mod},
+      "[ModuleRegistry] #{inspect(mod)}.module_key/0 failed: #{detail}"
+    )
+
+    nil
+  end
 
   defp module_api_tools(mod) do
     mod
