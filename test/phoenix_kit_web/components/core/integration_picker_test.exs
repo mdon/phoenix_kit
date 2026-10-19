@@ -113,6 +113,8 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationPickerTest do
         """)
 
       assert html =~ "•••"
+      # Short mask, not the 4-character tail one used for long keys.
+      refute html =~ "••••"
       # Doesn't leak the actual short value.
       refute html =~ "short-key"
     end

@@ -212,7 +212,11 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
       refute Encryption.enabled?()
 
       data = %{"api_key" => "plain"}
-      assert Encryption.encrypt_fields(data) == data
+      flag_key = {Encryption, :plaintext_write_logged}
+      :persistent_term.erase(flag_key)
+      on_exit(fn -> :persistent_term.erase(flag_key) end)
+
+      ExUnit.CaptureLog.capture_log(fn -> assert Encryption.encrypt_fields(data) == data end)
     end
   end
 
