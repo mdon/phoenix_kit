@@ -8956,9 +8956,23 @@ if (typeof window.Chart === "undefined") {
   var GALLERY_SETTLE_MS = 180;    // after the strip lands, before telling the server
   var GALLERY_HOLD_MAX_MS = 8000; // the viewer never painted: stop covering it
 
+  // In gallery mode the viewer is for looking at pictures, so the dot grid
+  // stays away until the pencil is on — then the person's own grid setting
+  // (Etcher's, which toggles `fresco--no-grid`) decides, as everywhere else.
+  // Pure CSS on what is in the modal, so no state to keep in step.
+  var GALLERY_GRID_CSS =
+    '[phx-hook="ViewerKeydown"]:has(> [phx-hook="ViewerGallery"]):not(:has(.etcher-pencil-active)) ' +
+    ".fresco-viewer { background-image: none !important; }";
+
   window.PhoenixKitHooks.ViewerGallery = {
     mounted() {
       var self = this;
+      if (!document.getElementById("pk-gallery-css")) {
+        var css = document.createElement("style");
+        css.id = "pk-gallery-css";
+        css.textContent = GALLERY_GRID_CSS;
+        document.head.appendChild(css);
+      }
       if (!window.Fresco || !window.Fresco.gallery) return;
       self._modal = self.el.parentElement;
       // The strip goes in the ignored layer beside this element: a child the
