@@ -8955,6 +8955,8 @@ if (typeof window.Chart === "undefined") {
 
   var GALLERY_SETTLE_MS = 180;    // after the strip lands, before telling the server
   var GALLERY_HOLD_MAX_MS = 8000; // the viewer never painted: stop covering it
+  var GALLERY_SHARP_MAX_MS = 2500; // painted but still blurry: hand over anyway
+  var GALLERY_RESEND_MS = 2000;   // no sign of the server following: ask again
 
   // In gallery mode the viewer is for looking at pictures, so the dot grid
   // stays away until the pencil is on — then the person's own grid setting
@@ -9030,30 +9032,52 @@ if (typeof window.Chart === "undefined") {
           self._goTimer = setTimeout(function() {
             if (item && item.key) self.pushEventTo(self.el, "gallery_go", { uuid: item.key });
           }, GALLERY_SETTLE_MS);
-          self._watchFor(item && item.key);
+          self._watchFor(item);
         }
       });
 
-      // Hand over once the viewer shows `key`: its canvas (the file uuid is
-      // in its id) is mounted and its picture loaded.
-      self._watchFor = function(key) {
+      // Hand over once the viewer shows `key` as sharply as the strip does:
+      // its canvas (the file uuid is in its id) mounted, and a picture loaded
+      // with the pixels its size on screen needs. The viewer opens on the
+      // small copy and climbs; handing over to that small copy read as the
+      // picture snapping blurry the moment the slide finished.
+      self._watchFor = function(item) {
         clearInterval(self._watch);
+        var key = item && item.key;
         if (!key) return;
-        var started = Date.now();
+        var started = Date.now(), seen = 0, resent = started;
         self._watch = setInterval(function() {
           var g = self._gallery;
           if (!g || !g.isShown() || g.currentKey() !== key) { clearInterval(self._watch); return; }
+          var t = Date.now();
           var c = canvasEl();
-          var img = canvasImg(c);
-          if (c && c.id.indexOf(key) !== -1 && img && img.complete && img.naturalWidth > 0) {
-            // A frame for the viewer to lay it out, then glide onto it.
-            requestAnimationFrame(function() {
-              if (g.release(key, currentRect())) clearInterval(self._watch);
-            });
-          } else if (Date.now() - started > GALLERY_HOLD_MAX_MS) {
-            clearInterval(self._watch);
-            g.hide();
+          if (!c || c.id.indexOf(key) === -1) {
+            // The server has not followed (a dropped event): ask again.
+            if (t - resent > GALLERY_RESEND_MS) {
+              resent = t;
+              self.pushEventTo(self.el, "gallery_go", { uuid: key });
+            }
+            if (t - started > GALLERY_HOLD_MAX_MS) { clearInterval(self._watch); g.hide(); }
+            return;
           }
+          if (!seen) seen = t;
+          var sharpest = 0;
+          c.querySelectorAll("img[data-fresco-canvas-img]").forEach(function(im) {
+            if (im.complete && im.naturalWidth > sharpest) sharpest = im.naturalWidth;
+          });
+          if (!sharpest) {
+            if (t - seen > GALLERY_HOLD_MAX_MS) { clearInterval(self._watch); g.hide(); }
+            return;
+          }
+          var r = currentRect();
+          var need = r ? r.w * (window.devicePixelRatio || 1) : 0;
+          if (item.width) need = Math.min(need, item.width);
+          if (sharpest < need * 0.7 && t - seen < GALLERY_SHARP_MAX_MS) return;
+          clearInterval(self._watch);
+          // A frame for the viewer to lay it out, then glide onto it.
+          requestAnimationFrame(function() {
+            if (!g.release(key, currentRect())) self._watchFor(item);
+          });
         }, 50);
       };
 
