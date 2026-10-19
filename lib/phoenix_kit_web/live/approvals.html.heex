@@ -7,14 +7,14 @@
   current_path={@current_path}
   project_title={@project_title}
   current_locale={@current_locale}
-  sidebar_refresh={@sidebar_refresh}
 >
-  <div id="approvals-page" class="px-4 py-6 space-y-6">
+  <div id="approvals-page" class="px-4 py-6 space-y-6" phx-hook="PkHashHighlight">
     <div id="approvals-pending" class="space-y-4">
       <div
         :for={%{approval: approval, key: key, view: preview} = card <- @cards}
         id={"approval-#{approval.uuid}"}
-        class="card bg-base-100 shadow-lg border border-base-200 scroll-mt-24 target:ring-2 target:ring-primary"
+        phx-mounted={Phoenix.LiveView.JS.ignore_attributes(["data-highlight"])}
+        class="card bg-base-100 shadow-lg border border-base-200 scroll-mt-24 target:ring-2 target:ring-primary data-[highlight]:ring-2 data-[highlight]:ring-primary"
       >
         <div class="card-body space-y-3">
           <div class="flex flex-wrap items-start justify-between gap-3">
@@ -48,12 +48,18 @@
                 <% else %>
                   {gettext("Requested by key %{key}", key: key.name)}
                 <% end %>
+                <span
+                  id={"approval-key-#{approval.uuid}"}
+                  class="font-mono text-xs text-base-content/60"
+                >
+                  pk_{key.prefix}_…
+                </span>
               </div>
               <div class="text-xs text-base-content/60">
                 {gettext("Requested")}
                 <.time_ago datetime={approval.inserted_at} id={"approval-asked-#{approval.uuid}"} />
                 <span :if={card.state == :pending} id={"approval-expires-#{approval.uuid}"}>
-                  · {gettext("Expires in %{time}", time: expires_in(approval.expires_at))}
+                  · {expires_in(approval.expires_at)}
                 </span>
               </div>
             </div>
@@ -92,13 +98,13 @@
             :if={card.outcome}
             id={"approval-outcome-#{approval.uuid}"}
             role="status"
-            class={["alert text-sm", elem(card.outcome, 0)]}
+            class={["alert text-sm", card.outcome.class]}
           >
             <span :if={card.state == :running} class="loading loading-spinner loading-sm"></span>
             <div>
-              <div class="font-medium">{elem(card.outcome, 1)}</div>
-              <div :if={elem(card.outcome, 2)} class="text-xs opacity-80">
-                {elem(card.outcome, 2)}
+              <div class="font-medium">{card.outcome.text}</div>
+              <div :if={card.outcome.detail} class="text-xs opacity-80">
+                {card.outcome.detail}
               </div>
               <div :if={card.decider} class="text-xs opacity-80">
                 {gettext("Decided by %{name}", name: card.decider)}
@@ -140,13 +146,13 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <%= for row <- preview.rows do %>
+                  <%= for {row, n} <- Enum.with_index(preview.rows) do %>
                     <tr
                       :for={{change, index} <- Enum.with_index(row.changes)}
                       class="align-top"
                     >
                       <td :if={index == 0} rowspan={length(row.changes)}>
-                        <.preview_item row={row} />
+                        <.preview_item row={row} id={"approval-row-#{approval.uuid}-#{n}"} />
                       </td>
                       <td class="font-mono text-xs">{change.field}</td>
                       <td class="tabular-nums">{show(change.from)}</td>
@@ -156,11 +162,10 @@
                       </td>
                     </tr>
                     <tr :if={row.changes == []} class="align-top">
-                      <td><.preview_item row={row} /></td>
-                      <td colspan="4" class="text-sm">
-                        <span :if={row.action} class="badge badge-ghost badge-sm">{row.action}</span>
-                        <span :if={row.error} class="text-error">{row.error}</span>
+                      <td>
+                        <.preview_item row={row} id={"approval-row-#{approval.uuid}-#{n}"} />
                       </td>
+                      <td colspan="4"></td>
                     </tr>
                   <% end %>
                 </tbody>
@@ -185,6 +190,7 @@
             <details
               :if={preview.technical}
               id={"approval-technical-#{approval.uuid}"}
+              phx-mounted={Phoenix.LiveView.JS.ignore_attributes(["open"])}
               class="rounded bg-base-200 p-3"
             >
               <summary class="cursor-pointer text-sm font-medium">
@@ -236,7 +242,7 @@
                   title: title,
                   decider: decider,
                   view: preview,
-                  outcome: {_class, outcome_text, outcome_detail}
+                  outcome: %{text: outcome_text, detail: outcome_detail}
                 } <- @recent
               }
               id={"recent-#{approval.uuid}"}

@@ -67,12 +67,6 @@ defmodule PhoenixKitWeb.Components.Dashboard.AdminSidebar do
   attr :locale, :string, default: nil
   attr :class, :string, default: ""
 
-  attr :refresh, :any,
-    default: nil,
-    doc:
-      "Any value; a page changes it to have the menu drawn again, so a number on a tab " <>
-        "(the approvals waiting) follows what the page just did"
-
   def admin_sidebar(assigns) do
     # Get admin tabs, already filtered by level, permission, and module-enabled
     # Expand dynamic children BEFORE active state so dynamic tabs get checked too

@@ -65,6 +65,45 @@ defmodule PhoenixKit.API.Approvals.ViewTest do
       assert view.technical == nil
     end
 
+    test "a row error in the shape of the first-party tools is read: code and message" do
+      error = %{
+        "code" => "validation_failed",
+        "message" => "price must be a number",
+        "context" => %{"errors" => [%{"path" => "price", "message" => "is invalid"}]}
+      }
+
+      view =
+        View.preview(%{
+          "rows" => [%{"ref" => "a", "action" => "error", "error" => error}]
+        })
+
+      assert [
+               %{
+                 action: "error",
+                 error: "price must be a number",
+                 error_code: "validation_failed"
+               }
+             ] =
+               view.rows
+
+      assert view.technical == nil
+    end
+
+    test "a row error that is plain text has no code" do
+      view = View.preview(%{"rows" => [%{"ref" => "a", "error" => "price must be a number"}]})
+
+      assert [%{error: "price must be a number", error_code: nil}] = view.rows
+      assert view.technical == nil
+    end
+
+    test "a row error map without a message is kept for the technical details" do
+      preview = %{"rows" => [%{"ref" => "a", "error" => %{"code" => "boom"}}]}
+      view = View.preview(preview)
+
+      assert [%{error: nil, error_code: nil}] = view.rows
+      assert view.technical == preview
+    end
+
     test "the row count is the totals' own, else the number of rows" do
       assert View.preview(%{"rows" => [%{"ref" => "a"}], "totals" => %{"rows" => 40}}).count == 40
       assert View.preview(%{"rows" => [%{"ref" => "a"}, %{"ref" => "b"}]}).count == 2
@@ -77,6 +116,21 @@ defmodule PhoenixKit.API.Approvals.ViewTest do
 
       assert length(view.rows) == 25
       assert view.hidden == 5
+    end
+
+    test "rows left out are counted from the totals when a tool cut its own list" do
+      rows = for n <- 1..25, do: %{"ref" => "item-#{n}"}
+      view = View.preview(%{"rows" => rows, "totals" => %{"rows" => 300}})
+
+      assert view.count == 300
+      assert view.hidden == 275
+    end
+
+    test "totals that count fewer rows than are listed hide nothing" do
+      rows = for n <- 1..30, do: %{"ref" => "item-#{n}"}
+      view = View.preview(%{"rows" => rows, "totals" => %{"rows" => 3}})
+
+      assert view.hidden == 0
     end
 
     test "top-level warnings are kept when they are text" do
@@ -148,6 +202,12 @@ defmodule PhoenixKit.API.Approvals.ViewTest do
       assert View.delta_pct(100, 90) == "-10.0"
       assert View.delta_pct(10.0, 10.0) == "0.0"
       assert View.delta_pct(" 8 ", "10") == "+25.0"
+    end
+
+    test "a change that rounds to nothing is not negative" do
+      assert View.delta_pct(100, 99.96) == "0.0"
+      assert View.delta_pct("100", "99.96") == "0.0"
+      assert View.delta_pct(100, 100.04) == "0.0"
     end
 
     test "nil when there is nothing to divide or to read" do

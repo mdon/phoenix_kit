@@ -14,17 +14,28 @@ defmodule PhoenixKitWeb.Live.Settings.ApiFlowTranslationsTest do
     lib/phoenix_kit_web/live/approvals.html.heex
   )
   # The admin menu entry of the page (`gettext_noop` in `PhoenixKit.Dashboard.AdminTabs`).
-  @extra_msgids ["Approvals"]
+  @extra_msgids [{nil, "Approvals"}]
   @locales ~w(de es et fr it pl ru uk)
   @root Path.expand("../../../..", __DIR__)
 
-  # Every literal first argument of a `gettext(...)` call in the page's sources.
+  # `{context, msgid}` of every literal `gettext(...)` and `pgettext(context, ...)` call in the
+  # page's sources.
   defp page_msgids do
     scanned =
       Enum.flat_map(@page_sources, fn source ->
-        ~r/gettext\(\s*"((?:[^"\\]|\\.)*)"/s
-        |> Regex.scan(File.read!(Path.join(@root, source)))
-        |> Enum.map(&List.last/1)
+        code = File.read!(Path.join(@root, source))
+
+        plain =
+          ~r/(?<![a-z_])gettext\(\s*"((?:[^"\\]|\\.)*)"/s
+          |> Regex.scan(code)
+          |> Enum.map(fn [_, msgid] -> {nil, msgid} end)
+
+        with_context =
+          ~r/pgettext\(\s*"((?:[^"\\]|\\.)*)"\s*,\s*"((?:[^"\\]|\\.)*)"/s
+          |> Regex.scan(code)
+          |> Enum.map(fn [_, context, msgid] -> {context, msgid} end)
+
+        plain ++ with_context
       end)
 
     Enum.uniq(scanned ++ @extra_msgids)
@@ -34,7 +45,8 @@ defmodule PhoenixKitWeb.Live.Settings.ApiFlowTranslationsTest do
     {:ok, po} = Expo.PO.parse_file(Path.join(@root, path))
 
     for %Expo.Message.Singular{} = message <- po.messages, into: %{} do
-      {IO.iodata_to_binary(message.msgid), IO.iodata_to_binary(message.msgstr)}
+      context = message.msgctxt && IO.iodata_to_binary(message.msgctxt)
+      {{context, IO.iodata_to_binary(message.msgid)}, IO.iodata_to_binary(message.msgstr)}
     end
   end
 
@@ -45,8 +57,8 @@ defmodule PhoenixKitWeb.Live.Settings.ApiFlowTranslationsTest do
   test "the template (.pot) has every msgid" do
     template = catalogue("priv/gettext/default.pot")
 
-    for msgid <- page_msgids() do
-      assert Map.has_key?(template, msgid), "default.pot lacks #{inspect(msgid)}"
+    for key <- page_msgids() do
+      assert Map.has_key?(template, key), "default.pot lacks #{inspect(key)}"
     end
   end
 
@@ -54,9 +66,9 @@ defmodule PhoenixKitWeb.Live.Settings.ApiFlowTranslationsTest do
     test "#{locale} translates every msgid" do
       catalogue = catalogue("priv/gettext/#{unquote(locale)}/LC_MESSAGES/default.po")
 
-      for msgid <- page_msgids() do
-        msgstr = Map.get(catalogue, msgid)
-        assert is_binary(msgstr) and msgstr != "", "#{unquote(locale)} lacks #{inspect(msgid)}"
+      for key <- page_msgids() do
+        msgstr = Map.get(catalogue, key)
+        assert is_binary(msgstr) and msgstr != "", "#{unquote(locale)} lacks #{inspect(key)}"
       end
     end
   end
@@ -64,8 +76,8 @@ defmodule PhoenixKitWeb.Live.Settings.ApiFlowTranslationsTest do
   test "en is the source language: every msgid is present" do
     catalogue = catalogue("priv/gettext/en/LC_MESSAGES/default.po")
 
-    for msgid <- page_msgids() do
-      assert Map.has_key?(catalogue, msgid), "en lacks #{inspect(msgid)}"
+    for key <- page_msgids() do
+      assert Map.has_key?(catalogue, key), "en lacks #{inspect(key)}"
     end
   end
 

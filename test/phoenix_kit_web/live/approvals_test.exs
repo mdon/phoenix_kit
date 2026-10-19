@@ -12,6 +12,7 @@ defmodule PhoenixKitWeb.Live.ApprovalsTest do
   alias PhoenixKit.API.Confirm.Confirmation
   alias PhoenixKit.API.Keys
   alias PhoenixKit.API.KeyTestSupport
+  alias PhoenixKit.Notifications
   alias PhoenixKit.Test.ApiFlowHarness
   alias PhoenixKit.Test.ApiFlowStore
   alias PhoenixKit.Test.ApiFlowTools
@@ -59,6 +60,22 @@ defmodule PhoenixKitWeb.Live.ApprovalsTest do
   end
 
   defp reload(row), do: Repo.get!(Confirmation, row.uuid)
+
+  defp requested_at!(row, %DateTime{} = at) do
+    {1, _} =
+      Repo.update_all(from(c in Confirmation, where: c.uuid == ^row.uuid), set: [inserted_at: at])
+
+    :ok
+  end
+
+  # Where the card of `row` sits in the page.
+  defp card_position(html, row) do
+    {position, _length} = :binary.match(html, ~s(id="approval-#{row.uuid}"))
+    position
+  end
+
+  defp card_count(html, row),
+    do: html |> String.split(~s(id="approval-#{row.uuid}")) |> length() |> Kernel.-(1)
 
   # An approval whose preview is exactly `preview`: what a module other than the test tools
   # would have written.
@@ -179,6 +196,47 @@ defmodule PhoenixKitWeb.Live.ApprovalsTest do
     end
   end
 
+  describe "the order of the cards" do
+    test "is oldest request first, also across a month boundary", %{conn: conn, agent: agent} do
+      newer = pending!(agent, ["a"])
+      older = pending!(agent, ["b"])
+      requested_at!(older, ~U[2026-10-31 23:00:00Z])
+      requested_at!(newer, ~U[2026-11-01 01:00:00Z])
+
+      {:ok, view, _html} = live(conn, @path)
+      html = render(view)
+
+      assert card_position(html, older) < card_position(html, newer)
+    end
+
+    test "a card listed as settled is not listed a second time as pending", %{
+      conn: conn,
+      agent: agent
+    } do
+      row = pending!(agent)
+      other = pending!(agent, ["b"])
+      {:ok, view, _html} = live(conn, @path)
+
+      # The window between the click and the decision: the page holds the card as settled
+      # while the database still says pending, and an unrelated change reloads the lists.
+      :sys.replace_state(view.pid, fn state ->
+        card = Enum.find(state.socket.assigns.cards, &(&1.approval.uuid == row.uuid))
+        settled = Map.put(state.socket.assigns.settled, row.uuid, %{card | state: :running})
+
+        %{
+          state
+          | socket: %{state.socket | assigns: Map.put(state.socket.assigns, :settled, settled)}
+        }
+      end)
+
+      Approvals.broadcast(other.uuid)
+      _ = :sys.get_state(view.pid)
+
+      assert card_count(render(view), row) == 1
+      assert card_count(render(view), other) == 1
+    end
+  end
+
   describe "the card" do
     test "is headed by the tool's title and the row count, not its internal name", %{
       conn: conn,
@@ -213,19 +271,30 @@ defmodule PhoenixKitWeb.Live.ApprovalsTest do
       assert has_element?(view, "#approval-expires-#{row.uuid}", "Expires in")
     end
 
-    test "never shows the key's token or its prefix", %{conn: conn, agent: agent} do
-      pending!(agent)
-      {:ok, _view, html} = live(conn, @path)
+    test "names the key by its prefix, never by its token", %{conn: conn, agent: agent} do
+      row = pending!(agent)
+      {:ok, view, html} = live(conn, @path)
 
+      assert has_element?(view, "#approval-key-#{row.uuid}", "pk_#{agent.key.prefix}_")
       refute html =~ agent.token
-      refute html =~ "pk_#{agent.key.prefix}"
     end
 
-    test "carries an anchor a notification can link to", %{conn: conn, agent: agent} do
+    test "carries the anchor the bell's link points at, and the hook that lights it", %{
+      conn: conn,
+      agent: agent
+    } do
       row = pending!(agent)
+      owner = KeyTestSupport.owner_user()
+      [notice | _] = Notifications.recent_for_user(owner.uuid, 5)
+      [_path, fragment] = String.split(notice.metadata["notification_link"], "#")
+
       {:ok, view, _html} = live(conn, @path)
 
-      assert has_element?(view, ~s(div#approval-#{row.uuid}.target\\:ring-2))
+      assert fragment == "approval-#{row.uuid}"
+      assert has_element?(view, "#" <> fragment)
+      assert has_element?(view, ~s(#approvals-page[phx-hook="PkHashHighlight"]))
+      assert has_element?(view, ~s(#approval-#{row.uuid}[class~="target:ring-2"]))
+      assert has_element?(view, ~s(#approval-#{row.uuid}[class~="data-[highlight]:ring-2"]))
     end
 
     test "falls back to the tool's name when the tool is gone", %{conn: conn, agent: agent} do
@@ -260,7 +329,7 @@ defmodule PhoenixKitWeb.Live.ApprovalsTest do
       assert has_element?(view, table <> " tbody tr", "110")
       assert has_element?(view, table <> " tbody tr", "+10.0%")
       assert has_element?(view, table <> " tbody tr", "-25.0%")
-      assert has_element?(view, "#approval-totals-#{row.uuid}", "update 2")
+      assert has_element?(view, "#approval-totals-#{row.uuid}", "updated 2")
       refute has_element?(view, "#approval-technical-#{row.uuid}")
     end
 
@@ -292,6 +361,107 @@ defmodule PhoenixKitWeb.Live.ApprovalsTest do
       assert has_element?(view, table, "+25.0%")
       refute has_element?(view, table <> " a")
       refute has_element?(view, "#approval-technical-#{row.uuid}")
+    end
+
+    test "the error of a row is read from the first-party shape, code and message", %{
+      conn: conn,
+      agent: agent
+    } do
+      error = %{
+        "code" => "validation_failed",
+        "message" => "price must be a number",
+        "context" => %{"errors" => [%{"path" => "price", "message" => "is invalid"}]}
+      }
+
+      row =
+        pending_with_preview!(agent, %{
+          "rows" => [%{"ref" => "SKU-9", "action" => "error", "error" => error}],
+          "totals" => %{"rows" => 1, "error" => 1}
+        })
+
+      {:ok, view, _html} = live(conn, @path)
+      cell = "#approval-row-#{row.uuid}-0"
+
+      assert has_element?(view, cell <> "-error", "price must be a number")
+      assert has_element?(view, cell <> "-error", "validation_failed")
+      assert has_element?(view, cell <> "-action", "error")
+      refute has_element?(view, "#approval-technical-#{row.uuid}")
+    end
+
+    test "action and error are shown for a row that has changes too", %{
+      conn: conn,
+      agent: agent
+    } do
+      row =
+        pending_with_preview!(agent, %{
+          "rows" => [
+            %{
+              "ref" => "SKU-1",
+              "action" => "update",
+              "changes" => %{"price" => %{"from" => "10.00", "to" => "12.50"}},
+              "error" => %{
+                "code" => "stale_price",
+                "message" => "refused-sentinel",
+                "context" => %{}
+              }
+            },
+            %{
+              "ref" => "SKU-2",
+              "action" => "delete",
+              "changes" => %{
+                "price" => %{"from" => "1", "to" => "2"},
+                "stock" => %{"from" => "3", "to" => "4"}
+              }
+            }
+          ]
+        })
+
+      {:ok, view, _html} = live(conn, @path)
+
+      assert has_element?(view, "#approval-row-#{row.uuid}-0-action", "update")
+      assert has_element?(view, "#approval-row-#{row.uuid}-0-error", "refused-sentinel")
+      assert has_element?(view, "#approval-row-#{row.uuid}-1-action", "delete")
+      refute has_element?(view, "#approval-row-#{row.uuid}-1-error")
+      refute has_element?(view, "#approval-technical-#{row.uuid}")
+    end
+
+    test "known actions and totals are put in words, unknown ones are shown as they are", %{
+      conn: conn,
+      agent: agent
+    } do
+      row =
+        pending_with_preview!(agent, %{
+          "rows" => [
+            %{"ref" => "a", "action" => "unchanged"},
+            %{"ref" => "b", "action" => "frobnicate"}
+          ],
+          "totals" => %{"rows" => 2, "unchanged" => 1, "frobnicate" => 1}
+        })
+
+      {:ok, view, _html} = live(conn, @path)
+
+      assert has_element?(view, "#approval-row-#{row.uuid}-0-action", "unchanged")
+      assert has_element?(view, "#approval-row-#{row.uuid}-1-action", "frobnicate")
+      assert has_element?(view, "#approval-totals-#{row.uuid}", "frobnicate 1")
+    end
+
+    test "the technical details stay open while the page is redrawn", %{
+      conn: conn,
+      agent: agent
+    } do
+      row = pending_with_preview!(agent, %{"module_specific" => %{"clue" => "c"}})
+      {:ok, view, _html} = live(conn, @path)
+
+      mounted =
+        view
+        |> element("#approval-technical-#{row.uuid}")
+        |> render()
+        |> LazyHTML.from_fragment()
+        |> LazyHTML.attribute("phx-mounted")
+
+      assert [json] = mounted
+      assert json =~ "ignore_attrs"
+      assert json =~ "open"
     end
 
     test "what does not fit the shape is kept under collapsed technical details", %{
@@ -361,6 +531,32 @@ defmodule PhoenixKitWeb.Live.ApprovalsTest do
       refute has_element?(view, "#reject-#{row.uuid}")
       refute has_element?(view, "#approval-expires-#{row.uuid}")
       refute has_element?(view, "#recent-#{row.uuid}")
+    end
+
+    test "a running approval says so and offers no buttons until it ends", %{
+      conn: conn,
+      agent: agent
+    } do
+      ApiFlowStore.set_gate(self())
+
+      {:ok, row, :created} =
+        ApiFlowHarness.queue(agent, "flowkit.progress_write", %{"hold" => true})
+
+      {:ok, view, _html} = live(conn, @path)
+      view |> element("#approve-#{row.uuid}") |> render_click()
+      assert_receive {:held, worker}, 5_000
+      _ = :sys.get_state(view.pid)
+
+      assert has_element?(view, "#approval-outcome-#{row.uuid}", "Running.")
+      refute has_element?(view, "#approve-#{row.uuid}")
+      refute has_element?(view, "#reject-#{row.uuid}")
+      refute has_element?(view, "#approval-status-#{row.uuid}")
+
+      send(worker, :release)
+      _ = render_async(view)
+
+      assert has_element?(view, "#approval-outcome-#{row.uuid}", "Done")
+      refute has_element?(view, "#approval-outcome-#{row.uuid}", "Running.")
     end
 
     test "an approval decided earlier is in the recent list, in words", %{
@@ -472,15 +668,49 @@ defmodule PhoenixKitWeb.Live.ApprovalsTest do
   end
 
   describe "the menu number" do
-    test "is drawn again whenever the lists change", %{conn: conn, agent: agent} do
+    @badge ~s(a[data-tab-id="admin_approvals"] .badge)
+
+    # The registry is not part of the test supervision tree; the menu is drawn only with one.
+    setup do
+      refute Process.whereis(PhoenixKit.Dashboard.Registry),
+             "a registry is already running - this suite starts its own"
+
+      start_supervised!(PhoenixKit.Dashboard.Registry)
+      :sys.get_state(PhoenixKit.Dashboard.Registry)
+      :ok
+    end
+
+    test "follows the queue while the page is open", %{conn: conn, agent: agent} do
       {:ok, view, _html} = live(conn, @path)
-      refresh = fn -> :sys.get_state(view.pid).socket.assigns.sidebar_refresh end
-      before = refresh.()
+      assert has_element?(view, ~s(a[data-tab-id="admin_approvals"]))
+      refute has_element?(view, @badge)
 
-      pending!(agent)
+      first = pending!(agent, ["a"])
       _ = :sys.get_state(view.pid)
+      assert has_element?(view, @badge, "1")
 
-      assert refresh.() > before
+      pending!(agent, ["b"])
+      _ = :sys.get_state(view.pid)
+      assert has_element?(view, @badge, "2")
+
+      view |> element("#reject-#{first.uuid}") |> render_click()
+      _ = :sys.get_state(view.pid)
+      assert has_element?(view, @badge, "1")
+    end
+
+    test "stops counting at 99+", %{conn: conn, agent: agent} do
+      row = pending!(agent)
+      base = row |> Map.from_struct() |> Map.delete(:__meta__)
+
+      copies =
+        for n <- 1..100,
+            do: %{base | uuid: UUIDv7.generate(), input_hash: String.pad_leading("#{n}", 64, "0")}
+
+      {100, _} = Repo.insert_all(Confirmation, copies)
+
+      {:ok, view, _html} = live(conn, @path)
+
+      assert has_element?(view, @badge, "99+")
     end
   end
 

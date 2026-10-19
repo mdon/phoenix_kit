@@ -45,13 +45,12 @@ defmodule PhoenixKit.Integration.AdminApprovalsTabTest do
     row
   end
 
-  defp sidebar(scope, refresh \\ nil) do
+  defp sidebar(scope) do
     html =
       render_component(&AdminSidebar.admin_sidebar/1,
         current_path: "/admin",
         scope: scope,
-        locale: "en",
-        refresh: refresh
+        locale: "en"
       )
 
     LazyHTML.from_fragment(html)
@@ -116,7 +115,7 @@ defmodule PhoenixKit.Integration.AdminApprovalsTabTest do
       assert sidebar(scope) |> LazyHTML.query(@link <> " .badge") |> LazyHTML.text() =~ "1"
 
       pending!(agent, ["b"])
-      assert sidebar(scope, 1) |> LazyHTML.query(@link <> " .badge") |> LazyHTML.text() =~ "2"
+      assert sidebar(scope) |> LazyHTML.query(@link <> " .badge") |> LazyHTML.text() =~ "2"
     end
 
     test "the creator of a key is counted for their own approvals only", %{agent: agent} do

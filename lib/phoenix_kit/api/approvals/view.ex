@@ -32,6 +32,8 @@ defmodule PhoenixKit.API.Approvals.View do
   @label_keys ~w(name ref id)
   @row_keys ~w(name ref id action changes warnings error)
   @top_keys ~w(rows totals warnings)
+  @error_text_keys ~w(message detail)
+  @error_keys ~w(code message detail context)
 
   @type change :: %{field: String.t(), from: term(), to: term(), pct: String.t() | nil}
   @type row :: %{
@@ -40,7 +42,8 @@ defmodule PhoenixKit.API.Approvals.View do
           action: String.t() | nil,
           changes: [change()],
           warnings: [String.t()],
-          error: String.t() | nil
+          error: String.t() | nil,
+          error_code: String.t() | nil
         }
   @type t :: %{
           count: non_neg_integer() | nil,
@@ -60,6 +63,7 @@ defmodule PhoenixKit.API.Approvals.View do
   def preview(preview) when is_map(preview) do
     all_rows = if is_list(preview["rows"]), do: preview["rows"], else: []
     shown = Enum.take(all_rows, @max_rows)
+    count = count(preview, all_rows)
     parsed = Enum.map(shown, &row/1)
     {summary, totals_ok?} = totals(preview["totals"])
     {warnings, warnings_ok?} = warnings(preview["warnings"])
@@ -69,9 +73,9 @@ defmodule PhoenixKit.API.Approvals.View do
         Enum.all?(Map.keys(preview), &(&1 in @top_keys))
 
     %{
-      count: count(preview, all_rows),
+      count: count,
       rows: for({:ok, row, _clean?} <- parsed, do: row),
-      hidden: length(all_rows) - length(shown),
+      hidden: max((count || 0) - length(shown), 0),
       summary: summary,
       warnings: warnings,
       technical: if(understood?, do: nil, else: technical(preview, shown))
@@ -109,7 +113,7 @@ defmodule PhoenixKit.API.Approvals.View do
       {label, sub} ->
         {changes, changes_ok?} = changes(row["changes"])
         {warnings, warnings_ok?} = warnings(row["warnings"])
-        {error, error_ok?} = error(row["error"])
+        {error, error_code, error_ok?} = error(row["error"])
         {action, action_ok?} = text(row["action"])
 
         clean? =
@@ -123,7 +127,8 @@ defmodule PhoenixKit.API.Approvals.View do
            action: action,
            changes: changes,
            warnings: warnings,
-           error: error
+           error: error,
+           error_code: error_code
          }, clean?}
 
       nil ->
@@ -171,16 +176,28 @@ defmodule PhoenixKit.API.Approvals.View do
 
   defp warnings(_other), do: {[], false}
 
-  defp error(nil), do: {nil, true}
-  defp error(text) when is_binary(text), do: {text, true}
+  # A row's error is a sentence, or the tools' `%{"code", "message", "context"}`; the
+  # context is for the technical details of a caller, not for the table.
+  defp error(nil), do: {nil, nil, true}
+  defp error(text) when is_binary(text), do: {text, nil, true}
 
-  defp error(%{"message" => text} = map) when is_binary(text) and map_size(map) == 1,
-    do: {text, true}
+  defp error(%{} = map) do
+    message = Enum.find_value(@error_text_keys, &binary_value(map, &1))
+    code = binary_value(map, "code")
 
-  defp error(%{"detail" => text} = map) when is_binary(text) and map_size(map) == 1,
-    do: {text, true}
+    if message != nil and Enum.all?(Map.keys(map), &(&1 in @error_keys)),
+      do: {message, code, true},
+      else: {nil, nil, false}
+  end
 
-  defp error(_other), do: {nil, false}
+  defp error(_other), do: {nil, nil, false}
+
+  defp binary_value(map, key) do
+    case map[key] do
+      value when is_binary(value) and value != "" -> value
+      _other -> nil
+    end
+  end
 
   defp text(nil), do: {nil, true}
   defp text(text) when is_binary(text), do: {text, true}
@@ -224,6 +241,7 @@ defmodule PhoenixKit.API.Approvals.View do
         |> Decimal.mult(100)
         |> Decimal.div(Decimal.abs(from))
         |> Decimal.round(1)
+        |> unsigned_zero()
 
       sign = if Decimal.compare(pct, 0) == :gt, do: "+", else: ""
       sign <> Decimal.to_string(pct, :normal)
@@ -231,6 +249,9 @@ defmodule PhoenixKit.API.Approvals.View do
       _ -> nil
     end
   end
+
+  # A change that rounds to nothing is "0.0", not "-0.0".
+  defp unsigned_zero(pct), do: if(Decimal.eq?(pct, 0), do: Decimal.abs(pct), else: pct)
 
   defp decimal(value) when is_integer(value), do: Decimal.new(value)
   defp decimal(value) when is_float(value), do: Decimal.from_float(value)

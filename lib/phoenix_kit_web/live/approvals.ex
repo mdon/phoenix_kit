@@ -69,7 +69,6 @@ defmodule PhoenixKitWeb.Live.Approvals do
       |> assign(:api_scope, socket.assigns.phoenix_kit_current_scope)
       |> assign(:busy, nil)
       |> assign(:settled, %{})
-      |> assign(:sidebar_refresh, 0)
       |> load()
 
     {:ok, socket}
@@ -161,7 +160,11 @@ defmodule PhoenixKitWeb.Live.Approvals do
     scope = socket.assigns.api_scope
     settled = socket.assigns.settled
 
-    pending = scope |> Approvals.list_pending() |> decorate(:pending)
+    pending =
+      scope
+      |> Approvals.list_pending()
+      |> Enum.reject(&Map.has_key?(settled, &1.approval.uuid))
+      |> decorate(:pending)
 
     recent =
       scope
@@ -171,12 +174,13 @@ defmodule PhoenixKitWeb.Live.Approvals do
 
     cards =
       (pending ++ Map.values(settled))
-      |> Enum.sort_by(&{&1.approval.inserted_at, &1.approval.uuid})
+      |> Enum.sort_by(
+        &{DateTime.to_unix(&1.approval.inserted_at, :microsecond), &1.approval.uuid}
+      )
 
     socket
     |> assign(:cards, cards)
     |> assign(:recent, recent)
-    |> assign(:sidebar_refresh, socket.assigns.sidebar_refresh + 1)
   end
 
   # The lists, after the person's rights were read again: someone who lost `api` sees nothing.
@@ -190,7 +194,6 @@ defmodule PhoenixKitWeb.Live.Approvals do
         |> assign(:settled, %{})
         |> assign(:cards, [])
         |> assign(:recent, [])
-        |> assign(:sidebar_refresh, socket.assigns.sidebar_refresh + 1)
     end
   end
 
@@ -307,14 +310,32 @@ defmodule PhoenixKitWeb.Live.Approvals do
   # ── Template helpers ─────────────────────────────────────────────
 
   attr :row, :map, required: true
+  attr :id, :string, required: true
 
   defp preview_item(assigns) do
     ~H"""
-    <div class="font-medium">{@row.label}</div>
-    <div :if={@row.sub} class="font-mono text-xs text-base-content/60">{@row.sub}</div>
-    <div :for={warning <- @row.warnings} class="mt-1 flex items-start gap-1 text-xs text-warning">
-      <.icon name="hero-exclamation-triangle" class="w-3.5 h-3.5 mt-0.5 shrink-0" />
-      <span>{warning}</span>
+    <div id={@id}>
+      <div class="font-medium">{@row.label}</div>
+      <div :if={@row.sub} class="font-mono text-xs text-base-content/60">{@row.sub}</div>
+      <div :if={@row.action || @row.error} class="mt-1 flex flex-wrap items-center gap-1 text-sm">
+        <span :if={@row.action} id={@id <> "-action"} class="badge badge-ghost badge-sm">
+          {fact_label(@row.action)}
+        </span>
+        <span
+          :if={@row.error}
+          id={@id <> "-error"}
+          class="inline-flex flex-wrap items-center gap-1 text-error"
+        >
+          <span :if={@row.error_code} class="badge badge-error badge-outline badge-sm font-mono">
+            {@row.error_code}
+          </span>
+          {@row.error}
+        </span>
+      </div>
+      <div :for={warning <- @row.warnings} class="mt-1 flex items-start gap-1 text-xs text-warning">
+        <.icon name="hero-exclamation-triangle" class="w-3.5 h-3.5 mt-0.5 shrink-0" />
+        <span>{warning}</span>
+      </div>
     </div>
     """
   end
@@ -330,21 +351,41 @@ defmodule PhoenixKitWeb.Live.Approvals do
   # "rows 3, update 2": the totals of a preview, or the numbers of a result, as one phrase.
   defp sentence(facts) do
     Enum.map_join(facts, ", ", fn
-      {key, true} -> humanize(key)
-      {key, value} -> humanize(key) <> " " <> to_string(value)
+      {key, true} -> fact_label(key)
+      {key, value} -> fact_label(key) <> " " <> to_string(value)
     end)
   end
 
-  defp humanize(key), do: key |> String.replace(["_", "."], " ") |> String.trim()
+  # What a row did or will do, and the counts of it, in words; a key nobody here knows is
+  # shown as the tool wrote it.
+  defp fact_label(key) when key in ["create", "created"],
+    do: pgettext("approval summary", "created")
+
+  defp fact_label(key) when key in ["update", "updated"],
+    do: pgettext("approval summary", "updated")
+
+  defp fact_label(key) when key in ["delete", "deleted"],
+    do: pgettext("approval summary", "deleted")
+
+  defp fact_label(key) when key in ["remove", "removed"],
+    do: pgettext("approval summary", "removed")
+
+  defp fact_label("unchanged"), do: pgettext("approval summary", "unchanged")
+
+  defp fact_label(key) when key in ["skip", "skipped"],
+    do: pgettext("approval summary", "skipped")
+
+  defp fact_label("error"), do: pgettext("approval summary", "error")
+  defp fact_label(key), do: key |> String.replace(["_", "."], " ") |> String.trim()
 
   defp expires_in(%DateTime{} = expires_at) do
     seconds = DateTime.diff(expires_at, DateTime.utc_now(), :second)
 
     cond do
-      seconds < 60 -> gettext("less than a minute")
-      seconds < 3_600 -> gettext("%{count} min", count: div(seconds, 60))
-      seconds < 86_400 -> gettext("%{count} h", count: div(seconds, 3_600))
-      true -> gettext("%{count} d", count: div(seconds, 86_400))
+      seconds < 60 -> gettext("Expires in less than a minute")
+      seconds < 3_600 -> gettext("Expires in %{count} min", count: div(seconds, 60))
+      seconds < 86_400 -> gettext("Expires in %{count} h", count: div(seconds, 3_600))
+      true -> gettext("Expires in %{count} d", count: div(seconds, 86_400))
     end
   end
 
@@ -362,32 +403,36 @@ defmodule PhoenixKitWeb.Live.Approvals do
   defp status_class(status) when status in ["approved", "executing"], do: "badge-info"
   defp status_class(_other), do: "badge-ghost"
 
-  # What became of a decided approval, in words: `{alert class, sentence, detail}`. The
-  # detail is the tool's own explanation of a failure, which is English.
+  # What became of a decided approval, in words: the alert's class, the sentence and the
+  # detail. The detail is the tool's own explanation of a failure, which is English.
   defp outcome(%{status: "executed", result: result}) do
     case View.facts(result) do
-      [] -> {"alert-success", gettext("Done."), nil}
-      facts -> {"alert-success", gettext("Done: %{summary}", summary: sentence(facts)), nil}
+      [] -> outcome("alert-success", gettext("Done."))
+      facts -> outcome("alert-success", gettext("Done: %{summary}", summary: sentence(facts)))
     end
   end
 
   defp outcome(%{status: "stale"}),
     do:
-      {"alert-warning",
-       gettext("Not executed: the data changed since the request; nothing was written."), nil}
+      outcome(
+        "alert-warning",
+        gettext("Not executed: the data changed since the request; nothing was written.")
+      )
 
   defp outcome(%{status: "failed"} = approval) do
     detail = if failure_detail(approval) != "", do: failure_detail(approval)
-    {"alert-error", gettext("Failed: %{code}", code: failure_code(approval)), detail}
+    outcome("alert-error", gettext("Failed: %{code}", code: failure_code(approval)), detail)
   end
 
   defp outcome(%{status: "rejected"}),
-    do: {"alert-info", gettext("Rejected: nothing was run."), nil}
+    do: outcome("alert-info", gettext("Rejected: nothing was run."))
 
   defp outcome(%{status: "expired"}),
-    do: {"alert-info", gettext("Expired: nobody decided in time, nothing was run."), nil}
+    do: outcome("alert-info", gettext("Expired: nobody decided in time, nothing was run."))
 
-  defp outcome(_approved_or_executing), do: {"alert-info", gettext("Running."), nil}
+  defp outcome(_approved_or_executing), do: outcome("alert-info", gettext("Running."))
+
+  defp outcome(class, text, detail \\ nil), do: %{class: class, text: text, detail: detail}
 
   defp failure_code(%{result: %{"error" => %{"code" => code}}}) when is_binary(code), do: code
   defp failure_code(_approval), do: "unknown"

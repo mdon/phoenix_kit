@@ -116,13 +116,6 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
 
   attr :current_path, :string, default: nil
   attr :inner_content, :string, default: nil
-
-  attr :sidebar_refresh, :any,
-    default: nil,
-    doc:
-      "Any value; a page changes it to have the admin menu drawn again, so the number on a " <>
-        "menu entry (the approvals waiting) follows what the page just did."
-
   attr :project_title, :string, default: nil
 
   attr :show_admin_panel_label, :boolean,
@@ -865,7 +858,6 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
       admin_panel_text: admin_panel_text(),
       # The small "[dev]" tag beside the project title — see `resolve_dev_environment/1`.
       dev_environment?: resolve_dev_environment(assigns[:dev_environment]),
-      sidebar_refresh: assigns[:sidebar_refresh],
       current_locale: assigns[:current_locale],
       current_locale_base:
         assigns[:current_locale] && DialectMapper.extract_base(assigns[:current_locale]),
@@ -1300,7 +1292,6 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
                       current_path={@current_path || ""}
                       scope={@scope}
                       locale={@current_locale_base}
-                      refresh={@sidebar_refresh}
                     />
                   </div>
 
