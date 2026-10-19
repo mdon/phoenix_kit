@@ -2095,9 +2095,11 @@ defmodule PhoenixKit.Settings do
   When the key does not exist yet, two writers racing to create it can both read `nil`; the
   second insert is refused (`{:error, changeset}`) rather than overwriting the first.
 
-  Returns `{:ok, setting}`, `{:ok, :unchanged}` or `{:error, changeset}`. The history
-  entry, the cache and the change broadcast are as for `update_setting_with_module/4`, and
-  are announced only after the commit.
+  Returns `{:ok, setting}`, `{:ok, :unchanged}` or `{:error, changeset}` (a history entry
+  that cannot be written comes back as an error on the setting's changeset, and nothing is
+  written). `fun` returning anything but a binary or `:unchanged` raises `ArgumentError`
+  and rolls the transaction back. The history entry, the cache and the change broadcast are
+  as for `update_setting_with_module/4`, and are announced only after the commit.
 
   ## Examples
 
@@ -2133,24 +2135,28 @@ defmodule PhoenixKit.Settings do
         {:ok, {:unchanged, :unchanged}}
 
       value when is_binary(value) ->
-        with {:ok, setting} <- write_modified(repo, before, key, module, value),
-             {:ok, recorded} <- History.record(before, setting, opts) do
+        changeset = modified_changeset(before, key, module, value)
+
+        with {:ok, setting} <- write_modified(repo, before, changeset),
+             {:ok, recorded} <- Queries.record_or_error(before, setting, changeset, opts) do
           {:ok, {setting, recorded}}
         end
+
+      other ->
+        raise ArgumentError,
+              "the function given to modify_setting_with_module/4 must return a binary " <>
+                "or :unchanged, got: #{inspect(other)}"
     end
   end
 
-  defp write_modified(repo, %Setting{} = before, _key, module, value) do
-    before
-    |> Setting.update_changeset(%{value: value, module: module})
-    |> repo.update(log: false)
-  end
+  defp modified_changeset(%Setting{} = before, _key, module, value),
+    do: Setting.update_changeset(before, %{value: value, module: module})
 
-  defp write_modified(repo, nil, key, module, value) do
-    %Setting{}
-    |> Setting.changeset(%{key: key, value: value, module: module})
-    |> repo.insert(log: false)
-  end
+  defp modified_changeset(nil, key, module, value),
+    do: Setting.changeset(%Setting{}, %{key: key, value: value, module: module})
+
+  defp write_modified(repo, %Setting{}, changeset), do: repo.update(changeset, log: false)
+  defp write_modified(repo, nil, changeset), do: repo.insert(changeset, log: false)
 
   @doc """
   Updates or creates a boolean setting with module association.

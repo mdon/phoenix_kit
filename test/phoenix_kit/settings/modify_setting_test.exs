@@ -87,4 +87,29 @@ defmodule PhoenixKit.Settings.ModifySettingTest do
 
     assert Settings.get_setting(key) == "a"
   end
+
+  test "a history entry that cannot be written is an error on the setting's changeset",
+       %{key: key} do
+    {:ok, _} = Settings.update_setting(key, "a")
+
+    assert {:error, %Ecto.Changeset{data: %Setting{}, errors: errors}} =
+             Settings.modify_setting_with_module(key, "mod", append("b"),
+               actor_uuid: "not-a-uuid"
+             )
+
+    assert {message, _} = errors[:base]
+    assert message =~ "the change could not be recorded"
+    assert Settings.get_setting(key) == "a"
+  end
+
+  test "a function that returns neither a binary nor :unchanged raises and writes nothing",
+       %{key: key} do
+    {:ok, _} = Settings.update_setting(key, "a")
+
+    assert_raise ArgumentError, ~r/must return a binary or :unchanged, got: nil/, fn ->
+      Settings.modify_setting_with_module(key, "mod", fn _ -> nil end)
+    end
+
+    assert Settings.get_setting(key) == "a"
+  end
 end
