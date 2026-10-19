@@ -20664,32 +20664,44 @@ msgstr "API модуля %{module} ввімкнено."
 msgid "The API of %{module} is off."
 msgstr "API модуля %{module} вимкнено."
 
-#: lib/phoenix_kit_web/live/modules.ex:114
+#: lib/phoenix_kit_web/live/settings/api.html.heex:113
+#, elixir-autogen, elixir-format
+msgid "Switch the API of %{module} off"
+msgstr "Вимкнути API модуля %{module}"
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex:114
+#, elixir-autogen, elixir-format
+msgid "Switch the API of %{module} on"
+msgstr "Увімкнути API модуля %{module}"
+
+#: lib/phoenix_kit_web/live/modules.ex:120
+#: lib/phoenix_kit_web/live/settings/api.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "API on"
 msgstr "API ввімкнено"
 
-#: lib/phoenix_kit_web/live/modules.ex:115
+#: lib/phoenix_kit_web/live/modules.ex:121
+#: lib/phoenix_kit_web/live/settings/api.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "API off"
 msgstr "API вимкнено"
 
-#: lib/phoenix_kit_web/live/modules.ex:116
+#: lib/phoenix_kit_web/live/modules.ex:122
 #, elixir-autogen, elixir-format
 msgid "API idle"
 msgstr "API неактивний"
 
-#: lib/phoenix_kit_web/live/modules.ex:118
+#: lib/phoenix_kit_web/live/modules.ex:124
 #, elixir-autogen, elixir-format
 msgid "The module's tools can be called through the API."
 msgstr "Інструменти модуля можна викликати через API."
 
-#: lib/phoenix_kit_web/live/modules.ex:121
+#: lib/phoenix_kit_web/live/modules.ex:127
 #, elixir-autogen, elixir-format
 msgid "The module's API is switched off in Settings -> API."
 msgstr "API модуля вимкнено в розділі Налаштування -> API."
 
-#: lib/phoenix_kit_web/live/modules.ex:125
+#: lib/phoenix_kit_web/live/modules.ex:131
 #, elixir-autogen, elixir-format
 msgid "The module's API is on, but nothing can call it now: the module is disabled or the API it serves is switched off."
 msgstr "API модуля ввімкнено, але зараз його ніхто не може викликати: модуль вимкнено або API, яке він обслуговує, вимкнено."

@@ -107,7 +107,12 @@
             variant="toggle"
             class="toggle-lg"
             wrapper_class="shrink-0 flex-row-reverse"
-            label={if mod.api_on?, do: gettext("Enabled"), else: gettext("Disabled")}
+            label={if mod.api_on?, do: gettext("API on"), else: gettext("API off")}
+            aria-label={
+              if mod.api_on?,
+                do: gettext("Switch the API of %{module} off", module: module_label(mod)),
+                else: gettext("Switch the API of %{module} on", module: module_label(mod))
+            }
             checked={mod.api_on?}
             phx-click="set_module_api"
             phx-value-module={mod.key}

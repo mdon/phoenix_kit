@@ -20607,32 +20607,44 @@ msgstr "L'API di %{module} è attiva."
 msgid "The API of %{module} is off."
 msgstr "L'API di %{module} è disattivata."
 
-#: lib/phoenix_kit_web/live/modules.ex:114
+#: lib/phoenix_kit_web/live/settings/api.html.heex:113
+#, elixir-autogen, elixir-format
+msgid "Switch the API of %{module} off"
+msgstr "Disattiva l'API di %{module}"
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex:114
+#, elixir-autogen, elixir-format
+msgid "Switch the API of %{module} on"
+msgstr "Attiva l'API di %{module}"
+
+#: lib/phoenix_kit_web/live/modules.ex:120
+#: lib/phoenix_kit_web/live/settings/api.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "API on"
 msgstr "API attiva"
 
-#: lib/phoenix_kit_web/live/modules.ex:115
+#: lib/phoenix_kit_web/live/modules.ex:121
+#: lib/phoenix_kit_web/live/settings/api.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "API off"
 msgstr "API disattivata"
 
-#: lib/phoenix_kit_web/live/modules.ex:116
+#: lib/phoenix_kit_web/live/modules.ex:122
 #, elixir-autogen, elixir-format
 msgid "API idle"
 msgstr "API inattiva"
 
-#: lib/phoenix_kit_web/live/modules.ex:118
+#: lib/phoenix_kit_web/live/modules.ex:124
 #, elixir-autogen, elixir-format
 msgid "The module's tools can be called through the API."
 msgstr "Gli strumenti del modulo possono essere chiamati tramite l'API."
 
-#: lib/phoenix_kit_web/live/modules.ex:121
+#: lib/phoenix_kit_web/live/modules.ex:127
 #, elixir-autogen, elixir-format
 msgid "The module's API is switched off in Settings -> API."
 msgstr "L'API del modulo è disattivata in Impostazioni -> API."
 
-#: lib/phoenix_kit_web/live/modules.ex:125
+#: lib/phoenix_kit_web/live/modules.ex:131
 #, elixir-autogen, elixir-format
 msgid "The module's API is on, but nothing can call it now: the module is disabled or the API it serves is switched off."
 msgstr "L'API del modulo è attiva, ma al momento nessuno può chiamarla: il modulo è disattivato o l'API che serve è disattivata."

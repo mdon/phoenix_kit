@@ -90,6 +90,27 @@ defmodule PhoenixKitWeb.Live.Settings.ApiModulesTest do
     assert changed_settings(admin) == ["api_disabled_modules", "api_disabled_modules"]
   end
 
+  test "the switch names the module and the action, and says API on or API off", %{conn: conn} do
+    {:ok, view, _html} = live(conn, @path)
+
+    assert has_element?(
+             view,
+             ~s(#{@switch}[aria-label="Switch the API of API key test module off"])
+           )
+
+    assert has_element?(view, "#{@row} label", "API on")
+
+    render_click(element(view, @switch))
+
+    assert has_element?(
+             view,
+             ~s(#{@switch}[aria-label="Switch the API of API key test module on"])
+           )
+
+    assert has_element?(view, "#{@row} label", "API off")
+    refute has_element?(view, "#{@row} label", "API on")
+  end
+
   test "the flash names the module and the state it is in", %{conn: conn} do
     {:ok, view, _html} = live(conn, @path)
 
