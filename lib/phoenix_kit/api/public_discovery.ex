@@ -100,7 +100,7 @@ defmodule PhoenixKit.API.PublicDiscovery do
   @spec origin(Plug.Conn.t()) :: String.t()
   def origin(%Plug.Conn{host: host} = conn) do
     canonical = Origin.canonical_origin()
-    %URI{scheme: scheme, host: canonical_host, port: port} = URI.parse(canonical)
+    %URI{host: canonical_host} = URI.parse(canonical)
     host = String.downcase(host)
 
     cond do
@@ -108,15 +108,12 @@ defmodule PhoenixKit.API.PublicDiscovery do
         canonical
 
       Regex.match?(@host_grammar, host) and host in Origin.known_hosts(conn) ->
-        "#{scheme}://#{host}#{port_suffix(scheme, port)}"
+        Origin.origin_with_host(canonical, host)
 
       true ->
         canonical
     end
   end
-
-  defp port_suffix(scheme, port),
-    do: if(port in [nil, URI.default_port(scheme)], do: "", else: ":#{port}")
 
   @doc "The URL of the guide under `origin`."
   @spec guide_url(String.t()) :: String.t()

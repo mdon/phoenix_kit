@@ -49,6 +49,7 @@ defmodule PhoenixKit.API.MCP.Origin do
   require Logger
 
   @last_resort_origin "http://localhost:4000"
+  @fallback_flag {__MODULE__, :fallback_warned}
 
   @doc """
   Passes `conn` when it has no `Origin` header or an allowed one; otherwise
@@ -110,20 +111,74 @@ defmodule PhoenixKit.API.MCP.Origin do
   @doc """
   The canonical origin, `scheme://host[:port]`: that of the `site_url` setting
   (read through the settings cache), else of the endpoint's URL, else of the
-  static configuration, else `http://localhost:4000`. The host is lowercase and
-  a default port is left out.
+  static configuration, else `http://localhost:4000`. A rung that is set but
+  unusable (no scheme, not `http(s)`, no host) is skipped. The host is
+  lowercase and a default port is left out.
+
+  The last two rungs mean the install never said what its public address is:
+  that is logged once per boot. It never raises.
 
   The same source as `PhoenixKit.Utils.Routes.base_url/0`, but without its
   uncached database read, so a public request can use it.
   """
   @spec canonical_origin() :: String.t()
   def canonical_origin do
-    origin_of(base_url()) || static_origin()
+    site_url_origin() || endpoint_origin() || fallback_origin()
   rescue
-    _ -> static_origin()
+    _ -> fallback_origin()
   end
 
-  defp static_origin, do: origin_of(PhoenixKit.Config.get_base_url()) || @last_resort_origin
+  @doc """
+  `origin` (as `canonical_origin/0` returns it) with `host` in place of its
+  host: the scheme and the port are kept.
+  """
+  @spec origin_with_host(String.t(), String.t()) :: String.t()
+  def origin_with_host(origin, host) when is_binary(origin) and is_binary(host) do
+    %URI{scheme: scheme, port: port} = URI.parse(origin)
+    "#{scheme}://#{host_text(host)}#{port_suffix(scheme, port)}"
+  end
+
+  defp site_url_origin do
+    case cached_site_url() do
+      site_url when is_binary(site_url) and site_url != "" -> origin_of(site_url)
+      _unset -> nil
+    end
+  end
+
+  defp endpoint_origin do
+    case PhoenixKit.Config.get_parent_endpoint_url() do
+      {:ok, url} -> origin_of(url)
+      :error -> nil
+    end
+  end
+
+  defp fallback_origin do
+    {rung, origin} =
+      try do
+        case origin_of(PhoenixKit.Config.get_base_url()) do
+          nil -> {"the built-in default", @last_resort_origin}
+          origin -> {"the static configuration", origin}
+        end
+      rescue
+        _ -> {"the built-in default", @last_resort_origin}
+      end
+
+    warn_once(rung, origin)
+    origin
+  end
+
+  defp warn_once(rung, origin) do
+    unless :persistent_term.get(@fallback_flag, false) do
+      :persistent_term.put(@fallback_flag, true)
+
+      Logger.warning(
+        "MCP.Origin: the canonical origin is #{origin}, from #{rung}: the site_url " <>
+          "setting is unset or unusable and the endpoint has no usable URL. The public " <>
+          "API guide, catalog and llms.txt name this address; set site_url to the site's " <>
+          "public address."
+      )
+    end
+  end
 
   defp origin_of(url) when is_binary(url) do
     case URI.new(url) do

@@ -26,8 +26,34 @@ defmodule PhoenixKit.API.MCP.OriginCanonicalTest do
       Supervisor.child_spec({PhoenixKit.Cache, name: :settings}, id: :settings_cache)
     )
 
-    on_exit(fn -> Application.delete_env(:phoenix_kit, :api_request_context) end)
+    :persistent_term.erase({Origin, :fallback_warned})
+
+    on_exit(fn ->
+      Application.delete_env(:phoenix_kit, :api_request_context)
+      :persistent_term.erase({Origin, :fallback_warned})
+    end)
+
     :ok
+  end
+
+  defp with_env(key, value) do
+    previous = Application.fetch_env(:phoenix_kit, key)
+
+    if value == nil,
+      do: Application.delete_env(:phoenix_kit, key),
+      else: Application.put_env(:phoenix_kit, key, value)
+
+    on_exit(fn ->
+      case previous do
+        {:ok, old} -> Application.put_env(:phoenix_kit, key, old)
+        :error -> Application.delete_env(:phoenix_kit, key)
+      end
+    end)
+  end
+
+  defp assert_origin_twice(origin) do
+    assert Origin.canonical_origin() == origin
+    assert Origin.canonical_origin() == origin
   end
 
   describe "canonical_origin/0" do
@@ -55,27 +81,47 @@ defmodule PhoenixKit.API.MCP.OriginCanonicalTest do
       assert Origin.canonical_origin() == "https://shop.test"
     end
 
-    test "without a usable site_url it is the endpoint's URL, a real origin" do
-      for site_url <- ["", "ftp://shop.test", "not a url", "https://"] do
-        put_setting("site_url", site_url)
-        assert Origin.canonical_origin() =~ ~r{\Ahttps?://[a-z0-9.\[\]:-]+\z}, site_url
-      end
+    test "without a usable site_url it is the endpoint's URL, exactly, and nothing is logged" do
+      # The static configuration answers http://localhost:4000: only the
+      # endpoint rung gives this.
+      assert {:ok, "http://localhost"} = PhoenixKit.Config.get_parent_endpoint_url()
+      refute PhoenixKit.Config.get_base_url() == "http://localhost"
+
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          for site_url <- ["", "shop.test", "ftp://shop.test", "not a url", "https://"] do
+            put_setting("site_url", site_url)
+            assert Origin.canonical_origin() == "http://localhost", site_url
+          end
+        end)
+
+      assert log == ""
     end
 
-    test "with nothing usable anywhere it is still a string: the literal last resort" do
-      scheme = Application.fetch_env(:phoenix_kit, :scheme)
-      Application.put_env(:phoenix_kit, :scheme, "gopher")
+    test "with no endpoint it is the static configuration, and says so once" do
+      with_env(:parent_module, nil)
+      with_env(:scheme, "https")
+      with_env(:host, "static.test")
+      with_env(:port, 8443)
+      put_setting("site_url", "")
 
-      on_exit(fn ->
-        case scheme do
-          {:ok, value} -> Application.put_env(:phoenix_kit, :scheme, value)
-          :error -> Application.delete_env(:phoenix_kit, :scheme)
-        end
-      end)
+      log =
+        ExUnit.CaptureLog.capture_log(fn -> assert_origin_twice("https://static.test:8443") end)
 
+      assert log =~ "https://static.test:8443"
+      assert log =~ "site_url"
+      assert length(String.split(log, "canonical origin")) == 2
+    end
+
+    test "with nothing usable anywhere it is still a string: the literal last resort, logged" do
+      with_env(:parent_module, nil)
+      with_env(:scheme, "gopher")
       put_setting("site_url", "ftp://shop.test")
 
-      assert Origin.canonical_origin() == "http://localhost:4000"
+      log = ExUnit.CaptureLog.capture_log(fn -> assert_origin_twice("http://localhost:4000") end)
+
+      assert log =~ "http://localhost:4000"
+      assert length(String.split(log, "canonical origin")) == 2
     end
 
     test "reads the settings cache, not the database" do
@@ -86,6 +132,16 @@ defmodule PhoenixKit.API.MCP.OriginCanonicalTest do
 
       assert origin == "https://shop.test"
       assert queries == 0
+    end
+  end
+
+  describe "origin_with_host/2" do
+    test "keeps the scheme and the port of the origin, whatever the host" do
+      assert Origin.origin_with_host("https://shop.test", "a.test") == "https://a.test"
+      assert Origin.origin_with_host("https://shop.test:8443", "a.test") == "https://a.test:8443"
+      assert Origin.origin_with_host("http://localhost:4000", "b.test") == "http://b.test:4000"
+      assert Origin.origin_with_host("https://shop.test", "A.Test") == "https://a.test"
+      assert Origin.origin_with_host("https://shop.test", "::1") == "https://[::1]"
     end
   end
 
