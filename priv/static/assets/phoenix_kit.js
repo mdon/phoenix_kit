@@ -3327,6 +3327,8 @@ if (typeof window.Chart === "undefined") {
     module.exports.formatDateIso = formatDateIso;
   }
 
+  var warnedNoUtilities = false;
+
   window.PhoenixKitHooks.PkDateInput = {
     mounted() {
       var self = this;
@@ -3363,7 +3365,8 @@ if (typeof window.Chart === "undefined") {
       if (pick && v.validity && v.validity.badInput) pick = false;
       if (pick && v.value === "" && this.el.dataset.required === "true") {
         // Emptied during the connect window, on a required field: that is not
-        // a value. Keep the server's date and say so.
+        // a value. Keep the server's date (put back into the date input) and say so.
+        v.value = isoOrEmpty(v.defaultValue);
         this.reject("format");
       } else if (pick) {
         this.syncText();
@@ -3401,7 +3404,7 @@ if (typeof window.Chart === "undefined") {
       if (!res.error) {
         v.value = res.iso;
         this.lastIso = res.iso;
-      } else if (!t.disabled && !t.readOnly) {
+      } else if (!(t.matches && t.matches(":disabled")) && !t.readOnly) {
         this.reject(res.error);
       }
     },
@@ -3416,6 +3419,8 @@ if (typeof window.Chart === "undefined") {
       var attr = v.getAttribute("value");
       var attrMoved = attr !== this.serverAttr;
       this.serverAttr = attr;
+      // The echo of the value the hook itself sent is not the server moving it.
+      if (attrMoved && (attr || "") === this.sentIso) attrMoved = false;
       var stored = !!attr && isoOrEmpty(attr) === "";
       // The same stored text again: keep the date taken from it at mount.
       if (stored && !attrMoved && v.value === "" && this.lastIso) v.value = this.lastIso;
@@ -3462,7 +3467,8 @@ if (typeof window.Chart === "undefined") {
         if (css && css.display === "none") {
           this.el.removeAttribute("data-enhanced");
           this.degraded = true;
-          if (typeof console !== "undefined") console.warn("PkDateInput: the stylesheet lacks the group-data-[enhanced] utilities; rebuild the CSS. Using the browser's date input.");
+          if (!warnedNoUtilities && typeof console !== "undefined") console.warn("PkDateInput: the stylesheet lacks the group-data-[enhanced] utilities; rebuild the CSS. Using the browser's date input.");
+          warnedNoUtilities = true;
           return;
         }
         // Sticky across patches: morphdom would strip a plain attribute the
@@ -3612,6 +3618,7 @@ if (typeof window.Chart === "undefined") {
       if (!v || v.value === iso) return;
       v.value = iso;
       this.lastIso = iso;
+      this.sentIso = iso;
       v.dispatchEvent(new Event("input", { bubbles: true }));
     },
 

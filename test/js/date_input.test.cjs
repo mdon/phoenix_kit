@@ -247,6 +247,7 @@ function makeHook({ iso = "", text, format = "d.m.Y", required = false, submitFo
     getAttribute(k) { return k in attrs ? attrs[k] : extra.attrs && k in extra.attrs ? extra.attrs[k] : null; },
     hasAttribute(k) { return k in attrs || (extra.attrs && k in extra.attrs); },
     disabled: !!extra.textDisabled,
+    matches(sel) { return sel === ":disabled" && (this.disabled || !!extra.fieldsetDisabled); },
     readOnly: !!extra.textReadOnly,
     focus() { global.document.activeElement = textEl; },
   };
@@ -1042,6 +1043,7 @@ test("a half-edited native date at connect is not a pick", () => {
 test("a native date emptied at connect on a required field keeps the server's date and is refused", () => {
   const h = makeHook({ iso: "", text: "16.10.2026", required: true, extra: { defaultIso: "2026-10-16", defaultText: "16.10.2026" } });
   assert.deepEqual(h.events, [], "no empty value reaches the server");
+  assert.equal(h.valueEl.value, "2026-10-16", "the date input holds the server's date again");
   assert.equal(h.textEl.value, "16.10.2026");
   assert.ok(h.hook.rejected);
 
@@ -1081,7 +1083,7 @@ test("a server change of a stored value drops the remembered rejection", () => {
 });
 
 test("a stored value the date input cannot hold is not marked on a disabled or readonly field", () => {
-  for (const flag of ["textDisabled", "textReadOnly"]) {
+  for (const flag of ["textDisabled", "textReadOnly", "fieldsetDisabled"]) {
     const h = makeHook({ iso: "", text: "garbage", extra: { defaultIso: "garbage", defaultText: "garbage", [flag]: true } });
     assert.equal(h.hook.rejected, null, flag);
     assert.ok(!h.textEl.classList.contains("input-error"), flag);
@@ -1106,6 +1108,8 @@ test("a stylesheet without the swap utilities leaves the browser's date input in
     h.hook.updated();
     assert.ok(!("data-enhanced" in h.el.attrs), "stays that way after a patch");
     assert.equal(warnings.length, 1, "warned once");
+    makeHook({ iso: "2026-10-16" });
+    assert.equal(warnings.length, 1, "once per page, not per field");
   } finally {
     window.getComputedStyle = saved;
     console.warn = warn;
@@ -1123,4 +1127,18 @@ test("a caller's title survives the rejection mark and comes back after it", () 
   h.textEl.value = "20.10.2026";
   h.hook.commit();
   assert.equal(h.attrs.title, "Birthday");
+});
+
+test("the echo of the value the hook sent does not wipe a rejection typed while the reply was in flight", () => {
+  const h = makeHook({ iso: "2026-10-16" });
+  h.textEl.value = "20.10.2026";
+  h.hook.commit();
+  assert.deepEqual(h.events, [["input", "2026-10-20"]]);
+  h.textEl.value = "99.99";
+  h.hook.commit();
+  assert.ok(h.hook.rejected);
+  h.valueEl.defaultValue = "2026-10-20";
+  h.hook.updated();
+  assert.deepEqual(h.hook.rejected, { text: "99.99", reason: "format" });
+  assert.equal(h.textEl.value, "99.99");
 });

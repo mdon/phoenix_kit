@@ -84,9 +84,10 @@ defmodule PhoenixKitWeb.Components.Core.DateInput do
     * Everything else goes to the visible input: `tabindex`, `phx-click`,
       `phx-blur`, `phx-focus`, `phx-keydown`, `phx-keyup`, `phx-key`, `lang`,
       `spellcheck`, `onkeydown`/`onkeyup`/`onfocus`/`onblur`/`oninput`,
-      `style`, `title`, `autofocus` (the hook focuses the field on mount, the
-      browser cannot: the field is `hidden` when it is inserted; not when the
-      person already focused another field),
+      `style`, `title`, `autofocus` (on both inputs: the browser focuses the
+      native one on a page with no hook, and the hook then moves the focus to
+      the text field, which the browser cannot do itself because it is `hidden`
+      when inserted; not when the person already focused another field),
       `autocomplete` and `inputmode` (which replace the defaults `off` and
       `numeric`/`text`), `aria-*`, … (the value element cannot be clicked or
       focused by a person).
