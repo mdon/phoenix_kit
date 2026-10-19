@@ -62,7 +62,7 @@ global.window = {
 global.localStorage = storage;
 global.sessionStorage = storage;
 
-const { parseDateText, checkDateText, formatDateIso, dateOrder, popupPlacement } = require("../../priv/static/assets/phoenix_kit.js");
+const { parseDateText, checkDateText, formatDateIso, dateOrder, popupPlacement, calendarLocale } = require("../../priv/static/assets/phoenix_kit.js");
 
 const FORMATS = ["Y-m-d", "m/d/Y", "d/m/Y", "d.m.Y", "d-m-Y", "F j, Y"];
 
@@ -238,7 +238,7 @@ function makeHook({ iso = "", text, format = "d.m.Y", required = false, submitFo
   const textEl = {
     value: text === undefined ? (iso ? formatDateIso(iso, format) : "") : text,
     defaultValue: "",
-    required,
+    required: false, // the server leaves it off; the hook sets it from data-required
     classList: fakeClassList(),
     validity: "",
     setCustomValidity(m) { this.validity = m; },
@@ -256,29 +256,44 @@ function makeHook({ iso = "", text, format = "d.m.Y", required = false, submitFo
   };
   const events = [];
   const dispatched = [];
+  const valueAttrs = { required: "", ...(extra.valueAttrs || {}) };
   const valueEl = {
     value: iso,
+    defaultValue: extra.defaultIso !== undefined ? extra.defaultIso : iso,
     disabled: false,
+    attrs: valueAttrs,
+    setAttribute(k, v) { valueAttrs[k] = v; },
+    removeAttribute(k) { delete valueAttrs[k]; },
     form,
     dispatchEvent(e) { events.push([e.type, this.value]); dispatched.push(e); },
     showPicker() { this.picked = true; },
   };
   const clearBtn = { classList: fakeClassList() };
+  const hintEl = { textContent: "" };
   const listeners = [];
   const inside = new Set();
+  const elAttrs = {};
   const el = {
-    dataset: { format, today: TODAY, expected: "Expected 16.10.2026", ...(extra.dataset || {}) },
+    dataset: { format, today: TODAY, expected: "Expected 16.10.2026", ...(required ? { required: "true" } : {}), ...(extra.dataset || {}) },
+    attrs: elAttrs,
+    setAttribute(k, v) { elAttrs[k] = v; },
     addEventListener(type, fn) { listeners.push([type, fn]); },
+    closest: () => null,
     contains: (node) => inside.has(node),
     isConnected: true,
     querySelector(sel) {
-      return { "[data-date-text]": textEl, "[data-date-value]": valueEl, "[data-clear]": clearBtn }[sel] || null;
+      return {
+        "[data-date-text]": textEl,
+        "[data-date-value]": valueEl,
+        "[data-clear]": clearBtn,
+        "[data-date-hint]": hintEl,
+      }[sel] || null;
     },
   };
   const hook = Object.assign(Object.create(hookDef), { el });
   global.document.activeElement = null;
   hook.mounted();
-  return { hook, textEl, valueEl, clearBtn, events, attrs, dispatched, listeners, formListeners, inside };
+  return { hook, el, textEl, valueEl, clearBtn, hintEl, events, attrs, dispatched, listeners, formListeners, inside };
 }
 
 const keydown = (key) => ({ key, isComposing: false, prevented: false, preventDefault() { this.prevented = true; } });
@@ -679,4 +694,219 @@ test("the form's reset puts the text back in step with the restored value", asyn
   // destroyed() takes it off again.
   h.hook.destroyed();
   assert.ok(h.formListeners.some(([op, type, fn]) => op === "remove" && type === "reset" && fn === adds[0][2]));
+});
+
+// ---------------------------------------------------------------------------
+// Progressive enhancement: the server renders a native date input; the hook
+// turns it into the invisible value element behind the text field.
+// ---------------------------------------------------------------------------
+test("mounting enhances: the wrapper is flagged, the date input is hidden from the keyboard and screen readers", () => {
+  const h = makeHook({ iso: "2026-10-16" });
+  assert.ok("data-enhanced" in h.el.attrs);
+  assert.equal(h.valueEl.attrs.tabindex, "-1");
+  assert.equal(h.valueEl.attrs["aria-hidden"], "true");
+});
+
+test("required moves from the date input to the text field", () => {
+  const h = makeHook({ iso: "2026-10-16", extra: { dataset: { required: "true" } } });
+  assert.ok(!("required" in h.valueEl.attrs), "a required control that is not displayed would block the submit");
+  assert.equal(h.textEl.required, true);
+
+  const g = makeHook({ iso: "2026-10-16" });
+  assert.equal(g.textEl.required, false);
+});
+
+test("text restored by the browser before connect is judged as a required field's text", () => {
+  // Emptied text on a required field is refused, not committed as a clear: the
+  // hook must know the field is required before it commits at mount.
+  const h = makeHook({ iso: "2026-10-16", text: "", required: true, extra: { defaultText: "16.10.2026" } });
+  assert.deepEqual(h.events, []);
+  assert.equal(h.valueEl.value, "2026-10-16");
+  assert.ok(h.textEl.classList.contains("input-error"));
+});
+
+test("a patch that puts the server's markup back is enhanced again", () => {
+  const h = makeHook({ iso: "2026-10-16", extra: { dataset: { required: "true" } } });
+  // The patch restores what the server rendered: no flag, required on the date input.
+  delete h.el.attrs["data-enhanced"];
+  delete h.valueEl.attrs.tabindex;
+  delete h.valueEl.attrs["aria-hidden"];
+  h.valueEl.attrs.required = "";
+  h.textEl.required = false;
+  h.hook.updated();
+  assert.ok("data-enhanced" in h.el.attrs);
+  assert.equal(h.valueEl.attrs.tabindex, "-1");
+  assert.equal(h.valueEl.attrs["aria-hidden"], "true");
+  assert.ok(!("required" in h.valueEl.attrs));
+  assert.equal(h.textEl.required, true);
+});
+
+test("a date picked in the native input before the socket connected is carried over", () => {
+  const h = makeHook({ iso: "2026-10-20", text: "16.10.2026", extra: { defaultIso: "2026-10-16", defaultText: "16.10.2026" } });
+  assert.equal(h.textEl.value, "20.10.2026", "the text follows the date that was picked");
+  assert.equal(h.dispatched.length, 1, "and the server is told");
+  assert.equal(h.dispatched[0].type, "input");
+  assert.equal(h.dispatched[0].bubbles, true);
+
+  const g = makeHook({ iso: "2026-10-16" });
+  assert.deepEqual(g.events, [], "an untouched date input sends nothing");
+});
+
+// ---------------------------------------------------------------------------
+// The rejection hint (a live region the text input points at).
+// ---------------------------------------------------------------------------
+test("a rejected entry is said in the hint; a good one, a clear or a server date empties it", () => {
+  const dataset = { min: "2026-10-01", max: "2026-10-31", rangeMessage: "Pick a date between 01.10.2026 and 31.10.2026" };
+  const h = makeHook({ iso: "2026-10-16", extra: { dataset } });
+  assert.equal(h.hintEl.textContent, "");
+
+  h.textEl.value = "5.11";
+  h.hook.commit();
+  assert.equal(h.hintEl.textContent, "Expected 16.10.2026");
+
+  h.textEl.value = "05.11.2026";
+  h.hook.commit();
+  assert.equal(h.hintEl.textContent, "Pick a date between 01.10.2026 and 31.10.2026");
+
+  h.textEl.value = "20.10.2026";
+  h.hook.commit();
+  assert.equal(h.hintEl.textContent, "");
+
+  h.textEl.value = "5.11";
+  h.hook.commit();
+  h.hook.clear();
+  assert.equal(h.hintEl.textContent, "");
+});
+
+test("a patch does not rewrite an unchanged hint", () => {
+  const h = makeHook({ iso: "2026-10-16" });
+  h.textEl.value = "16.1";
+  h.hook.commit();
+  let writes = 0;
+  let text = h.hintEl.textContent;
+  Object.defineProperty(h.hintEl, "textContent", { get: () => text, set: (v) => { writes += 1; text = v; } });
+  h.hook.updated();
+  h.hook.updated();
+  assert.equal(writes, 0, "rewriting a live region makes a screen reader say it again");
+  assert.equal(text, "Expected 16.10.2026");
+});
+
+// ---------------------------------------------------------------------------
+// The calendar popup's footer lives in a <template> LiveView does not patch.
+// ---------------------------------------------------------------------------
+function stubFooter() {
+  const today = { disabled: false };
+  const clear = { classList: fakeClassList() };
+  clear.classList.add("hidden");
+  return {
+    today,
+    clear,
+    popup: { querySelector: (sel) => ({ "[data-popup-today]": today, "[data-popup-clear]": clear }[sel] || null) },
+  };
+}
+
+test("Today is disabled when today lies outside min/max, read from the wrapper at each open", () => {
+  const f = stubFooter();
+  const h = makeHook({ iso: "2026-10-16", extra: { dataset: { max: "2026-10-10" } } });
+  h.hook.syncFooter(f.popup);
+  assert.equal(f.today.disabled, true);
+
+  // The range follows another field and moves: the next open sees it.
+  h.el.dataset.max = "2026-12-31";
+  h.hook.syncFooter(f.popup);
+  assert.equal(f.today.disabled, false);
+
+  h.el.dataset.min = "2026-10-17";
+  h.hook.syncFooter(f.popup);
+  assert.equal(f.today.disabled, true);
+});
+
+test("the popup's Clear shows only for a clearable field", () => {
+  const f = stubFooter();
+  const h = makeHook({ iso: "2026-10-16" });
+  h.hook.syncFooter(f.popup);
+  assert.ok(f.clear.classList.contains("hidden"));
+
+  h.el.dataset.clearable = "true";
+  h.hook.syncFooter(f.popup);
+  assert.ok(!f.clear.classList.contains("hidden"));
+});
+
+// ---------------------------------------------------------------------------
+// What closes the popup, and the calendar's locale.
+// ---------------------------------------------------------------------------
+test("the popup closes on the page's or an ancestor's scroll, not on an unrelated panel's", () => {
+  const h = makeHook({ iso: "2026-10-16" });
+  const inPopup = {};
+  const popup = { contains: (n) => n === inPopup };
+  h.hook.popupEl = () => popup;
+  const closes = [];
+  h.hook.closePopup = (refocus) => closes.push(refocus);
+  h.hook.bindClosers();
+
+  const scroll = h.hook.closers.find(([target, type]) => target === global.window && type === "scroll")[2];
+  scroll({ target: { contains: () => false } });
+  scroll({ target: inPopup });
+  assert.deepEqual(closes, [], "an unrelated panel and the calendar's own scrolling keep it open");
+
+  scroll({ target: { contains: (n) => n === h.el } });
+  scroll({ target: global.document });
+  assert.deepEqual(closes, [false, false]);
+});
+
+test("the calendar is Gregorian whatever the language's default calendar is", () => {
+  assert.equal(calendarLocale("de"), "de-u-ca-gregory");
+  assert.equal(calendarLocale("th"), "th-u-ca-gregory");
+  assert.equal(calendarLocale("ar-SA"), "ar-SA-u-ca-gregory");
+  assert.equal(calendarLocale("th-u-ca-buddhist"), "th-u-ca-buddhist", "a tag that names a calendar is left alone");
+  assert.equal(calendarLocale(undefined), "en-u-ca-gregory");
+  // Intl takes the tags it produces (and the calendar really is Gregorian).
+  for (const tag of ["de", "th", "ar-SA", "fa"]) {
+    const resolved = new Intl.DateTimeFormat(calendarLocale(tag)).resolvedOptions();
+    assert.equal(resolved.calendar, "gregory", tag);
+  }
+});
+
+test("the calendar is built with the Gregorian locale, the week start and today", () => {
+  const h = makeHook({ iso: "2026-10-16", extra: { dataset: { locale: "th", weekStart: "0" } } });
+  const attrs = {};
+  const cal = { setAttribute: (k, v) => { attrs[k] = v; }, addEventListener() {} };
+  const popup = { appendChild() {}, querySelector: (sel) => (sel === "calendar-date" ? cal : null) };
+  const query = h.el.querySelector;
+  h.el.querySelector = (sel) => (sel === "[data-popup-template]" ? { content: { cloneNode: () => ({}) } } : query(sel));
+  assert.equal(h.hook.buildPopup(popup), true);
+  assert.equal(attrs.locale, "th-u-ca-gregory");
+  assert.equal(attrs["first-day-of-week"], "0");
+  assert.equal(attrs.today, TODAY);
+});
+
+test("opening the calendar sets its footer from the wrapper's current data", () => {
+  const h = makeHook({ iso: "2026-10-16", extra: { dataset: { max: "2026-10-10", clearable: "true" } } });
+  const f = stubFooter();
+  const calAttrs = {};
+  const cal = {
+    setAttribute: (k, v) => { calAttrs[k] = v; },
+    removeAttribute: (k) => { delete calAttrs[k]; },
+    focus() {},
+  };
+  const popup = {
+    style: {},
+    showPopover() { this.open = true; },
+    matches() { return !!this.open; },
+    contains: () => false,
+    querySelector: (sel) => (sel === "calendar-date" ? cal : f.popup.querySelector(sel)),
+  };
+  h.hook.popupEl = () => popup;
+  const raf = global.requestAnimationFrame;
+  global.requestAnimationFrame = () => 0;
+  try {
+    h.hook.showPopup();
+  } finally {
+    global.requestAnimationFrame = raf;
+    h.hook.closers = null;
+  }
+  assert.ok(popup.open, "the popup opened");
+  assert.equal(calAttrs.max, "2026-10-10");
+  assert.equal(f.today.disabled, true, "today is past max");
+  assert.ok(!f.clear.classList.contains("hidden"), "a clearable field shows Clear");
 });
