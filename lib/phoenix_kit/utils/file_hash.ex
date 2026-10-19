@@ -19,6 +19,7 @@ defmodule PhoenixKit.Utils.FileHash do
   """
 
   @chunk_size 1_048_576
+  @algorithms [:sha256, :md5, :sha, :sha384, :sha512]
 
   @type algorithm :: :sha256 | :md5 | :sha | :sha384 | :sha512
   @type result :: {:ok, String.t()} | {:error, File.posix() | :badarg}
@@ -42,15 +43,16 @@ defmodule PhoenixKit.Utils.FileHash do
   @doc """
   Several digests of the file in one pass over it.
 
-  Returns `{:ok, %{algorithm => hex}}` for the algorithms asked for.
-  `opts`: `:chunk_size` (bytes per read; default 1 MiB).
+  Returns `{:ok, %{algorithm => hex}}` for the algorithms asked for, or
+  `{:error, :badarg}` when one is not an `t:algorithm/0`. `opts`: `:chunk_size` (bytes per read; default 1 MiB).
   """
   @spec hashes(Path.t(), [algorithm()], keyword()) ::
           {:ok, %{algorithm() => String.t()}} | {:error, File.posix() | :badarg}
   def hashes(path, algorithms, opts \\ []) when is_list(algorithms) and algorithms != [] do
     chunk = chunk_size(opts)
 
-    with {:ok, io} <- File.open(path, [:read, :raw, :binary]) do
+    with :ok <- check_algorithms(algorithms),
+         {:ok, io} <- File.open(path, [:read, :raw, :binary]) do
       try do
         states = Map.new(algorithms, &{&1, :crypto.hash_init(&1)})
 
@@ -66,6 +68,9 @@ defmodule PhoenixKit.Utils.FileHash do
       end
     end
   end
+
+  defp check_algorithms(algorithms),
+    do: if(Enum.all?(algorithms, &(&1 in @algorithms)), do: :ok, else: {:error, :badarg})
 
   defp single(path, algorithm, opts) do
     with {:ok, digests} <- hashes(path, [algorithm], opts),

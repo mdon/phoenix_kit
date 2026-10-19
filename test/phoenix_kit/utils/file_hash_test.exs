@@ -78,6 +78,12 @@ defmodule PhoenixKit.Utils.FileHashTest do
       assert_raise File.Error, fn -> FileHash.md5!(path) end
     end
 
+    test "an algorithm that is not offered is an error value, not a raise", %{dir: dir} do
+      path = write!(dir, "abc", "abc")
+
+      assert {:error, :badarg} = FileHash.hashes(path, [:sha256, :crc32])
+    end
+
     test "a directory is an error", %{dir: dir} do
       assert {:error, _reason} = FileHash.sha256(dir)
     end
