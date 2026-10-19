@@ -40,6 +40,17 @@ defmodule PhoenixKit.HeaderWidget do
   `live_session`'s `on_mount` hooks and without `current_scope`, and for every signed-in user
   of an admin-layout page. The widget has to check the permission itself from the session
   (see `c:PhoenixKit.Module.header_widgets/0`).
+
+  `session_fun` receives the layout's assigns, **not** the cookie session and not the session
+  token. A widget that needs the session reference or an impersonation check does it itself
+  in its connected `mount/3`: LiveView merges the cookie session from `connect_info` into the
+  session of every LiveView, so `PhoenixKit.Users.Auth.SessionRef.from_session/1` and
+  `PhoenixKitWeb.Users.MultiSession.impersonated?/1` can be called there on the `session`
+  argument (both arrive with the agent-execute PR; this branch does not depend on them).
+  `:impersonating?` in the assigns is a hint for rendering: it is read from
+  `scope.multi_session_accounts` and is always `false` while multi-session is off, so it is
+  not a guarantee. Keep secrets out of the session map: a nested LiveView's session is
+  signed, not encrypted.
   """
 
   @type session_fun :: (map() -> map() | nil)

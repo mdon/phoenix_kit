@@ -213,6 +213,23 @@ defmodule PhoenixKitWeb.Live.HeaderWidgetsTest do
       end)
     end
 
+    test "the session function gets the same locale base as the bell", %{conn: conn} do
+      with_registered([PlainModule], fn ->
+        {_admin, view, _html} = admin_live(conn, @path <> "?locale=en")
+
+        child = find_live_child(view, "pk-test-widget")
+
+        [locale] =
+          child
+          |> render()
+          |> LazyHTML.from_fragment()
+          |> LazyHTML.query("[data-locale]")
+          |> LazyHTML.attribute("data-locale")
+
+        assert locale not in [nil, ""]
+      end)
+    end
+
     test "does not add the dock column", %{conn: conn} do
       with_registered([PlainModule], fn ->
         {_admin, view, html} = admin_live(conn)

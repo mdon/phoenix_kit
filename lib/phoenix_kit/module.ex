@@ -748,6 +748,16 @@ defmodule PhoenixKit.Module do
   an operator's "log in as this user" looks like that, and so does an account the user added
   with a password). A widget that must not run for a borrowed session returns `nil` then.
 
+  `session_fun` gets the layout's assigns and does **not** get the cookie session or the
+  session token. `:impersonating?` is a hint for rendering, not a guarantee: it reads
+  `scope.multi_session_accounts` and is always `false` while multi_session is off. A widget
+  that needs the session reference or a reliable impersonation check does it in its own
+  connected `mount/3`: LiveView merges the cookie session from `connect_info` into the
+  session of any LiveView, so `PhoenixKit.Users.Auth.SessionRef.from_session/1` and
+  `PhoenixKitWeb.Users.MultiSession.impersonated?/1` work on the `session` argument there
+  (they arrive with the agent-execute PR, not with this one). Never put a secret in the
+  session map: a nested LiveView's session is signed, not encrypted.
+
   ## The dock column
 
   A widget may need room beside the page: a chat panel, for instance. The admin layout has

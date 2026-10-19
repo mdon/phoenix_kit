@@ -943,6 +943,11 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
     if assigns[:socket] && user do
       assigns
       |> Map.put(:phoenix_kit_current_user, user)
+      # The same locale the bell gets: `current_locale_base` is computed after this call.
+      |> Map.put_new(
+        :current_locale_base,
+        assigns[:current_locale] && DialectMapper.extract_base(assigns[:current_locale])
+      )
       |> Map.put(
         :impersonating?,
         HeaderWidget.impersonating?(assigns[:phoenix_kit_current_scope])
@@ -1372,6 +1377,7 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
               <aside
                 :if={Enum.any?(@header_widgets, & &1.dock)}
                 id="pk-dock"
+                phx-update="ignore"
                 class={[
                   "hidden [.pk-dock-open_&]:block [body:has(.pk-dock-open)_&]:block",
                   "col-start-3 row-start-1 self-start sticky top-16 z-30",
