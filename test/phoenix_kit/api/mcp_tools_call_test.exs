@@ -295,6 +295,16 @@ defmodule PhoenixKit.API.MCPToolsCallTest do
       end
     end
 
+    test "an unknown tool name is clipped by code points, not graphemes", %{token: token} do
+      # One letter and 200000 combining marks is a single grapheme.
+      name = "a" <> String.duplicate("\u0301", 200_000)
+      conn = call(token, name, %{}, [])
+
+      assert %{"code" => -32_602, "message" => "Unknown tool: " <> echoed} = json(conn)["error"]
+      assert String.length(echoed) == 1
+      assert length(String.to_charlist(echoed)) == 80
+    end
+
     test "the id of the request is echoed in an unknown tool error", %{token: token} do
       conn = post_rpc(:admin, call_message("testkit_nope", %{}, "abc"), token: token)
 

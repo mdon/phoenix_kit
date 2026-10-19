@@ -347,11 +347,13 @@ defmodule PhoenixKit.API.MCP do
 
   # A tool can answer `not_found` for its own subject (a missing record), and that stays a
   # tool result. The executor's `not_found` for the tool itself is told apart by asking the
-  # registry again, which is only done on this failure path.
+  # registry again, on this failure path only and after the public charge, so the repeat is
+  # bounded by the rate limit. The outcome alone cannot tell the two apart (a handler may
+  # answer a context with a `tool` key too), and REST pins the executor's context.
   defp unknown_tool?(name, audience),
     do: Registry.find(Names.resolve(name, audience), audience) == {:error, :not_found}
 
-  defp unknown_tool_text(name), do: "Unknown tool: #{String.slice(name, 0, 80)}"
+  defp unknown_tool_text(name), do: "Unknown tool: #{LogSafe.take_codepoints(name, 80)}"
 
   defp outcome_headers({:ok, _result, headers}), do: headers
   defp outcome_headers({:error, _code, _detail, _context, headers}), do: headers
