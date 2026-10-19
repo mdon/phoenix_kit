@@ -5313,7 +5313,7 @@ msgstr "Media"
 
 #: lib/phoenix_kit_web/components/core/badge.ex:125
 #: lib/phoenix_kit_web/components/core/badge.ex:128
-#: lib/phoenix_kit_web/live/approvals.ex:398
+#: lib/phoenix_kit_web/live/approvals.ex:425
 #: lib/phoenix_kit_web/live/settings/api.ex:904
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:272
 #, elixir-autogen, elixir-format
@@ -7301,7 +7301,7 @@ msgid "ID"
 msgstr "Identyfikator"
 
 #: lib/phoenix_kit_web/live/activity/show.html.heex:196
-#: lib/phoenix_kit_web/live/approvals.html.heex:230
+#: lib/phoenix_kit_web/live/approvals.html.heex:229
 #, elixir-autogen, elixir-format
 msgid "Key"
 msgstr "Klucz"
@@ -12885,7 +12885,7 @@ msgid "Redirecting visitors to production"
 msgstr "Odwiedzający są przekierowywani na produkcję"
 
 #: lib/modules/storage/web/bucket_page.html.heex:509
-#: lib/phoenix_kit_web/live/approvals.html.heex:231
+#: lib/phoenix_kit_web/live/approvals.html.heex:230
 #: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:236
 #: lib/phoenix_kit_web/live/settings/website_access.ex:404
 #: lib/phoenix_kit_web/live/users/media_storage.html.heex:508
@@ -17092,7 +17092,7 @@ msgstr "Czas trwania"
 
 #: lib/modules/storage/web/bucket_page.html.heex:526
 #: lib/phoenix_kit_web/components/media_canvas_viewer.ex:838
-#: lib/phoenix_kit_web/live/approvals.ex:395
+#: lib/phoenix_kit_web/live/approvals.ex:422
 #: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:299
 #: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:355
 #: lib/phoenix_kit_web/live/users/media_storage.ex:564
@@ -17224,7 +17224,7 @@ msgstr "Wznowiono"
 msgid "Retry"
 msgstr "Ponów"
 
-#: lib/phoenix_kit_web/live/approvals.ex:399
+#: lib/phoenix_kit_web/live/approvals.ex:426
 #: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:294
 #, elixir-autogen, elixir-format
 msgid "Running"
@@ -20535,7 +20535,7 @@ msgstr "Zapisz ustawienia"
 msgid "What would change"
 msgstr "Co by się zmieniło"
 
-#: lib/phoenix_kit_web/live/approvals.html.heex:183
+#: lib/phoenix_kit_web/live/approvals.html.heex:182
 #, elixir-autogen, elixir-format
 msgid "The preview is cut: %{count} rows are not shown. Approving runs the whole operation, not only the rows shown."
 msgstr "Podgląd jest skrócony: nie pokazano %{count} wierszy. Zatwierdzenie wykonuje całą operację, a nie tylko pokazane wiersze."
@@ -20545,37 +20545,37 @@ msgstr "Podgląd jest skrócony: nie pokazano %{count} wierszy. Zatwierdzenie wy
 msgid "Approve the whole operation? Only part of its preview is shown."
 msgstr "Zatwierdzić całą operację? Pokazano tylko część podglądu."
 
-#: lib/phoenix_kit_web/live/approvals.html.heex:210
+#: lib/phoenix_kit_web/live/approvals.html.heex:209
 #, elixir-autogen, elixir-format
 msgid "Nothing is waiting for approval."
 msgstr "Nic nie czeka na zatwierdzenie."
 
-#: lib/phoenix_kit_web/live/approvals.html.heex:211
+#: lib/phoenix_kit_web/live/approvals.html.heex:210
 #, elixir-autogen, elixir-format
 msgid "Operations that need your approval will show up here."
 msgstr "Operacje wymagające Twojego zatwierdzenia pojawią się tutaj."
 
-#: lib/phoenix_kit_web/live/approvals.html.heex:223
+#: lib/phoenix_kit_web/live/approvals.html.heex:222
 #, elixir-autogen, elixir-format
 msgid "Recently decided"
 msgstr "Ostatnio rozstrzygnięte"
 
-#: lib/phoenix_kit_web/live/approvals.html.heex:232
+#: lib/phoenix_kit_web/live/approvals.html.heex:231
 #, elixir-autogen, elixir-format
 msgid "Decided"
 msgstr "Rozstrzygnięto"
 
-#: lib/phoenix_kit_web/live/approvals.ex:394
+#: lib/phoenix_kit_web/live/approvals.ex:421
 #, elixir-autogen, elixir-format
 msgid "Executed"
 msgstr "Wykonano"
 
-#: lib/phoenix_kit_web/live/approvals.ex:396
+#: lib/phoenix_kit_web/live/approvals.ex:423
 #, elixir-autogen, elixir-format
 msgid "Rejected"
 msgstr "Odrzucono"
 
-#: lib/phoenix_kit_web/live/approvals.ex:397
+#: lib/phoenix_kit_web/live/approvals.ex:424
 #, elixir-autogen, elixir-format
 msgid "Stale"
 msgstr "Nieaktualne"
@@ -20641,43 +20641,43 @@ msgstr "Przebudowujemy działanie głębokiego powiększania, więc ten przełą
 msgid "Approvals"
 msgstr "Zatwierdzenia"
 
-#: lib/phoenix_kit_web/live/approvals.ex:410
+#: lib/phoenix_kit_web/live/approvals.ex:437
 #, elixir-autogen, elixir-format
 msgid "Done."
 msgstr "Gotowe."
 
-#: lib/phoenix_kit_web/live/approvals.ex:411
+#: lib/phoenix_kit_web/live/approvals.ex:438
 #, elixir-autogen, elixir-format
 msgid "Done: %{summary}"
 msgstr "Gotowe: %{summary}"
 
-#: lib/phoenix_kit_web/live/approvals.ex:419
+#: lib/phoenix_kit_web/live/approvals.ex:446
 #, elixir-autogen, elixir-format
 msgid "Not executed: the data changed since the request; nothing was written."
 msgstr "Nie wykonano: dane zmieniły się od czasu żądania; nic nie zapisano."
 
-#: lib/phoenix_kit_web/live/approvals.ex:424
+#: lib/phoenix_kit_web/live/approvals.ex:451
 #, elixir-autogen, elixir-format
 msgid "Failed: %{code}"
 msgstr "Niepowodzenie: %{code}"
 
-#: lib/phoenix_kit_web/live/approvals.ex:428
+#: lib/phoenix_kit_web/live/approvals.ex:455
 #, elixir-autogen, elixir-format
 msgid "Rejected: nothing was run."
 msgstr "Odrzucono: nic nie uruchomiono."
 
-#: lib/phoenix_kit_web/live/approvals.ex:431
+#: lib/phoenix_kit_web/live/approvals.ex:458
 #, elixir-autogen, elixir-format
 msgid "Expired: nobody decided in time, nothing was run."
 msgstr "Wygasło: nikt nie rozstrzygnął na czas, nic nie uruchomiono."
 
-#: lib/phoenix_kit_web/live/approvals.ex:433
+#: lib/phoenix_kit_web/live/approvals.ex:460
 #, elixir-autogen, elixir-format
 msgid "Running."
 msgstr "W trakcie wykonywania."
 
 #: lib/phoenix_kit_web/live/approvals.html.heex:32
-#: lib/phoenix_kit_web/live/approvals.html.heex:253
+#: lib/phoenix_kit_web/live/approvals.html.heex:252
 #, elixir-autogen, elixir-format
 msgid "Rows: %{count}"
 msgstr "Wiersze: %{count}"
@@ -20722,73 +20722,115 @@ msgstr "Będzie"
 msgid "Change, %"
 msgstr "Zmiana, %"
 
-#: lib/phoenix_kit_web/live/approvals.html.heex:197
+#: lib/phoenix_kit_web/live/approvals.html.heex:196
 #, elixir-autogen, elixir-format
 msgid "Technical details (JSON)"
 msgstr "Szczegóły techniczne (JSON)"
 
-#: lib/phoenix_kit_web/live/approvals.html.heex:229
+#: lib/phoenix_kit_web/live/approvals.html.heex:228
 #, elixir-autogen, elixir-format
 msgid "Operation"
 msgstr "Operacja"
 
-#: lib/phoenix_kit_web/live/approvals.ex:388
+#: lib/phoenix_kit_web/live/approvals.ex:415
 #, elixir-autogen, elixir-format
 msgid "Expires in %{count} d"
 msgstr "Wygasa za %{count} dn."
 
-#: lib/phoenix_kit_web/live/approvals.ex:387
+#: lib/phoenix_kit_web/live/approvals.ex:414
 #, elixir-autogen, elixir-format
 msgid "Expires in %{count} h"
 msgstr "Wygasa za %{count} godz."
 
-#: lib/phoenix_kit_web/live/approvals.ex:386
+#: lib/phoenix_kit_web/live/approvals.ex:413
 #, elixir-autogen, elixir-format
 msgid "Expires in %{count} min"
 msgstr "Wygasa za %{count} min"
 
-#: lib/phoenix_kit_web/live/approvals.ex:385
+#: lib/phoenix_kit_web/live/approvals.ex:412
 #, elixir-autogen, elixir-format
 msgid "Expires in less than a minute"
 msgstr "Wygasa za mniej niż minutę"
 
-#: lib/phoenix_kit_web/live/approvals.ex:362
+#: lib/phoenix_kit_web/live/approvals.ex:399
+#, elixir-autogen, elixir-format
+msgctxt "approval row action"
+msgid "create"
+msgstr "utworzyć"
+
+#: lib/phoenix_kit_web/live/approvals.ex:401
+#, elixir-autogen, elixir-format
+msgctxt "approval row action"
+msgid "delete"
+msgstr "usunąć"
+
+#: lib/phoenix_kit_web/live/approvals.ex:405
+#, elixir-autogen, elixir-format
+msgctxt "approval row action"
+msgid "error"
+msgstr "błąd"
+
+#: lib/phoenix_kit_web/live/approvals.ex:402
+#, elixir-autogen, elixir-format
+msgctxt "approval row action"
+msgid "remove"
+msgstr "usunąć z listy"
+
+#: lib/phoenix_kit_web/live/approvals.ex:403
+#, elixir-autogen, elixir-format
+msgctxt "approval row action"
+msgid "skip"
+msgstr "pominąć"
+
+#: lib/phoenix_kit_web/live/approvals.ex:404
+#, elixir-autogen, elixir-format
+msgctxt "approval row action"
+msgid "unchanged"
+msgstr "bez zmian"
+
+#: lib/phoenix_kit_web/live/approvals.ex:400
+#, elixir-autogen, elixir-format
+msgctxt "approval row action"
+msgid "update"
+msgstr "zaktualizować"
+
+#: lib/phoenix_kit_web/live/approvals.ex:377
 #, elixir-autogen, elixir-format
 msgctxt "approval summary"
 msgid "created"
 msgstr "utworzone"
 
-#: lib/phoenix_kit_web/live/approvals.ex:368
+#: lib/phoenix_kit_web/live/approvals.ex:383
 #, elixir-autogen, elixir-format
 msgctxt "approval summary"
 msgid "deleted"
 msgstr "usunięte"
 
-#: lib/phoenix_kit_web/live/approvals.ex:378
+#: lib/phoenix_kit_web/live/approvals.ex:393
 #, elixir-autogen, elixir-format
 msgctxt "approval summary"
 msgid "error"
 msgstr "błędy"
 
-#: lib/phoenix_kit_web/live/approvals.ex:371
+#: lib/phoenix_kit_web/live/approvals.ex:386
 #, elixir-autogen, elixir-format
 msgctxt "approval summary"
 msgid "removed"
 msgstr "usunięte z listy"
 
-#: lib/phoenix_kit_web/live/approvals.ex:376
+#: lib/phoenix_kit_web/live/approvals.ex:391
 #, elixir-autogen, elixir-format
 msgctxt "approval summary"
 msgid "skipped"
 msgstr "pominięte"
 
-#: lib/phoenix_kit_web/live/approvals.ex:373
+#: lib/phoenix_kit_web/live/approvals.ex:388
 #, elixir-autogen, elixir-format
 msgctxt "approval summary"
 msgid "unchanged"
 msgstr "bez zmian"
 
-#: lib/phoenix_kit_web/live/approvals.ex:365
+#: lib/phoenix_kit_web/live/approvals.ex:380
 #, elixir-autogen, elixir-format
 msgctxt "approval summary"
 msgid "updated"

@@ -5318,7 +5318,7 @@ msgstr "Meedia"
 
 #: lib/phoenix_kit_web/components/core/badge.ex:125
 #: lib/phoenix_kit_web/components/core/badge.ex:128
-#: lib/phoenix_kit_web/live/approvals.ex:398
+#: lib/phoenix_kit_web/live/approvals.ex:425
 #: lib/phoenix_kit_web/live/settings/api.ex:904
 #: lib/phoenix_kit_web/live/users/sessions.html.heex:272
 #, elixir-autogen, elixir-format
@@ -7286,7 +7286,7 @@ msgid "ID"
 msgstr "ID"
 
 #: lib/phoenix_kit_web/live/activity/show.html.heex:196
-#: lib/phoenix_kit_web/live/approvals.html.heex:230
+#: lib/phoenix_kit_web/live/approvals.html.heex:229
 #, elixir-autogen, elixir-format
 msgid "Key"
 msgstr "Võti"
@@ -12869,7 +12869,7 @@ msgid "Redirecting visitors to production"
 msgstr "Külastajad suunatakse tootmiskeskkonda"
 
 #: lib/modules/storage/web/bucket_page.html.heex:509
-#: lib/phoenix_kit_web/live/approvals.html.heex:231
+#: lib/phoenix_kit_web/live/approvals.html.heex:230
 #: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:236
 #: lib/phoenix_kit_web/live/settings/website_access.ex:404
 #: lib/phoenix_kit_web/live/users/media_storage.html.heex:508
@@ -17057,7 +17057,7 @@ msgstr "Kestus"
 
 #: lib/modules/storage/web/bucket_page.html.heex:526
 #: lib/phoenix_kit_web/components/media_canvas_viewer.ex:838
-#: lib/phoenix_kit_web/live/approvals.ex:395
+#: lib/phoenix_kit_web/live/approvals.ex:422
 #: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:299
 #: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:355
 #: lib/phoenix_kit_web/live/users/media_storage.ex:564
@@ -17189,7 +17189,7 @@ msgstr "Jätkatud"
 msgid "Retry"
 msgstr "Proovi uuesti"
 
-#: lib/phoenix_kit_web/live/approvals.ex:399
+#: lib/phoenix_kit_web/live/approvals.ex:426
 #: lib/phoenix_kit_web/live/modules/jobs/runs_components.ex:294
 #, elixir-autogen, elixir-format
 msgid "Running"
@@ -20481,7 +20481,7 @@ msgstr "Salvesta seaded"
 msgid "What would change"
 msgstr "Mis muutuks"
 
-#: lib/phoenix_kit_web/live/approvals.html.heex:183
+#: lib/phoenix_kit_web/live/approvals.html.heex:182
 #, elixir-autogen, elixir-format
 msgid "The preview is cut: %{count} rows are not shown. Approving runs the whole operation, not only the rows shown."
 msgstr "Eelvaade on lühendatud: %{count} rida ei kuvata. Heakskiitmine käivitab kogu toimingu, mitte ainult kuvatud read."
@@ -20491,37 +20491,37 @@ msgstr "Eelvaade on lühendatud: %{count} rida ei kuvata. Heakskiitmine käivita
 msgid "Approve the whole operation? Only part of its preview is shown."
 msgstr "Kas kiita heaks kogu toiming? Eelvaatest kuvatakse ainult osa."
 
-#: lib/phoenix_kit_web/live/approvals.html.heex:210
+#: lib/phoenix_kit_web/live/approvals.html.heex:209
 #, elixir-autogen, elixir-format
 msgid "Nothing is waiting for approval."
 msgstr "Heakskiitu ootavaid toiminguid pole."
 
-#: lib/phoenix_kit_web/live/approvals.html.heex:211
+#: lib/phoenix_kit_web/live/approvals.html.heex:210
 #, elixir-autogen, elixir-format
 msgid "Operations that need your approval will show up here."
 msgstr "Toimingud, mis vajavad teie heakskiitu, ilmuvad siia."
 
-#: lib/phoenix_kit_web/live/approvals.html.heex:223
+#: lib/phoenix_kit_web/live/approvals.html.heex:222
 #, elixir-autogen, elixir-format
 msgid "Recently decided"
 msgstr "Hiljuti otsustatud"
 
-#: lib/phoenix_kit_web/live/approvals.html.heex:232
+#: lib/phoenix_kit_web/live/approvals.html.heex:231
 #, elixir-autogen, elixir-format
 msgid "Decided"
 msgstr "Otsustatud"
 
-#: lib/phoenix_kit_web/live/approvals.ex:394
+#: lib/phoenix_kit_web/live/approvals.ex:421
 #, elixir-autogen, elixir-format
 msgid "Executed"
 msgstr "Täidetud"
 
-#: lib/phoenix_kit_web/live/approvals.ex:396
+#: lib/phoenix_kit_web/live/approvals.ex:423
 #, elixir-autogen, elixir-format
 msgid "Rejected"
 msgstr "Tagasi lükatud"
 
-#: lib/phoenix_kit_web/live/approvals.ex:397
+#: lib/phoenix_kit_web/live/approvals.ex:424
 #, elixir-autogen, elixir-format
 msgid "Stale"
 msgstr "Aegunud"
@@ -20587,43 +20587,43 @@ msgstr "Teeme sügavsuumi tööd ümber, seega on see lüliti praegu lukus."
 msgid "Approvals"
 msgstr "Heakskiidud"
 
-#: lib/phoenix_kit_web/live/approvals.ex:410
+#: lib/phoenix_kit_web/live/approvals.ex:437
 #, elixir-autogen, elixir-format
 msgid "Done."
 msgstr "Valmis."
 
-#: lib/phoenix_kit_web/live/approvals.ex:411
+#: lib/phoenix_kit_web/live/approvals.ex:438
 #, elixir-autogen, elixir-format
 msgid "Done: %{summary}"
 msgstr "Valmis: %{summary}"
 
-#: lib/phoenix_kit_web/live/approvals.ex:419
+#: lib/phoenix_kit_web/live/approvals.ex:446
 #, elixir-autogen, elixir-format
 msgid "Not executed: the data changed since the request; nothing was written."
 msgstr "Ei täidetud: andmed on pärast taotlust muutunud; midagi ei kirjutatud."
 
-#: lib/phoenix_kit_web/live/approvals.ex:424
+#: lib/phoenix_kit_web/live/approvals.ex:451
 #, elixir-autogen, elixir-format
 msgid "Failed: %{code}"
 msgstr "Ebaõnnestus: %{code}"
 
-#: lib/phoenix_kit_web/live/approvals.ex:428
+#: lib/phoenix_kit_web/live/approvals.ex:455
 #, elixir-autogen, elixir-format
 msgid "Rejected: nothing was run."
 msgstr "Tagasi lükatud: midagi ei käivitatud."
 
-#: lib/phoenix_kit_web/live/approvals.ex:431
+#: lib/phoenix_kit_web/live/approvals.ex:458
 #, elixir-autogen, elixir-format
 msgid "Expired: nobody decided in time, nothing was run."
 msgstr "Aegunud: keegi ei otsustanud õigel ajal, midagi ei käivitatud."
 
-#: lib/phoenix_kit_web/live/approvals.ex:433
+#: lib/phoenix_kit_web/live/approvals.ex:460
 #, elixir-autogen, elixir-format
 msgid "Running."
 msgstr "Käivitamisel."
 
 #: lib/phoenix_kit_web/live/approvals.html.heex:32
-#: lib/phoenix_kit_web/live/approvals.html.heex:253
+#: lib/phoenix_kit_web/live/approvals.html.heex:252
 #, elixir-autogen, elixir-format
 msgid "Rows: %{count}"
 msgstr "Ridu: %{count}"
@@ -20668,73 +20668,115 @@ msgstr "Pärast"
 msgid "Change, %"
 msgstr "Muutus, %"
 
-#: lib/phoenix_kit_web/live/approvals.html.heex:197
+#: lib/phoenix_kit_web/live/approvals.html.heex:196
 #, elixir-autogen, elixir-format
 msgid "Technical details (JSON)"
 msgstr "Tehnilised üksikasjad (JSON)"
 
-#: lib/phoenix_kit_web/live/approvals.html.heex:229
+#: lib/phoenix_kit_web/live/approvals.html.heex:228
 #, elixir-autogen, elixir-format
 msgid "Operation"
 msgstr "Toiming"
 
-#: lib/phoenix_kit_web/live/approvals.ex:388
+#: lib/phoenix_kit_web/live/approvals.ex:415
 #, elixir-autogen, elixir-format
 msgid "Expires in %{count} d"
 msgstr "Aegub %{count} p pärast"
 
-#: lib/phoenix_kit_web/live/approvals.ex:387
+#: lib/phoenix_kit_web/live/approvals.ex:414
 #, elixir-autogen, elixir-format
 msgid "Expires in %{count} h"
 msgstr "Aegub %{count} h pärast"
 
-#: lib/phoenix_kit_web/live/approvals.ex:386
+#: lib/phoenix_kit_web/live/approvals.ex:413
 #, elixir-autogen, elixir-format
 msgid "Expires in %{count} min"
 msgstr "Aegub %{count} min pärast"
 
-#: lib/phoenix_kit_web/live/approvals.ex:385
+#: lib/phoenix_kit_web/live/approvals.ex:412
 #, elixir-autogen, elixir-format
 msgid "Expires in less than a minute"
 msgstr "Aegub vähem kui minuti pärast"
 
-#: lib/phoenix_kit_web/live/approvals.ex:362
+#: lib/phoenix_kit_web/live/approvals.ex:399
+#, elixir-autogen, elixir-format
+msgctxt "approval row action"
+msgid "create"
+msgstr "luua"
+
+#: lib/phoenix_kit_web/live/approvals.ex:401
+#, elixir-autogen, elixir-format
+msgctxt "approval row action"
+msgid "delete"
+msgstr "kustutada"
+
+#: lib/phoenix_kit_web/live/approvals.ex:405
+#, elixir-autogen, elixir-format
+msgctxt "approval row action"
+msgid "error"
+msgstr "viga"
+
+#: lib/phoenix_kit_web/live/approvals.ex:402
+#, elixir-autogen, elixir-format
+msgctxt "approval row action"
+msgid "remove"
+msgstr "eemaldada"
+
+#: lib/phoenix_kit_web/live/approvals.ex:403
+#, elixir-autogen, elixir-format
+msgctxt "approval row action"
+msgid "skip"
+msgstr "vahele jätta"
+
+#: lib/phoenix_kit_web/live/approvals.ex:404
+#, elixir-autogen, elixir-format
+msgctxt "approval row action"
+msgid "unchanged"
+msgstr "muutmata"
+
+#: lib/phoenix_kit_web/live/approvals.ex:400
+#, elixir-autogen, elixir-format
+msgctxt "approval row action"
+msgid "update"
+msgstr "uuendada"
+
+#: lib/phoenix_kit_web/live/approvals.ex:377
 #, elixir-autogen, elixir-format
 msgctxt "approval summary"
 msgid "created"
 msgstr "loodud"
 
-#: lib/phoenix_kit_web/live/approvals.ex:368
+#: lib/phoenix_kit_web/live/approvals.ex:383
 #, elixir-autogen, elixir-format
 msgctxt "approval summary"
 msgid "deleted"
 msgstr "kustutatud"
 
-#: lib/phoenix_kit_web/live/approvals.ex:378
+#: lib/phoenix_kit_web/live/approvals.ex:393
 #, elixir-autogen, elixir-format
 msgctxt "approval summary"
 msgid "error"
 msgstr "vead"
 
-#: lib/phoenix_kit_web/live/approvals.ex:371
+#: lib/phoenix_kit_web/live/approvals.ex:386
 #, elixir-autogen, elixir-format
 msgctxt "approval summary"
 msgid "removed"
 msgstr "eemaldatud"
 
-#: lib/phoenix_kit_web/live/approvals.ex:376
+#: lib/phoenix_kit_web/live/approvals.ex:391
 #, elixir-autogen, elixir-format
 msgctxt "approval summary"
 msgid "skipped"
 msgstr "vahele jäetud"
 
-#: lib/phoenix_kit_web/live/approvals.ex:373
+#: lib/phoenix_kit_web/live/approvals.ex:388
 #, elixir-autogen, elixir-format
 msgctxt "approval summary"
 msgid "unchanged"
 msgstr "muutmata"
 
-#: lib/phoenix_kit_web/live/approvals.ex:365
+#: lib/phoenix_kit_web/live/approvals.ex:380
 #, elixir-autogen, elixir-format
 msgctxt "approval summary"
 msgid "updated"

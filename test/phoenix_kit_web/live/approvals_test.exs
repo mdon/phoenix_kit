@@ -74,6 +74,8 @@ defmodule PhoenixKitWeb.Live.ApprovalsTest do
     position
   end
 
+  defp text_of(html), do: html |> LazyHTML.from_fragment() |> LazyHTML.text() |> String.trim()
+
   defp card_count(html, row),
     do: html |> String.split(~s(id="approval-#{row.uuid}")) |> length() |> Kernel.-(1)
 
@@ -363,14 +365,17 @@ defmodule PhoenixKitWeb.Live.ApprovalsTest do
       refute has_element?(view, "#approval-technical-#{row.uuid}")
     end
 
-    test "the error of a row is read from the first-party shape, code and message", %{
-      conn: conn,
-      agent: agent
-    } do
+    test "the error of a row is read from the first-party shape: code, message and the field reasons",
+         %{conn: conn, agent: agent} do
       error = %{
         "code" => "validation_failed",
-        "message" => "price must be a number",
-        "context" => %{"errors" => [%{"path" => "price", "message" => "is invalid"}]}
+        "message" => "The row does not pass validation.",
+        "context" => %{
+          "errors" => [
+            %{"path" => "price", "message" => "must be a number"},
+            %{"path" => "stock", "message" => "must be 0 or more"}
+          ]
+        }
       }
 
       row =
@@ -382,9 +387,73 @@ defmodule PhoenixKitWeb.Live.ApprovalsTest do
       {:ok, view, _html} = live(conn, @path)
       cell = "#approval-row-#{row.uuid}-0"
 
-      assert has_element?(view, cell <> "-error", "price must be a number")
+      assert has_element?(view, cell <> "-error", "The row does not pass validation.")
       assert has_element?(view, cell <> "-error", "validation_failed")
-      assert has_element?(view, cell <> "-action", "error")
+      assert has_element?(view, cell <> "-reasons li", "price: must be a number")
+      assert has_element?(view, cell <> "-reasons li", "stock: must be 0 or more")
+      refute has_element?(view, "#approval-technical-#{row.uuid}")
+    end
+
+    test "an error row has no \"error\" badge next to its code and no empty cell", %{
+      conn: conn,
+      agent: agent
+    } do
+      row =
+        pending_with_preview!(agent, %{
+          "rows" => [
+            %{
+              "ref" => "SKU-9",
+              "action" => "error",
+              "error" => %{"code" => "not_found", "message" => "The product no longer exists."}
+            },
+            %{"ref" => "SKU-10", "action" => "error"}
+          ]
+        })
+
+      {:ok, view, _html} = live(conn, @path)
+      first = "#approval-row-#{row.uuid}-0"
+
+      assert has_element?(view, first <> "-error", "not_found")
+      refute has_element?(view, first <> "-action")
+      assert has_element?(view, "#approval-row-#{row.uuid}-1-action", "error")
+      assert has_element?(view, "td[colspan='5'] " <> first)
+      refute has_element?(view, "#approval-rows-#{row.uuid} td:empty")
+    end
+
+    test "an error whose context says more than field errors opens the technical details", %{
+      conn: conn,
+      agent: agent
+    } do
+      preview = %{
+        "rows" => [
+          %{
+            "ref" => "SKU-9",
+            "error" => %{
+              "code" => "not_found",
+              "message" => "No product matches this reference.",
+              "context" => %{"ref" => "sentinel-ref-4471"}
+            }
+          }
+        ]
+      }
+
+      row = pending_with_preview!(agent, preview)
+      {:ok, view, _html} = live(conn, @path)
+      details = "#approval-technical-#{row.uuid}"
+
+      assert has_element?(view, "#approval-row-#{row.uuid}-0-error", "No product matches")
+      assert has_element?(view, details <> " pre", "sentinel-ref-4471")
+    end
+
+    test "an empty action or error draws nothing", %{conn: conn, agent: agent} do
+      row =
+        pending_with_preview!(agent, %{"rows" => [%{"ref" => "a", "action" => "", "error" => ""}]})
+
+      {:ok, view, _html} = live(conn, @path)
+
+      assert has_element?(view, "#approval-row-#{row.uuid}-0")
+      refute has_element?(view, "#approval-row-#{row.uuid}-0-action")
+      refute has_element?(view, "#approval-row-#{row.uuid}-0-error")
       refute has_element?(view, "#approval-technical-#{row.uuid}")
     end
 
@@ -445,6 +514,25 @@ defmodule PhoenixKitWeb.Live.ApprovalsTest do
       assert has_element?(view, "#approval-totals-#{row.uuid}", "frobnicate 1")
     end
 
+    test "a row's action reads as what will happen, the counts as what was counted", %{
+      conn: conn,
+      agent: agent
+    } do
+      row =
+        pending_with_preview!(agent, %{
+          "rows" => [%{"ref" => "a", "action" => "update"}, %{"ref" => "b", "action" => "delete"}],
+          "totals" => %{"rows" => 2, "update" => 1, "delete" => 1}
+        })
+
+      {:ok, view, _html} = live(conn, @path)
+      text = fn selector -> view |> element(selector) |> render() |> text_of() end
+
+      assert text.("#approval-row-#{row.uuid}-0-action") == "update"
+      assert text.("#approval-row-#{row.uuid}-1-action") == "delete"
+      assert has_element?(view, "#approval-totals-#{row.uuid}", "updated 1")
+      assert has_element?(view, "#approval-totals-#{row.uuid}", "deleted 1")
+    end
+
     test "the technical details stay open while the page is redrawn", %{
       conn: conn,
       agent: agent
@@ -452,6 +540,8 @@ defmodule PhoenixKitWeb.Live.ApprovalsTest do
       row = pending_with_preview!(agent, %{"module_specific" => %{"clue" => "c"}})
       {:ok, view, _html} = live(conn, @path)
 
+      # Only the markup is asserted: that the element stays open across a patch is done by
+      # the browser's LiveView client and cannot be seen here.
       mounted =
         view
         |> element("#approval-technical-#{row.uuid}")

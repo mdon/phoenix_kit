@@ -317,9 +317,12 @@ defmodule PhoenixKitWeb.Live.Approvals do
     <div id={@id}>
       <div class="font-medium">{@row.label}</div>
       <div :if={@row.sub} class="font-mono text-xs text-base-content/60">{@row.sub}</div>
-      <div :if={@row.action || @row.error} class="mt-1 flex flex-wrap items-center gap-1 text-sm">
-        <span :if={@row.action} id={@id <> "-action"} class="badge badge-ghost badge-sm">
-          {fact_label(@row.action)}
+      <div
+        :if={action_badge?(@row) || @row.error}
+        class="mt-1 flex flex-wrap items-center gap-1 text-sm"
+      >
+        <span :if={action_badge?(@row)} id={@id <> "-action"} class="badge badge-ghost badge-sm">
+          {row_action(@row.action)}
         </span>
         <span
           :if={@row.error}
@@ -332,6 +335,13 @@ defmodule PhoenixKitWeb.Live.Approvals do
           {@row.error}
         </span>
       </div>
+      <ul
+        :if={@row.error_reasons != []}
+        id={@id <> "-reasons"}
+        class="mt-1 list-disc space-y-0.5 pl-5 text-xs text-error"
+      >
+        <li :for={reason <- @row.error_reasons}>{reason}</li>
+      </ul>
       <div :for={warning <- @row.warnings} class="mt-1 flex items-start gap-1 text-xs text-warning">
         <.icon name="hero-exclamation-triangle" class="w-3.5 h-3.5 mt-0.5 shrink-0" />
         <span>{warning}</span>
@@ -339,6 +349,11 @@ defmodule PhoenixKitWeb.Live.Approvals do
     </div>
     """
   end
+
+  # The error of a row says that it failed; an "error" badge next to it would say it twice.
+  defp action_badge?(%{action: nil}), do: false
+  defp action_badge?(%{action: "error", error: error}), do: error == nil
+  defp action_badge?(_row), do: true
 
   # JSON, not Elixir terms: the approver reads the same keys an API client reads.
   defp json_text(term), do: Jason.encode!(term, pretty: true)
@@ -356,8 +371,8 @@ defmodule PhoenixKitWeb.Live.Approvals do
     end)
   end
 
-  # What a row did or will do, and the counts of it, in words; a key nobody here knows is
-  # shown as the tool wrote it.
+  # The counts of what was or will be done, in words; a key nobody here knows is shown as the
+  # tool wrote it.
   defp fact_label(key) when key in ["create", "created"],
     do: pgettext("approval summary", "created")
 
@@ -377,6 +392,18 @@ defmodule PhoenixKitWeb.Live.Approvals do
 
   defp fact_label("error"), do: pgettext("approval summary", "error")
   defp fact_label(key), do: key |> String.replace(["_", "."], " ") |> String.trim()
+
+  # What a row of a preview will do, as a short badge: the preview is of something still
+  # waiting for a decision, so these are not the past tense of the counts above. A word nobody
+  # here knows is shown as the tool wrote it.
+  defp row_action("create"), do: pgettext("approval row action", "create")
+  defp row_action("update"), do: pgettext("approval row action", "update")
+  defp row_action("delete"), do: pgettext("approval row action", "delete")
+  defp row_action("remove"), do: pgettext("approval row action", "remove")
+  defp row_action("skip"), do: pgettext("approval row action", "skip")
+  defp row_action("unchanged"), do: pgettext("approval row action", "unchanged")
+  defp row_action("error"), do: pgettext("approval row action", "error")
+  defp row_action(action), do: action
 
   defp expires_in(%DateTime{} = expires_at) do
     seconds = DateTime.diff(expires_at, DateTime.utc_now(), :second)
@@ -407,32 +434,32 @@ defmodule PhoenixKitWeb.Live.Approvals do
   # detail. The detail is the tool's own explanation of a failure, which is English.
   defp outcome(%{status: "executed", result: result}) do
     case View.facts(result) do
-      [] -> outcome("alert-success", gettext("Done."))
-      facts -> outcome("alert-success", gettext("Done: %{summary}", summary: sentence(facts)))
+      [] -> alert("alert-success", gettext("Done."))
+      facts -> alert("alert-success", gettext("Done: %{summary}", summary: sentence(facts)))
     end
   end
 
   defp outcome(%{status: "stale"}),
     do:
-      outcome(
+      alert(
         "alert-warning",
         gettext("Not executed: the data changed since the request; nothing was written.")
       )
 
   defp outcome(%{status: "failed"} = approval) do
     detail = if failure_detail(approval) != "", do: failure_detail(approval)
-    outcome("alert-error", gettext("Failed: %{code}", code: failure_code(approval)), detail)
+    alert("alert-error", gettext("Failed: %{code}", code: failure_code(approval)), detail)
   end
 
   defp outcome(%{status: "rejected"}),
-    do: outcome("alert-info", gettext("Rejected: nothing was run."))
+    do: alert("alert-info", gettext("Rejected: nothing was run."))
 
   defp outcome(%{status: "expired"}),
-    do: outcome("alert-info", gettext("Expired: nobody decided in time, nothing was run."))
+    do: alert("alert-info", gettext("Expired: nobody decided in time, nothing was run."))
 
-  defp outcome(_approved_or_executing), do: outcome("alert-info", gettext("Running."))
+  defp outcome(_approved_or_executing), do: alert("alert-info", gettext("Running."))
 
-  defp outcome(class, text, detail \\ nil), do: %{class: class, text: text, detail: detail}
+  defp alert(class, text, detail \\ nil), do: %{class: class, text: text, detail: detail}
 
   defp failure_code(%{result: %{"error" => %{"code" => code}}}) when is_binary(code), do: code
   defp failure_code(_approval), do: "unknown"

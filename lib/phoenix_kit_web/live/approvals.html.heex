@@ -162,10 +162,9 @@
                       </td>
                     </tr>
                     <tr :if={row.changes == []} class="align-top">
-                      <td>
+                      <td colspan="5">
                         <.preview_item row={row} id={"approval-row-#{approval.uuid}-#{n}"} />
                       </td>
-                      <td colspan="4"></td>
                     </tr>
                   <% end %>
                 </tbody>
