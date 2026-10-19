@@ -429,10 +429,22 @@ defmodule PhoenixKit.API.OpenAPITest do
 
       refute Map.has_key?(operation, "parameters")
       refute Map.has_key?(operation["responses"]["200"], "headers")
-      assert operation["responses"]["409"] == %{"$ref" => "#/components/responses/Conflict"}
 
       properties = operation["requestBody"]["content"]["application/json"]["schema"]["properties"]
       assert Map.keys(properties) |> Enum.sort() == ["confirm_token", "dry_run"]
+    end
+
+    test "a write tool that cannot replay lists the 409 only when a confirmation is possible" do
+      conflict = %{"$ref" => "#/components/responses/Conflict"}
+
+      plain = %{public_write_tool() | replay: false}
+      refute Map.has_key?(operation(doc([plain], :public), plain.name)["responses"], "409")
+
+      dangerous = %{plain | danger: :always}
+      assert operation(doc([dangerous], :public), dangerous.name)["responses"]["409"] == conflict
+
+      admin = %{write_tool() | replay: false}
+      assert operation(doc([admin], :admin), admin.name)["responses"]["409"] == conflict
     end
 
     test "are not listed on a read operation" do

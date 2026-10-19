@@ -202,14 +202,23 @@ defmodule PhoenixKit.API.OpenAPI do
 
   # The control fields of a write tool: the header form of `idempotency_key`, the replay
   # header and the conflicts the flow answers (a read tool has none of them; a tool that
-  # cannot replay has the conflicts only).
+  # cannot replay has the conflicts only when a confirmation is possible).
   defp put_write_extras(operation, tool) do
     if ControlFields.write_tool?(tool) do
-      {status, name, _text} = @conflict
-
       operation
       |> put_replay(tool)
-      |> put_in(["responses", status], %{"$ref" => "#/components/responses/" <> name})
+      |> put_conflict(tool)
+    else
+      operation
+    end
+  end
+
+  # Without a replay the only conflict left is a confirmation code: a tool with a `danger`,
+  # and every admin write tool (the batch-size rule).
+  defp put_conflict(operation, tool) do
+    if ControlFields.replay_tool?(tool) or tool.danger != nil or tool.audience == :admin do
+      {status, name, _text} = @conflict
+      put_in(operation, ["responses", status], %{"$ref" => "#/components/responses/" <> name})
     else
       operation
     end
