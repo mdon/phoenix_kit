@@ -152,18 +152,21 @@ defmodule PhoenixKit.API.MCP.Shape do
   @spec instructions(Tool.audience()) :: String.t()
   def instructions(:admin) do
     "Call system_get_identity first: it lists the scopes this key holds right now and the tools they unlock. " <>
-      "A failed call comes back as a result with isError set; the code in square brackets is stable and " <>
+      "A failed call of a tool comes back as a result with isError set (an unknown tool name is a JSON-RPC error, -32602); the code in square brackets is stable and " <>
       "the second text item is the full problem document. A dangerous call from a key that needs approval " <>
       "is not run: it comes back as a normal result with executed false, status pending_approval and an " <>
       "approval_id, and runs only when an owner approves it; while that approval is still waiting, asking " <>
       "again for the same operation returns the same approval_id, unless the values it touches changed " <>
-      "meanwhile (the waiting approval is then closed and a new one is queued)."
+      "meanwhile (the waiting approval is then closed and a new one is queued). A write tool also takes " <>
+      "dry_run to preview without changing anything, confirm_token to confirm a dangerous operation with " <>
+      "the code its preview returned, and idempotency_key to make a retry safe."
   end
 
   def instructions(:public) do
     "This endpoint needs no key. List the tools with tools/list. Answers follow the language and currency " <>
       "of the domain you call, unless a tool takes a language or currency field and the call sets it. " <>
-      "A failed call comes back as a result with isError set; its text starts with the code in square " <>
-      "brackets, which is stable, and the second text item is the full problem document."
+      "A failed call of a tool comes back as a result with isError set (an unknown tool name is a JSON-RPC " <>
+      "error, -32602); its text starts with the code in square brackets, which is stable, and the second " <>
+      "text item is the full problem document."
   end
 end
