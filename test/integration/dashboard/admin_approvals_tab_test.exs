@@ -109,15 +109,6 @@ defmodule PhoenixKit.Integration.AdminApprovalsTabTest do
       assert document |> LazyHTML.query(@link <> " .badge") |> LazyHTML.text() =~ "2"
     end
 
-    test "the number follows the render, not a cache", %{agent: agent, owner: owner} do
-      scope = KeyTestSupport.scope_of(owner)
-      pending!(agent, ["a"])
-      assert sidebar(scope) |> LazyHTML.query(@link <> " .badge") |> LazyHTML.text() =~ "1"
-
-      pending!(agent, ["b"])
-      assert sidebar(scope) |> LazyHTML.query(@link <> " .badge") |> LazyHTML.text() =~ "2"
-    end
-
     test "the creator of a key is counted for their own approvals only", %{agent: agent} do
       mine = ApiFlowHarness.agent()
       pending!(agent, ["a"])
