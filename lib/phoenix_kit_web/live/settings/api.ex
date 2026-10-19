@@ -153,10 +153,9 @@ defmodule PhoenixKitWeb.Live.Settings.Api do
   def handle_event("set_module_api", %{"module" => key, "state" => state}, socket)
       when is_binary(key) and state in ["on", "off"] do
     with_access(socket, fn socket ->
-      if Enum.any?(ModuleRegistry.api_modules(), &(&1.key == key)) do
-        set_module_api(socket, key, state == "on")
-      else
-        refuse(socket)
+      case Enum.find(ModuleRegistry.api_modules(), &(&1.key == key)) do
+        nil -> refuse(socket)
+        mod -> set_module_api(socket, mod, state == "on")
       end
     end)
   end
@@ -397,27 +396,37 @@ defmodule PhoenixKitWeb.Live.Settings.Api do
     |> assign(:key_counts, Enum.frequencies_by(keys, & &1.user_uuid))
   end
 
-  # Only this module's key changes; keys of modules that are not installed stay listed.
-  defp set_module_api(socket, key, on?) do
-    with {:ok, listed} <- Config.fetch_disabled_modules(),
-         wanted = if(on?, do: List.delete(listed, key), else: Enum.uniq(listed ++ [key])),
-         {:ok, _setting} <- write_disabled_modules(socket, listed, wanted) do
-      socket |> assign_state() |> put_flash(:info, gettext("The module's API setting was saved."))
-    else
-      _failed -> put_flash(socket, :error, gettext("The switch could not be saved."))
+  # Only this module's key changes; keys of modules that are not installed stay listed. The
+  # list is read from the database under a row lock inside the write, not from the settings
+  # cache, so another admin's change (or a stale cache on this node) is never overwritten.
+  defp set_module_api(socket, %{key: key} = mod, on?) do
+    change = fn stored ->
+      listed = Config.parse_list(stored)
+      wanted = if(on?, do: List.delete(listed, key), else: Enum.uniq(listed ++ [key]))
+      if wanted == listed, do: :unchanged, else: Config.encode_list(wanted)
+    end
+
+    case Settings.modify_setting_with_module(
+           "api_disabled_modules",
+           "api",
+           change,
+           history(socket)
+         ) do
+      {:ok, _setting} ->
+        socket |> assign_state() |> put_flash(:info, module_api_saved(mod, on?))
+
+      {:error, _changeset} ->
+        put_flash(socket, :error, gettext("The switch could not be saved."))
     end
   end
 
-  defp write_disabled_modules(_socket, listed, listed), do: {:ok, :unchanged}
+  defp module_api_saved(mod, true),
+    do: gettext("The API of %{module} is on.", module: module_label(mod))
 
-  defp write_disabled_modules(socket, _listed, wanted) do
-    Settings.update_setting_with_module(
-      "api_disabled_modules",
-      Config.encode_list(wanted),
-      "api",
-      history(socket)
-    )
-  end
+  defp module_api_saved(mod, false),
+    do: gettext("The API of %{module} is off.", module: module_label(mod))
+
+  defp module_label(%{name: name}), do: Gettext.gettext(PhoenixKitWeb.Gettext, name)
 
   # The modules with tools and whether their API is on right now.
   defp api_modules do

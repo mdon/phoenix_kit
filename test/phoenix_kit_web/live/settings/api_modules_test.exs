@@ -90,6 +90,64 @@ defmodule PhoenixKitWeb.Live.Settings.ApiModulesTest do
     assert changed_settings(admin) == ["api_disabled_modules", "api_disabled_modules"]
   end
 
+  test "the flash names the module and the state it is in", %{conn: conn} do
+    {:ok, view, _html} = live(conn, @path)
+
+    assert render_click(element(view, @switch)) =~ "The API of API key test module is off."
+    assert render_click(element(view, @switch)) =~ "The API of API key test module is on."
+  end
+
+  describe "the list is read from the database, not from the settings cache" do
+    setup do
+      KeyTestSupport.start_cache_registry!()
+      start_supervised!({PhoenixKit.Cache, name: :settings})
+      :ok
+    end
+
+    test "a stale cached list on this node does not drop a module another node switched off",
+         %{conn: conn} do
+      {:ok, _} = Settings.update_setting("api_disabled_modules", "gone_module")
+      # What a node that has not heard of the write yet still holds.
+      PhoenixKit.Cache.put(:settings, "api_disabled_modules", "")
+      assert Config.disabled_modules() == []
+
+      {:ok, view, _html} = live(conn, @path)
+      element(view, @switch) |> render_click()
+
+      assert Settings.get_setting("api_disabled_modules") == "gone_module\napikeytest"
+      assert Config.disabled_modules() == ["gone_module", "apikeytest"]
+    end
+
+    test "switching on with a stale cached list keeps the other modules switched off",
+         %{conn: conn} do
+      {:ok, _} = Settings.update_setting("api_disabled_modules", "apikeytest\ngone_module")
+      PhoenixKit.Cache.put(:settings, "api_disabled_modules", "apikeytest")
+
+      {:ok, view, _html} = live(conn, @path)
+      element(view, @switch) |> render_click()
+
+      assert Settings.get_setting("api_disabled_modules") == "gone_module"
+    end
+  end
+
+  describe "a switch that cannot be saved" do
+    test "says so, changes nothing and leaves no history", %{conn: conn, admin: admin} do
+      # The setting holds at most 1000 characters: this list leaves no room for one more key.
+      full = String.duplicate("g", 995)
+      {:ok, _} = Settings.update_setting("api_disabled_modules", full)
+      {:ok, view, _html} = live(conn, @path)
+
+      html = render_click(element(view, @switch))
+
+      assert html =~ "The switch could not be saved."
+      refute html =~ "The API of API key test module"
+      assert Settings.get_setting("api_disabled_modules") == full
+      assert Config.disabled_modules() == [full]
+      assert "apikeytest.list_things" in tool_names()
+      assert changed_settings(admin) == []
+    end
+  end
+
   test "only this module's key changes: keys of modules that are not installed stay", %{
     conn: conn
   } do
