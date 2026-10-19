@@ -146,3 +146,50 @@ test("a fragment that matches nothing lights nothing", () => {
 
   assert.ok(!("data-highlight" in a.attrs));
 });
+
+// Records what the hook registers on the window, restores the stubs after `fn`.
+function withWindowListeners(fn) {
+  const added = [];
+  const removed = [];
+  const { addEventListener, removeEventListener } = global.window;
+  global.window.addEventListener = (type, handler) => added.push({ type, handler });
+  global.window.removeEventListener = (type, handler) => removed.push({ type, handler });
+  try {
+    fn(added, removed);
+  } finally {
+    global.window.addEventListener = addEventListener;
+    global.window.removeEventListener = removeEventListener;
+  }
+}
+
+test("a fragment link followed inside the page lights its card on hashchange", () => {
+  const a = fakeElement("approval-a");
+  const b = fakeElement("approval-b");
+  const page = mount([a, b], "#approval-a");
+
+  withWindowListeners((added) => {
+    page.mounted();
+
+    assert.deepEqual(added.map((l) => l.type), ["hashchange"]);
+
+    global.window.location.hash = "#approval-b";
+    added[0].handler();
+
+    assert.ok(!("data-highlight" in a.attrs));
+    assert.ok("data-highlight" in b.attrs);
+  });
+});
+
+test("the hashchange listener is removed when the page goes away", () => {
+  const a = fakeElement("approval-a");
+  const page = mount([a], "#approval-a");
+
+  withWindowListeners((added, removed) => {
+    page.mounted();
+    page.destroyed();
+
+    assert.equal(removed.length, 1);
+    assert.equal(removed[0].type, "hashchange");
+    assert.equal(removed[0].handler, added[0].handler);
+  });
+});
