@@ -36,10 +36,12 @@ defmodule PhoenixKit.Integrations.Encryption do
        credentials are stored as plaintext (`:disabled_no_key`,
        `:disabled_explicit`) the report is logged unless the flag is set to
        an explicit `false`, which also silences the one-time warning on the
-       first plaintext write. Because `boot/1` always
-       resolves the key to learn which state the install is in, the one-time
-       error "a key store IS configured but its secret could not be read"
-       may appear at boot whatever the flag says.
+       first plaintext write. Unless the flag is an explicit `false`,
+       `boot/1` resolves the key to learn which state the install is in, so
+       the one-time error "a key store IS configured but its secret could not
+       be read" may appear at boot even when the report itself is off. Only
+       the boolean `false` silences: the string `"false"` (for example from
+       `System.get_env/1`) is truthy and turns the full report on.
 
   Set `config :phoenix_kit, integration_encryption_enabled: false` to turn
   encryption off entirely (new and existing writes store plaintext). This is
@@ -123,7 +125,9 @@ defmodule PhoenixKit.Integrations.Encryption do
   When no key resolves (encryption switched off, or no key material at all)
   the data is returned as is and will be stored as plaintext; the first such
   write on a VM logs one warning, so the state is visible in the log of the
-  node that is actually writing, not only at boot.
+  node that is actually writing, not only at boot. An explicit
+  `config :phoenix_kit, integration_encryption_warn_on_boot: false` skips
+  that warning.
   """
   @spec encrypt_fields(map()) :: map()
   def encrypt_fields(data) when is_map(data) do
@@ -959,10 +963,11 @@ defmodule PhoenixKit.Integrations.Encryption do
   with no way to quiet it. The exception is plaintext storage
   (`status/0` is `:disabled_no_key` or `:disabled_explicit`): `boot/1` calls
   this function in that case too, unless the flag is an explicit `false`.
-  The flag governs only
-  this report: `boot/1` always resolves the key to learn the state, so the
-  one-time error "a key store IS configured but its secret could not be
-  read" may be logged at boot whatever the flag says. `mix phoenix_kit.doctor`
+  Unless the flag is an explicit `false` (then `boot/1` skips the check
+  and does not resolve the key at all), `boot/1` resolves the key to learn
+  the state, so the one-time error "a key store IS configured but its
+  secret could not be read" may be logged at boot even when this report is
+  not. `mix phoenix_kit.doctor`
   and the admin-only system page render `key_report/0` directly, independent
   of this flag, so the diagnosis is always available on demand even when the
   boot push is off.
