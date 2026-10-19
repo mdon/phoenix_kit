@@ -155,8 +155,8 @@ defmodule PhoenixKit.Settings.Setting do
 
   schema "phoenix_kit_settings" do
     field :key, :string
-    #  keeps both values out of  of a Setting or of a
-    # changeset over it (error logs, IEx): they carry the  ciphertext
+    # `redact: true` keeps both values out of `inspect/1` of a Setting or of a
+    # changeset over it (error logs, IEx): they carry the `enc:v1:` ciphertext
     # of secret rows, or the plaintext when encryption is off.
     field :value, :string, redact: true
     field :value_json, :map, redact: true
