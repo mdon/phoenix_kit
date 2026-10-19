@@ -20576,3 +20576,38 @@ msgstr "Lo zoom profondo è bloccato mentre ne rifacciamo il funzionamento."
 #, elixir-autogen, elixir-format
 msgid "We are redoing how deep zoom works, so this switch is locked for now."
 msgstr "Stiamo rifacendo il funzionamento dello zoom profondo, quindi questo interruttore è bloccato per ora."
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex:18
+#, elixir-autogen, elixir-format
+msgid "Each module below offers tools to the API. Switch a module off and all its tools answer as if they did not exist, for every key. Modules are on until you switch them off."
+msgstr "Ogni modulo qui sotto offre strumenti all'API. Se disattivi un modulo, tutti i suoi strumenti rispondono come se non esistessero, per qualsiasi chiave. I moduli sono attivi finché non li disattivi."
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "No installed module offers tools to the API."
+msgstr "Nessun modulo installato offre strumenti all'API."
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex:39
+#, elixir-autogen, elixir-format
+msgid "Tools: %{count}"
+msgstr "Strumenti: %{count}"
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex:40
+#, elixir-autogen, elixir-format
+msgid "Module disabled"
+msgstr "Modulo disattivato"
+
+#: lib/phoenix_kit_web/live/settings/api.ex:164
+#, elixir-autogen, elixir-format
+msgid "The module's API setting was saved."
+msgstr "L'impostazione dell'API del modulo è stata salvata."
+
+#: lib/phoenix_kit_web/live/modules.html.heex:196
+#, elixir-autogen, elixir-format
+msgid "API on"
+msgstr "API attiva"
+
+#: lib/phoenix_kit_web/live/modules.html.heex:196
+#, elixir-autogen, elixir-format
+msgid "API off"
+msgstr "API disattivata"

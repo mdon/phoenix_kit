@@ -20585,3 +20585,38 @@ msgstr "Sügavsuum on lukus, kuni me selle tööd ümber teeme."
 #, elixir-autogen, elixir-format
 msgid "We are redoing how deep zoom works, so this switch is locked for now."
 msgstr "Teeme sügavsuumi tööd ümber, seega on see lüliti praegu lukus."
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex:18
+#, elixir-autogen, elixir-format
+msgid "Each module below offers tools to the API. Switch a module off and all its tools answer as if they did not exist, for every key. Modules are on until you switch them off."
+msgstr "Iga allpool olev moodul pakub API-le tööriistu. Kui lülitate mooduli välja, vastavad kõik selle tööriistad nii, nagu neid poleks, iga võtme puhul. Moodulid on sees, kuni need välja lülitate."
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "No installed module offers tools to the API."
+msgstr "Ükski paigaldatud moodul ei paku API-le tööriistu."
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex:39
+#, elixir-autogen, elixir-format
+msgid "Tools: %{count}"
+msgstr "Tööriistu: %{count}"
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex:40
+#, elixir-autogen, elixir-format
+msgid "Module disabled"
+msgstr "Moodul keelatud"
+
+#: lib/phoenix_kit_web/live/settings/api.ex:164
+#, elixir-autogen, elixir-format
+msgid "The module's API setting was saved."
+msgstr "Mooduli API seade salvestati."
+
+#: lib/phoenix_kit_web/live/modules.html.heex:196
+#, elixir-autogen, elixir-format
+msgid "API on"
+msgstr "API sees"
+
+#: lib/phoenix_kit_web/live/modules.html.heex:196
+#, elixir-autogen, elixir-format
+msgid "API off"
+msgstr "API väljas"

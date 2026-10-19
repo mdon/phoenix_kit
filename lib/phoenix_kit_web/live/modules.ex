@@ -10,6 +10,7 @@ defmodule PhoenixKitWeb.Live.Modules do
   use Gettext, backend: PhoenixKitWeb.Gettext
 
   alias PhoenixKit.Admin.Events
+  alias PhoenixKit.API.Config, as: APIConfig
   alias PhoenixKit.Dashboard.Tab
   alias PhoenixKit.ModuleDiscovery
   alias PhoenixKit.ModuleRegistry
@@ -57,6 +58,7 @@ defmodule PhoenixKitWeb.Live.Modules do
       |> assign(:module_configs, module_configs)
       |> assign(:external_modules, external_modules)
       |> assign(:dep_warnings, dep_warnings)
+      |> assign(:api_modules, api_modules())
       |> assign(:not_installed_packages, not_installed)
       |> assign(:catalog_status, catalog_status)
       |> assign(:hex_browse_url, PhoenixKit.KnownPackages.browse_url())
@@ -64,6 +66,12 @@ defmodule PhoenixKitWeb.Live.Modules do
       |> refresh_tab_counts()
 
     {:ok, socket}
+  end
+
+  # Module key -> whether its API is switched on, for the modules that declare API tools.
+  defp api_modules do
+    disabled = APIConfig.disabled_modules()
+    Map.new(ModuleRegistry.api_modules(), &{&1.key, &1.key not in disabled})
   end
 
   # ============================================================================

@@ -20633,3 +20633,38 @@ msgstr "Глибоке збільшення заблоковано, поки м�
 #, elixir-autogen, elixir-format
 msgid "We are redoing how deep zoom works, so this switch is locked for now."
 msgstr "Ми переробляємо роботу глибокого збільшення, тому цей перемикач поки заблоковано."
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex:18
+#, elixir-autogen, elixir-format
+msgid "Each module below offers tools to the API. Switch a module off and all its tools answer as if they did not exist, for every key. Modules are on until you switch them off."
+msgstr "Кожен модуль нижче надає API інструменти. Якщо вимкнути модуль, усі його інструменти відповідають так, ніби їх немає, для будь-якого ключа. Модулі ввімкнені, доки ви їх не вимкнете."
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "No installed module offers tools to the API."
+msgstr "Жоден встановлений модуль не надає API інструменти."
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex:39
+#, elixir-autogen, elixir-format
+msgid "Tools: %{count}"
+msgstr "Інструментів: %{count}"
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex:40
+#, elixir-autogen, elixir-format
+msgid "Module disabled"
+msgstr "Модуль вимкнено"
+
+#: lib/phoenix_kit_web/live/settings/api.ex:164
+#, elixir-autogen, elixir-format
+msgid "The module's API setting was saved."
+msgstr "Налаштування API модуля збережено."
+
+#: lib/phoenix_kit_web/live/modules.html.heex:196
+#, elixir-autogen, elixir-format
+msgid "API on"
+msgstr "API ввімкнено"
+
+#: lib/phoenix_kit_web/live/modules.html.heex:196
+#, elixir-autogen, elixir-format
+msgid "API off"
+msgstr "API вимкнено"
