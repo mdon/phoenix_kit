@@ -499,13 +499,22 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   # A library that has not chosen follows its rendition profile's old
   # `generate_tiles` flag (`VariantSets.deep_zoom_for_library?/1`), so nothing
   # turned off or on by a set stops or starts when this setting appeared.
+  #
+  # `viewer`: the name of the viewer a library's photos open in (`"classic"`, this
+  # package's own, or an engine of the photos package such as `"photoswipe"`). Core
+  # keeps the name and checks only its shape: which names exist is the host's to
+  # say, so a name it no longer offers is ignored by the host, not refused here.
   @settings %{
     annotated_thumbnails: {"annotated_thumbnails", :boolean},
-    deep_zoom: {"deep_zoom", :boolean}
+    deep_zoom: {"deep_zoom", :boolean},
+    viewer: {"viewer", :name}
   }
 
+  # A `:name` value: lowercase letters, digits, `_` and `-`, up to 32.
+  @name_pattern ~r/\A[a-z0-9_-]{1,32}\z/
+
   @typedoc "A per-library setting."
-  @type setting :: :annotated_thumbnails | :deep_zoom
+  @type setting :: :annotated_thumbnails | :deep_zoom | :viewer
 
   @doc """
   A library's own value of `key`, or nil when it has none and follows the
@@ -618,10 +627,16 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
 
   defp setting_label(:annotated_thumbnails, nil), do: "site default"
   defp setting_label(:deep_zoom, nil), do: "rendition profile"
+  defp setting_label(:viewer, nil), do: "default viewer"
   defp setting_label(_key, value), do: value
 
   defp check_type(_type, nil), do: :ok
   defp check_type(:boolean, value) when is_boolean(value), do: :ok
+
+  defp check_type(:name, value) when is_binary(value) do
+    if Regex.match?(@name_pattern, value), do: :ok, else: {:error, :invalid_value}
+  end
+
   defp check_type(_type, _value), do: {:error, :invalid_value}
 
   defp stored(settings, key) do
@@ -629,6 +644,12 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
       {name, :boolean} ->
         case Map.get(settings || %{}, name) do
           value when is_boolean(value) -> value
+          _ -> nil
+        end
+
+      {name, :name} ->
+        case Map.get(settings || %{}, name) do
+          value when is_binary(value) -> if Regex.match?(@name_pattern, value), do: value
           _ -> nil
         end
 

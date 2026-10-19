@@ -95,6 +95,74 @@ defmodule PhoenixKit.Modules.Storage.LibrarySettingsTest do
     end
   end
 
+  describe "viewer" do
+    test "is a name: set, changed and removed, and the library follows the host's default again" do
+      library = library!()
+      assert Libraries.setting(library, :viewer) == nil
+
+      assert {:ok, updated} = Libraries.put_setting(library, :viewer, "photoswipe")
+      assert Libraries.setting(updated, :viewer) == "photoswipe"
+      assert Libraries.setting(library.uuid, :viewer) == "photoswipe"
+
+      assert {:ok, _} = Libraries.put_setting(library, :viewer, "classic")
+      assert Libraries.setting(library.uuid, :viewer) == "classic"
+
+      assert {:ok, _} = Libraries.put_setting(library, :viewer, nil)
+      assert Libraries.setting(library.uuid, :viewer) == nil
+    end
+
+    test "refuses what is not a name, and changes nothing" do
+      library = library!()
+
+      for bad <- [
+            "",
+            "Photo Swipe",
+            "UPPER",
+            "a/b",
+            String.duplicate("a", 33),
+            true,
+            1,
+            "x\" onclick=\""
+          ] do
+        assert {:error, :invalid_value} = Libraries.put_setting(library, :viewer, bad)
+      end
+
+      assert Libraries.get_library(library.uuid).settings == %{}
+    end
+
+    test "a stored value that is not a name reads as none" do
+      library = library!()
+
+      {1, _} =
+        PhoenixKit.RepoHelper.repo().update_all(
+          Ecto.Query.from(l in PhoenixKit.Modules.Storage.Library,
+            where: l.uuid == ^library.uuid
+          ),
+          set: [settings: %{"viewer" => "Not A Name"}]
+        )
+
+      assert Libraries.setting(library.uuid, :viewer) == nil
+    end
+
+    test "setting_among/2 gives each library its own" do
+      a = library!()
+      b = library!()
+      none = library!()
+      {:ok, _} = Libraries.put_setting(a, :viewer, "photoswipe")
+      {:ok, _} = Libraries.put_setting(b, :viewer, "classic")
+
+      assert Libraries.setting_among([a.uuid, b.uuid, none.uuid], :viewer) ==
+               %{to_string(a.uuid) => "photoswipe", to_string(b.uuid) => "classic"}
+    end
+
+    test "its own key does not disturb the others" do
+      library = library!()
+      {:ok, _} = Libraries.put_setting(library, :annotated_thumbnails, true)
+      {:ok, updated} = Libraries.put_setting(library, :viewer, "photoswipe")
+      assert updated.settings == %{"annotated_thumbnails" => true, "viewer" => "photoswipe"}
+    end
+  end
+
   describe "annotated thumbnails for a library" do
     test "follow the site setting until the library chooses" do
       library = library!()

@@ -40,6 +40,11 @@
   dropdown. A key limited to one bucket is usually refused; the text field stays and the message says to type the name.
 - `Libraries.integration_summary/2`: what a user's integration says about itself (service, bucket provider, region,
   endpoint), never a secret.
+- **A library can choose its viewer (`Libraries.setting(library, :viewer)`).** A per-library setting like `deep_zoom`, but a
+  name: `Libraries.put_setting(library, :viewer, "photoswipe")` (lowercase letters, digits, `_` and `-`, up to 32; anything
+  else is `{:error, :invalid_value}`), `nil` to follow the host's default. Core keeps the name and checks only its shape; which
+  viewers exist is the host's to say (`phoenix_kit_photos` offers `"photoswipe"` and `"classic"`), and a stored name the host
+  does not offer reads as no choice. Needs no migration.
 - **The poster of an HDR video is an HDR photo.** For an HLG video (every iPhone recording) whose `video_thumbnail` size keeps
   HDR, the poster is a JPEG with a gain map (Ultra HDR, ISO 21496-1): an HDR screen shows the highlights above white, any other
   shows the ordinary picture. `VideoHdrPoster` makes it with libvips' `uhdrsave` (in the library `vix` ships; nothing to
