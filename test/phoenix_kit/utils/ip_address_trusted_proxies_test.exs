@@ -101,7 +101,10 @@ defmodule PhoenixKit.Utils.IpAddressTrustedProxiesTest do
 
     test "a malformed entry matches nothing" do
       trust(["not a block", "172.18.0.0/99"])
-      assert IpAddress.client_address(conn({172, 18, 0, 7}, @xff)) == "172.18.0.7"
+
+      capture_log(fn ->
+        assert IpAddress.client_address(conn({172, 18, 0, 7}, @xff)) == "172.18.0.7"
+      end)
     end
   end
 
@@ -171,9 +174,11 @@ defmodule PhoenixKit.Utils.IpAddressTrustedProxiesTest do
 
   describe "not set" do
     test "behaves as before: a local peer is believed, a public one is not" do
-      assert IpAddress.client_address(conn({127, 0, 0, 1}, @xff)) == "203.0.113.7"
-      assert IpAddress.client_address(conn({172, 18, 0, 7}, @real_ip)) == "203.0.113.9"
-      assert IpAddress.client_address(conn({203, 0, 113, 50}, @xff)) == "203.0.113.50"
+      capture_log(fn ->
+        assert IpAddress.client_address(conn({127, 0, 0, 1}, @xff)) == "203.0.113.7"
+        assert IpAddress.client_address(conn({172, 18, 0, 7}, @real_ip)) == "203.0.113.9"
+        assert IpAddress.client_address(conn({203, 0, 113, 50}, @xff)) == "203.0.113.50"
+      end)
     end
 
     test "warns once per VM, on the first honoured header" do

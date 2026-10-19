@@ -215,11 +215,13 @@ config :phoenix_kit, :trusted_proxies, []
 
 One proxy hop is supported: the client is the last `X-Forwarded-For` entry, so a
 chain such as CDN -> Caddy -> app reports the CDN. A value that is not a list of
-CIDR text, or an entry that does not parse, trusts nobody and logs one warning.
-In Docker the proxy's address changes when its container is recreated: pin it
-(`ipv4_address` in compose) or resolve it by name at boot in `config/runtime.exs`,
-otherwise a fixed `/32` silently stops matching and every client appears as the
-proxy.
+CIDR text trusts nobody and logs one warning. In a list, an entry that does not
+parse matches nothing, while the valid entries still trust their peers (one
+warning names the bad ones). In Docker the proxy's address changes when its
+container is recreated, so a fixed `/32` like the one above silently stops
+matching and every client appears as the proxy. Pin the address (`ipv4_address`
+in compose), resolve the proxy by hostname at boot in `config/runtime.exs`, or
+trust the network's CIDR block instead.
 
 - **Not set (default, unchanged).** Any loopback or private peer is treated as a
   proxy. The first request that relies on this logs one warning per VM.

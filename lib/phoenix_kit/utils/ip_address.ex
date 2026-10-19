@@ -384,6 +384,9 @@ defmodule PhoenixKit.Utils.IpAddress do
   addresses `client_address/1` looks past. Anything that does not parse is
   not.
 
+  This is the default rule `client_address/1` applies when `:trusted_proxies`
+  is not set; once that option is set, trust follows the list instead.
+
       iex> PhoenixKit.Utils.IpAddress.local_address?("172.18.0.8")
       true
 
