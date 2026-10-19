@@ -1,0 +1,179 @@
+defmodule PhoenixKit.API.Approvals.ViewTest do
+  @moduledoc """
+  What the approvals page shows of a preview and of a result: the common shape is read
+  into a table, everything else is kept for the "Technical details" block.
+  """
+  use ExUnit.Case, async: true
+
+  alias PhoenixKit.API.Approvals.View
+
+  defp price_preview do
+    %{
+      "rows" => [
+        %{
+          "ref" => "SKU-1",
+          "id" => "0198-aaaa",
+          "name" => "Oak shelf",
+          "action" => "update",
+          "changes" => %{"price" => %{"from" => "10.00", "to" => "12.50"}},
+          "warnings" => ["Shopify sync may overwrite this price."]
+        }
+      ],
+      "totals" => %{"rows" => 1, "update" => 1, "unchanged" => 0}
+    }
+  end
+
+  describe "preview/1 of the common shape" do
+    test "reads rows, changes, warnings and totals, and keeps no technical details" do
+      view = View.preview(price_preview())
+
+      assert view.count == 1
+      assert view.hidden == 0
+      assert view.technical == nil
+      assert view.summary == [{"unchanged", 0}, {"update", 1}]
+
+      assert [row] = view.rows
+      assert row.label == "Oak shelf"
+      assert row.sub == "SKU-1"
+      assert row.warnings == ["Shopify sync may overwrite this price."]
+      assert [%{field: "price", from: "10.00", to: "12.50", pct: "+25.0"}] = row.changes
+    end
+
+    test "the label falls back from name to ref to id" do
+      rows = [
+        %{"ref" => "r-1", "id" => "i-1"},
+        %{"id" => "i-2"}
+      ]
+
+      view = View.preview(%{"rows" => rows})
+
+      assert [%{label: "r-1", sub: nil}, %{label: "i-2", sub: nil}] = view.rows
+      assert view.technical == nil
+    end
+
+    test "a row without changes keeps its action and error" do
+      view =
+        View.preview(%{
+          "rows" => [
+            %{"ref" => "a", "action" => "unchanged"},
+            %{"ref" => "b", "action" => "error", "error" => "price must be a number"}
+          ]
+        })
+
+      assert [%{action: "unchanged", error: nil}, %{action: "error", error: msg}] = view.rows
+      assert msg == "price must be a number"
+      assert view.technical == nil
+    end
+
+    test "the row count is the totals' own, else the number of rows" do
+      assert View.preview(%{"rows" => [%{"ref" => "a"}], "totals" => %{"rows" => 40}}).count == 40
+      assert View.preview(%{"rows" => [%{"ref" => "a"}, %{"ref" => "b"}]}).count == 2
+      assert View.preview(%{"totals" => %{"delete" => 1}}).count == nil
+    end
+
+    test "at most 25 rows are listed and the rest is counted" do
+      rows = for n <- 1..30, do: %{"ref" => "item-#{n}"}
+      view = View.preview(%{"rows" => rows})
+
+      assert length(view.rows) == 25
+      assert view.hidden == 5
+    end
+
+    test "top-level warnings are kept when they are text" do
+      view = View.preview(%{"rows" => [%{"ref" => "a"}], "warnings" => ["Slow batch."]})
+      assert view.warnings == ["Slow batch."]
+      assert view.technical == nil
+    end
+  end
+
+  describe "preview/1 of anything else" do
+    test "an unknown top-level key puts the whole preview in the technical details" do
+      preview = Map.put(price_preview(), "largest_price_change_pct", "25.0")
+      view = View.preview(preview)
+
+      assert view.technical == preview
+      assert [%{label: "Oak shelf"}] = view.rows
+    end
+
+    test "a row with keys the table cannot show keeps the preview as technical details" do
+      preview = %{"rows" => [%{"ref" => "a", "action" => "delete", "from" => 100}]}
+      view = View.preview(preview)
+
+      assert view.technical == preview
+      assert [%{label: "a", action: "delete"}] = view.rows
+    end
+
+    test "technical details never carry more than the listed rows" do
+      rows = for n <- 1..30, do: %{"ref" => "item-#{n}", "extra" => n}
+      view = View.preview(%{"rows" => rows})
+
+      assert length(view.technical["rows"]) == 25
+      assert view.hidden == 5
+    end
+
+    test "changes that are not from/to pairs are not read" do
+      preview = %{"rows" => [%{"ref" => "a", "changes" => %{"price" => "12.50"}}]}
+      view = View.preview(preview)
+
+      assert view.technical == preview
+      assert [%{changes: []}] = view.rows
+    end
+
+    test "a row with no name, ref or id cannot be listed" do
+      preview = %{"rows" => [%{"action" => "update"}]}
+      view = View.preview(preview)
+
+      assert view.rows == []
+      assert view.technical == preview
+    end
+
+    test "totals that are not plain values stay out of the sentence" do
+      preview = %{"totals" => %{"update" => 1, "by_kind" => %{"a" => 1}}}
+      view = View.preview(preview)
+
+      assert view.summary == [{"update", 1}]
+      assert view.technical == preview
+    end
+
+    test "something that is not a map reads as an empty preview" do
+      assert View.preview(nil) == View.preview(%{})
+      assert View.preview(%{}).technical == nil
+      assert View.preview(%{}).rows == []
+    end
+  end
+
+  describe "delta_pct/2" do
+    test "numbers and numeric text" do
+      assert View.delta_pct("10.00", "12.50") == "+25.0"
+      assert View.delta_pct(100, 90) == "-10.0"
+      assert View.delta_pct(10.0, 10.0) == "0.0"
+      assert View.delta_pct(" 8 ", "10") == "+25.0"
+    end
+
+    test "nil when there is nothing to divide or to read" do
+      assert View.delta_pct("0.00", "5.00") == nil
+      assert View.delta_pct(nil, "5.00") == nil
+      assert View.delta_pct("5.00", nil) == nil
+      assert View.delta_pct("a lot", "5.00") == nil
+      assert View.delta_pct("5.00 EUR", "6.00 EUR") == nil
+      assert View.delta_pct(%{"a" => 1}, 2) == nil
+    end
+  end
+
+  describe "facts/1 of a result" do
+    test "the summary map of the result, without zeros" do
+      result = %{"results" => [], "summary" => %{"updated" => 2, "unchanged" => 0, "error" => 0}}
+      assert View.facts(result) == [{"updated", 2}]
+    end
+
+    test "else the plain top-level values" do
+      assert View.facts(%{"deleted" => 3, "ids" => ["a"], "note" => "late"}) == [{"deleted", 3}]
+    end
+
+    test "nothing to say" do
+      assert View.facts(nil) == []
+      assert View.facts(%{}) == []
+      assert View.facts(%{"rows" => [%{}]}) == []
+    end
+  end
+end
