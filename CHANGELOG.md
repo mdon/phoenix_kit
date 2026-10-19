@@ -48,6 +48,12 @@
   and held it, twice over, while it hashed; a video of a few gigabytes cost a few gigabytes. They go through the new
   `PhoenixKit.Utils.FileHash` (1 MiB chunks, several digests in one pass), so what a hash costs in memory is the chunk. A test
   stores a 160 MiB file and fails if binary memory rises by more than 64 MiB (the old code rose by 293 MiB).
+- **An iPhone's HEIC (and HEIF, AVIF) zooms to the last pixel.** libvips as shipped with `vix` reads a HEIC's size but has no HEVC
+  decoder, so no deep-zoom tile could be cut from one and the viewer stopped at the 1920 px rendition. The first tile request
+  now makes one full-resolution JPEG of the original with ImageMagick (`ImageProcessor.full_jpeg/3`), keeps it beside the tiles
+  (`TileSource`), and cuts every tile from it.
+- **`POST /api/upload` takes HEIC, HEIF, AVIF, TIFF and BMP** (it turned them away as "not allowed"), and its size cap follows the
+  `storage_max_upload_size_mb` setting (default 500) instead of a fixed 100 MB.
 
 ## 2.63.0 - 2026-10-17
 

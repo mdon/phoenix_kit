@@ -704,6 +704,14 @@ stored under `_tiles/<uuid>/<v>/`. A version that is not the current one is
 a 404. The legacy `/tiles/<token>/<uuid>.dzi` resolves to the current version
 and is never cached.
 
+An iPhone's HEIC (and HEIF, AVIF) has no tiles cut from it directly: libvips as
+shipped with `vix` can read its size but has no HEVC decoder, so it cannot read a
+pixel. The first tile request makes one full-resolution JPEG of the original with
+ImageMagick (`ImageProcessor.full_jpeg/3`), stores it as `_tiles/<uuid>/<v>/<uuid>_source.jpg`
+(a system-managed file of the original) and cuts every tile from it
+(`PhoenixKit.Modules.Storage.TileSource`). A copy of a size other than the file's
+is refused, so tiles are never misplaced.
+
 ### HDR and camera metadata in renditions
 
 V217 stores each rendition's options in `Dimension.options` (`DimensionOptions`),
@@ -759,6 +767,12 @@ What a hash costs in memory is the chunk, not the file. Bytes move the same way:
 download is streamed to a file (`ExAws.S3.download_file`), a local bucket writes to a
 temporary name and renames, and S3 uploads of 5 MB or more are multipart streams. A test
 stores a 160 MiB file and fails if binary memory rises by more than 64 MiB.
+
+`POST /api/upload` takes the types the image pipeline renders (JPEG, PNG, WebP, GIF, HEIC,
+HEIF, AVIF, TIFF, BMP), MP4, WebM, QuickTime and PDF, and its size cap is the
+`storage_max_upload_size_mb` setting (default 500), like the media browser's uploads. A host
+endpoint's `Plug.Parsers` multipart `:length` still bounds the request body before the
+controller sees it.
 
 ## Storing a file from a URL
 
