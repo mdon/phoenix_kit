@@ -20587,12 +20587,12 @@ msgid "We are redoing how deep zoom works, so this switch is locked for now."
 msgstr "Estamos rehaciendo cómo funciona el zoom profundo, así que este interruptor está bloqueado por ahora."
 
 #: lib/phoenix_kit_web/live/settings/api.html.heex:20
-#: lib/phoenix_kit_web/live/settings/api_guide.ex:52
+#: lib/phoenix_kit_web/live/settings/api_guide.ex:51
 #, elixir-autogen, elixir-format
 msgid "API guide"
 msgstr "Guía de la API"
 
-#: lib/phoenix_kit_web/live/settings/api_guide.ex:55
+#: lib/phoenix_kit_web/live/settings/api_guide.ex:54
 #, elixir-autogen, elixir-format
 msgid "How to connect a program or an AI agent to the admin API with a key."
 msgstr "Cómo conectar un programa o un agente de IA a la API de administración con una clave."
@@ -20714,90 +20714,108 @@ msgstr "VS Code pide la clave al iniciar el servidor y la mantiene fuera del arc
 
 #: lib/phoenix_kit_web/live/settings/api_guide.html.heex:176
 #, elixir-autogen, elixir-format
-msgid "A key sees only the tools its scopes unlock. Tools of a module whose API is switched off are not listed."
-msgstr "Una clave solo ve las herramientas que desbloquean sus ámbitos. Las herramientas de un módulo cuya API está desactivada no aparecen."
+msgid "A key sees only the tools its scopes unlock."
+msgstr "Una clave solo ve las herramientas que desbloquean sus ámbitos."
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:203
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:177
+#, elixir-autogen, elixir-format
+msgid "Tools switched off one by one, and the tools of a module whose API is switched off, are not listed."
+msgstr "Las herramientas desactivadas una por una y las de un módulo cuya API está desactivada no aparecen."
+
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:180
+#, elixir-autogen, elixir-format
+msgid "Any write tool may also ask for confirmation when a call touches more rows than the limit under Dangerous operations."
+msgstr "Cualquier herramienta de escritura también puede pedir confirmación cuando una llamada afecta a más filas que el límite indicado en Operaciones peligrosas."
+
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:207
 #, elixir-autogen, elixir-format
 msgid "Writes"
 msgstr "Escribe"
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:206
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:210
 #, elixir-autogen, elixir-format
 msgid "Read only"
 msgstr "Solo lectura"
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:212
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:216
 #, elixir-autogen, elixir-format
 msgid "May ask for confirmation"
 msgstr "Puede pedir confirmación"
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:231
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:235
 #, elixir-autogen, elixir-format
 msgid "A key acts as its owner. A call may do what the key's scopes allow and the owner's permissions allow at that moment: take a permission from the owner and the key loses it on the next call."
 msgstr "Una clave actúa como su propietario. Una llamada puede hacer lo que permiten los ámbitos de la clave y los permisos del propietario en ese momento: si quitas un permiso al propietario, la clave lo pierde en la siguiente llamada."
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:236
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:240
 #, elixir-autogen, elixir-format
 msgid "For a program, give the key to a service user: an account without a login that holds only the roles you choose."
 msgstr "Para un programa, da la clave a un usuario de servicio: una cuenta sin inicio de sesión que solo tiene los roles que elijas."
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:241
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:245
 #, elixir-autogen, elixir-format
 msgid "A key is shown once, when it is created. If it leaks, revoke it. To replace it, rotate it: the old key can keep working for a grace period you choose."
 msgstr "Una clave se muestra una sola vez, al crearla. Si se filtra, revócala. Para sustituirla, rótala: la clave anterior puede seguir funcionando durante un periodo de gracia que tú eliges."
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:253
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:257
 #, elixir-autogen, elixir-format
 msgid "Dangerous operations"
 msgstr "Operaciones peligrosas"
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:258
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:262
 #, elixir-autogen, elixir-format
 msgid "A write tool takes three optional fields: in the body over REST, as arguments over MCP."
 msgstr "Una herramienta de escritura admite tres campos opcionales: en el cuerpo con REST, como argumentos con MCP."
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:264
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:268
 #, elixir-autogen, elixir-format
 msgid "Runs the tool without changing anything and returns a preview."
 msgstr "Ejecuta la herramienta sin cambiar nada y devuelve una vista previa."
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:267
-#, elixir-autogen, elixir-format
-msgid "A dangerous operation first returns a preview and a one-time code. Repeat the same call with confirm_token set to that code within %{seconds} seconds."
-msgstr "Una operación peligrosa devuelve primero una vista previa y un código de un solo uso. Repite la misma llamada con confirm_token igual a ese código en %{seconds} segundos."
-
 #: lib/phoenix_kit_web/live/settings/api_guide.html.heex:271
 #, elixir-autogen, elixir-format
-msgid "Any write that touches more than %{count} rows is dangerous too."
-msgstr "Cualquier escritura que afecte a más de %{count} filas también es peligrosa."
+msgid "A dangerous operation first returns a preview and a one-time code. Repeat the same call with confirm_token set to that code within %{count} second."
+msgid_plural "A dangerous operation first returns a preview and a one-time code. Repeat the same call with confirm_token set to that code within %{count} seconds."
+msgstr[0] "Una operación peligrosa devuelve primero una vista previa y un código de un solo uso. Repite la misma llamada con confirm_token igual a ese código en %{count} segundo."
+msgstr[1] "Una operación peligrosa devuelve primero una vista previa y un código de un solo uso. Repite la misma llamada con confirm_token igual a ese código en %{count} segundos."
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:278
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:276
 #, elixir-autogen, elixir-format
-msgid "16 to 128 characters: letters, digits, - and _. The same key with the same arguments returns the first answer instead of running twice; answers are kept for %{hours} hours."
-msgstr "De 16 a 128 caracteres: letras, dígitos, - y _. La misma clave con los mismos argumentos devuelve la primera respuesta en lugar de ejecutarse dos veces; las respuestas se conservan %{hours} horas."
+msgid "Any write that touches more than %{count} row is dangerous too."
+msgid_plural "Any write that touches more than %{count} rows is dangerous too."
+msgstr[0] "Cualquier escritura que afecte a más de %{count} fila también es peligrosa."
+msgstr[1] "Cualquier escritura que afecte a más de %{count} filas también es peligrosa."
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:286
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:284
 #, elixir-autogen, elixir-format
-msgid "A key that requires approval does not run a dangerous operation: the call returns pending_approval and waits up to %{hours} hours for a person to approve it."
-msgstr "Una clave que requiere aprobación no ejecuta una operación peligrosa: la llamada devuelve pending_approval y espera hasta %{hours} horas a que una persona la apruebe."
+msgid "16 to 128 characters: letters, digits, - and _. The same key with the same arguments returns the first answer instead of running twice; answers are kept for %{count} hour."
+msgid_plural "16 to 128 characters: letters, digits, - and _. The same key with the same arguments returns the first answer instead of running twice; answers are kept for %{count} hours."
+msgstr[0] "De 16 a 128 caracteres: letras, dígitos, - y _. La misma clave con los mismos argumentos devuelve la primera respuesta en lugar de ejecutarse dos veces; las respuestas se conservan %{count} hora."
+msgstr[1] "De 16 a 128 caracteres: letras, dígitos, - y _. La misma clave con los mismos argumentos devuelve la primera respuesta en lugar de ejecutarse dos veces; las respuestas se conservan %{count} horas."
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:308
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:293
+#, elixir-autogen, elixir-format
+msgid "A key that requires approval does not run a dangerous operation: the call returns pending_approval and waits up to %{count} hour for a person to approve it."
+msgid_plural "A key that requires approval does not run a dangerous operation: the call returns pending_approval and waits up to %{count} hours for a person to approve it."
+msgstr[0] "Una clave que requiere aprobación no ejecuta una operación peligrosa: la llamada devuelve pending_approval y espera hasta %{count} hora a que una persona la apruebe."
+msgstr[1] "Una clave que requiere aprobación no ejecuta una operación peligrosa: la llamada devuelve pending_approval y espera hasta %{count} horas a que una persona la apruebe."
+
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:316
 #, elixir-autogen, elixir-format
 msgid "Errors"
 msgstr "Errores"
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:311
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:319
 #, elixir-autogen, elixir-format
 msgid "An error is a problem+json document with a stable code. Branch on the code, not on the text."
 msgstr "Un error es un documento problem+json con un código estable. Decide según el código, no según el texto."
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:321
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:329
 #, elixir-autogen, elixir-format
 msgid "Code"
 msgstr "Código"
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:322
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:330
 #, elixir-autogen, elixir-format
 msgid "What to do"
 msgstr "Qué hacer"

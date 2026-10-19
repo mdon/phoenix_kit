@@ -20578,12 +20578,12 @@ msgid "We are redoing how deep zoom works, so this switch is locked for now."
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/api.html.heex:20
-#: lib/phoenix_kit_web/live/settings/api_guide.ex:52
+#: lib/phoenix_kit_web/live/settings/api_guide.ex:51
 #, elixir-autogen, elixir-format
 msgid "API guide"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/settings/api_guide.ex:55
+#: lib/phoenix_kit_web/live/settings/api_guide.ex:54
 #, elixir-autogen, elixir-format
 msgid "How to connect a program or an AI agent to the admin API with a key."
 msgstr ""
@@ -20705,90 +20705,108 @@ msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/api_guide.html.heex:176
 #, elixir-autogen, elixir-format
-msgid "A key sees only the tools its scopes unlock. Tools of a module whose API is switched off are not listed."
+msgid "A key sees only the tools its scopes unlock."
 msgstr ""
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:203
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:177
+#, elixir-autogen, elixir-format
+msgid "Tools switched off one by one, and the tools of a module whose API is switched off, are not listed."
+msgstr ""
+
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:180
+#, elixir-autogen, elixir-format
+msgid "Any write tool may also ask for confirmation when a call touches more rows than the limit under Dangerous operations."
+msgstr ""
+
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:207
 #, elixir-autogen, elixir-format
 msgid "Writes"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:206
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:210
 #, elixir-autogen, elixir-format
 msgid "Read only"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:212
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:216
 #, elixir-autogen, elixir-format
 msgid "May ask for confirmation"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:231
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:235
 #, elixir-autogen, elixir-format
 msgid "A key acts as its owner. A call may do what the key's scopes allow and the owner's permissions allow at that moment: take a permission from the owner and the key loses it on the next call."
 msgstr ""
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:236
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:240
 #, elixir-autogen, elixir-format
 msgid "For a program, give the key to a service user: an account without a login that holds only the roles you choose."
 msgstr ""
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:241
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:245
 #, elixir-autogen, elixir-format
 msgid "A key is shown once, when it is created. If it leaks, revoke it. To replace it, rotate it: the old key can keep working for a grace period you choose."
 msgstr ""
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:253
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:257
 #, elixir-autogen, elixir-format
 msgid "Dangerous operations"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:258
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:262
 #, elixir-autogen, elixir-format
 msgid "A write tool takes three optional fields: in the body over REST, as arguments over MCP."
 msgstr ""
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:264
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:268
 #, elixir-autogen, elixir-format
 msgid "Runs the tool without changing anything and returns a preview."
 msgstr ""
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:267
-#, elixir-autogen, elixir-format
-msgid "A dangerous operation first returns a preview and a one-time code. Repeat the same call with confirm_token set to that code within %{seconds} seconds."
-msgstr ""
-
 #: lib/phoenix_kit_web/live/settings/api_guide.html.heex:271
 #, elixir-autogen, elixir-format
-msgid "Any write that touches more than %{count} rows is dangerous too."
-msgstr ""
+msgid "A dangerous operation first returns a preview and a one-time code. Repeat the same call with confirm_token set to that code within %{count} second."
+msgid_plural "A dangerous operation first returns a preview and a one-time code. Repeat the same call with confirm_token set to that code within %{count} seconds."
+msgstr[0] ""
+msgstr[1] ""
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:278
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:276
 #, elixir-autogen, elixir-format
-msgid "16 to 128 characters: letters, digits, - and _. The same key with the same arguments returns the first answer instead of running twice; answers are kept for %{hours} hours."
-msgstr ""
+msgid "Any write that touches more than %{count} row is dangerous too."
+msgid_plural "Any write that touches more than %{count} rows is dangerous too."
+msgstr[0] ""
+msgstr[1] ""
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:286
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:284
 #, elixir-autogen, elixir-format
-msgid "A key that requires approval does not run a dangerous operation: the call returns pending_approval and waits up to %{hours} hours for a person to approve it."
-msgstr ""
+msgid "16 to 128 characters: letters, digits, - and _. The same key with the same arguments returns the first answer instead of running twice; answers are kept for %{count} hour."
+msgid_plural "16 to 128 characters: letters, digits, - and _. The same key with the same arguments returns the first answer instead of running twice; answers are kept for %{count} hours."
+msgstr[0] ""
+msgstr[1] ""
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:308
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:293
+#, elixir-autogen, elixir-format
+msgid "A key that requires approval does not run a dangerous operation: the call returns pending_approval and waits up to %{count} hour for a person to approve it."
+msgid_plural "A key that requires approval does not run a dangerous operation: the call returns pending_approval and waits up to %{count} hours for a person to approve it."
+msgstr[0] ""
+msgstr[1] ""
+
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:316
 #, elixir-autogen, elixir-format
 msgid "Errors"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:311
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:319
 #, elixir-autogen, elixir-format
 msgid "An error is a problem+json document with a stable code. Branch on the code, not on the text."
 msgstr ""
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:321
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:329
 #, elixir-autogen, elixir-format
 msgid "Code"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:322
+#: lib/phoenix_kit_web/live/settings/api_guide.html.heex:330
 #, elixir-autogen, elixir-format
 msgid "What to do"
 msgstr ""

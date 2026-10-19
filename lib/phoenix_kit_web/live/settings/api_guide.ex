@@ -25,6 +25,7 @@ defmodule PhoenixKitWeb.Live.Settings.ApiGuide do
   use PhoenixKitWeb, :live_view
   use Gettext, backend: PhoenixKitWeb.Gettext
 
+  alias PhoenixKit.API.ClientName
   alias PhoenixKit.API.Config
   alias PhoenixKit.API.ControlFields
   alias PhoenixKit.API.FlowConfig
@@ -34,18 +35,16 @@ defmodule PhoenixKitWeb.Live.Settings.ApiGuide do
   alias PhoenixKit.API.Registry
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
-  alias PhoenixKit.Utils.Slug
 
   @key_placeholder "<your key>"
-  @slug_max 32
-  @slug_fallback "shop"
 
   @impl true
   def mount(_params, _session, socket) do
     base = Routes.base_url()
     rest = base <> Routes.path("/api/admin/v1")
     mcp = base <> Routes.path("/mcp/admin")
-    name = server_name()
+    project_title = Settings.get_project_title()
+    name = server_name(project_title)
 
     socket =
       socket
@@ -56,7 +55,7 @@ defmodule PhoenixKitWeb.Live.Settings.ApiGuide do
       )
       |> assign(:page_section, gettext("API"))
       |> assign(:page_section_path, Routes.path("/admin/settings/api"))
-      |> assign(:project_title, Settings.get_project_title())
+      |> assign(:project_title, project_title)
       |> assign(
         :current_path,
         Routes.path("/admin/settings/api/guide", locale: socket.assigns.current_locale_base)
@@ -86,11 +85,7 @@ defmodule PhoenixKitWeb.Live.Settings.ApiGuide do
 
   # The shop server of the same site is named after the project too, so this one
   # carries a suffix and the two can sit in one client.
-  defp server_name do
-    slug = Slug.slugify(Settings.get_project_title(), max_length: @slug_max)
-
-    if(slug == "", do: @slug_fallback, else: slug) <> "-admin"
-  end
+  defp server_name(project_title), do: ClientName.slug(project_title) <> "-admin"
 
   # `--header` takes any number of values, so it must follow the URL or the URL
   # would be read as a header. The default scope is `local`: the key stays out of
@@ -149,7 +144,7 @@ defmodule PhoenixKitWeb.Live.Settings.ApiGuide do
         tools: Enum.sort_by(rows, & &1.name)
       }
     end)
-    |> Enum.sort_by(&{&1.key != "core", &1.label})
+    |> Enum.sort_by(&{&1.key != "core", String.downcase(&1.label)})
   end
 
   defp group_of(%{module: nil}), do: {"core", gettext("Core")}
@@ -158,7 +153,7 @@ defmodule PhoenixKitWeb.Live.Settings.ApiGuide do
     do: {module_text(module, :module_key), module_text(module, :module_name)}
 
   defp module_text(module, function) do
-    if function_exported?(module, function, 0) do
+    if Code.ensure_loaded?(module) and function_exported?(module, function, 0) do
       module |> apply(function, []) |> to_string()
     else
       inspect(module)
@@ -172,7 +167,7 @@ defmodule PhoenixKitWeb.Live.Settings.ApiGuide do
       name: tool.name,
       mcp_name: Names.to_mcp(tool.name),
       dom_id: "guide-tool-" <> String.replace(tool.name, ".", "-"),
-      title: tool.title,
+      title: if(tool.title != tool.name, do: tool.title),
       scope: tool.scope,
       writes?: ControlFields.write_tool?(tool),
       confirms?: tool.danger != nil

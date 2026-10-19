@@ -79,8 +79,8 @@
 
         <div id="guide-headers" class="space-y-2">
           <h3 class="font-medium">{gettext("Headers")}</h3>
-          <dl class="grid grid-cols-1 sm:grid-cols-[16rem_1fr] gap-x-4 gap-y-2 text-sm">
-            <dt><code class="font-mono">Authorization: Bearer &lt;key&gt;</code></dt>
+          <dl class="grid grid-cols-1 sm:grid-cols-[18rem_1fr] gap-x-4 gap-y-2 text-sm">
+            <dt><code class="font-mono">Authorization: Bearer &lt;your key&gt;</code></dt>
             <dd>
               {gettext(
                 "The API key, as a Bearer token. Never put a key in a URL: such a request is refused."
@@ -119,7 +119,7 @@
             "Give the program a key that holds only the scopes it needs. Create it on Settings -> API."
           )}
         </p>
-        <div id="guide-key-warning" role="alert" class="alert alert-warning text-sm">
+        <div id="guide-key-warning" role="note" class="alert alert-warning text-sm">
           <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
           <span>
             {gettext(
@@ -173,8 +173,12 @@
             <.icon name="hero-wrench-screwdriver" class="w-5 h-5" /> {gettext("Tools")}
           </h2>
           <p id="guide-tools-note" class="text-sm text-base-content/70">
+            {gettext("A key sees only the tools its scopes unlock.")}
             {gettext(
-              "A key sees only the tools its scopes unlock. Tools of a module whose API is switched off are not listed."
+              "Tools switched off one by one, and the tools of a module whose API is switched off, are not listed."
+            )}
+            {gettext(
+              "Any write tool may also ask for confirmation when a call touches more rows than the limit under Dangerous operations."
             )}
           </p>
         </div>
@@ -186,7 +190,7 @@
               <tbody>
                 <tr :for={tool <- group.tools} id={tool.dom_id}>
                   <td class="align-top">
-                    <div>{tool.title}</div>
+                    <div :if={tool.title}>{tool.title}</div>
                     <div class="font-mono text-xs text-base-content/60">
                       <code class="guide-tool-name">{tool.name}</code>
                       <code class="guide-tool-mcp-name">{tool.mcp_name}</code>
@@ -264,28 +268,32 @@
           <dd>{gettext("Runs the tool without changing anything and returns a preview.")}</dd>
           <dt><code class="font-mono">confirm_token</code></dt>
           <dd>
-            {gettext(
-              "A dangerous operation first returns a preview and a one-time code. Repeat the same call with confirm_token set to that code within %{seconds} seconds.",
-              seconds: @confirm_ttl_seconds
+            {ngettext(
+              "A dangerous operation first returns a preview and a one-time code. Repeat the same call with confirm_token set to that code within %{count} second.",
+              "A dangerous operation first returns a preview and a one-time code. Repeat the same call with confirm_token set to that code within %{count} seconds.",
+              @confirm_ttl_seconds
             )}
-            {gettext(
+            {ngettext(
+              "Any write that touches more than %{count} row is dangerous too.",
               "Any write that touches more than %{count} rows is dangerous too.",
-              count: @confirm_batch_over
+              @confirm_batch_over
             )}
           </dd>
           <dt><code class="font-mono">idempotency_key</code></dt>
           <dd>
-            {gettext(
-              "16 to 128 characters: letters, digits, - and _. The same key with the same arguments returns the first answer instead of running twice; answers are kept for %{hours} hours.",
-              hours: @idempotency_ttl_hours
+            {ngettext(
+              "16 to 128 characters: letters, digits, - and _. The same key with the same arguments returns the first answer instead of running twice; answers are kept for %{count} hour.",
+              "16 to 128 characters: letters, digits, - and _. The same key with the same arguments returns the first answer instead of running twice; answers are kept for %{count} hours.",
+              @idempotency_ttl_hours
             )}
           </dd>
         </dl>
         <div class="flex flex-wrap items-start justify-between gap-3">
           <p class="text-sm">
-            {gettext(
-              "A key that requires approval does not run a dangerous operation: the call returns pending_approval and waits up to %{hours} hours for a person to approve it.",
-              hours: @approval_ttl_hours
+            {ngettext(
+              "A key that requires approval does not run a dangerous operation: the call returns pending_approval and waits up to %{count} hour for a person to approve it.",
+              "A key that requires approval does not run a dangerous operation: the call returns pending_approval and waits up to %{count} hours for a person to approve it.",
+              @approval_ttl_hours
             )}
           </p>
           <.button

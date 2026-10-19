@@ -9,9 +9,11 @@ defmodule PhoenixKitWeb.Live.Settings.ApiGuideTest do
   alias PhoenixKit.API.KeyTestSupport
   alias PhoenixKit.API.MCP.Shape
   alias PhoenixKit.API.Problem
+  alias PhoenixKit.ModuleRegistry
   alias PhoenixKit.Test.ApiFlowHarness
   alias PhoenixKit.Test.ApiFlowTools
   alias PhoenixKit.Test.ApiHarness
+  alias PhoenixKit.Test.ApiLowercaseTools
   alias PhoenixKit.Users.Permissions
   alias PhoenixKit.Users.Roles
   alias PhoenixKit.Utils.Routes
@@ -170,10 +172,16 @@ defmodule PhoenixKitWeb.Live.Settings.ApiGuideTest do
     end
 
     test "no snippet or sentence on the page holds a real key", %{conn: conn} do
+      %{key: key, token: token} = ApiFlowHarness.agent()
+      assert token =~ ~r/\Apk_#{key.prefix}_/
+
       {:ok, view, _html} = live(conn, @path)
+      html = render(view)
 
       assert has_element?(view, "#guide-key-warning")
-      refute render(view) =~ ~r/\bpk_[0-9a-f]{8}_/
+      refute html =~ token
+      refute html =~ key.prefix
+      refute html =~ ~r/\bpk_[0-9a-f]{8}_/
     end
 
     test "the server name is the slug of the project title plus -admin", %{conn: conn} do
@@ -189,6 +197,14 @@ defmodule PhoenixKitWeb.Live.Settings.ApiGuideTest do
       assert name =~ ~r/\A[a-z0-9-]+-admin\z/
       assert String.starts_with?(name, "cafe-deco")
       assert byte_size(name) <= 32 + byte_size("-admin")
+    end
+
+    test "a title in another script is romanized", %{conn: conn} do
+      KeyTestSupport.put_setting("project_title", "Декор для дома")
+      {:ok, view, _html} = live(conn, @path)
+
+      assert text(view, "#guide-claude-code-command") =~
+               "--transport http dekor-dlya-doma-admin '"
     end
 
     test "a title cut at a word break leaves no dangling dash", %{conn: conn} do
@@ -271,6 +287,53 @@ defmodule PhoenixKitWeb.Live.Settings.ApiGuideTest do
       refute has_element?(view, "#guide-tool-flowkit-read_items")
       assert has_element?(view, "#guide-tools-note")
     end
+
+    test "the note says what is hidden and that any write tool may ask for confirmation",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path)
+      note = text(view, "#guide-tools-note")
+
+      assert note =~ "switched off"
+      assert note =~ "one by one"
+      assert note =~ "Any write tool may also ask for confirmation"
+    end
+
+    test "a tool that is switched off by itself is not listed", %{conn: conn} do
+      KeyTestSupport.put_setting("api_disabled_tools", "flowkit.read_items")
+      {:ok, view, _html} = live(conn, @path)
+
+      refute has_element?(view, "#guide-tool-flowkit-read_items")
+      assert has_element?(view, "#guide-tool-flowkit-touch_item")
+    end
+
+    test "modules are sorted by name regardless of case", %{conn: conn} do
+      :ok = ModuleRegistry.register(ApiLowercaseTools)
+      on_exit(fn -> ModuleRegistry.unregister(ApiLowercaseTools) end)
+
+      {:ok, view, _html} = live(conn, @path)
+
+      labels =
+        view
+        |> render()
+        |> LazyHTML.from_fragment()
+        |> LazyHTML.query("#guide-tools > .card-body > div[id^=guide-tools-group-] > h3")
+        |> Enum.map(&LazyHTML.text/1)
+
+      assert hd(labels) == "Core"
+      assert "acme lowercase tools" in labels
+      assert tl(labels) == Enum.sort_by(tl(labels), &String.downcase/1)
+    end
+
+    test "a title that equals the name is not repeated", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path)
+
+      # The flow test tools take their name as their title.
+      row = text(view, "#guide-tool-flowkit-read_items")
+      assert length(String.split(row, "flowkit.read_items")) == 2
+
+      # A real title stays beside the name.
+      assert text(view, "#guide-tool-system-get_identity") =~ "Get identity"
+    end
   end
 
   describe "dangerous operations" do
@@ -285,6 +348,34 @@ defmodule PhoenixKitWeb.Live.Settings.ApiGuideTest do
                view,
                ~s(#guide-approvals-link[href="#{Routes.path("/admin/settings/api/approvals")}"])
              )
+    end
+
+    test "state the live limits, not the defaults", %{conn: conn} do
+      KeyTestSupport.put_setting("api_confirm_ttl_seconds", 33)
+      KeyTestSupport.put_setting("api_confirm_batch_over", 77)
+      KeyTestSupport.put_setting("api_approval_ttl_hours", 55)
+      KeyTestSupport.put_setting("api_idempotency_ttl_hours", 41)
+
+      {:ok, view, _html} = live(conn, @path)
+      danger = text(view, "#guide-danger")
+
+      assert danger =~ "within 33 seconds"
+      assert danger =~ "more than 77 rows"
+      assert danger =~ "waits up to 55 hours"
+      assert danger =~ "kept for 41 hours"
+    end
+
+    test "say one hour and one row when the limit is one", %{conn: conn} do
+      KeyTestSupport.put_setting("api_confirm_batch_over", 1)
+      KeyTestSupport.put_setting("api_approval_ttl_hours", 1)
+      KeyTestSupport.put_setting("api_idempotency_ttl_hours", 1)
+
+      {:ok, view, _html} = live(conn, @path)
+      danger = text(view, "#guide-danger")
+
+      assert danger =~ "more than 1 row is"
+      assert danger =~ "waits up to 1 hour for"
+      assert danger =~ "kept for 1 hour."
     end
   end
 
