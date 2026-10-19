@@ -9,7 +9,7 @@ defmodule PhoenixKitWeb.Users.AuthSEO do
   `config :phoenix_kit, :canonical_host_resolver, {mod, fun}` MFA (nil or
   absent ⇒ the site-wide `PhoenixKit.Utils.Routes.base_url/0`, today's
   behavior). On a language's own resolved host the locale segment is dropped
-  (`Routes.path(url_path, locale: :none)`) — the domain itself carries the
+  (`Routes.canonical_url/2` does both) — the domain itself carries the
   language, so a `/en` (or any other) prefix on top of it would be redundant.
 
   Deliberately excludes every token-bearing auth page (email confirmation,

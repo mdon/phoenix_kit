@@ -24,6 +24,8 @@ defmodule PhoenixKit.Utils.Routes do
   # place, a host page such as `/mcp-servers` still gets its locale.
   @reserved_segments ~w(/mcp)
 
+  @warn_interval_ms 60_000
+
   @doc """
   Returns the configured PhoenixKit URL prefix.
 
@@ -1454,12 +1456,20 @@ defmodule PhoenixKit.Utils.Routes do
 
   This is the one place that calls the resolver. The resolver is host code, so
   a failure in it must never crash the page or API call that asked: it is run
-  under `rescue` and `catch :exit` (a connection-pool failure exits rather than
-  raises), and `nil` is the answer when it is absent, fails, or returns
-  anything but a non-blank string.
+  under `rescue`, `catch :exit` (a connection-pool failure exits rather than
+  raises) and `catch :throw`, and `nil` is the answer when it is absent, fails,
+  or answers anything but a bare host.
 
-  The resolver is called with the **base** language code (`"de"`, also for
-  `"de-DE"`), the contract every resolver already works to.
+  The resolver gets `language` as given (trimmed), a dialect code such as
+  `"en-GB"` included, and maps dialects itself: answer `nil` for a dialect
+  without a domain of its own and the caller keeps that dialect's language
+  segment on the site base. It is called once per URL, so it must be cheap and
+  must not block; a failing resolver is reported with one warning per process
+  per minute, not one per call.
+
+  A usable answer is a bare `host` or `host:port` (a name or an IP literal),
+  lower-cased. Anything else (a scheme, a path or trailing slash, a query,
+  credentials, inner whitespace) is not a host and counts as no answer.
 
   ## Examples
 
@@ -1469,17 +1479,17 @@ defmodule PhoenixKit.Utils.Routes do
   """
   @spec canonical_host(String.t() | nil) :: String.t() | nil
   def canonical_host(language) do
-    with base when is_binary(base) <- language_base(language),
-         {mod, fun} <- Application.get_env(:phoenix_kit, :canonical_host_resolver) do
-      mod |> apply(fun, [base]) |> usable_host()
+    with code when is_binary(code) <- clean_language(language),
+         {mod, fun} <- resolver_config() do
+      mod |> apply(fun, [code]) |> usable_host()
     else
       _ -> nil
     end
   rescue
     error ->
-      Logger.warning(
-        "[Routes] canonical_host_resolver raised, falling back to site base: " <>
-          Exception.message(error)
+      warn_once(
+        :raised,
+        "canonical_host_resolver raised #{inspect(error.__struct__)}, falling back to site base"
       )
 
       nil
@@ -1487,41 +1497,105 @@ defmodule PhoenixKit.Utils.Routes do
     # A connection-pool failure under the host's resolver EXITS rather than
     # raising (see `get_default_language_base/0` for the same class of bug) —
     # `rescue` alone does not catch it.
-    :exit, reason ->
-      Logger.warning(
-        "[Routes] canonical_host_resolver exited, falling back to site base: " <>
-          inspect(reason)
-      )
-
+    :exit, _reason ->
+      warn_once(:exited, "canonical_host_resolver exited, falling back to site base")
       nil
+
+    :throw, _value ->
+      warn_once(:thrown, "canonical_host_resolver threw, falling back to site base")
+      nil
+  end
+
+  defp resolver_config do
+    case Application.get_env(:phoenix_kit, :canonical_host_resolver) do
+      nil ->
+        nil
+
+      {mod, fun} = mfa when is_atom(mod) and is_atom(fun) ->
+        mfa
+
+      _other ->
+        warn_once(
+          :bad_config,
+          "canonical_host_resolver is not a {module, function} pair, ignoring it"
+        )
+
+        nil
+    end
   end
 
   defp usable_host(nil), do: nil
 
   defp usable_host(host) when is_binary(host) do
-    case String.trim(host) do
-      "" -> nil
-      trimmed -> trimmed
+    host = host |> String.trim() |> String.downcase()
+
+    cond do
+      host == "" ->
+        nil
+
+      Regex.match?(
+        ~r/\A(?:[\p{L}\p{N}](?:[\p{L}\p{N}.-]*[\p{L}\p{N}])?|\[[0-9a-f:.]+\])(?::\d{1,5})?\z/u,
+        host
+      ) ->
+        host
+
+      true ->
+        warn_once(
+          :bad_host,
+          "canonical_host_resolver answered something that is not a bare host[:port], " <>
+            "falling back to site base"
+        )
+
+        nil
     end
   end
 
-  defp usable_host(other) do
-    Logger.warning(
-      "[Routes] canonical_host_resolver returned a non-string, falling back to site base: " <>
-        inspect(other)
+  defp usable_host(_other) do
+    warn_once(
+      :non_string,
+      "canonical_host_resolver returned a non-string, falling back to site base"
     )
 
     nil
   end
 
-  defp language_base(language) when is_binary(language) do
-    if String.trim(language) == "", do: nil, else: DialectMapper.extract_base(language)
+  defp clean_language(language) when is_binary(language) do
+    case String.trim(language) do
+      "" -> nil
+      trimmed -> trimmed
+    end
   end
 
-  defp language_base(_language), do: nil
+  defp clean_language(_language), do: nil
+
+  defp language_base(language) do
+    case clean_language(language) do
+      nil -> nil
+      code -> DialectMapper.extract_base(code)
+    end
+  end
+
+  # A resolver that keeps failing is hit on every URL of a list response; one
+  # warning per kind, process and minute says it without flooding the log.
+  defp warn_once(kind, message) do
+    key = {__MODULE__, :warned, kind}
+    now = System.monotonic_time(:millisecond)
+
+    case Process.get(key) do
+      last when is_integer(last) and now - last < @warn_interval_ms ->
+        :ok
+
+      _ ->
+        Process.put(key, now)
+        Logger.warning("[Routes] " <> message)
+    end
+  end
 
   @doc """
-  `"https://" <> host` for the host `canonical_host/1` finds, or `nil`.
+  `scheme <> "://" <> host` for the host `canonical_host/1` finds, or `nil`.
+
+  The scheme is the one of the site's `base_url/0` (`https` when that is not
+  `http` or `https`), so a plain-HTTP staging site does not get `https` links.
 
   `nil` means the language has no host of its own: fall back to `base_url/0`
   and keep the language segment in the path. `canonical_url/2` and
@@ -1532,7 +1606,14 @@ defmodule PhoenixKit.Utils.Routes do
   def canonical_origin(language) do
     case canonical_host(language) do
       nil -> nil
-      host -> "https://" <> host
+      host -> site_scheme() <> "://" <> host
+    end
+  end
+
+  defp site_scheme do
+    case URI.parse(cached_base_url()).scheme do
+      scheme when scheme in ["http", "https"] -> scheme
+      _ -> "https"
     end
   end
 
@@ -1543,17 +1624,24 @@ defmodule PhoenixKit.Utils.Routes do
   Where the language has its own host (`canonical_origin/1`) the host carries
   the language, so the URL has no language segment:
   `https://de.example.com/phoenix_kit/users/register`. Otherwise it is the
-  site's `base_url/0` plus the language-prefixed `path/2`.
+  site's base URL plus the language-prefixed `path/2`.
 
-  Use `canonical_absolute/3` for a path that is already built.
+  Use `canonical_absolute/3` for a path that is already built. The site base
+  is read from the settings cache, so the call is cheap enough to make per URL.
   """
   @spec canonical_url(String.t(), String.t() | nil) :: String.t()
   def canonical_url("/" <> _ = url_path, language) do
     case canonical_origin(language) do
-      nil -> base_url() <> path(url_path, locale: language_base(language))
-      origin -> origin <> path(url_path, locale: :none)
+      nil -> cached_base_url() <> path(url_path, locale: language_base(language))
+      origin -> origin <> without_root_slash(path(url_path, locale: :none), url_path)
     end
   end
+
+  # `path/2` spells the root under a mount prefix `/phoenix_kit/`; the other
+  # builders (`canonical_absolute/2` after `path(.., locale: "de")`) spell it
+  # `/phoenix_kit`. One spelling per canonical URL: the one without the slash.
+  defp without_root_slash(served, "/") when served != "/", do: String.trim_trailing(served, "/")
+  defp without_root_slash(served, _url_path), do: served
 
   @doc """
   Absolute public URL of a path that is **already built** (mount prefix and
@@ -1561,18 +1649,19 @@ defmodule PhoenixKit.Utils.Routes do
   it), in `language`. This is what a module API wants when it holds the paths
   of its pages and must hand out URLs.
 
-  Where the language has its own host (`canonical_origin/1`) the language
-  segment is removed and the host put in front. Without a host the path is
-  kept as it is behind `base_url/0`. Only the segment that belongs to the
-  language is removed, and only straight after the mount prefix: `"de"` and
-  `"de-DE"` both remove `/de`, `"en-GB"` removes `/en-GB` (or `/en`), and a page
-  named like another language (`/pages/de`) stays.
+  `language` goes to the host resolver as given (`canonical_host/1`). Where it
+  answers a host, the language segment is removed and the host put in front.
+  Without a host the path is kept as it is behind the site's base URL.
 
-  ## Options
+  Only the segment that equals the language's **base** code is removed, and
+  only straight after the mount prefix, ignoring case: for `"de"` and `"de-DE"`
+  `/de` goes, for `"en-GB"` `/en` goes. A dialect segment stays: `/en-gb/pages`
+  for `"en-GB"` is `https://<en host>/en-gb/pages`, never the page of the
+  sibling dialect that owns `/en`. A page named like a language (`/pages/de`)
+  stays too.
 
-    * `:segment` - the language segment the path was built with, when it is not
-      the language's base code (two dialects of one language on the same site,
-      where one of them is `/en-gb`). Only that segment is removed then.
+  The site base is read from the settings cache, so the call is cheap enough to
+  make per URL.
 
   ## Examples
 
@@ -1580,29 +1669,22 @@ defmodule PhoenixKit.Utils.Routes do
       #=> "https://de.example.com/pages/home"  # resolver gives de.example.com
       #=> "https://example.com/de/pages/home"  # resolver gives nothing
   """
-  @spec canonical_absolute(String.t(), String.t() | nil, keyword()) :: String.t()
-  def canonical_absolute("/" <> _ = built_path, language, opts \\ []) do
+  @spec canonical_absolute(String.t(), String.t() | nil) :: String.t()
+  def canonical_absolute("/" <> _ = built_path, language) do
     case canonical_origin(language) do
-      nil -> base_url() <> built_path
-      origin -> origin <> strip_language_segment(built_path, language, opts)
+      nil -> cached_base_url() <> built_path
+      origin -> origin <> strip_base_segment(built_path, language_base(language))
     end
   end
 
-  defp strip_language_segment(built_path, language, opts) do
+  defp strip_base_segment(built_path, base) do
     {prefix, rest} = split_served_prefix(built_path)
 
     with [_, segment, tail] <- Regex.run(~r{\A/([^/?#]*)(.*)\z}s, rest),
-         true <- String.downcase(segment) in strippable_segments(language, opts) do
+         true <- String.downcase(segment) == String.downcase(base) do
       root_if_empty(prefix, tail)
     else
       _ -> built_path
-    end
-  end
-
-  defp strippable_segments(language, opts) do
-    case Keyword.get(opts, :segment) do
-      segment when is_binary(segment) -> [String.downcase(segment)]
-      _ -> Enum.uniq([String.downcase(language), language_base(language)])
     end
   end
 
@@ -1623,13 +1705,21 @@ defmodule PhoenixKit.Utils.Routes do
   #
   # This allows administrators to override the email link URLs through
   # the Settings panel, which is especially useful in production.
-  defp get_base_url_for_emails do
-    case PhoenixKit.Settings.get_setting("site_url", "") do
-      "" ->
-        PhoenixKit.Config.get_dynamic_base_url()
+  defp get_base_url_for_emails, do: site_url_or_endpoint(&PhoenixKit.Settings.get_setting/2)
 
-      site_url when is_binary(site_url) ->
+  # `base_url/0` for the helpers that run once per URL: the same value, read
+  # through the settings cache instead of the database.
+  defp cached_base_url do
+    String.trim_trailing(site_url_or_endpoint(&PhoenixKit.Settings.get_setting_cached/2), "/")
+  end
+
+  defp site_url_or_endpoint(read_setting) do
+    case read_setting.("site_url", "") do
+      site_url when is_binary(site_url) and site_url != "" ->
         site_url
+
+      _unset ->
+        PhoenixKit.Config.get_dynamic_base_url()
     end
   end
 
