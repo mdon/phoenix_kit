@@ -38,6 +38,16 @@ defmodule PhoenixKit.Utils.IpAddress do
   - **A list.** The headers are believed only when the peer is inside one of
     the blocks — public or private alike. A malformed entry matches nothing.
   - **`[]`.** Nobody is trusted; the client is the peer.
+  - **Anything else** (a string instead of a list, an entry that does not parse)
+    matches nothing and logs one warning per VM. Write IPv4 blocks as IPv4
+    (`"172.18.0.0/16"`), not as `::ffff:` IPv6.
+
+  One proxy hop is supported: the client is the LAST `x-forwarded-for` entry,
+  even when that entry is another trusted proxy, so a chain such as
+  CDN -> Caddy -> app reports the CDN. In Docker the proxy's address changes
+  when its container is recreated; pin it (`ipv4_address` in compose) or
+  resolve it by name at boot (`config/runtime.exs`), otherwise a fixed `/32`
+  silently stops matching and every client appears as the proxy.
 
   The same rule applies to `client_address/1` (Plug.Conn) and
   `client_address_from_socket/1` (LiveView).
@@ -221,12 +231,19 @@ defmodule PhoenixKit.Utils.IpAddress do
 
   # Whether `ip` is a peer whose forwarded headers may be believed. Unset keeps
   # the long-standing rule (loopback or private); a list is exact; anything
-  # else that is set is a misconfiguration and trusts nobody.
+  # else that is set is a misconfiguration and trusts nobody (and says so once).
   defp proxy?(ip) do
     case Application.get_env(:phoenix_kit, :trusted_proxies) do
-      nil -> local?(ip)
-      blocks when is_list(blocks) -> CIDR.allowed?(blocks, format_client(ip))
-      _ -> false
+      nil ->
+        local?(ip)
+
+      blocks when is_list(blocks) ->
+        warn_invalid(blocks)
+        CIDR.allowed?(blocks, format_client(ip))
+
+      other ->
+        warn_invalid(other)
+        false
     end
   end
 
@@ -242,6 +259,7 @@ defmodule PhoenixKit.Utils.IpAddress do
   end
 
   @warned_key {__MODULE__, :unconfigured_proxies_warned}
+  @invalid_key {__MODULE__, :invalid_proxies_warned}
 
   # Once per VM, on the first request that actually relies on the default —
   # not at boot, where reading settings races the repo.
@@ -260,6 +278,39 @@ defmodule PhoenixKit.Utils.IpAddress do
 
     :ok
   end
+
+  # A value that is not a list, or a list entry that is not a CIDR block or an
+  # address, quietly matches nothing — so every client would look like the proxy.
+  # Said once per VM, on the first request, so the operator can find it.
+  defp warn_invalid(value) do
+    if not :persistent_term.get(@invalid_key, false) do
+      case invalid_entries(value) do
+        [] ->
+          :ok
+
+        invalid ->
+          :persistent_term.put(@invalid_key, true)
+
+          Logger.warning(
+            "PhoenixKit `config :phoenix_kit, :trusted_proxies` is invalid and trusts nobody " <>
+              "for what it cannot read: #{inspect(invalid, limit: 5)}. It must be a list of " <>
+              "CIDR blocks or addresses as text, e.g. [\"172.18.0.7/32\"]; until it is " <>
+              "fixed every client may appear as the proxy itself."
+          )
+      end
+    end
+
+    :ok
+  end
+
+  defp invalid_entries(blocks) when is_list(blocks) do
+    case CIDR.normalize_all(blocks) do
+      {:ok, _} -> []
+      {:error, invalid} -> invalid
+    end
+  end
+
+  defp invalid_entries(other), do: [other]
 
   # Every instance of the header, in order, as one list — a proxy that adds
   # its own header line rather than appending to the visitor's still puts

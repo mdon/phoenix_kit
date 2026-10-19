@@ -7,14 +7,19 @@ defmodule PhoenixKit.Utils.IpAddressTrustedProxiesTest do
   alias PhoenixKit.Utils.IpAddress
 
   @warned_key {IpAddress, :unconfigured_proxies_warned}
+  @invalid_key {IpAddress, :invalid_proxies_warned}
 
   setup do
     previous = Application.fetch_env(:phoenix_kit, :trusted_proxies)
     Application.delete_env(:phoenix_kit, :trusted_proxies)
     :persistent_term.erase(@warned_key)
+    :persistent_term.erase(@invalid_key)
 
+    # test_helper.exs marks both warnings as already said so other tests'
+    # capture_log stays clean; leave it that way.
     on_exit(fn ->
-      :persistent_term.erase(@warned_key)
+      :persistent_term.put(@warned_key, true)
+      :persistent_term.put(@invalid_key, true)
 
       case previous do
         {:ok, value} -> Application.put_env(:phoenix_kit, :trusted_proxies, value)
@@ -112,6 +117,55 @@ defmodule PhoenixKit.Utils.IpAddressTrustedProxiesTest do
       trust([])
       log = capture_log(fn -> IpAddress.client_address(conn({127, 0, 0, 1}, @xff)) end)
       refute log =~ "trusted_proxies"
+    end
+  end
+
+  describe "a misconfigured value" do
+    test "a string instead of a list trusts nobody and warns once" do
+      trust("172.18.0.7/32")
+
+      first =
+        capture_log(fn ->
+          assert IpAddress.client_address(conn({172, 18, 0, 7}, @xff)) == "172.18.0.7"
+        end)
+
+      assert first =~ "is invalid"
+      assert first =~ "172.18.0.7/32"
+
+      second = capture_log(fn -> IpAddress.client_address(conn({172, 18, 0, 7}, @xff)) end)
+      refute second =~ "is invalid"
+    end
+
+    test "an unreadable entry matches nothing, the rest still works, and it warns" do
+      trust([{172, 18, 0, 7}, "172.18.0.0/99", "10.0.0.0/8"])
+
+      log =
+        capture_log(fn ->
+          assert IpAddress.client_address(conn({172, 18, 0, 7}, @xff)) == "172.18.0.7"
+          assert IpAddress.client_address(conn({10, 0, 0, 5}, @xff)) == "203.0.113.7"
+        end)
+
+      assert log =~ "is invalid"
+      assert log =~ "172.18.0.0/99"
+    end
+
+    test "the socket path fails closed too" do
+      trust(:everyone)
+
+      capture_log(fn ->
+        assert IpAddress.client_address_from_socket(socket({172, 18, 0, 7}, @xff)) ==
+                 "172.18.0.7"
+      end)
+    end
+
+    test "a valid list and [] do not warn" do
+      trust(["172.18.0.0/16"])
+      log = capture_log(fn -> IpAddress.client_address(conn({172, 18, 0, 7}, @xff)) end)
+      refute log =~ "is invalid"
+
+      trust([])
+      log = capture_log(fn -> IpAddress.client_address(conn({172, 18, 0, 7}, @xff)) end)
+      refute log =~ "is invalid"
     end
   end
 
