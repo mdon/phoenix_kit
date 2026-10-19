@@ -221,7 +221,13 @@ warning names the bad ones). In Docker the proxy's address changes when its
 container is recreated, so a fixed `/32` like the one above silently stops
 matching and every client appears as the proxy. Pin the address (`ipv4_address`
 in compose), resolve the proxy by hostname at boot in `config/runtime.exs`, or
-trust the network's CIDR block instead.
+trust the network's CIDR block instead. Trusting a whole Docker network makes
+every container on it a trusted header source, so prefer a network that holds
+only the proxy and the app.
+
+`:trusted_proxies` decides the client address only. `X-Forwarded-Proto` (the
+scheme used for URLs such as the API `base_url`) is still believed from any
+loopback or private peer.
 
 - **Not set (default, unchanged).** Any loopback or private peer is treated as a
   proxy. The first request that relies on this logs one warning per VM.

@@ -38,8 +38,9 @@ defmodule PhoenixKit.Utils.IpAddress do
   - **A list.** The headers are believed only when the peer is inside one of
     the blocks — public or private alike. A malformed entry matches nothing.
   - **`[]`.** Nobody is trusted; the client is the peer.
-  - **Anything else** (a string instead of a list, an entry that does not parse)
-    matches nothing and logs one warning per VM. Write IPv4 blocks as IPv4
+  - **Not a list** (a string, a map) trusts nobody. Inside a list, an entry
+    that does not parse is ignored and the valid entries still apply. Either
+    case logs one warning per VM. Write IPv4 blocks as IPv4
     (`"172.18.0.0/16"`), not as `::ffff:` IPv6.
 
   One proxy hop is supported: the client is the LAST `x-forwarded-for` entry,
@@ -292,10 +293,10 @@ defmodule PhoenixKit.Utils.IpAddress do
           :persistent_term.put(@invalid_key, true)
 
           Logger.warning(
-            "PhoenixKit `config :phoenix_kit, :trusted_proxies` is invalid and trusts nobody " <>
-              "for what it cannot read: #{inspect(invalid, limit: 5)}. It must be a list of " <>
-              "CIDR blocks or addresses as text, e.g. [\"172.18.0.7/32\"]; until it is " <>
-              "fixed every client may appear as the proxy itself."
+            "PhoenixKit `config :phoenix_kit, :trusted_proxies` is invalid; what it cannot " <>
+              "read is ignored: #{inspect(invalid, limit: 5)}. It must be a list of " <>
+              "CIDR blocks or addresses as text, e.g. [\"172.18.0.7/32\"]; a peer matched " <>
+              "by no valid entry is not trusted, so its clients appear as the proxy itself."
           )
       end
     end
