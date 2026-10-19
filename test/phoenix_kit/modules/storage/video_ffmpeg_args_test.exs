@@ -143,6 +143,52 @@ defmodule PhoenixKit.Modules.Storage.VideoFfmpegArgsTest do
     end
   end
 
+  describe "an HDR source" do
+    @hdr %{hdr?: true, duration: 8.0}
+
+    defp args_for(source, attrs \\ []),
+      do: VariantGenerator.ffmpeg_args("in.mov", "out.mp4", dimension(attrs), source)
+
+    test "is tone-mapped to SDR after the resize, so it is done on the small picture" do
+      filter = args_for(@hdr) |> option("-vf")
+
+      assert filter =~ "scale=w='min(1280,iw)'"
+      assert filter =~ "tonemap=hable"
+      assert String.ends_with?(filter, "format=yuv420p")
+
+      assert :binary.match(filter, "scale=w='min(1280,iw)'") <
+               :binary.match(filter, "tonemap=hable")
+    end
+
+    test "is tone-mapped even when the rendition has no size to give it" do
+      assert args_for(@hdr, width: nil, height: nil) |> option("-vf") =~ "tonemap=hable"
+    end
+
+    test "an ordinary source is not touched by it" do
+      for source <- [%{}, %{hdr?: false, duration: 8.0}] do
+        refute args_for(source) |> option("-vf") =~ "tonemap"
+      end
+    end
+
+    test "the poster of an HDR source is tone-mapped too" do
+      args = args_for(@hdr, name: "video_thumbnail", format: "jpg", width: 640, height: 360)
+      assert option(args, "-vf") =~ "tonemap=hable"
+      assert option(args, "-vframes") == "1"
+    end
+  end
+
+  describe "the output is 8-bit 4:2:0, which is what a browser plays" do
+    test "for H.264 and for VP9" do
+      assert args(format: "mp4") |> option("-pix_fmt") == "yuv420p"
+      assert args(format: "mov") |> option("-pix_fmt") == "yuv420p"
+      assert args(format: "webm") |> option("-pix_fmt") == "yuv420p"
+    end
+
+    test "a still frame has no video pixel format of its own" do
+      assert args(format: "jpg", name: "video_thumbnail") |> option("-pix_fmt") == nil
+    end
+  end
+
   describe "a still frame (the video thumbnail)" do
     defp thumbnail(attrs \\ []) do
       args(
@@ -163,6 +209,18 @@ defmodule PhoenixKit.Modules.Storage.VideoFfmpegArgsTest do
 
     test "is sized like any other rendition" do
       assert thumbnail() |> option("-vf") =~ "min(640,iw)"
+    end
+
+    test "is taken halfway into a clip shorter than two seconds" do
+      args =
+        VariantGenerator.ffmpeg_args(
+          "in.mov",
+          "out.jpg",
+          dimension(name: "video_thumbnail", width: 640, height: 360, quality: 85, format: "jpg"),
+          %{hdr?: false, duration: 1.0}
+        )
+
+      assert option(args, "-ss") == "00:00:00.500"
     end
 
     test "quality is the 1-100 image scale, mapped onto JPEG's 2-31" do

@@ -43,6 +43,18 @@
 
 ### Fixed
 
+- **An HDR video no longer makes renditions a browser cannot play, nor a washed-out poster.** A phone records HDR as 10-bit HEVC
+  (HLG or PQ, BT.2020). Its renditions were encoded as 10-bit H.264 ("High 10"), which most browsers refuse, and its poster was
+  a raw frame grab with the HDR signal squeezed into an SDR picture (flat colours, blown highlights). `VideoSource.probe/1`
+  reads the source once with `ffprobe`; an HDR source is **tone-mapped to SDR** (`zscale`/`tonemap`, Hable, 203 nit reference
+  white, BT.709, 8-bit) after the resize, for every rendition and the poster. Every H.264 and VP9 rendition is now `yuv420p`
+  whatever the source (a 10-bit video that is not HDR no longer comes out as High 10). If the tone-mapping fails the ordinary
+  rendition is made and a warning logged. The original is stored untouched. SDR sources are unchanged apart from `yuv420p`.
+  Keeping the HDR in a rendition (10-bit HEVC) is not done.
+- **A video thumbnail of a clip about a second long is made.** The poster was always taken at 1.000 s; a clip of exactly one
+  second (a Live Photo's) has no frame there, and FFmpeg answered success without writing a file, so the variant failed later
+  as a bare `:enoent`. It is taken one second in, or halfway for a clip under two seconds, and an FFmpeg run that wrote no file
+  is now an error that says so.
 - **Large files are no longer read into memory to be hashed.** Every checksum of a file on disk (the original's SHA-256 and MD5
   at upload, each rendition's, a URL import, the dedup backfill, `POST /api/upload`) read the whole file with `File.read!/1`
   and held it, twice over, while it hashed; a video of a few gigabytes cost a few gigabytes. They go through the new

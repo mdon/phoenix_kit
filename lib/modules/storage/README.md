@@ -481,6 +481,16 @@ stops serving them, and the ones made stay stored.
   now say 28, 25 and 23 so that new installs and "Reset to Defaults" keep that
   quality. Videos already made are not remade by this: a rendition is remade
   when its spec changes.
+- **HDR video is tone-mapped to SDR** (`VideoSource`). `ffprobe` reads the source
+  once per rendition: a transfer of HLG (`arib-std-b67`) or PQ (`smpte2084`)
+  makes it HDR, and its renditions and poster get `zscale`/`tonemap` (Hable, 203
+  nit reference white) to BT.709, after the resize so it runs on the small
+  picture. Every H.264 / VP9 rendition is `-pix_fmt yuv420p`, because a browser
+  plays 8-bit 4:2:0 and refuses "High 10". The original is untouched. Keeping the
+  HDR in a rendition (10-bit HEVC) is not done. A poster is taken one second in,
+  or halfway for a clip under two seconds (`VideoSource.poster_second/1`), and a
+  run of FFmpeg that wrote no file is an error rather than a later `:enoent`.
+  A tone-mapping that fails falls back to the ordinary rendition with a warning.
 - **Cropping around the subject** (V210, `Storage.FocalPoint`). A fixed image
   rendition (a box the photo is scaled to fill and cropped to) has a
   `crop_mode`: `center` (the default: every existing rendition) or `focus`, which

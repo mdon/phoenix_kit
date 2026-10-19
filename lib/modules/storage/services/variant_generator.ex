@@ -39,6 +39,7 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
   alias PhoenixKit.Modules.Storage.PdfProcessor
   alias PhoenixKit.Modules.Storage.Shape
   alias PhoenixKit.Modules.Storage.VariantSets
+  alias PhoenixKit.Modules.Storage.VideoSource
   alias PhoenixKit.Utils.FileHash
 
   require Logger
@@ -880,13 +881,40 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
   end
 
   defp process_video_variant(input_path, output_path, _mime_type, dimension) do
-    # Build FFmpeg command
-    args = ffmpeg_args(input_path, output_path, dimension)
+    source = VideoSource.probe(input_path)
 
+    case run_ffmpeg(ffmpeg_args(input_path, output_path, dimension, source), output_path) do
+      {:ok, _path} = ok ->
+        ok
+
+      # An HDR source the tone-mapping could not be applied to (an unusual
+      # colour tag, a build without the filters): a rendition that plays, if
+      # not perfectly, is better than none.
+      {:error, reason} when source.hdr? ->
+        Logger.warning(
+          "HDR tone-mapping of #{Path.basename(input_path)} failed, " <>
+            "making the ordinary rendition: #{String.slice(reason, 0, 300)}"
+        )
+
+        run_ffmpeg(
+          ffmpeg_args(input_path, output_path, dimension, %{source | hdr?: false}),
+          output_path
+        )
+
+      error ->
+        error
+    end
+  end
+
+  defp run_ffmpeg(args, output_path) do
     case System.cmd("ffmpeg", args, stderr_to_stdout: true) do
-      {_output, 0} ->
-        # FFmpeg succeeded - dimensions are enforced by the scale filter
-        {:ok, output_path}
+      {output, 0} ->
+        # FFmpeg succeeded - dimensions are enforced by the scale filter. It
+        # can also succeed having written nothing (a frame asked for past the
+        # end of the clip), which must not be left to fail later as `:enoent`.
+        if File.regular?(output_path),
+          do: {:ok, output_path},
+          else: {:error, "FFmpeg wrote no output file: #{String.slice(output, -300, 300)}"}
 
       {output, exit_code} ->
         {:error, "FFmpeg failed with exit code #{exit_code}: #{output}"}
@@ -908,8 +936,12 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
   # **Quality** is the CRF for a video format (0-51, lower is better) and the
   # 1-100 image scale for a rendition that is a still frame (`jpg`, `png`,
   # `webp`: the video thumbnail).
-  @spec ffmpeg_args(String.t(), String.t(), struct()) :: [String.t()]
-  def ffmpeg_args(input_path, output_path, dimension) do
+  #
+  # **HDR.** `source` is what `VideoSource.probe/1` found. An HDR source is
+  # tone-mapped to SDR after the resize (so it is done on the small picture),
+  # and a video rendition is always 8-bit 4:2:0, which is what a browser plays.
+  @spec ffmpeg_args(String.t(), String.t(), struct(), VideoSource.t() | map()) :: [String.t()]
+  def ffmpeg_args(input_path, output_path, dimension, source \\ %{}) do
     # A blank format preserves the original container. FFmpeg infers it from
     # the output extension; use the same format to select the quality options.
     dimension =
@@ -919,16 +951,26 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
 
     # -y to overwrite output file
     base = ["-i", input_path, "-y"]
-    filter = video_filter_args(dimension)
+    filter = dimension |> video_filter_args() |> tonemap_args(source)
 
     if still_frame?(dimension) do
       base ++
-        ["-ss", "00:00:01.000", "-vframes", "1"] ++
+        ["-ss", VideoSource.poster_second(source), "-vframes", "1"] ++
         filter ++ still_quality_args(dimension) ++ [output_path]
     else
       base ++ filter ++ video_quality_args(dimension) ++ [output_path]
     end
   end
+
+  # The tone-mapping goes last in the filter chain, after any resize.
+  defp tonemap_args(filter, %{hdr?: true}) do
+    case filter do
+      ["-vf", chain] -> ["-vf", chain <> "," <> VideoSource.tonemap_filter()]
+      [] -> ["-vf", VideoSource.tonemap_filter()]
+    end
+  end
+
+  defp tonemap_args(filter, _source), do: filter
 
   defp still_frame?(%{format: format}) when is_binary(format),
     do: String.downcase(format) in @still_formats
@@ -974,9 +1016,14 @@ defmodule PhoenixKit.Modules.Storage.VariantGenerator do
         else: Integer.to_string(quality)
 
     case format && String.downcase(format) do
-      "webm" -> ["-c:v", "libvpx-vp9", "-b:v", "0", "-crf", crf]
-      container when container in ["mp4", "mov"] -> ["-c:v", "libx264", "-crf", crf]
-      _other -> []
+      "webm" ->
+        ["-c:v", "libvpx-vp9", "-b:v", "0", "-crf", crf, "-pix_fmt", "yuv420p"]
+
+      container when container in ["mp4", "mov"] ->
+        ["-c:v", "libx264", "-crf", crf, "-pix_fmt", "yuv420p"]
+
+      _other ->
+        []
     end
   end
 
