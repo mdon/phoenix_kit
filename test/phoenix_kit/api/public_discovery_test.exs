@@ -57,6 +57,51 @@ defmodule PhoenixKit.API.PublicDiscoveryTest do
     end
   end
 
+  describe "put_link/2" do
+    @catalog ~s(<https://shop.test/.well-known/api-catalog>; rel="api-catalog")
+    @doc_link ~s(<https://shop.test/mcp>; rel="service-doc")
+
+    defp link_headers(conn), do: Plug.Conn.get_resp_header(conn, "link")
+
+    test "appends to what an earlier plug set, in one header" do
+      conn =
+        Plug.Test.conn(:get, "/")
+        |> Plug.Conn.put_resp_header("link", @catalog)
+        |> PublicDiscovery.put_link(@doc_link)
+
+      assert link_headers(conn) == ["#{@catalog}, #{@doc_link}"]
+    end
+
+    test "a value already present is not repeated" do
+      conn =
+        Plug.Test.conn(:get, "/")
+        |> PublicDiscovery.put_link(@catalog)
+        |> PublicDiscovery.put_link(@doc_link)
+        |> PublicDiscovery.put_link(@catalog)
+        |> PublicDiscovery.put_link(@doc_link)
+
+      assert link_headers(conn) == ["#{@catalog}, #{@doc_link}"]
+    end
+
+    test "a value set by an earlier plug is not repeated either" do
+      conn =
+        Plug.Test.conn(:get, "/")
+        |> Plug.Conn.put_resp_header("link", "#{@catalog}, #{@doc_link}")
+        |> PublicDiscovery.put_link(@doc_link)
+
+      assert link_headers(conn) == ["#{@catalog}, #{@doc_link}"]
+    end
+
+    test "a blank earlier header leaves no leading comma" do
+      conn =
+        Plug.Test.conn(:get, "/")
+        |> Plug.Conn.put_resp_header("link", " ")
+        |> PublicDiscovery.put_link(@catalog)
+
+      assert link_headers(conn) == [@catalog]
+    end
+  end
+
   describe "the llms.txt section" do
     test "is three links under a heading, ending with a newline" do
       section = PublicDiscovery.llms_section(@origin)

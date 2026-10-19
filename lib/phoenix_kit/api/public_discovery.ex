@@ -192,12 +192,21 @@ defmodule PhoenixKit.API.PublicDiscovery do
 
   @doc """
   Adds `value` to the `Link` header of `conn`, after the value an earlier plug
-  may have set (one header, values joined by a comma, as RFC 8288 allows).
+  may have set (one header, values joined by a comma, as RFC 8288 allows). A
+  value that is already there is not repeated, and a blank earlier header is
+  ignored.
   """
   @spec put_link(Plug.Conn.t(), String.t()) :: Plug.Conn.t()
   def put_link(%Plug.Conn{} = conn, value) when is_binary(value) do
-    links = Plug.Conn.get_resp_header(conn, "link") ++ [value]
-    Plug.Conn.put_resp_header(conn, "link", Enum.join(links, ", "))
+    earlier =
+      conn
+      |> Plug.Conn.get_resp_header("link")
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+
+    if value in Enum.flat_map(earlier, &String.split(&1, ~r/,\s*(?=<)/)),
+      do: conn,
+      else: Plug.Conn.put_resp_header(conn, "link", Enum.join(earlier ++ [value], ", "))
   end
 
   @doc "The `Link` header value that points to the API catalog."
