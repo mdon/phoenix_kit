@@ -3216,6 +3216,13 @@ if (typeof window.Chart === "undefined") {
     return { d: parts[0], m: parts[1], y: parts[2] };
   }
 
+  // What a date input's `value` is for an attribute text: the date itself when
+  // it is a real `YYYY-MM-DD`, else "" (the browser's sanitising).
+  function isoOrEmpty(text) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(text || ""));
+    return m ? validYmd(+m[1], +m[2], +m[3]) || "" : "";
+  }
+
   // Text → "YYYY-MM-DD", or null when it is not a date (or lies outside
   // min/max, which are ISO strings). `today` (ISO) anchors two-digit years. Never throws; empty text is the caller's
   // business (it clears the field).
@@ -3345,21 +3352,26 @@ if (typeof window.Chart === "undefined") {
       if (this.form) this.form.addEventListener("reset", this.onReset);
 
       // A date picked in the native input before the socket connected: the
-      // server has not heard of it, the text is still the old date.
+      // server has not heard of it, the text is still the old date. A browser
+      // sanitises a non-ISO `value` to "", so the default to compare with is
+      // the sanitised one: a value the server echoed as given (`03.05.2024`)
+      // is not a pick.
       var v = this.valueEl();
-      if (v.value !== v.defaultValue) {
+      if (v.value !== isoOrEmpty(v.defaultValue)) {
         this.syncText();
         v.dispatchEvent(new Event("input", { bubbles: true }));
-      }
-
-      // Text that differs from what the server rendered was typed before the
-      // socket connected. Still typing in it: leave it to blur/Enter (a
-      // partial `16.10.20` must not be committed under the caret).
-      if (t.value !== t.defaultValue) {
+      } else if (t.value !== t.defaultValue) {
+        // Text that differs from what the server rendered was typed before the
+        // socket connected. Still typing in it: leave it to blur/Enter (a
+        // partial `16.10.20` must not be committed under the caret).
         if (document.activeElement === t) this.baseText = t.defaultValue;
         else this.commit();
       }
       this.refresh();
+
+      // `autofocus` sits on the text field, which was `hidden` when the
+      // browser looked for something to focus.
+      if (t.hasAttribute("autofocus")) t.focus();
     },
 
     updated() {
@@ -3405,6 +3417,9 @@ if (typeof window.Chart === "undefined") {
       v.setAttribute("aria-hidden", "true");
       v.removeAttribute("required");
       t.required = this.el.dataset.required === "true";
+      // The date input that was displayed (and focused) until now is invisible
+      // from here on: the keystrokes go to the field the person sees.
+      if (document.activeElement === v) t.focus();
     },
 
     textEl() { return this.el.querySelector("[data-date-text]"); },

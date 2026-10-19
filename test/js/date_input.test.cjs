@@ -291,7 +291,7 @@ function makeHook({ iso = "", text, format = "d.m.Y", required = false, submitFo
     },
   };
   const hook = Object.assign(Object.create(hookDef), { el });
-  global.document.activeElement = null;
+  global.document.activeElement = extra.focusValue ? valueEl : null;
   hook.mounted();
   return { hook, el, textEl, valueEl, clearBtn, hintEl, events, attrs, dispatched, listeners, formListeners, inside };
 }
@@ -750,6 +750,54 @@ test("a date picked in the native input before the socket connected is carried o
 
   const g = makeHook({ iso: "2026-10-16" });
   assert.deepEqual(g.events, [], "an untouched date input sends nothing");
+});
+
+test("a server value that is not an ISO date is left alone: no pick, no event, the echoed text stays", () => {
+  // The browser sanitises such a `value` to "" while `defaultValue` keeps the
+  // attribute text; "" differs from it, but nothing was picked.
+  for (const echoed of ["03.05.2024", "2026-10-16T10:00:00Z", "garbage", "2026-02-31"]) {
+    const h = makeHook({ iso: "", text: echoed, extra: { defaultIso: echoed, defaultText: echoed } });
+    assert.deepEqual(h.events, [], `${echoed}: nothing is sent to the server`);
+    assert.equal(h.textEl.value, echoed, `${echoed}: the text is shown as given`);
+    assert.equal(h.valueEl.value, "", echoed);
+
+    // A pick after that still goes through.
+    h.valueEl.value = "2026-10-20";
+    h.hook.handle(domEvent("input", h.valueEl));
+    assert.equal(h.textEl.value, "20.10.2026", echoed);
+  }
+
+  // A real default that the person then changes is still a pick.
+  const p = makeHook({ iso: "2026-10-20", text: "03.05.2024", extra: { defaultIso: "2026-02-31", defaultText: "03.05.2024" } });
+  assert.deepEqual(p.events, [["input", "2026-10-20"]]);
+});
+
+test("the native input focused at connect hands its focus to the text field", () => {
+  const h = makeHook({ iso: "2026-10-20", text: "16.10.2026", extra: { focusValue: true, defaultIso: "2026-10-16", defaultText: "16.10.2026" } });
+  assert.equal(global.document.activeElement, h.textEl, "keystrokes must not go to the invisible control");
+  assert.equal(h.textEl.value, "20.10.2026", "the carried-over pick is shown");
+  assert.equal(h.dispatched.length, 1, "told to the server once");
+
+  // The same on a patch that finds the date input focused.
+  const g = makeHook({ iso: "2026-10-16" });
+  global.document.activeElement = g.valueEl;
+  g.hook.updated();
+  assert.equal(global.document.activeElement, g.textEl);
+
+  // Focus anywhere else stays where it is.
+  const other = {};
+  const k = makeHook({ iso: "2026-10-16" });
+  global.document.activeElement = other;
+  k.hook.updated();
+  assert.equal(global.document.activeElement, other);
+});
+
+test("autofocus on the text field is honoured at mount", () => {
+  const h = makeHook({ iso: "2026-10-16", extra: { attrs: { autofocus: "" } } });
+  assert.equal(global.document.activeElement, h.textEl);
+
+  const g = makeHook({ iso: "2026-10-16" });
+  assert.equal(global.document.activeElement, null, "no autofocus, no focus");
 });
 
 // ---------------------------------------------------------------------------
