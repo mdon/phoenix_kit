@@ -8953,7 +8953,7 @@ if (typeof window.Chart === "undefined") {
   // is a pan): the viewer keeps those gestures, exactly as before.
   // ----------------------------------------------------------------------------
 
-  var GALLERY_SETTLE_MS = 180;    // after the strip lands, before telling the server
+  var GALLERY_SETTLE_MS = 250;    // the strip still this long before telling the server
   var GALLERY_HOLD_MAX_MS = 8000; // the viewer never painted: stop covering it
   var GALLERY_SHARP_MAX_MS = 2500; // painted but still blurry: hand over anyway
   var GALLERY_RESEND_MS = 2000;   // no sign of the server following: ask again
@@ -9028,10 +9028,18 @@ if (typeof window.Chart === "undefined") {
         },
         getCurrentRect: currentRect,
         onChange: function(_i, item) {
+          // Only once the strip has been still a moment: the viewer's
+          // re-render (Fresco, Etcher, Tessera mounting) is heavy main-thread
+          // work, and landing in the middle of the next swipe it stuttered.
+          // The strip keeps showing the picture meanwhile, so nothing waits.
           clearTimeout(self._goTimer);
-          self._goTimer = setTimeout(function() {
-            if (item && item.key) self.pushEventTo(self.el, "gallery_go", { uuid: item.key });
-          }, GALLERY_SETTLE_MS);
+          var go = function() {
+            var g = self._gallery;
+            if (!g || !item || !item.key || g.currentKey() !== item.key) return;
+            if (g.isBusy()) { self._goTimer = setTimeout(go, GALLERY_SETTLE_MS); return; }
+            self.pushEventTo(self.el, "gallery_go", { uuid: item.key });
+          };
+          self._goTimer = setTimeout(go, GALLERY_SETTLE_MS);
           self._watchFor(item);
         }
       });
@@ -9050,6 +9058,8 @@ if (typeof window.Chart === "undefined") {
           var g = self._gallery;
           if (!g || !g.isShown() || g.currentKey() !== key) { clearInterval(self._watch); return; }
           var t = Date.now();
+          // Mid-gesture nothing is handed over or re-sent; the clock waits.
+          if (g.isBusy()) { started = resent = t; seen = seen && t; return; }
           var c = canvasEl();
           if (!c || c.id.indexOf(key) === -1) {
             // The server has not followed (a dropped event): ask again.

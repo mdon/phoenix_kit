@@ -544,7 +544,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Helpers do
   # or shown at 100% when smaller, as the viewer's actual-size view does).
   # Anything that isn't an image is a card with its name: the strip can
   # land on it, and the viewer takes over.
-  @gallery_reach 4
+  @gallery_reach 12
   def gallery_items_json(siblings, idx) when is_list(siblings) and is_integer(idx) do
     from = max(idx - @gallery_reach, 0)
     upto = min(idx + @gallery_reach, length(siblings) - 1)
