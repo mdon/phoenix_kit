@@ -788,6 +788,16 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
       refute log =~ "hunter2-hunter2"
     end
 
+    test "an explicit warn_on_boot: false silences it" do
+      original_flag = Application.get_env(:phoenix_kit, :integration_encryption_warn_on_boot)
+      on_exit(fn -> restore_env(:integration_encryption_warn_on_boot, original_flag) end)
+      Application.put_env(:phoenix_kit, :integration_encryption_warn_on_boot, false)
+
+      log = capture_log(fn -> Encryption.encrypt_fields(%{"password" => "hunter2-hunter2"}) end)
+
+      refute log =~ "PLAINTEXT"
+    end
+
     test "does not warn when a key resolves" do
       Application.put_env(:phoenix_kit, :secret_key_base, "some-usable-secret-key-base-value")
 

@@ -32,18 +32,19 @@ defmodule PhoenixKit.Integrations.Encryption do
        `config :phoenix_kit, integration_encryption_warn_on_boot: true` to
        have `PhoenixKit.boot/1` log it on every restart. That flag governs
        the boot report for every install where encryption works (the legacy
-       key above, and key-store problems under a dedicated key). Two things
-       it does not govern. When credentials are stored as plaintext
-       (`:disabled_no_key`, `:disabled_explicit`) `PhoenixKit.boot/1` always
-       logs the report, whatever the flag says. And because `boot/1` always
+       key above, and key-store problems under a dedicated key). When
+       credentials are stored as plaintext (`:disabled_no_key`,
+       `:disabled_explicit`) the report is logged unless the flag is set to
+       an explicit `false`, which also silences the one-time warning on the
+       first plaintext write. Because `boot/1` always
        resolves the key to learn which state the install is in, the one-time
        error "a key store IS configured but its secret could not be read"
        may appear at boot whatever the flag says.
 
   Set `config :phoenix_kit, integration_encryption_enabled: false` to turn
   encryption off entirely (new and existing writes store plaintext). This is
-  reported as `:disabled_explicit` by `status/0` and is also warned about at
-  boot — the setting takes effect silently, but its EFFECT is never silent.
+  reported as `:disabled_explicit` by `status/0` and is warned about at boot
+  unless `integration_encryption_warn_on_boot: false` is set as well.
 
   > #### Key rotation {: .warning}
   > Changing which secret produces the key — setting a dedicated key for the
@@ -957,7 +958,8 @@ defmodule PhoenixKit.Integrations.Encryption do
   `secret_key_base` fallback would get this log line on every single restart
   with no way to quiet it. The exception is plaintext storage
   (`status/0` is `:disabled_no_key` or `:disabled_explicit`): `boot/1` calls
-  this function in that case whatever the flag says. The flag governs only
+  this function in that case too, unless the flag is an explicit `false`.
+  The flag governs only
   this report: `boot/1` always resolves the key to learn the state, so the
   one-time error "a key store IS configured but its secret could not be
   read" may be logged at boot whatever the flag says. `mix phoenix_kit.doctor`
@@ -1051,7 +1053,12 @@ defmodule PhoenixKit.Integrations.Encryption do
   defp warn_plaintext_write_once(data) do
     key = {__MODULE__, :plaintext_write_logged}
 
-    if plaintext_sensitive_value?(data) and :persistent_term.get(key, false) == false do
+    # An explicit `integration_encryption_warn_on_boot: false` is the
+    # operator saying "I know credentials are stored as plaintext".
+    silenced? = Application.get_env(:phoenix_kit, :integration_encryption_warn_on_boot) == false
+
+    if not silenced? and plaintext_sensitive_value?(data) and
+         :persistent_term.get(key, false) == false do
       report = key_report()
 
       # The key can appear between the caller's lookup and this report; then

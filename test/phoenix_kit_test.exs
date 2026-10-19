@@ -248,9 +248,9 @@ defmodule PhoenixKitTest do
       refute log =~ "dedicated encryption key is in use"
     end
 
-    # The flag does not apply to plaintext states: credentials being stored as
-    # plaintext are reported on every boot whatever the flag says.
-    test "always warns when no encryption key resolves, even with warn_on_boot unset or false" do
+    # Plaintext states are reported on every boot unless the flag is an
+    # explicit `false`.
+    test "warns when no encryption key resolves and warn_on_boot is unset" do
       Application.delete_env(:phoenix_kit, :integrations_encryption_key)
       Application.delete_env(:phoenix_kit, :secret_key_base)
       original_parent = Application.get_env(:phoenix_kit, :parent_module)
@@ -259,14 +259,33 @@ defmodule PhoenixKitTest do
 
       assert Encryption.status() == :disabled_no_key
 
-      for flag <- [:unset, false] do
-        if flag == :unset,
-          do: Application.delete_env(:phoenix_kit, :integration_encryption_warn_on_boot),
-          else: Application.put_env(:phoenix_kit, :integration_encryption_warn_on_boot, flag)
+      Application.delete_env(:phoenix_kit, :integration_encryption_warn_on_boot)
+
+      log = capture_log(fn -> PhoenixKit.boot({:ok, self()}) end)
+
+      assert log =~ Encryption.key_report_message(Encryption.key_report())
+    end
+
+    test "an explicit warn_on_boot: false silences the plaintext report at boot" do
+      Application.put_env(:phoenix_kit, :integration_encryption_warn_on_boot, false)
+
+      original_enabled = Application.get_env(:phoenix_kit, :integration_encryption_enabled)
+      on_exit(fn -> restore_env(:integration_encryption_enabled, original_enabled) end)
+
+      Application.delete_env(:phoenix_kit, :integrations_encryption_key)
+      Application.delete_env(:phoenix_kit, :secret_key_base)
+      original_parent = Application.get_env(:phoenix_kit, :parent_module)
+      Application.put_env(:phoenix_kit, :parent_module, PhoenixKit.NoSuchApp)
+      on_exit(fn -> restore_env(:parent_module, original_parent) end)
+
+      for {enabled, state} <- [{nil, :disabled_no_key}, {false, :disabled_explicit}] do
+        restore_env(:integration_encryption_enabled, enabled)
+        assert Encryption.status() == state
 
         log = capture_log(fn -> PhoenixKit.boot({:ok, self()}) end)
 
-        assert log =~ Encryption.key_report_message(Encryption.key_report())
+        refute log =~ Encryption.key_report_message(Encryption.key_report())
+        refute log =~ "Failed to check integrations encryption status"
       end
     end
 
