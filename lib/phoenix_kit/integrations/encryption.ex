@@ -958,7 +958,7 @@ defmodule PhoenixKit.Integrations.Encryption do
   and logs if it isn't `:ok`. What's opt-in is *who calls it at boot*:
   `PhoenixKit.boot/1` invokes it when
   `config :phoenix_kit, integration_encryption_warn_on_boot: true` is set
-  (default `false`), since otherwise every install still on the legacy
+  (unset by default), since otherwise every install still on the legacy
   `secret_key_base` fallback would get this log line on every single restart
   with no way to quiet it. The exception is plaintext storage
   (`status/0` is `:disabled_no_key` or `:disabled_explicit`): `boot/1` calls
