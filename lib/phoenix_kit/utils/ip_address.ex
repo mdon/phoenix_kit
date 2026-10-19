@@ -294,7 +294,7 @@ defmodule PhoenixKit.Utils.IpAddress do
 
           Logger.warning(
             "PhoenixKit `config :phoenix_kit, :trusted_proxies` is invalid; what it cannot " <>
-              "read is ignored: #{inspect(invalid, limit: 5)}. It must be a list of " <>
+              "read is ignored: #{inspect_invalid(invalid)}. It must be a list of " <>
               "CIDR blocks or addresses as text, e.g. [\"172.18.0.7/32\"]; a peer matched " <>
               "by no valid entry is not trusted, so its clients appear as the proxy itself."
           )
@@ -303,6 +303,11 @@ defmodule PhoenixKit.Utils.IpAddress do
 
     :ok
   end
+
+  # `inspect/2`'s `limit` counts nested terms, so `limit: 5` on a list shows one
+  # tuple entry and elides the rest: take whole entries instead.
+  defp inspect_invalid(invalid),
+    do: invalid |> Enum.take(5) |> inspect(limit: :infinity, printable_limit: 80)
 
   defp invalid_entries(blocks) when is_list(blocks) do
     case CIDR.normalize_all(blocks) do

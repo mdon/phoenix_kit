@@ -2112,7 +2112,8 @@ defmodule PhoenixKit.Settings do
     :ok = History.check_options!(opts)
 
     multi =
-      Ecto.Multi.run(Ecto.Multi.new(), :modify, fn repo, _changes ->
+      Ecto.Multi.new()
+      |> Ecto.Multi.run(:modify, fn repo, _changes ->
         modify_locked(repo, History.lock_current(key), key, module, fun, opts)
       end)
 
