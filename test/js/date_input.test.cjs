@@ -1,8 +1,10 @@
 "use strict";
 
-// Unit tests for the pure parts of PkDateInput in priv/static/assets/phoenix_kit.js:
-// the site date-format parser and formatter behind <.date_input>. The hook's
-// DOM behaviour (events, focus, showPicker) is checked live, not here.
+// Tests for PkDateInput in priv/static/assets/phoenix_kit.js, the hook behind
+// <.date_input>: the pure parser/formatter/placement helpers, and the hook's
+// state machine and event wiring on fake elements (no DOM here). What needs a
+// browser stays a live check: popup placement and Cally rendering, focus,
+// showPicker and screen readers.
 //
 // Run: mix test.js  (node --test needs the explicit file on Node 25)
 
@@ -246,20 +248,28 @@ function makeHook({ iso = "", text, format = "d.m.Y", required = false, submitFo
     focus() { global.document.activeElement = textEl; },
   };
   textEl.defaultValue = extra.defaultText !== undefined ? extra.defaultText : textEl.value;
-  const form = { hasAttribute: (k) => submitForm && k === "phx-submit", addEventListener() {}, removeEventListener() {} };
+  const formListeners = [];
+  const form = {
+    hasAttribute: (k) => submitForm && k === "phx-submit",
+    addEventListener(type, fn) { formListeners.push(["add", type, fn]); },
+    removeEventListener(type, fn) { formListeners.push(["remove", type, fn]); },
+  };
   const events = [];
+  const dispatched = [];
   const valueEl = {
     value: iso,
     disabled: false,
     form,
-    dispatchEvent(e) { events.push([e.type, this.value]); },
+    dispatchEvent(e) { events.push([e.type, this.value]); dispatched.push(e); },
     showPicker() { this.picked = true; },
   };
   const clearBtn = { classList: fakeClassList() };
+  const listeners = [];
+  const inside = new Set();
   const el = {
     dataset: { format, today: TODAY, expected: "Expected 16.10.2026", ...(extra.dataset || {}) },
-    addEventListener() {},
-    contains: () => false,
+    addEventListener(type, fn) { listeners.push([type, fn]); },
+    contains: (node) => inside.has(node),
     isConnected: true,
     querySelector(sel) {
       return { "[data-date-text]": textEl, "[data-date-value]": valueEl, "[data-clear]": clearBtn }[sel] || null;
@@ -268,7 +278,7 @@ function makeHook({ iso = "", text, format = "d.m.Y", required = false, submitFo
   const hook = Object.assign(Object.create(hookDef), { el });
   global.document.activeElement = null;
   hook.mounted();
-  return { hook, textEl, valueEl, clearBtn, events, attrs };
+  return { hook, textEl, valueEl, clearBtn, events, attrs, dispatched, listeners, formListeners, inside };
 }
 
 const keydown = (key) => ({ key, isComposing: false, prevented: false, preventDefault() { this.prevented = true; } });
@@ -496,4 +506,177 @@ test("a showPicker that throws falls back to the calendar, or the text field", (
   g.hook.open();
   global.window.matchMedia = () => ({ matches: false });
   assert.equal(global.document.activeElement, g.textEl);
+});
+
+// ---------------------------------------------------------------------------
+// The wiring to LiveView and to the surrounding dialog: what the hook does
+// through its registered listener (`handle`), not by calling its parts.
+// ---------------------------------------------------------------------------
+function domEvent(type, target, extra = {}) {
+  return {
+    type,
+    target,
+    key: undefined,
+    isComposing: false,
+    prevented: false,
+    stopped: false,
+    preventDefault() { this.prevented = true; },
+    stopPropagation() { this.stopped = true; },
+    ...extra,
+  };
+}
+
+// An element-ish click target: `closest(sel)` answers for the given selectors.
+const clickTarget = (...selectors) => ({
+  closest: (sel) => (selectors.includes(sel) ? { sel } : null),
+});
+
+// The listener the hook registered on its element for `type`.
+function listenerFor(h, type) {
+  const found = h.listeners.find(([t]) => t === type);
+  assert.ok(found, `no ${type} listener on the hook element`);
+  return found[1];
+}
+
+// Stand-in for the popup: open/closed, and a record of closePopup calls.
+function stubPopup(h, open = true) {
+  const closes = [];
+  h.hook.popupOpen = () => open;
+  h.hook.closePopup = (refocus) => closes.push(refocus);
+  return closes;
+}
+
+test("the hook listens for every event its wiring depends on, all through handle()", () => {
+  const h = makeHook({ iso: "2026-10-16" });
+  const types = h.listeners.map(([t]) => t).sort();
+  assert.deepEqual(types, ["change", "click", "focusin", "focusout", "input", "keydown", "mousedown"]);
+
+  // The registered listener is the hook's handler: an input event on the text
+  // field sent through it is stopped.
+  const e = domEvent("input", h.textEl);
+  listenerFor(h, "input")(e);
+  assert.ok(e.stopped);
+});
+
+test("a commit fires a bubbling input event on the value element", () => {
+  const h = makeHook({ iso: "2026-10-16" });
+  h.textEl.value = "20.10.2026";
+  h.hook.commit();
+  assert.equal(h.dispatched.length, 1);
+  assert.equal(h.dispatched[0].type, "input");
+  // LiveView listens on the window: a commit that does not bubble never reaches the server.
+  assert.equal(h.dispatched[0].bubbles, true);
+  // The same goes for a calendar pick and the clear button.
+  h.hook.pick("2026-10-25");
+  h.hook.clear();
+  assert.equal(h.dispatched.length, 3);
+  assert.ok(h.dispatched.every((e) => e.type === "input" && e.bubbles === true));
+});
+
+test("the visible text's input and change events never leave the component", () => {
+  const h = makeHook({ iso: "2026-10-16" });
+  for (const type of ["input", "change"]) {
+    const e = domEvent(type, h.textEl);
+    h.hook.handle(e);
+    assert.ok(e.stopped, `${type} from the text field must be stopped`);
+  }
+  // The value element's own events are the ones LiveView must see.
+  for (const type of ["input", "change"]) {
+    const e = domEvent(type, h.valueEl);
+    h.hook.handle(e);
+    assert.ok(!e.stopped, `${type} from the value element must pass`);
+  }
+});
+
+test("a native change on the value element (the phone picker) syncs the text", () => {
+  const h = makeHook({ iso: "2026-10-16" });
+  h.valueEl.value = "2026-11-02";
+  h.hook.handle(domEvent("change", h.valueEl));
+  assert.equal(h.textEl.value, "02.11.2026");
+});
+
+test("Escape closes an open calendar and stops there; with it closed it passes through", () => {
+  const h = makeHook({ iso: "2026-10-16" });
+  const closes = stubPopup(h, true);
+  const e = domEvent("keydown", h.textEl, { key: "Escape" });
+  h.hook.handle(e);
+  assert.ok(e.prevented, "preventDefault");
+  assert.ok(e.stopped, "stopPropagation: a surrounding dialog must not see it");
+  assert.deepEqual(closes, [true], "closed, focus back on the field");
+
+  const g = makeHook({ iso: "2026-10-16" });
+  const none = stubPopup(g, false);
+  const e2 = domEvent("keydown", g.textEl, { key: "Escape" });
+  g.hook.handle(e2);
+  assert.ok(!e2.prevented && !e2.stopped, "a closed calendar leaves Escape to the dialog");
+  assert.deepEqual(none, []);
+});
+
+test("focus leaving the component closes the calendar; focus moving inside does not", () => {
+  const h = makeHook({ iso: "2026-10-16" });
+  const closes = stubPopup(h, true);
+  h.hook.handle(domEvent("focusout", h.textEl, { relatedTarget: {} }));
+  assert.deepEqual(closes, [false], "an outside relatedTarget closes it, without stealing focus back");
+
+  const inner = {};
+  h.inside.add(inner);
+  closes.length = 0;
+  h.hook.handle(domEvent("focusout", h.textEl, { relatedTarget: inner }));
+  h.hook.handle(domEvent("focusout", h.textEl, { relatedTarget: null }));
+  assert.deepEqual(closes, [], "focus moving inside the component, or nowhere, keeps it open");
+
+  const g = makeHook({ iso: "2026-10-16" });
+  const shut = stubPopup(g, false);
+  g.hook.handle(domEvent("focusout", g.textEl, { relatedTarget: {} }));
+  assert.deepEqual(shut, [], "nothing to close");
+});
+
+test("a day outside min/max is not taken from the calendar or from Today", () => {
+  const dataset = { min: "2026-10-01", max: "2026-10-31" };
+  const h = makeHook({ iso: "2026-10-16", extra: { dataset } });
+  const closes = stubPopup(h, true);
+
+  h.hook.pick("2026-11-05");
+  h.hook.pick("2026-09-30");
+  h.hook.pick("garbage");
+  assert.deepEqual(h.events, []);
+  assert.equal(h.valueEl.value, "2026-10-16");
+  assert.deepEqual(closes, [], "a refused day leaves the calendar open");
+
+  // The "Today" button with today outside the range does nothing either.
+  const late = makeHook({ iso: "2026-10-16", extra: { dataset: { ...dataset, today: "2026-12-01" } } });
+  late.hook.handle(domEvent("click", clickTarget("[data-popup-today]")));
+  assert.deepEqual(late.events, []);
+
+  // Inside the range both go through.
+  h.hook.pick("2026-10-20");
+  assert.deepEqual(h.events, [["input", "2026-10-20"]]);
+  assert.deepEqual(closes, [true]);
+  h.hook.handle(domEvent("click", clickTarget("[data-popup-today]")));
+  assert.deepEqual(h.events, [["input", "2026-10-20"], ["input", TODAY]]);
+});
+
+test("the popup's Clear button clears the field and closes the calendar", () => {
+  const h = makeHook({ iso: "2026-10-16" });
+  const closes = stubPopup(h, true);
+  h.hook.handle(domEvent("click", clickTarget("[data-popup-clear]")));
+  assert.deepEqual(h.events, [["input", ""]]);
+  assert.deepEqual(closes, [true]);
+});
+
+test("the form's reset puts the text back in step with the restored value", async () => {
+  const h = makeHook({ iso: "2026-10-16" });
+  const adds = h.formListeners.filter(([op, type]) => op === "add" && type === "reset");
+  assert.equal(adds.length, 1, "a reset listener is registered on the value element's form");
+
+  // The browser restores the value element's default; the text must follow.
+  h.valueEl.value = "2026-10-01";
+  h.textEl.value = "garbage";
+  adds[0][2]();
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(h.textEl.value, "01.10.2026");
+
+  // destroyed() takes it off again.
+  h.hook.destroyed();
+  assert.ok(h.formListeners.some(([op, type, fn]) => op === "remove" && type === "reset" && fn === adds[0][2]));
 });
