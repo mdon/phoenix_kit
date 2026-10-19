@@ -8962,9 +8962,21 @@ if (typeof window.Chart === "undefined") {
   // stays away until the pencil is on — then the person's own grid setting
   // (Etcher's, which toggles `fresco--no-grid`) decides, as everywhere else.
   // Pure CSS on what is in the modal, so no state to keep in step.
+  var GALLERY_SCOPE = '[phx-hook="ViewerKeydown"]:has(> [phx-hook="ViewerGallery"]):not(:has(.etcher-pencil-active)) ';
+  // A tap on the picture hides the viewer's controls and the next brings
+  // them back, as in Photos. The flag lives on <html>, which LiveView never
+  // patches; annotating always shows them (the scope above excludes it).
+  var GALLERY_CHROME = ['button[phx-click="close_viewer"]', 'button[phx-click="toggle_viewer_sidebar"]',
+    "[phx-value-dir]", ".fresco-nav", ".fresco-zoom"];
   var GALLERY_GRID_CSS =
-    '[phx-hook="ViewerKeydown"]:has(> [phx-hook="ViewerGallery"]):not(:has(.etcher-pencil-active)) ' +
-    ".fresco-viewer { background-image: none !important; }";
+    GALLERY_SCOPE + ".fresco-viewer { background-image: none !important; }\n" +
+    GALLERY_CHROME.map(function(sel) { return GALLERY_SCOPE + sel; }).join(",\n") +
+    " { transition: opacity 200ms ease; }\n" +
+    GALLERY_CHROME.map(function(sel) { return 'html[data-pk-gallery-chrome="hidden"] ' + GALLERY_SCOPE + sel; }).join(",\n") +
+    " { opacity: 0 !important; pointer-events: none !important; }";
+  var GALLERY_TAP_SLOP = 10;      // px a tap may wander
+  var GALLERY_TAP_MS = 350;       // longer is a press, not a tap
+  var GALLERY_DOUBLE_TAP_MS = 300; // a second tap this soon is a double-tap (zoom)
 
   window.PhoenixKitHooks.ViewerGallery = {
     mounted() {
@@ -9122,6 +9134,33 @@ if (typeof window.Chart === "undefined") {
           e.stopImmediatePropagation();
         }
       };
+      // Tap to hide / show the controls. Waits out the double-tap window
+      // so a double-tap zoom does not also flash them away.
+      self._onTapDown = function(e) {
+        var c = canvasEl();
+        self._tap = null;
+        if (!e.isPrimary || (e.pointerType === "mouse" && e.button !== 0)) return;
+        if (!c || !c.contains(e.target) || !self.galleryAllowed()) return;
+        if (e.target.closest && e.target.closest("button, a, input, .fresco-nav, .fresco-zoom")) return;
+        self._tap = { x: e.clientX, y: e.clientY, t: Date.now(), id: e.pointerId };
+      };
+      self._onTapUp = function(e) {
+        var tp = self._tap;
+        self._tap = null;
+        if (!tp || e.pointerId !== tp.id) return;
+        if (Math.abs(e.clientX - tp.x) > GALLERY_TAP_SLOP || Math.abs(e.clientY - tp.y) > GALLERY_TAP_SLOP) return;
+        if (Date.now() - tp.t > GALLERY_TAP_MS) return;
+        if (self._tapTimer) { clearTimeout(self._tapTimer); self._tapTimer = null; return; } // the double-tap's second
+        self._tapTimer = setTimeout(function() {
+          self._tapTimer = null;
+          var root = document.documentElement;
+          if (root.getAttribute("data-pk-gallery-chrome") === "hidden") root.removeAttribute("data-pk-gallery-chrome");
+          else root.setAttribute("data-pk-gallery-chrome", "hidden");
+        }, GALLERY_DOUBLE_TAP_MS);
+      };
+      document.addEventListener("pointerdown", self._onTapDown, true);
+      document.addEventListener("pointerup", self._onTapUp, true);
+
       self.galleryAllowed = function() {
         return !self._modal.querySelector(".etcher-pencil-active, .etcher-actionbar.is-active");
       };
@@ -9138,6 +9177,11 @@ if (typeof window.Chart === "undefined") {
       clearInterval(this._watch);
       if (this._onKey) window.removeEventListener("keydown", this._onKey, true);
       if (this._onTab) window.removeEventListener("click", this._onTab, true);
+      if (this._onTapDown) document.removeEventListener("pointerdown", this._onTapDown, true);
+      if (this._onTapUp) document.removeEventListener("pointerup", this._onTapUp, true);
+      clearTimeout(this._tapTimer);
+      // The next viewer opens with its controls.
+      document.documentElement.removeAttribute("data-pk-gallery-chrome");
       if (this._gallery) this._gallery.destroy();
       this._gallery = null;
     }
