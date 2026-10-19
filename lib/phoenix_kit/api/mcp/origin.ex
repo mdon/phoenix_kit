@@ -191,8 +191,6 @@ defmodule PhoenixKit.API.MCP.Origin do
     end
   end
 
-  defp origin_of(_url), do: nil
-
   defp host_text(host) do
     host = String.downcase(host)
     if String.contains?(host, ":"), do: "[" <> host <> "]", else: host
