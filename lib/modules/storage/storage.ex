@@ -3378,9 +3378,12 @@ defmodule PhoenixKit.Modules.Storage do
   def viewer_can_see_folder?(viewer_uuid, folder_uuid, library_uuid),
     do: to_string(folder_uuid) in viewer_folder_uuids(viewer_uuid, library_uuid)
 
+  # What `where_library/2` drops for nil: user libraries and private ones (a
+  # hidden system library).
   defp in_library(folders, nil) do
-    user = folders |> Enum.map(& &1.library_uuid) |> Libraries.user_among()
-    Enum.reject(folders, &(to_string(&1.library_uuid) in user))
+    library_uuids = Enum.map(folders, & &1.library_uuid)
+    dropped = Libraries.user_among(library_uuids) ++ Libraries.private_among(library_uuids)
+    Enum.reject(folders, &(to_string(&1.library_uuid) in dropped))
   end
 
   defp in_library(folders, library_uuid) do
