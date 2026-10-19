@@ -22,15 +22,12 @@ defmodule PhoenixKit.API.PublicDiscovery.Guide do
 
   use Gettext, backend: PhoenixKitWeb.Gettext
 
+  alias PhoenixKit.API.ClientName
   alias PhoenixKit.API.Executor
   alias PhoenixKit.API.MCP.Names
   alias PhoenixKit.API.PublicDiscovery
   alias PhoenixKit.API.Tool
   alias PhoenixKit.Modules.Crawlers
-  alias PhoenixKit.Utils.Slug
-
-  @default_name "shop"
-  @name_max 32
 
   @doc """
   The guide for the `origin` it names, written in `language` (a locale the
@@ -49,7 +46,7 @@ defmodule PhoenixKit.API.PublicDiscovery.Guide do
         origin: origin,
         title: gettext("%{title} — shop API and MCP server", title: display_title(project)),
         sections: [
-          mcp_section(urls, slug(project)),
+          mcp_section(urls, ClientName.slug(project)),
           rest_section(urls, tools),
           tools_section(tools),
           answers_section(),
@@ -195,17 +192,6 @@ defmodule PhoenixKit.API.PublicDiscovery.Guide do
   end
 
   # --- snippets -------------------------------------------------------------------
-
-  # `<name>` of the client snippets: the project title as a romanized slug, the
-  # same rule as the admin guide's server name.
-  @doc false
-  @spec slug(String.t() | nil) :: String.t()
-  def slug(title) do
-    case Slug.slugify(title, max_length: @name_max) do
-      "" -> @default_name
-      slug -> slug
-    end
-  end
 
   defp shell_quote(text), do: "'" <> String.replace(text, "'", "'\\''") <> "'"
 end

@@ -100,32 +100,6 @@ defmodule PhoenixKit.API.PublicDiscoveryTest do
     end
   end
 
-  describe "Guide.slug/1" do
-    test "the project title as [a-z0-9-], 32 characters at most" do
-      assert Guide.slug("Acme Print") == "acme-print"
-      assert Guide.slug("  Acme   &  Sons, Ltd. ") == "acme-sons-ltd"
-      assert Guide.slug("Ünïcode Shop!!") == "unicode-shop"
-      assert Guide.slug("a-b_c") == "a-b-c"
-
-      long = Guide.slug(String.duplicate("abcd ", 20))
-      assert String.length(long) <= 32
-      refute String.ends_with?(long, "-")
-      assert long =~ ~r/\A[a-z0-9-]+\z/
-    end
-
-    test "romanizes the title, as the admin guide does" do
-      assert Guide.slug("Декор для дома") == "dekor-dlya-doma"
-      assert Guide.slug("Café Déco") == "cafe-deco"
-      assert Guide.slug("Магазин") == "magazin"
-    end
-
-    test "falls back to shop" do
-      for title <- [nil, "", "   ", "!!!", "店"] do
-        assert Guide.slug(title) == "shop", inspect(title)
-      end
-    end
-  end
-
   describe "Guide.build/4" do
     defp build(language \\ "en", project \\ "Acme Print") do
       tools = [
@@ -159,6 +133,13 @@ defmodule PhoenixKit.API.PublicDiscoveryTest do
       end
 
       assert build("de", "").title == "Diese Website — Shop-API und MCP-Server"
+    end
+
+    test "the client snippets name the server by the slug of the project title" do
+      for {project, name} <- [{"Acme Print", "acme-print"}, {"Декор для дома", "dekor-dlya-doma"}] do
+        assert [_, _, {:code, _, _, command} | _] = blocks(build("en", project), "mcp")
+        assert command =~ "claude mcp add --transport http #{name} "
+      end
     end
 
     test "tools are sorted by name, whatever order they come in" do
