@@ -116,7 +116,7 @@ defmodule PhoenixKit.API.Auth do
     cond do
       not api_enabled?(audience) -> Problem.send(conn, :not_found, "", %{})
       gated?(conn, audience) -> Problem.send(conn, :not_found, "", %{})
-      token_in_url?(conn) -> token_in_url(conn)
+      token_in_url?(conn) -> token_in_url(conn, audience)
       true -> conn |> run_before_auth(opts) |> admit(audience)
     end
   end
@@ -215,11 +215,21 @@ defmodule PhoenixKit.API.Auth do
 
   def gated?(_conn, :admin), do: false
 
-  defp token_in_url(conn) do
+  defp token_in_url(conn, :admin) do
     Problem.send(
       conn,
       :token_in_url,
       "Credentials must be sent in the Authorization header, never in the URL.",
+      %{}
+    )
+  end
+
+  # The public API has no Authorization header: its only credential is the cart token.
+  defp token_in_url(conn, :public) do
+    Problem.send(
+      conn,
+      :token_in_url,
+      "A cart token must be sent in the request body, never in the URL.",
       %{}
     )
   end

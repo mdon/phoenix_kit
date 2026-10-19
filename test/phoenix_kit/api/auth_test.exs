@@ -244,6 +244,13 @@ defmodule PhoenixKit.API.AuthTest do
       end
     end
 
+    test "says the Authorization header for the admin audience", %{token: token} do
+      conn = :post |> api_conn("/x?api_key=x", token: token) |> admin()
+
+      assert json(conn)["detail"] ==
+               "Credentials must be sent in the Authorization header, never in the URL."
+    end
+
     test "an ordinary query string passes", %{token: token} do
       conn = :post |> api_conn("/x?limit=5&q=pkg_name&note=pk", token: token) |> admin()
       refute conn.halted
@@ -371,6 +378,18 @@ defmodule PhoenixKit.API.AuthTest do
       assert conn.status == 400
       assert json(conn)["code"] == "token_in_url"
       _ = token
+    end
+
+    test "tells a public caller to send the cart token in the request body" do
+      for query <- ["?cart_token=abc", "?token=abc", "?x=pk_abcdef01_whatever"] do
+        conn = :post |> api_conn("/x" <> query) |> public()
+
+        assert conn.status == 400, query
+
+        assert json(conn)["detail"] ==
+                 "A cart token must be sent in the request body, never in the URL.",
+               query
+      end
     end
   end
 
