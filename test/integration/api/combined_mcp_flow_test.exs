@@ -658,15 +658,17 @@ defmodule PhoenixKit.API.CombinedMcpFlowTest do
       refute_received :walked
     end
 
-    test "an unknown tool within the limit is a not_found result, control fields or not", %{
+    test "an unknown tool within the limit is a -32602 error, control fields or not", %{
       conn: conn
     } do
       ip = KeyTestSupport.unique_ip()
       answer = mcp_call(conn, "/mcp/shop", nil, "no_such_tool", %{"dry_run" => true}, ip: ip)
 
       assert answer.status == 200
-      assert result(answer)["isError"] == true
-      assert text(result(answer)) =~ "[not_found]"
+      refute Map.has_key?(json(answer), "result")
+
+      assert %{"code" => -32_602, "message" => "Unknown tool: no_such_tool"} =
+               json(answer)["error"]
     end
   end
 
@@ -1054,7 +1056,7 @@ defmodule PhoenixKit.API.CombinedMcpFlowTest do
             "system_get_identity"
           ] do
         answer = shop_call(conn, name, %{"ids" => ["a"]})
-        assert text(result(answer)) =~ "[not_found]", name
+        assert %{"code" => -32_602} = json(answer)["error"], name
       end
     end
 
