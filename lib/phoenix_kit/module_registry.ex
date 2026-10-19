@@ -849,8 +849,10 @@ defmodule PhoenixKit.ModuleRegistry do
   Collect the API tools (`c:PhoenixKit.Module.api_tools/0`) of the **enabled** modules,
   each tagged with `:module`, the module that declared it.
 
-  A disabled module's tools cannot be called, so they are left out (`disabled_api_tool?/2`
-  is the other side of that). An entry that is not a valid `PhoenixKit.API.Tool`
+  A disabled module's tools cannot be called, so they are left out (`disabled_api_tool?/3`
+  is the other side of that). So are the tools of a module whose key is in `hidden_keys`
+  (the install's `api_disabled_modules` setting: the module's API is switched off). An entry
+  that is not a valid `PhoenixKit.API.Tool`
   (`PhoenixKit.API.Tool.validate/1`) is dropped with one warning per module, and so is a
   tool in core's `system.` namespace (those skip the scope and permission checks and belong
   to `PhoenixKit.API.CoreTools` alone). A name declared twice for one audience keeps the
@@ -860,9 +862,10 @@ defmodule PhoenixKit.ModuleRegistry do
   Every call asks every module again (`enabled?/0` and `api_tools/0` are not cached), so a
   caller that serves requests should call it once per request and keep the result.
   """
-  @spec all_api_tools() :: [Tool.t()]
-  def all_api_tools do
+  @spec all_api_tools([String.t()]) :: [Tool.t()]
+  def all_api_tools(hidden_keys \\ []) do
     enabled_modules()
+    |> Enum.reject(&api_hidden?(&1, hidden_keys))
     |> Enum.flat_map(&module_api_tools/1)
     |> drop_duplicate_api_tools()
   end
@@ -873,11 +876,14 @@ defmodule PhoenixKit.ModuleRegistry do
 
   This is the "module disabled" test of `PhoenixKit.API.Registry.find/2`. It asks only the
   disabled modules for their tools, and it looks at the audience, so an anonymous caller
-  cannot learn that an admin tool exists by asking for it on the public side.
+  cannot learn that an admin tool exists by asking for it on the public side. A module
+  whose key is in `hidden_keys` (its API is switched off) does not count: its tools answer
+  like a name nobody has.
   """
-  @spec disabled_api_tool?(String.t(), :admin | :public) :: boolean()
-  def disabled_api_tool?(name, audience) do
+  @spec disabled_api_tool?(String.t(), :admin | :public, [String.t()]) :: boolean()
+  def disabled_api_tool?(name, audience, hidden_keys \\ []) do
     (all_modules() -- enabled_modules())
+    |> Enum.reject(&api_hidden?(&1, hidden_keys))
     |> Enum.flat_map(&module_api_tools/1)
     |> Enum.any?(&(&1.name == name and &1.audience == audience))
   end
@@ -901,6 +907,48 @@ defmodule PhoenixKit.ModuleRegistry do
     |> Enum.uniq()
     |> Enum.sort()
   end
+
+  @doc """
+  The registered modules that declare at least one valid API tool, switched on or off,
+  sorted by name: `%{module, key, name, enabled?, tools}` (`tools` is how many).
+
+  For the screens that list them (the API switch per module in Settings -> API, the badge
+  on the Modules page). It is not a gate: `PhoenixKit.API.Registry` decides what is callable.
+  """
+  @spec api_modules() :: [
+          %{
+            module: module(),
+            key: String.t(),
+            name: String.t(),
+            enabled?: boolean(),
+            tools: pos_integer()
+          }
+        ]
+  def api_modules do
+    enabled = enabled_modules()
+
+    all_modules()
+    |> Enum.flat_map(fn mod ->
+      with [_ | _] = tools <- module_api_tools(mod),
+           key when is_binary(key) <- safe_call(mod, :module_key, nil) do
+        [
+          %{
+            module: mod,
+            key: key,
+            name: safe_call(mod, :module_name, inspect(mod)),
+            enabled?: mod in enabled,
+            tools: length(tools)
+          }
+        ]
+      else
+        _ -> []
+      end
+    end)
+    |> Enum.sort_by(&String.downcase(&1.name))
+  end
+
+  defp api_hidden?(_mod, []), do: false
+  defp api_hidden?(mod, hidden_keys), do: safe_call(mod, :module_key, nil) in hidden_keys
 
   defp module_api_tools(mod) do
     mod
