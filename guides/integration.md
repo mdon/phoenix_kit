@@ -197,6 +197,31 @@ config :phoenix_kit, PhoenixKit.Users.RateLimiter,
   registration_ip_window_ms: 3_600_000 # 1 hour window
 ```
 
+### Client IP behind a reverse proxy
+
+Rate limits, API key `allowed_ips`, login history and session checks all key on
+the client address from `PhoenixKit.Utils.IpAddress`. Behind a reverse proxy
+the TCP peer is the proxy, so PhoenixKit reads `X-Forwarded-For` (the last
+entry, the one your proxy appended) and then `X-Real-IP` — but only from a peer
+it trusts, because anyone else can send those headers with any value.
+
+```elixir
+# Believe the headers only from these peers (CIDR blocks or bare addresses)
+config :phoenix_kit, :trusted_proxies, ["172.18.0.7/32"]
+
+# Believe them from nobody: the client is always the connection's peer
+config :phoenix_kit, :trusted_proxies, []
+```
+
+- **Not set (default, unchanged).** Any loopback or private peer is treated as a
+  proxy. The first request that relies on this logs one warning per VM.
+- **A list.** Headers are believed only when the peer is inside one of the
+  blocks, public or private. A malformed entry matches nothing.
+- **`[]`.** Nobody is trusted.
+
+Set it in production to the address(es) your proxy connects from. The same rule
+covers LiveView sockets (`client_address_from_socket/1`).
+
 ---
 
 ## Authentication Integration
