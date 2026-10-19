@@ -20284,10 +20284,10 @@ msgstr "Berechtigungsbereiche speichern"
 msgid "The scopes were saved."
 msgstr "Die Berechtigungsbereiche wurden gespeichert."
 
-#: lib/phoenix_kit_web/live/settings/api.html.heex:751
+#: lib/phoenix_kit_web/live/settings/api.html.heex:800
 #, elixir-autogen, elixir-format
-msgid "These scopes are inactive because the owner can no longer use them. They stay on the key when you save."
-msgstr "Diese Berechtigungsbereiche sind inaktiv, weil der Eigentümer sie nicht mehr nutzen darf. Sie bleiben beim Speichern am Schlüssel erhalten."
+msgid "These scopes are inactive because the owner can no longer use them or their module's API is switched off. They stay on the key when you save."
+msgstr "Diese Berechtigungsbereiche sind inaktiv, weil der Eigentümer sie nicht mehr nutzen darf oder die API ihres Moduls ausgeschaltet ist. Sie bleiben beim Speichern am Schlüssel erhalten."
 
 #: lib/phoenix_kit_web/live/settings/api.html.heex:325
 #, elixir-autogen, elixir-format
@@ -20577,37 +20577,62 @@ msgstr "Deep Zoom ist gesperrt, solange wir seine Funktionsweise überarbeiten."
 msgid "We are redoing how deep zoom works, so this switch is locked for now."
 msgstr "Wir überarbeiten, wie Deep Zoom funktioniert, daher ist dieser Schalter vorerst gesperrt."
 
-#: lib/phoenix_kit_web/live/settings/api.html.heex:18
+#: lib/phoenix_kit_web/live/settings/api.html.heex:81
 #, elixir-autogen, elixir-format
 msgid "Each module below offers tools to the API. Switch a module off and all its tools answer as if they did not exist, for every key. Modules are on until you switch them off."
 msgstr "Jedes Modul unten stellt der API Werkzeuge bereit. Schalten Sie ein Modul aus, antworten alle seine Werkzeuge, als gäbe es sie nicht, für jeden Schlüssel. Module sind eingeschaltet, bis Sie sie ausschalten."
 
-#: lib/phoenix_kit_web/live/settings/api.html.heex:27
+#: lib/phoenix_kit_web/live/settings/api.html.heex:87
 #, elixir-autogen, elixir-format
 msgid "No installed module offers tools to the API."
 msgstr "Kein installiertes Modul stellt der API Werkzeuge bereit."
 
-#: lib/phoenix_kit_web/live/settings/api.html.heex:39
+#: lib/phoenix_kit_web/live/settings/api.html.heex:98
 #, elixir-autogen, elixir-format
 msgid "Tools: %{count}"
 msgstr "Werkzeuge: %{count}"
 
-#: lib/phoenix_kit_web/live/settings/api.html.heex:40
+#: lib/phoenix_kit_web/live/settings/api.html.heex:100
 #, elixir-autogen, elixir-format
 msgid "Module disabled"
 msgstr "Modul deaktiviert"
 
-#: lib/phoenix_kit_web/live/settings/api.ex:164
+#: lib/phoenix_kit_web/live/settings/api.ex:424
 #, elixir-autogen, elixir-format
-msgid "The module's API setting was saved."
-msgstr "Die API-Einstellung des Moduls wurde gespeichert."
+msgid "The API of %{module} is on."
+msgstr "Die API von %{module} ist eingeschaltet."
 
-#: lib/phoenix_kit_web/live/modules.html.heex:196
+#: lib/phoenix_kit_web/live/settings/api.ex:427
+#, elixir-autogen, elixir-format
+msgid "The API of %{module} is off."
+msgstr "Die API von %{module} ist ausgeschaltet."
+
+#: lib/phoenix_kit_web/live/modules.ex:114
 #, elixir-autogen, elixir-format
 msgid "API on"
 msgstr "API an"
 
-#: lib/phoenix_kit_web/live/modules.html.heex:196
+#: lib/phoenix_kit_web/live/modules.ex:115
 #, elixir-autogen, elixir-format
 msgid "API off"
 msgstr "API aus"
+
+#: lib/phoenix_kit_web/live/modules.ex:116
+#, elixir-autogen, elixir-format
+msgid "API idle"
+msgstr "API inaktiv"
+
+#: lib/phoenix_kit_web/live/modules.ex:118
+#, elixir-autogen, elixir-format
+msgid "The module's tools can be called through the API."
+msgstr "Die Werkzeuge des Moduls können über die API aufgerufen werden."
+
+#: lib/phoenix_kit_web/live/modules.ex:121
+#, elixir-autogen, elixir-format
+msgid "The module's API is switched off in Settings -> API."
+msgstr "Die API des Moduls ist unter Einstellungen -> API ausgeschaltet."
+
+#: lib/phoenix_kit_web/live/modules.ex:125
+#, elixir-autogen, elixir-format
+msgid "The module's API is on, but nothing can call it now: the module is disabled or the API it serves is switched off."
+msgstr "Die API des Moduls ist eingeschaltet, aber im Moment kann sie niemand aufrufen: Das Modul ist deaktiviert oder die API, die es bedient, ist ausgeschaltet."

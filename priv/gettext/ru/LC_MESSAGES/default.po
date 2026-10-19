@@ -20360,10 +20360,10 @@ msgstr "Сохранить области доступа"
 msgid "The scopes were saved."
 msgstr "Области доступа сохранены."
 
-#: lib/phoenix_kit_web/live/settings/api.html.heex:751
+#: lib/phoenix_kit_web/live/settings/api.html.heex:800
 #, elixir-autogen, elixir-format
-msgid "These scopes are inactive because the owner can no longer use them. They stay on the key when you save."
-msgstr "Эти области доступа неактивны, потому что владелец больше не может их использовать. При сохранении они остаются у ключа."
+msgid "These scopes are inactive because the owner can no longer use them or their module's API is switched off. They stay on the key when you save."
+msgstr "Эти области доступа неактивны, потому что владелец больше не может их использовать или API их модуля выключен. При сохранении они остаются у ключа."
 
 #: lib/phoenix_kit_web/live/settings/api.html.heex:325
 #, elixir-autogen, elixir-format
@@ -20653,37 +20653,62 @@ msgstr "Глубокое увеличение заблокировано, пок
 msgid "We are redoing how deep zoom works, so this switch is locked for now."
 msgstr "Мы переделываем работу глубокого увеличения, поэтому этот переключатель пока заблокирован."
 
-#: lib/phoenix_kit_web/live/settings/api.html.heex:18
+#: lib/phoenix_kit_web/live/settings/api.html.heex:81
 #, elixir-autogen, elixir-format
 msgid "Each module below offers tools to the API. Switch a module off and all its tools answer as if they did not exist, for every key. Modules are on until you switch them off."
-msgstr "Каждый модуль ниже предоставляет API инструменты. Если выключить модуль, все его инструменты отвечают так, будто их нет, для любого ключа. Модули включены, пока вы их не выключите."
+msgstr "Каждый модуль ниже предоставляет инструменты для API. Если выключить модуль, все его инструменты отвечают так, будто их нет, для любого ключа. Модули включены, пока вы их не выключите."
 
-#: lib/phoenix_kit_web/live/settings/api.html.heex:27
+#: lib/phoenix_kit_web/live/settings/api.html.heex:87
 #, elixir-autogen, elixir-format
 msgid "No installed module offers tools to the API."
-msgstr "Ни один установленный модуль не предоставляет API инструменты."
+msgstr "Ни один установленный модуль не предоставляет инструменты для API."
 
-#: lib/phoenix_kit_web/live/settings/api.html.heex:39
+#: lib/phoenix_kit_web/live/settings/api.html.heex:98
 #, elixir-autogen, elixir-format
 msgid "Tools: %{count}"
 msgstr "Инструментов: %{count}"
 
-#: lib/phoenix_kit_web/live/settings/api.html.heex:40
+#: lib/phoenix_kit_web/live/settings/api.html.heex:100
 #, elixir-autogen, elixir-format
 msgid "Module disabled"
 msgstr "Модуль отключён"
 
-#: lib/phoenix_kit_web/live/settings/api.ex:164
+#: lib/phoenix_kit_web/live/settings/api.ex:424
 #, elixir-autogen, elixir-format
-msgid "The module's API setting was saved."
-msgstr "Настройка API модуля сохранена."
+msgid "The API of %{module} is on."
+msgstr "API модуля %{module} включён."
 
-#: lib/phoenix_kit_web/live/modules.html.heex:196
+#: lib/phoenix_kit_web/live/settings/api.ex:427
+#, elixir-autogen, elixir-format
+msgid "The API of %{module} is off."
+msgstr "API модуля %{module} выключен."
+
+#: lib/phoenix_kit_web/live/modules.ex:114
 #, elixir-autogen, elixir-format
 msgid "API on"
 msgstr "API включён"
 
-#: lib/phoenix_kit_web/live/modules.html.heex:196
+#: lib/phoenix_kit_web/live/modules.ex:115
 #, elixir-autogen, elixir-format
 msgid "API off"
 msgstr "API выключен"
+
+#: lib/phoenix_kit_web/live/modules.ex:116
+#, elixir-autogen, elixir-format
+msgid "API idle"
+msgstr "API неактивен"
+
+#: lib/phoenix_kit_web/live/modules.ex:118
+#, elixir-autogen, elixir-format
+msgid "The module's tools can be called through the API."
+msgstr "Инструменты модуля можно вызывать через API."
+
+#: lib/phoenix_kit_web/live/modules.ex:121
+#, elixir-autogen, elixir-format
+msgid "The module's API is switched off in Settings -> API."
+msgstr "API модуля выключен в разделе Настройки -> API."
+
+#: lib/phoenix_kit_web/live/modules.ex:125
+#, elixir-autogen, elixir-format
+msgid "The module's API is on, but nothing can call it now: the module is disabled or the API it serves is switched off."
+msgstr "API модуля включён, но сейчас его никто не может вызвать: модуль отключён или API, который он обслуживает, выключен."
