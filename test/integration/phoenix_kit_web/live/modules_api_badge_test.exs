@@ -33,8 +33,46 @@ defmodule PhoenixKitWeb.Live.ModulesApiBadgeTest do
     def enabled?, do: :persistent_term.get({__MODULE__, :enabled}, true)
     def get_config, do: %{enabled: enabled?()}
 
+    def enable_system, do: :persistent_term.put({__MODULE__, :enabled}, true)
+    def disable_system, do: :persistent_term.put({__MODULE__, :enabled}, false)
+
     def api_tools do
       [Tool.new!(name: "badge_with_tools.search", audience: :public, handler: {__MODULE__, :run})]
+    end
+
+    def run(_input, _ctx), do: {:ok, %{}}
+  end
+
+  defmodule BothAudiences do
+    def module_key, do: "badge_both_audiences"
+    def module_name, do: "Badge both audiences"
+
+    def permission_metadata,
+      do: %{
+        key: "badge_both_audiences",
+        label: "Badge both audiences",
+        icon: "hero-puzzle-piece",
+        description: "A test module."
+      }
+
+    def enabled?, do: true
+    def get_config, do: %{enabled: true}
+
+    def api_tools do
+      [
+        Tool.new!(
+          name: "badge_both_audiences.list",
+          audience: :admin,
+          scope: "badge_both_audiences.things:read",
+          permission: "badge_both_audiences",
+          handler: {__MODULE__, :run}
+        ),
+        Tool.new!(
+          name: "badge_both_audiences.search",
+          audience: :public,
+          handler: {__MODULE__, :run}
+        )
+      ]
     end
 
     def run(_input, _ctx), do: {:ok, %{}}
@@ -56,14 +94,16 @@ defmodule PhoenixKitWeb.Live.ModulesApiBadgeTest do
     def get_config, do: %{enabled: true}
   end
 
+  @fixtures [WithTools, WithoutTools, BothAudiences]
+
   setup %{conn: conn} do
     :persistent_term.put({WithTools, :enabled}, true)
-    for mod <- [WithTools, WithoutTools], do: ModuleRegistry.register(mod)
-    # The page lists external modules from the discovery cache; put these two in it.
-    :persistent_term.put({ModuleDiscovery, :external_modules}, [WithTools, WithoutTools])
+    for mod <- @fixtures, do: ModuleRegistry.register(mod)
+    # The page lists external modules from the discovery cache; put these in it.
+    :persistent_term.put({ModuleDiscovery, :external_modules}, @fixtures)
 
     on_exit(fn ->
-      for mod <- [WithTools, WithoutTools], do: ModuleRegistry.unregister(mod)
+      for mod <- @fixtures, do: ModuleRegistry.unregister(mod)
       ModuleDiscovery.clear_cache()
       :persistent_term.erase({WithTools, :enabled})
     end)
@@ -130,6 +170,39 @@ defmodule PhoenixKitWeb.Live.ModulesApiBadgeTest do
       {:ok, view, _html} = live(conn, @modules_path <> "?tab=disabled")
 
       assert has_element?(view, "#module-api-badge-badge_with_tools", "API idle")
+    end
+
+    test "a module serving both audiences with only one side on is not idle", %{conn: conn} do
+      admin_api!("true")
+      {:ok, view, _html} = live(conn, @modules_path)
+
+      assert has_element?(view, "#module-api-badge-badge_both_audiences", "API on")
+      refute has_element?(view, "#module-api-badge-badge_both_audiences", "API idle")
+    end
+  end
+
+  describe "toggling the module on the page" do
+    setup do
+      public_api!("true")
+      :ok
+    end
+
+    defp toggle(view), do: render_click(view, "toggle_module", %{"key" => "badge_with_tools"})
+    defp open_tab(view, tab), do: render_click(view, "switch_modules_tab", %{"tab" => tab})
+
+    test "the badge follows the toggle in both directions", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @modules_path)
+      assert has_element?(view, "#module-api-badge-badge_with_tools", "API on")
+
+      toggle(view)
+      open_tab(view, "disabled")
+      assert has_element?(view, "#module-api-badge-badge_with_tools", "API idle")
+      refute has_element?(view, "#module-api-badge-badge_with_tools", "API on")
+
+      toggle(view)
+      open_tab(view, "active")
+      assert has_element?(view, "#module-api-badge-badge_with_tools", "API on")
+      refute has_element?(view, "#module-api-badge-badge_with_tools", "API idle")
     end
   end
 

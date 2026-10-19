@@ -59,11 +59,11 @@ defmodule PhoenixKitWeb.Live.Modules do
       |> assign(:module_configs, module_configs)
       |> assign(:external_modules, external_modules)
       |> assign(:dep_warnings, dep_warnings)
-      |> assign(:api_modules, api_modules())
       |> assign(:not_installed_packages, not_installed)
       |> assign(:catalog_status, catalog_status)
       |> assign(:hex_browse_url, PhoenixKit.KnownPackages.browse_url())
       |> assign(:modules_tab, if(params["tab"] in @tabs, do: params["tab"], else: "active"))
+      |> assign_api_modules()
       |> refresh_tab_counts()
 
     {:ok, socket}
@@ -72,11 +72,16 @@ defmodule PhoenixKitWeb.Live.Modules do
   # Module key -> the state of its API, for the modules that declare API tools:
   # `:off` its switch in Settings -> API is off, `:idle` the switch is on but nothing can
   # call it now (the module is disabled, or every audience it serves is switched off), `:on`
-  # it can be called.
-  defp api_modules do
+  # it can be called. The state depends on whether the module is enabled, so it is
+  # recomputed wherever the page changes that, not only at mount.
+  defp assign_api_modules(socket) do
     sides = %{admin: APIConfig.admin_enabled?(), public: APIConfig.public_enabled?()}
     disabled = APIConfig.disabled_modules()
-    Map.new(ModuleRegistry.api_modules(), &{&1.key, api_state(&1, disabled, sides)})
+
+    api_modules =
+      Map.new(ModuleRegistry.api_modules(), &{&1.key, api_state(&1, disabled, sides)})
+
+    assign(socket, :api_modules, api_modules)
   end
 
   defp api_state(mod, disabled, sides) do
@@ -409,6 +414,7 @@ defmodule PhoenixKitWeb.Live.Modules do
             socket
             |> assign(:module_configs, configs)
             |> assign(:external_modules, load_external_modules(configs))
+            |> assign_api_modules()
             |> refresh_tab_counts()
             |> put_flash(
               :info,
@@ -462,6 +468,7 @@ defmodule PhoenixKitWeb.Live.Modules do
              socket
              |> assign(:module_configs, configs)
              |> assign(:external_modules, load_external_modules(configs))
+             |> assign_api_modules()
              |> refresh_tab_counts()
              |> put_flash(:info, label)}
 
@@ -524,6 +531,7 @@ defmodule PhoenixKitWeb.Live.Modules do
       socket
       |> assign(:module_configs, configs)
       |> assign(:external_modules, load_external_modules(configs))
+      |> assign_api_modules()
     else
       socket
     end
