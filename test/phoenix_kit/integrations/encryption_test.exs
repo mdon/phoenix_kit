@@ -680,6 +680,7 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
     import ExUnit.CaptureLog
 
     @value_flag_key {Encryption, :plaintext_value_logged}
+    @write_flag_key {Encryption, :plaintext_write_logged}
 
     setup do
       original_flat = Application.get_env(:phoenix_kit, :secret_key_base)
@@ -688,7 +689,9 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
       original_enabled = Application.get_env(:phoenix_kit, :integration_encryption_enabled)
       Application.delete_env(:phoenix_kit, :secret_key_base)
       Application.put_env(:phoenix_kit, :parent_module, PhoenixKit.NoSuchApp)
+      Application.delete_env(:phoenix_kit, :integration_encryption_enabled)
       :persistent_term.erase(@value_flag_key)
+      :persistent_term.erase(@write_flag_key)
 
       on_exit(fn ->
         restore_env(:secret_key_base, original_flat)
@@ -696,6 +699,7 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
         restore_env(:integration_encryption_warn_on_boot, original_flag)
         restore_env(:integration_encryption_enabled, original_enabled)
         :persistent_term.erase(@value_flag_key)
+        :persistent_term.erase(@write_flag_key)
       end)
 
       refute Encryption.enabled?()
@@ -710,7 +714,7 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
         end)
 
       assert log =~ "encrypt_value/1"
-      assert log =~ "no encryption key available"
+      assert log =~ "no encryption key is in use"
       assert log =~ Encryption.key_report_message(Encryption.key_report())
       refute log =~ "s3-secret-should-not-be-logged"
     end
@@ -726,9 +730,10 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
     test "encrypt_value/1 is not silenced by an earlier plaintext encrypt_fields/1 write" do
       capture_log(fn -> Encryption.encrypt_fields(%{"api_key" => "plaintext-api-key"}) end)
 
-      log = capture_log(fn -> Encryption.encrypt_value("s3-secret") end)
+      log = capture_log(fn -> Encryption.encrypt_value("s3-secret-must-not-be-logged") end)
 
       assert log =~ "encrypt_value/1"
+      refute log =~ "s3-secret-must-not-be-logged"
     end
 
     test "encrypt_value/1: an explicit warn_on_boot: false silences it only when encryption is off" do

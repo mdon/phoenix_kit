@@ -229,7 +229,8 @@ defmodule PhoenixKit.Integrations.Encryption do
 
   Same cipher, key derivation and `enc:v1:` prefix as `encrypt_fields/1`.
   Nil/empty and already-encrypted values (see `encrypted?/1`) pass through
-  unchanged. When no key resolves, the value is stored as plaintext — same
+  unchanged. When no key is in use (encryption switched off, or no key
+  material at all), the value is stored as plaintext — same
   as `encrypt_fields/1` — and the first such call on a VM logs a warning,
   since a caller that reaches for single-value encryption is usually
   protecting something as sensitive as the fields `encrypt_fields/1`
@@ -251,8 +252,8 @@ defmodule PhoenixKit.Integrations.Encryption do
         nil ->
           log_plaintext_once(
             :plaintext_value_logged,
-            "PhoenixKit.Integrations.Encryption.encrypt_value/1: no encryption key available " <>
-              "— storing value as plaintext: "
+            "PhoenixKit.Integrations.Encryption.encrypt_value/1: storing value as PLAINTEXT, " <>
+              "no encryption key is in use: "
           )
 
           value
