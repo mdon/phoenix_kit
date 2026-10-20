@@ -8,6 +8,7 @@ defmodule PhoenixKit.API.LegacyTest do
 
   alias PhoenixKit.API.Legacy
   alias PhoenixKit.API.Tool
+  alias PhoenixKit.API.ToolLint
 
   describe "the deprecated paths" do
     test "are the REST and MCP paths the public API had" do
@@ -92,12 +93,12 @@ defmodule PhoenixKit.API.LegacyTest do
     end
 
     test "passes when cart_token is required, as the executor reads it" do
-      assert :ok = PhoenixKit.API.ToolLint.check_tool(danger_tool(["cart_token"]))
-      assert :ok = PhoenixKit.API.ToolLint.check_tools([danger_tool(["cart_token"])])
+      assert :ok = ToolLint.check_tool(danger_tool(["cart_token"]))
+      assert :ok = ToolLint.check_tools([danger_tool(["cart_token"])])
     end
 
     test "still asks for cart_token in required" do
-      assert {:error, [message]} = PhoenixKit.API.ToolLint.check_tool(danger_tool([]))
+      assert {:error, [message]} = ToolLint.check_tool(danger_tool([]))
       assert message =~ "must list cart_token in required"
     end
   end
