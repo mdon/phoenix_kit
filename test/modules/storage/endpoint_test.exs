@@ -90,11 +90,19 @@ defmodule PhoenixKit.Modules.Storage.EndpointTest do
       assert Endpoint.classify({0x2002, 0x0808, 0x0808, 0, 0, 0, 0, 1}) == :public
     end
 
-    test "NAT64, well-known and local-use (64:ff9b:1::/48), is classified by the embedded IPv4" do
+    test "well-known NAT64 (64:ff9b::/96) is classified by the embedded IPv4" do
       assert Endpoint.classify({0x64, 0xFF9B, 0, 0, 0, 0, 0x7F00, 0x0001}) == :loopback
-      assert Endpoint.classify({0x64, 0xFF9B, 1, 0, 0, 0, 0x7F00, 0x0001}) == :loopback
-      assert Endpoint.classify({0x64, 0xFF9B, 1, 0xAB, 0, 0, 0x0A00, 0x0001}) == :private
-      assert Endpoint.classify({0x64, 0xFF9B, 1, 0, 0, 0, 0x0808, 0x0808}) == :public
+      assert Endpoint.classify({0x64, 0xFF9B, 0, 0, 0, 0, 0x0808, 0x0808}) == :public
+    end
+
+    test "local-use NAT64 (64:ff9b:1::/48) is local as a whole" do
+      # RFC 8215: the operator picks where the IPv4 address sits inside the
+      # /48 (RFC 6052 layouts), so the last 32 bits mean nothing on their own.
+      assert Endpoint.classify({0x64, 0xFF9B, 1, 0, 0, 0, 0x7F00, 0x0001}) == :unique_local
+      assert Endpoint.classify({0x64, 0xFF9B, 1, 0, 0, 0, 0x0808, 0x0808}) == :unique_local
+      # 64:ff9b:1:a00:0:100:808:808 — 10.0.0.1 in the /64 layout, 8.8.8.8 at the end.
+      assert Endpoint.classify({0x64, 0xFF9B, 1, 0xA00, 0, 0x100, 0x808, 0x808}) ==
+               :unique_local
     end
 
     test "deprecated site-local (fec0::/10) is local, like unique-local" do
