@@ -595,11 +595,12 @@ defmodule PhoenixKit.Mailer do
     scratch, some Alpine builds) never noticed they had no CA store. Install one
     (e.g. `ca-certificates`) to restore sending. A relay with no credentials to
     protect still degrades rather than failing.
-  - `{:error, {:smtp_endpoint_refused, :blocked_port | :blocked_host |
-    :blocked_address | :unresolvable_host}}` — SMTP only, and only when the host
-    enabled `config :phoenix_kit, :personal_smtp_policy, :restricted`: a
-    personal (user-owned) connection points at a non-mail port or an internal
-    host, and no socket was opened. See `PhoenixKit.Mailer.SmtpEndpointPolicy`.
+  - `{:error, {:smtp_endpoint_refused, :blocked_port | :blocked_host}}` — SMTP
+    only, and only when the host enabled
+    `config :phoenix_kit, :personal_smtp_policy, :restricted`: a personal
+    (user-owned) connection points at a non-mail port, or at a host that is
+    internal or does not resolve, and no socket was opened.
+    `PhoenixKit.Mailer.SmtpEndpointPolicy.message/1` gives the sentence to show.
   """
   @spec deliver_via_integration(Swoosh.Email.t(), String.t(), keyword()) ::
           {:ok, term()} | {:error, term()}

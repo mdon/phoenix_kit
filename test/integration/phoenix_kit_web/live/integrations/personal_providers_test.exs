@@ -158,7 +158,7 @@ defmodule PhoenixKitWeb.Live.Integrations.PersonalProvidersTest do
           "password" => "p"
         })
 
-      assert html =~ "The SMTP host must not be a local, private or internal address"
+      assert html =~ "The SMTP host must resolve to a public address"
     end
   end
 

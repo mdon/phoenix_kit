@@ -18,29 +18,37 @@ defmodule PhoenixKit.Mailer.SmtpEndpointPolicy do
 
       config :phoenix_kit, :personal_smtp_policy, :restricted
 
-  `nil`, `false` and `:open` mean off; any other value means on, so a typo
+  `nil`, `false` and `:open` mean off; **any other value means on**, so a typo
   fails closed rather than silently leaving personal connections unchecked.
-  Website-wide (`:system`) connections are never affected.
+  That includes strings: a value read with `System.get_env/1` is a string, and
+  `"false"` turns the policy on — map an environment variable to an atom in
+  `config/runtime.exs` yourself. Website-wide (`:system`) connections are never
+  affected.
 
   ## What is refused
 
   For a personal connection, with the policy on:
 
     * a port other than 25, 465, 587 or 2525 (`:blocked_port`);
-    * a name that only means something inside a network — a bare name with no
-      dot (`localhost`, `pgbouncer`), or one under `localhost`, `local`,
-      `internal` or `home.arpa` (`:blocked_host`) — refused without a lookup;
-    * a host that is, or resolves to, anything but a public address: loopback,
-      private, carrier-grade NAT, link-local, unique-local, multicast,
-      unspecified or reserved space, classified by
-      `PhoenixKit.Modules.Storage.Endpoint.classify/1` (`:blocked_address`).
-      A name is resolved for both IPv4 and IPv6, and **every** address it
-      yields must be public;
-    * a name that does not resolve (`:unresolvable_host`) — there is no
-      checked address to connect to, and handing the name to the SMTP client
-      would let it resolve the name again unchecked.
+    * a host the server must not connect to (`:blocked_host`):
+      * a name that only means something inside a network — a bare name with
+        no dot (`localhost`, `pgbouncer`), or one under `localhost`, `local`,
+        `internal` or `home.arpa` — refused without a lookup;
+      * a host that is, or resolves to, anything but a public address:
+        loopback, private, carrier-grade NAT, link-local, unique-local,
+        multicast, unspecified or reserved space, classified by
+        `PhoenixKit.Modules.Storage.Endpoint.classify/1`. A name is resolved
+        for both IPv4 and IPv6, and **every** address it yields must be public;
+      * a name that does not resolve, or not within the connection's timeout —
+        there is no checked address to connect to, and handing the name to the
+        SMTP client would let it resolve the name again unchecked.
 
-  Refusals come back as `{:error, {:smtp_endpoint_refused, reason}}`.
+  The host cases share one reason and one message on purpose: telling "does
+  not resolve" apart from "resolves to an internal address" would let a user
+  find out which names exist in the server's internal DNS.
+
+  Refusals come back as `{:error, {:smtp_endpoint_refused, reason}}`;
+  `message/1` turns the reason into the sentence to show.
 
   ## Connect-time pinning
 
@@ -51,9 +59,13 @@ defmodule PhoenixKit.Mailer.SmtpEndpointPolicy do
   address as the relay, so the SMTP client connects to exactly the address that
   was checked and never resolves the name itself. A name that answers with a
   public address at check time and an internal one at connect time (DNS
-  rebinding) has no second lookup to exploit. TLS still verifies the
-  certificate against the name the operator typed: the server-name indication
-  and hostname check are built from the configured host, not the relay.
+  rebinding) has no second lookup to exploit. The TLS handshake still names the
+  host the operator typed: the certificate is verified against it, and it is
+  sent as the server-name indication even when certificates are not verified.
+
+  The lookup is bounded by the connection's `timeout` (5 s when none is set);
+  IPv4 and IPv6 are asked at the same time, and a family that does not answer
+  in time counts as no addresses.
 
   Residual risk: the first address of the checked set is used (IPv4 preferred),
   with no fallback to the others — the same single attempt the client made
@@ -61,19 +73,34 @@ defmodule PhoenixKit.Mailer.SmtpEndpointPolicy do
   user controls) is outside what any address check can see.
   """
 
+  use Gettext, backend: PhoenixKitWeb.Gettext
+
   alias PhoenixKit.Modules.Storage.Endpoint
 
   @allowed_ports [25, 465, 587, 2525]
   @internal_suffixes ~w(localhost local internal home.arpa)
+  # gen_smtp's own connect timeout, used when the connection sets none.
+  @default_lookup_timeout 5_000
 
   @type policy :: :system | :personal
-  @type reason :: :blocked_port | :blocked_host | :blocked_address | :unresolvable_host
+  @type reason :: :blocked_port | :blocked_host
 
   @doc "Whether the host has turned the policy on (see the module doc)."
   @spec enabled?() :: boolean()
   def enabled? do
     Application.get_env(:phoenix_kit, :personal_smtp_policy) not in [nil, false, :open]
   end
+
+  @doc """
+  The sentence to show a person for a refusal reason — for a caller of
+  `PhoenixKit.Mailer.deliver_via_integration/3` that got
+  `{:error, {:smtp_endpoint_refused, reason}}`, and for Test Connection.
+  """
+  @spec message(reason()) :: String.t()
+  def message(:blocked_port),
+    do: gettext("Personal SMTP connections may only use ports 25, 465, 587 or 2525")
+
+  def message(:blocked_host), do: gettext("The SMTP host must resolve to a public address")
 
   @doc """
   The policy for a connection, from its credentials and the owner the caller
@@ -97,7 +124,9 @@ defmodule PhoenixKit.Mailer.SmtpEndpointPolicy do
 
     * `:enabled` — overrides `enabled?/0` (tests).
     * `:resolver` — `(charlist, :inet | :inet6 -> {:ok, [ip]} | {:error, _})`,
-      defaults to `:inet.getaddrs/2`.
+      defaults to `:inet.getaddrs/3` with the lookup timeout. Whatever the
+      resolver, an answer that does not come within the timeout is not waited
+      for.
   """
   @spec enforce(keyword(), policy(), keyword()) ::
           {:ok, keyword()} | {:error, {:smtp_endpoint_refused, reason()}}
@@ -118,8 +147,8 @@ defmodule PhoenixKit.Mailer.SmtpEndpointPolicy do
       {:ok, options}
     else
       with :ok <- check_port(options[:port]),
-           {:ok, ip} <- checked_address(host, opts) do
-        {:ok, pin(options, ip)}
+           {:ok, ip, name} <- checked_address(host, lookup_timeout(options), opts) do
+        {:ok, pin(options, ip, name)}
       else
         {:error, reason} -> {:error, {:smtp_endpoint_refused, reason}}
       end
@@ -129,27 +158,41 @@ defmodule PhoenixKit.Mailer.SmtpEndpointPolicy do
   defp check_port(port) when port in @allowed_ports, do: :ok
   defp check_port(_port), do: {:error, :blocked_port}
 
-  defp checked_address(host, opts) do
-    name =
+  defp lookup_timeout(options) do
+    case options[:timeout] do
+      ms when is_integer(ms) and ms > 0 -> ms
+      _ -> @default_lookup_timeout
+    end
+  end
+
+  # `{:ok, ip, name}` — `name` is the normalized host name, or `nil` for a
+  # literal address.
+  defp checked_address(host, timeout, opts) do
+    trimmed =
       host
       |> String.trim()
       |> String.trim_leading("[")
       |> String.trim_trailing("]")
 
-    case :inet.parse_address(String.to_charlist(name)) do
-      {:ok, ip} -> all_public([ip])
-      {:error, _} -> checked_name(name, opts)
+    case :inet.parse_address(String.to_charlist(trimmed)) do
+      {:ok, ip} ->
+        with {:ok, ip} <- all_public([ip]), do: {:ok, ip, nil}
+
+      {:error, _} ->
+        name = trimmed |> String.downcase() |> String.trim_trailing(".")
+
+        with {:ok, ip} <- checked_name(name, timeout, opts), do: {:ok, ip, name}
     end
   end
 
-  defp checked_name(name, opts) do
-    name = name |> String.downcase() |> String.trim_trailing(".")
-
+  defp checked_name(name, timeout, opts) do
     if internal_name?(name) do
       {:error, :blocked_host}
     else
-      case resolve(name, Keyword.get(opts, :resolver, &:inet.getaddrs/2)) do
-        [] -> {:error, :unresolvable_host}
+      resolver = Keyword.get(opts, :resolver, &:inet.getaddrs(&1, &2, timeout))
+
+      case resolve(name, resolver, timeout) do
+        [] -> {:error, :blocked_host}
         ips -> all_public(ips)
       end
     end
@@ -160,33 +203,65 @@ defmodule PhoenixKit.Mailer.SmtpEndpointPolicy do
       Enum.any?(@internal_suffixes, &(name == &1 or String.ends_with?(name, "." <> &1)))
   end
 
-  # IPv4 first, so it is the one pinned when a name has both.
-  defp resolve(name, resolver) do
+  # Both families at once, each bounded; IPv4 first in the result, so it is the
+  # one pinned when a name has both.
+  defp resolve(name, resolver, timeout) do
     charlist = String.to_charlist(name)
 
-    Enum.flat_map([:inet, :inet6], fn family ->
-      case resolver.(charlist, family) do
-        {:ok, ips} -> ips
-        {:error, _reason} -> []
-      end
+    [:inet, :inet6]
+    |> Task.async_stream(fn family -> resolver.(charlist, family) end,
+      timeout: timeout,
+      on_timeout: :kill_task,
+      ordered: true
+    )
+    |> Enum.flat_map(fn
+      {:ok, {:ok, ips}} when is_list(ips) -> ips
+      _no_answer -> []
     end)
   end
 
   defp all_public([first | _] = ips) do
     if Enum.all?(ips, &(Endpoint.classify(&1) == :public)),
       do: {:ok, first},
-      else: {:error, :blocked_address}
+      else: {:error, :blocked_host}
   end
 
   # gen_smtp connects to the relay string as given; an address literal is never
   # looked up. An IPv6 one needs the `inet6` socket option, which gen_smtp
   # passes through for both plain and implicit-TLS sockets.
-  defp pin(options, ip) do
-    options = Keyword.replace!(options, :relay, ip |> :inet.ntoa() |> to_string())
+  defp pin(options, ip, name) do
+    options
+    |> Keyword.replace!(:relay, ip |> :inet.ntoa() |> to_string())
+    |> put_sni(name)
+    |> put_inet6(ip)
+  end
 
-    if tuple_size(ip) == 8,
-      do: Keyword.update(options, :sockopts, [:inet6], &[:inet6 | &1]),
-      else: options
+  defp put_inet6(options, ip) when tuple_size(ip) == 8,
+    do: Keyword.update(options, :sockopts, [:inet6], &[:inet6 | &1])
+
+  defp put_inet6(options, _ip), do: options
+
+  # OTP derives SNI from a hostname it is given, but not from an address. With
+  # the relay pinned to an address, a TLS option list that carried no SNI of its
+  # own (certificate verification off) would go out with none; give it the
+  # typed name. `SmtpTransport` builds TLS options in `sockopts` for implicit
+  # TLS and in `tls_options` for STARTTLS; a plaintext relay has neither.
+  defp put_sni(options, nil), do: options
+
+  defp put_sni(options, name) do
+    key = if options[:ssl] == true, do: :sockopts, else: :tls_options
+
+    case Keyword.fetch(options, key) do
+      {:ok, tls} when is_list(tls) ->
+        Keyword.replace!(
+          options,
+          key,
+          Keyword.put_new(tls, :server_name_indication, String.to_charlist(name))
+        )
+
+      _ ->
+        options
+    end
   end
 
   defp owned?(creds), do: not blank?(creds["owner_uuid"])

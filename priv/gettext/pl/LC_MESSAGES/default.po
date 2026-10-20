@@ -21342,17 +21342,12 @@ msgstr "Katalog API"
 msgid "This site"
 msgstr "Ten serwis"
 
-#: lib/phoenix_kit/integrations/validators.ex:347
+#: lib/phoenix_kit/mailer/smtp_endpoint_policy.ex:101
 #, elixir-autogen, elixir-format
 msgid "Personal SMTP connections may only use ports 25, 465, 587 or 2525"
 msgstr "Osobiste połączenia SMTP mogą używać tylko portów 25, 465, 587 lub 2525"
 
-#: lib/phoenix_kit/integrations/validators.ex:349
+#: lib/phoenix_kit/mailer/smtp_endpoint_policy.ex:103
 #, elixir-autogen, elixir-format
-msgid "The SMTP host could not be resolved"
-msgstr "Nie udało się rozwiązać nazwy hosta SMTP"
-
-#: lib/phoenix_kit/integrations/validators.ex:352
-#, elixir-autogen, elixir-format
-msgid "The SMTP host must not be a local, private or internal address"
-msgstr "Host SMTP nie może być adresem lokalnym, prywatnym ani wewnętrznym"
+msgid "The SMTP host must resolve to a public address"
+msgstr "Host SMTP musi wskazywać na adres publiczny"

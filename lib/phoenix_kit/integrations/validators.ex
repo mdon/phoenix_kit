@@ -339,17 +339,9 @@ defmodule PhoenixKit.Integrations.Validators do
   defp check_and_open_smtp(options, policy) do
     case SmtpEndpointPolicy.enforce(options, policy) do
       {:ok, options} -> open_smtp(options)
-      {:error, {:smtp_endpoint_refused, reason}} -> {:error, smtp_refusal(reason)}
+      {:error, {:smtp_endpoint_refused, reason}} -> {:error, SmtpEndpointPolicy.message(reason)}
     end
   end
-
-  defp smtp_refusal(:blocked_port),
-    do: gettext("Personal SMTP connections may only use ports 25, 465, 587 or 2525")
-
-  defp smtp_refusal(:unresolvable_host), do: gettext("The SMTP host could not be resolved")
-
-  defp smtp_refusal(_blocked),
-    do: gettext("The SMTP host must not be a local, private or internal address")
 
   # `never` is the operator saying there are no credentials to prove, so leave it
   # alone; anything else becomes `always` so a wrong password fails the check

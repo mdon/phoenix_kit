@@ -58,7 +58,7 @@ defmodule PhoenixKit.Integration.Integrations.PersonalSmtpPolicyTest do
       {:ok, _} = Integrations.save_setup(uuid, attrs("127.0.0.1", 587), nil, owner: owner)
 
       assert {:error, message} = Integrations.validate_connection(uuid, nil, owner: owner)
-      assert message =~ "local, private or internal"
+      assert message =~ "public address"
     end
 
     test "a saved system connection still reaches the relay" do
@@ -67,8 +67,31 @@ defmodule PhoenixKit.Integration.Integrations.PersonalSmtpPolicyTest do
       {:ok, _} = Integrations.save_setup(uuid, attrs("127.0.0.1", port))
 
       assert {:error, message} = Integrations.validate_connection(uuid, nil, owner: :system)
-      refute message =~ "local, private or internal"
+      refute message =~ "public address"
       assert_receive :relay_accepted, 5_000
+    end
+  end
+
+  describe "reading/2 (a check run without the caller's owner on the validator)" do
+    test "a system connection still reaches the relay" do
+      port = hang_up_relay()
+      {:ok, %{uuid: uuid}} = Integrations.add_connection("smtp", "site relay")
+      {:ok, _} = Integrations.save_setup(uuid, attrs("127.0.0.1", port))
+
+      assert {:error, message} = Integrations.reading(uuid)
+      refute message =~ "public address"
+      refute message =~ "25, 465, 587"
+      assert_receive :relay_accepted, 5_000
+    end
+
+    test "a personal connection is refused without connecting", %{owner: owner} do
+      port = hang_up_relay()
+      {:ok, %{uuid: uuid}} = Integrations.add_connection("smtp", "mine", nil, owner: owner)
+      {:ok, _} = Integrations.save_setup(uuid, attrs("127.0.0.1", port), nil, owner: owner)
+
+      assert {:error, message} = Integrations.reading(uuid, owner: owner)
+      assert message =~ "25, 465, 587"
+      refute_receive :relay_accepted, 200
     end
   end
 

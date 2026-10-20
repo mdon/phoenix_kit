@@ -340,7 +340,7 @@ defmodule PhoenixKit.Integrations.ValidatorsTest do
 
     test "a personal connection to an internal address on a mail port is refused" do
       assert {:error, message} = Validators.smtp(relay_creds(587), owner: {:user, "u-1"})
-      assert message =~ "local, private or internal"
+      assert message =~ "public address"
     end
 
     test "a personal connection on a non-mail port is refused" do
@@ -354,7 +354,7 @@ defmodule PhoenixKit.Integrations.ValidatorsTest do
       creds = %{"host" => "pgbouncer", "port" => "587", "username" => "u", "password" => "p"}
 
       assert {:error, message} = Validators.smtp(creds, owner: {:user, "u-1"})
-      assert message =~ "local, private or internal"
+      assert message =~ "public address"
     end
 
     test "no owner means the strict policy" do

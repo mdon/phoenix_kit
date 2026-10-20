@@ -793,7 +793,7 @@ defmodule PhoenixKit.MailerTest do
     test "swoosh_config_for/1 refuses a personal connection to an internal address" do
       owner = Ecto.UUID.generate()
 
-      assert {:error, {:smtp_endpoint_refused, :blocked_address}} =
+      assert {:error, {:smtp_endpoint_refused, :blocked_host}} =
                Mailer.swoosh_config_for(smtp_creds("127.0.0.1", 587, owner))
 
       assert {:error, {:smtp_endpoint_refused, :blocked_port}} =
@@ -843,7 +843,7 @@ defmodule PhoenixKit.MailerTest do
     test "deliver_via_integration/3 refuses a personal relay at a loopback address" do
       uuid = personal_smtp("127.0.0.1", 587)
 
-      assert {:error, {:smtp_endpoint_refused, :blocked_address}} =
+      assert {:error, {:smtp_endpoint_refused, :blocked_host}} =
                Mailer.deliver_via_integration(policy_email(), uuid)
     end
 
