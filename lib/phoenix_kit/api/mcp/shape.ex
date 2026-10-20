@@ -30,7 +30,8 @@ defmodule PhoenixKit.API.MCP.Shape do
     ip_not_allowed: "Call from an address the key allows.",
     origin_not_allowed:
       "Call from a client that sends no Origin header, or ask an administrator to allow the origin.",
-    token_in_url: "Send credentials in the Authorization header, never in the URL.",
+    token_in_url:
+      "Send credentials in the Authorization header (admin) or the request body (client tokens), never in the URL.",
     invalid_json: "Send a valid JSON body.",
     not_found: "Check the tool name or the id with tools/list and try again.",
     cart_not_found: "Create a new cart and try again.",

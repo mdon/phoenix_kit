@@ -111,29 +111,43 @@ defmodule PhoenixKit.API.RateLimit do
 
   @doc """
   Charges `cost` units to the public buckets: the client network's room is
-  checked first, then the client token's bucket (when there is one) is charged,
-  then the network's.
+  checked first, then the client token's bucket (when there is one) is charged
+  `cost`, then the network's is charged `network_cost` (`cost` unless given;
+  `0` charges it nothing, and only reports its state).
+
+  The executor charges the network bucket 1 unit before it looks a tool up
+  (`check_public(ip, nil, 1)`: the token is not known yet), then the token
+  bucket the tool's full price and the network bucket the rest
+  (`check_public(ip, hash, cost, cost - 1)`), so one call costs `cost` units in
+  each bucket.
 
   A client whose network bucket is full is refused before any token counter is
   created, so fresh random tokens cannot grow the shared counter table. A
-  request refused by the token bucket is not charged to the network bucket, so a
-  client hammering with one token does not use up the shared address. Headers
-  describe the bucket with the least room left.
+  request refused by the token bucket is not charged to the network bucket (but
+  it paid its first unit there, before the lookup), so a client hammering with
+  one token does not use up the shared address. Headers describe the bucket
+  with the least room left.
   """
   @spec check_public(String.t() | nil, String.t() | nil, pos_integer()) ::
           {:ok, headers()} | {:error, pos_integer(), headers()}
-  def check_public(ip, client_token_hash, cost) when is_integer(cost) and cost > 0 do
+  def check_public(ip, client_token_hash, cost) when is_integer(cost) and cost > 0,
+    do: check_public(ip, client_token_hash, cost, cost)
+
+  @spec check_public(String.t() | nil, String.t() | nil, pos_integer(), non_neg_integer()) ::
+          {:ok, headers()} | {:error, pos_integer(), headers()}
+  def check_public(ip, client_token_hash, cost, network_cost)
+      when is_integer(cost) and cost > 0 and is_integer(network_cost) and network_cost >= 0 do
     limits = Config.rate_limits()
     ip_limit = limits.public_ip_per_min
 
-    case peek_network(ip, ip_limit, cost) do
+    case peek_network(ip, ip_limit, network_cost) do
       {:denied, _info} = denied ->
         result(denied)
 
       :room ->
         case charge_token(client_token_hash, limits.public_token_per_min, cost) do
           {:denied, _info} = denied -> result(denied)
-          token -> result(charge_network(token, ip, ip_limit, cost))
+          token -> result(charge_network(token, ip, ip_limit, network_cost))
         end
     end
   end
@@ -169,6 +183,16 @@ defmodule PhoenixKit.API.RateLimit do
 
   defp charge_token(client_token_hash, limit, cost) when is_binary(client_token_hash),
     do: charge("api:public:token:" <> client_token_hash, @minute, limit, cost)
+
+  # Nothing to add to the network bucket: report where it stands.
+  defp charge_network(token, ip, limit, 0) do
+    used = Backend.get("api:public:ip:" <> network(ip), @minute)
+
+    tightest(
+      token,
+      {:allowed, %{limit: limit, remaining: max(limit - used, 0), reset: seconds_left(@minute)}}
+    )
+  end
 
   defp charge_network(token, ip, limit, cost) do
     case charge("api:public:ip:" <> network(ip), @minute, limit, cost) do

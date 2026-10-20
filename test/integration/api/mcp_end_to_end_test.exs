@@ -419,7 +419,7 @@ defmodule PhoenixKit.API.MCPEndToEndTest do
                                       |> tool_names())
     end
 
-    test "the key and a cart token appear in no answer and in no log line, at debug level", %{
+    test "the key and a client token appear in no answer and in no log line, at debug level", %{
       conn: conn,
       token: token
     } do
@@ -445,7 +445,7 @@ defmodule PhoenixKit.API.MCPEndToEndTest do
             call_tool(conn, "/mcp/admin", token, "testkit_nope"),
             call_tool(conn, "/mcp/public", nil, "testkit_public_echo", %{
               "text" => "hi",
-              "cart_token" => "my-cart-token-value"
+              "session_token" => "my-session-token-value"
             })
           ]
         end)
@@ -455,12 +455,12 @@ defmodule PhoenixKit.API.MCPEndToEndTest do
 
       refute log =~ token
       refute log =~ secret
-      refute log =~ "my-cart-token-value"
+      refute log =~ "my-session-token-value"
 
       for answer <- answers do
         refute answer.resp_body =~ token
         refute answer.resp_body =~ secret
-        refute answer.resp_body =~ "my-cart-token-value"
+        refute answer.resp_body =~ "my-session-token-value"
       end
     end
   end

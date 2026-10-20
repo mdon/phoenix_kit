@@ -78,7 +78,7 @@ defmodule PhoenixKit.API.RequestContext do
     end
   rescue
     # The hook is handed the whole connection: the headers (the bearer token)
-    # and the body params (cart tokens) must not reach the log, so only the
+    # and the body params (client tokens) must not reach the log, so only the
     # exception module (and a fixed message) is logged.
     error -> bad_hook(module, fun, "raised #{LogSafe.exception_label(error)}")
   catch

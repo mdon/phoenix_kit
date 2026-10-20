@@ -22,7 +22,7 @@ defmodule PhoenixKit.API.RateLimitPublicTest do
     :ok
   end
 
-  describe "check_public/3" do
+  describe "check_public/3 and /4" do
     test "an anonymous request is counted against the network only" do
       set_limit("api_public_ip_rate_per_min", 2)
       ip = unique_ip()
@@ -146,6 +146,41 @@ defmodule PhoenixKit.API.RateLimitPublicTest do
       assert {:ok, headers} = RateLimit.check_public(ip, nil, 7)
       assert header_value(headers, "ratelimit-remaining") == 3
       assert {:error, _, _} = RateLimit.check_public(ip, nil, 4)
+    end
+
+    test "a separate network cost charges the token the full cost and the network the given part" do
+      set_limit("api_public_token_rate_per_min", 100)
+      set_limit("api_public_ip_rate_per_min", 100)
+      ip = unique_ip()
+      token = unique_token()
+
+      assert {:ok, _} = RateLimit.check_public(ip, token, 5, 2)
+      assert Backend.get("api:public:token:" <> token, 60_000) == 5
+      assert Backend.get("api:public:ip:" <> ip, 60_000) == 2
+    end
+
+    test "a network cost of 0 charges the token only, and the headers still weigh the network" do
+      set_limit("api_public_token_rate_per_min", 100)
+      set_limit("api_public_ip_rate_per_min", 5)
+      ip = unique_ip()
+      token = unique_token()
+
+      assert {:ok, _} = RateLimit.check_public(ip, nil, 3)
+      assert {:ok, headers} = RateLimit.check_public(ip, token, 1, 0)
+
+      assert Backend.get("api:public:token:" <> token, 60_000) == 1
+      assert Backend.get("api:public:ip:" <> ip, 60_000) == 3
+      assert header_value(headers, "ratelimit-limit") == 5
+      assert header_value(headers, "ratelimit-remaining") == 2
+    end
+
+    test "a token over its limit is refused although the network has room, and the network is not charged" do
+      set_limit("api_public_token_rate_per_min", 2)
+      set_limit("api_public_ip_rate_per_min", 100)
+      ip = unique_ip()
+
+      assert {:error, _, _} = RateLimit.check_public(ip, unique_token(), 3, 2)
+      assert Backend.get("api:public:ip:" <> ip, 60_000) == 0
     end
 
     test "refuses a cost that is not a positive integer" do

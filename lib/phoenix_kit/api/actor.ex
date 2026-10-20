@@ -8,7 +8,9 @@ defmodule PhoenixKit.API.Actor do
     * `user_uuid` - the key's owner.
     * `scopes` - the key's effective scopes (its own, filtered by the owner's live permissions).
     * `requires_approval` - the key's dangerous operations wait for a human.
-    * `cart_token_hash` - the hashed cart token of an anonymous public caller.
+    * `client_token_hash` - the hash of the client token an anonymous public caller sent in the
+      field its tool declares (`PhoenixKit.API.Tool`'s `:client_token`); `nil` when the tool
+      declares none or the caller sent none. The raw token is never kept.
     * `ip` - the address the request came from, as a string.
 
   The default is the least-privileged value: anonymous, no scopes, no approval.
@@ -20,7 +22,7 @@ defmodule PhoenixKit.API.Actor do
             user_uuid: nil,
             scopes: [],
             requires_approval: false,
-            cart_token_hash: nil,
+            client_token_hash: nil,
             ip: nil
 
   @type t :: %__MODULE__{
@@ -30,7 +32,7 @@ defmodule PhoenixKit.API.Actor do
           user_uuid: String.t() | nil,
           scopes: [String.t()],
           requires_approval: boolean(),
-          cart_token_hash: String.t() | nil,
+          client_token_hash: String.t() | nil,
           ip: String.t() | nil
         }
 end

@@ -5,8 +5,10 @@ defmodule PhoenixKit.API.Legacy do
   it spells one), so the day the deprecation window closes this file is
   deleted and only its callers are touched: `PhoenixKit.API.Paths`, the
   fallback in `PhoenixKit.API.Config.rate_limits/0` (with
-  `rate_limits_without_fallback/0`, which exists only for it) and the
-  Settings -> API form's `write_limits`.
+  `rate_limits_without_fallback/0`, which exists only for it), the
+  Settings -> API form's `write_limits`, `PhoenixKit.API.Executor` (the client
+  token of a tool that declares none) and `PhoenixKit.API.Idempotency` (the
+  credential names and markers of the old checkout links).
 
   **This module is deleted in 3.0.0.** A client, a settings row or a module
   that still uses a name below has until then to move to the canonical one.
@@ -21,7 +23,14 @@ defmodule PhoenixKit.API.Legacy do
     * the deprecated settings keys (`setting_fallback/1`): `PhoenixKit.API.Config`
       reads a limit from its new key and, when that holds no valid number, from
       the old one. Nothing deletes or migrates the old rows; the first save of
-      Settings -> API writes the values in effect under the new keys.
+      Settings -> API writes the values in effect under the new keys;
+    * the client token of a public tool that declares none (`legacy_client_token/1`):
+      a module written before `PhoenixKit.API.Tool` had a `client_token` field named
+      its anonymous caller's token `cart_token`, and the executor still reads it so
+      such a module keeps its rate limit, its idempotency scope and its danger gate;
+    * the names a module's answers carried secrets under before `Tool.credentials`
+      existed (`credential_keys/0`, `credential_markers/0`), which
+      `PhoenixKit.API.Idempotency` still redacts and never stores for replay.
   """
 
   # 2026-10-20T00:00:00Z, the day the neutral paths shipped, as an RFC 9745
@@ -37,6 +46,12 @@ defmodule PhoenixKit.API.Legacy do
     "api_public_new_rows_per_ip_hour" => "api_public_cart_rows_per_ip_hour",
     "api_public_new_rows_global_hour" => "api_public_cart_rows_global_hour"
   }
+
+  # Output field names that carried a secret without ending in `_token`, and the part of
+  # a checkout link that holds the secret. `claim_token` is also caught by the `_token`
+  # rule of core; it is listed because it was named.
+  @credential_keys ~w(claim_url checkout_url claim_token)
+  @credential_markers ["/checkout/claim/"]
 
   @doc """
   The value of the `Deprecation` response header (RFC 9745) that every answer
@@ -60,4 +75,32 @@ defmodule PhoenixKit.API.Legacy do
   """
   @spec setting_fallback(String.t()) :: String.t() | nil
   def setting_fallback(key) when is_binary(key), do: Map.get(@setting_fallbacks, key)
+
+  @doc """
+  The input field a public `tool` that declares no `client_token` is read through, or
+  `nil`: `"cart_token"` when the tool's input schema has a property of that name.
+  """
+  @spec legacy_client_token(PhoenixKit.API.Tool.t()) :: String.t() | nil
+  def legacy_client_token(%PhoenixKit.API.Tool{audience: :public, client_token: nil} = tool) do
+    case tool.input_schema do
+      %{"properties" => %{"cart_token" => _property}} -> "cart_token"
+      _no_such_property -> nil
+    end
+  end
+
+  def legacy_client_token(%PhoenixKit.API.Tool{}), do: nil
+
+  @doc """
+  The output field names `PhoenixKit.API.Idempotency` treats as credentials besides the
+  ones core's rule covers.
+  """
+  @spec credential_keys() :: [String.t()]
+  def credential_keys, do: @credential_keys
+
+  @doc """
+  The substrings that make any string value of an answer a credential
+  (compared without regard to case).
+  """
+  @spec credential_markers() :: [String.t()]
+  def credential_markers, do: @credential_markers
 end

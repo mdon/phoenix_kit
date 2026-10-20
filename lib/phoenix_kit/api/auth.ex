@@ -79,16 +79,35 @@ defmodule PhoenixKit.API.Auth do
   alias PhoenixKit.WebsiteAccess.AllowedAddresses
   alias PhoenixKit.WebsiteAccess.Gate
 
-  @credential_params ~w(api_key apikey api-key authorization bearer access_token token cart_token confirm_token)
+  @credential_params ~w(confirm_token api_key apikey api-key authorization bearer access_token token secret)
 
   @doc """
-  The query parameter names `token_in_url?/1` treats as a credential.
+  The credential names core knows by heart. `credential_name?/1` adds every name that
+  ends in `_token`.
 
-  The boot-time log filter (`PhoenixKit.boot/1`) is built from this list, so a
-  name refused here never reaches the log in clear text.
+  The boot-time log filter (`PhoenixKit.boot/1`) is built from this list, and Phoenix
+  filters a parameter whose name *contains* one of its entries, so `token` also
+  keeps every `*_token` out of the log: a name refused here never reaches the log in
+  clear text.
   """
   @spec credential_params() :: [String.t()]
   def credential_params, do: @credential_params
+
+  @doc """
+  Whether `name` is the name of a credential: one of `credential_params/0`, or any name
+  that ends in `_token` (`access_token`, `session_token`, `claim_token`), compared
+  without regard to case. `token_count` and `tokens_issued` are not.
+
+  The one rule behind the refusal of a credential in a URL and the redaction of a
+  credential from a stored answer (`PhoenixKit.API.Idempotency`).
+  """
+  @spec credential_name?(term()) :: boolean()
+  def credential_name?(name) when is_binary(name) do
+    name = String.downcase(name)
+    name in @credential_params or String.ends_with?(name, "_token")
+  end
+
+  def credential_name?(_name), do: false
 
   @audiences [:admin, :public]
 
@@ -153,11 +172,10 @@ defmodule PhoenixKit.API.Auth do
   end
 
   @doc """
-  Whether the query string carries a credential: a parameter named
-  `api_key`, `apikey`, `api-key`, `authorization`, `bearer`, `access_token`,
-  `token`, `cart_token` or `confirm_token` (any case, with or without a `[]`
-  suffix), or any parameter whose value starts with `pk_` (any case, after
-  trimming spaces).
+  Whether the query string carries a credential: a parameter whose name is a
+  credential (`credential_name?/1`: `api_key`, `authorization`, `token`, `secret`,
+  anything ending in `_token` and so on; any case, with or without a `[]` suffix),
+  or any parameter whose value starts with `pk_` (any case, after trimming spaces).
 
   Names and values are compared after percent-decoding, so `%61pi_key=...`
   is caught too.
@@ -168,13 +186,11 @@ defmodule PhoenixKit.API.Auth do
   def token_in_url?(%Plug.Conn{query_string: query}) do
     query
     |> URI.query_decoder()
-    |> Enum.any?(fn {name, value} -> credential_name?(name) or credential_value?(value) end)
+    |> Enum.any?(fn {name, value} -> param_credential?(name) or credential_value?(value) end)
   end
 
-  defp credential_name?(name) do
-    base = name |> String.split("[", parts: 2) |> hd() |> String.downcase()
-    base in @credential_params
-  end
+  defp param_credential?(name),
+    do: name |> String.split("[", parts: 2) |> hd() |> credential_name?()
 
   # Any value that starts with `pk_` is refused, whatever its parameter name
   # and on both audiences: a key may sit under a name nobody listed, and the
@@ -255,12 +271,12 @@ defmodule PhoenixKit.API.Auth do
     )
   end
 
-  # The public API has no Authorization header: the cart token travels in the request body.
+  # The public API has no Authorization header: a client token travels in the request body.
   defp token_in_url(conn, :public) do
     Problem.send(
       conn,
       :token_in_url,
-      "Credentials and cart tokens must be sent in the request body, never in the URL.",
+      "Credentials and client tokens must be sent in the request body, never in the URL.",
       %{}
     )
   end

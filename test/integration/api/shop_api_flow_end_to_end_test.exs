@@ -293,7 +293,7 @@ defmodule PhoenixKit.API.ShopApiFlowEndToEndTest do
       first = call_tool(conn, plain.token, "flowkit.misbehave", %{"mode" => "leak"}, headers)
       second = call_tool(conn, plain.token, "flowkit.misbehave", %{"mode" => "leak"}, headers)
 
-      refute json(first)["cart_token"] == json(second)["cart_token"]
+      refute json(first)["session_token"] == json(second)["session_token"]
       assert get_resp_header(second, "idempotent-replayed") == []
       assert Repo.aggregate(Record, :count) == 0
     end
