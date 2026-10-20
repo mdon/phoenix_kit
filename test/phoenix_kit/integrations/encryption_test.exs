@@ -794,6 +794,8 @@ defmodule PhoenixKit.Integrations.EncryptionTest do
       Application.put_env(:phoenix_kit, :integration_encryption_warn_on_boot, false)
       Application.put_env(:phoenix_kit, :integration_encryption_enabled, false)
 
+      assert Encryption.status() == :disabled_explicit
+
       log = capture_log(fn -> Encryption.encrypt_fields(%{"password" => "hunter2-hunter2"}) end)
 
       refute log =~ "PLAINTEXT"

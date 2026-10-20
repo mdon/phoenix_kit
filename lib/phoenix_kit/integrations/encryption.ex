@@ -35,16 +35,16 @@ defmodule PhoenixKit.Integrations.Encryption do
        key above, and key-store problems under a dedicated key). When
        credentials are stored as plaintext (`:disabled_no_key`,
        `:disabled_explicit`) the report is logged unless the flag is set to
-       an explicit `false`, which also silences the one-time warning on the
-       first plaintext write. An explicit `false` silences only
-       `:disabled_explicit`, the state an operator chose: `:disabled_no_key`
-       means the key material went missing, and is reported whatever the
-       flag says. `boot/1` resolves the key to learn which state the install
-       is in, so the one-time error "a key store IS configured but its secret
-       could not be read" may appear at boot even when the report itself is
-       off. Only
-       the boolean `false` silences: the string `"false"` (for example from
-       `System.get_env/1`) is truthy and turns the full report on.
+       an explicit `false` and the state is `:disabled_explicit`, the one an
+       operator chose; that also silences the one-time warning on the first
+       plaintext write. `:disabled_no_key` means the key material went
+       missing, and is reported whatever the flag says. `boot/1` resolves
+       the key to learn which state the install is in, so the one-time error
+       "a key store IS configured but its secret could not be read" may
+       appear at boot even when the report itself is off. Only the boolean
+       `false` silences `:disabled_explicit`: the string `"false"` (for
+       example from `System.get_env/1`) is truthy and turns the full report
+       on.
 
   Set `config :phoenix_kit, integration_encryption_enabled: false` to turn
   encryption off entirely (new and existing writes store plaintext). This is
