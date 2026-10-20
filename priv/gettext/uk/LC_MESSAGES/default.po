@@ -21335,3 +21335,18 @@ msgstr "Каталог API"
 #, elixir-autogen, elixir-format
 msgid "This site"
 msgstr "Цей сайт"
+
+#: lib/phoenix_kit/integrations/validators.ex:347
+#, elixir-autogen, elixir-format
+msgid "Personal SMTP connections may only use ports 25, 465, 587 or 2525"
+msgstr "Особисті SMTP-з’єднання можуть використовувати лише порти 25, 465, 587 або 2525"
+
+#: lib/phoenix_kit/integrations/validators.ex:349
+#, elixir-autogen, elixir-format
+msgid "The SMTP host could not be resolved"
+msgstr "Не вдалося визначити адресу SMTP-сервера"
+
+#: lib/phoenix_kit/integrations/validators.ex:352
+#, elixir-autogen, elixir-format
+msgid "The SMTP host must not be a local, private or internal address"
+msgstr "SMTP-сервер не повинен бути локальною, приватною чи внутрішньою адресою"
