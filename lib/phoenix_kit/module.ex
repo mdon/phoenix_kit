@@ -120,7 +120,7 @@ defmodule PhoenixKit.Module do
     implementing `PhoenixKit.Jobs.Kind`), for the admin Jobs page
     (default: `[]`).
   - `api_tools/0` - `PhoenixKit.API.Tool` structs this module offers through the
-    shop/admin API (default: `[]`).
+    public and admin machine API (default: `[]`).
   - `api_problems/0` - Error codes this module's API tools answer with beyond core's own
     (default: `%{}`).
   """

@@ -95,7 +95,9 @@ defmodule PhoenixKit.API.Executor do
   A tool's handler returns `{:ok, map}`, `{:ok, map, effects}` (the effects
   list is added to the response under `"effects"`) or
   `{:error, code, message, context}` (`code` is an atom from
-  `PhoenixKit.API.Problem.statuses/0`). Anything else, and any exception,
+  `PhoenixKit.API.Problem.statuses/0`: core's own codes plus those the
+  module declares in `c:PhoenixKit.Module.api_problems/0`; an undeclared
+  code answers 500). Anything else, and any exception,
   exit or throw, answers `500 internal_error` with a generic message; the
   detail goes to the log, never to the client.
 

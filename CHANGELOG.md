@@ -50,8 +50,8 @@
   as a fallback when the new key holds no valid number. The rows are never deleted. Removed in 3.0.0.
 - **`RateLimit.check_cart_rows/1`** calls `check_new_rows/1` (`@deprecated`). A public tool that declares no `client_token`
   but has a `cart_token` input property keeps that field as its client token, and the output names `claim_url`,
-  `checkout_url`, `claim_token` and the `/checkout/claim/` marker stay credentials. All of it lives in
-  `PhoenixKit.API.Legacy`, which is deleted in 3.0.0.
+  `checkout_url`, `claim_token` and the `/checkout/claim/` marker stay credentials. Apart from `check_cart_rows/1`
+  itself, all of it lives in `PhoenixKit.API.Legacy`, which is deleted in 3.0.0.
 
 ### Added
 
