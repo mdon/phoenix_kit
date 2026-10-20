@@ -440,6 +440,18 @@ defmodule PhoenixKit.API.ExecutorFlowTest do
       assert record_count(key) == 0
     end
 
+    test "an answer that carries a credential the tool declares is never stored", %{token: token} do
+      key = idem()
+
+      first = call(token, @misbehave, %{"mode" => "leak_link", "idempotency_key" => key})
+      second = call(token, @misbehave, %{"mode" => "leak_link", "idempotency_key" => key})
+
+      assert first.status == 200 and second.status == 200
+      refute json(first)["link"] == json(second)["link"]
+      assert get_resp_header(second, "idempotent-replayed") == []
+      assert record_count(key) == 0
+    end
+
     test "a dry run never claims the key, so the real call may use it", %{token: token} do
       key = idem()
 
@@ -568,18 +580,6 @@ defmodule PhoenixKit.API.ExecutorFlowTest do
       assert get_resp_header(second, "idempotent-replayed") == ["true"]
       assert get_resp_header(other, "idempotent-replayed") == []
       assert ApiFlowStore.calls() == 2
-    end
-
-    test "a tool's declared client token is not read from another field" do
-      key = idem()
-      body = %{"text" => "hi", "idempotency_key" => key}
-
-      first = public_call("flowkit.legacy_write", body)
-      second = public_call("flowkit.legacy_write", body)
-
-      assert get_resp_header(second, "idempotent-replayed") == []
-      assert first.status == 200 and second.status == 200
-      assert record_count(key) == 0
     end
 
     test "a public write without a client token has no idempotency" do

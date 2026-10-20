@@ -82,13 +82,23 @@ defmodule PhoenixKit.API.Legacy do
   """
   @spec legacy_client_token(PhoenixKit.API.Tool.t()) :: String.t() | nil
   def legacy_client_token(%PhoenixKit.API.Tool{audience: :public, client_token: nil} = tool) do
-    case tool.input_schema do
-      %{"properties" => %{"cart_token" => _property}} -> "cart_token"
-      _no_such_property -> nil
-    end
+    if has_cart_token_property?(tool.input_schema), do: "cart_token"
   end
 
   def legacy_client_token(%PhoenixKit.API.Tool{}), do: nil
+
+  # `Tool.new/1` accepts a schema keyed by strings or by atoms.
+  defp has_cart_token_property?(%{} = schema) do
+    case Map.get(schema, "properties", Map.get(schema, :properties)) do
+      %{} = properties ->
+        Map.has_key?(properties, "cart_token") or Map.has_key?(properties, :cart_token)
+
+      _no_properties ->
+        false
+    end
+  end
+
+  defp has_cart_token_property?(_schema), do: false
 
   @doc """
   The output field names `PhoenixKit.API.Idempotency` treats as credentials besides the

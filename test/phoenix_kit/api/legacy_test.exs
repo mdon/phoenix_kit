@@ -38,6 +38,13 @@ defmodule PhoenixKit.API.LegacyTest do
                "cart_token"
     end
 
+    test "reads an input schema keyed by atoms too" do
+      schema = %{type: "object", properties: %{cart_token: %{type: "string"}}}
+
+      assert Legacy.legacy_client_token(tool!(audience: :public, input_schema: schema)) ==
+               "cart_token"
+    end
+
     test "is nil when the tool declares a client token itself" do
       schema = put_in(@schema, ["properties", "session_token"], %{"type" => "string"})
 

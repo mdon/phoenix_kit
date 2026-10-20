@@ -14,8 +14,8 @@ defmodule PhoenixKit.API.Idempotency do
 
   A claim is a row of `phoenix_kit_api_idempotency` keyed by `(scope_ref, key)`;
   `scope_ref` is the API key's uuid for admin calls and the client-token hash for public
-  calls whose tool declares a client token. The insert is `ON CONFLICT DO NOTHING`, so two first requests cannot both
-  win. A request that crashed or timed out leaves an `in_progress` row; once its lease
+  calls whose tool declares a client token. The insert is `ON CONFLICT DO NOTHING`, so two
+  first requests cannot both win. A request that crashed or timed out leaves an `in_progress` row; once its lease
   (`api_idempotency_lease_seconds`) has run out a retry of the same request takes the row
   over. A request that committed and died before `store/2` runs again after a takeover,
   so module authors should also give their writes a natural key of their own (an

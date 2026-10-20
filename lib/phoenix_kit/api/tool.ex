@@ -57,7 +57,9 @@ defmodule PhoenixKit.API.Tool do
       the `idempotency_key` and the binding of a confirmation code. A public tool with a
       `danger:` must declare it and list it in `required`; a call without the token is a
       `422` naming the field. An `:admin` tool may not declare one. The field is a credential
-      like a key: it is refused in a URL and redacted from stored answers.
+      like a key and is redacted from stored answers. It is refused in a URL, and filtered
+      from the request log, only when core's credential rule knows its name (the listed names
+      and `*_token`; see `PhoenixKit.API.Auth.credential_name?/1`), so name it `*_token`.
       The field is newer than core 2.63.x, where `new/1` refuses it. A module that must also
       run there sets it only when `Map.has_key?(PhoenixKit.API.Tool.__struct__(), :client_token)`
       (a struct key is not a function, so `function_exported?/3` cannot tell; and

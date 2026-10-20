@@ -241,7 +241,7 @@ defmodule PhoenixKit.API.Auth do
   client of `conn`.
 
   While the gate is on, the public API is as private as the site: it would
-  otherwise hand a gated pre-production site's catalogue and carts to anyone.
+  otherwise hand a gated pre-production site's catalogue and customer data to anyone.
   Addresses on the gate's allow-list pass, like they do for the site. The
   admin API is not gated: it has its own keys.
 

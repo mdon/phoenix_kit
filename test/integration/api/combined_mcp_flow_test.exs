@@ -93,6 +93,7 @@ defmodule PhoenixKit.API.CombinedMcpFlowTest do
       Tool.new!(
         name: name,
         audience: :public,
+        client_token: "session_token",
         description: "Drops a session.",
         input_schema: %{
           "type" => "object",
