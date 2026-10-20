@@ -36,11 +36,11 @@ defmodule PhoenixKit.API.PublicDiscoveryTest do
       prefix = Routes.prefix_base()
 
       assert PublicDiscovery.guide_url(@origin) == "#{@origin}#{prefix}/mcp"
-      assert PublicDiscovery.mcp_url(@origin) == "#{@origin}#{prefix}/mcp/shop"
-      assert PublicDiscovery.api_url(@origin) == "#{@origin}#{prefix}/api/shop/v1"
+      assert PublicDiscovery.mcp_url(@origin) == "#{@origin}#{prefix}/mcp/public"
+      assert PublicDiscovery.api_url(@origin) == "#{@origin}#{prefix}/api/public/v1"
 
       assert PublicDiscovery.openapi_url(@origin) ==
-               "#{@origin}#{prefix}/api/shop/v1/openapi.json"
+               "#{@origin}#{prefix}/api/public/v1/openapi.json"
 
       assert PublicDiscovery.llms_url(@origin) == "#{@origin}/llms.txt"
       assert PublicDiscovery.catalog_url(@origin) == "#{@origin}/.well-known/api-catalog"
@@ -111,8 +111,8 @@ defmodule PhoenixKit.API.PublicDiscoveryTest do
              ## Shop API and MCP
 
              - [How to connect](#{@origin}#{prefix}/mcp): MCP server and REST API for the shop, no key needed
-             - [MCP server](#{@origin}#{prefix}/mcp/shop): Streamable HTTP
-             - [OpenAPI](#{@origin}#{prefix}/api/shop/v1/openapi.json)
+             - [MCP server](#{@origin}#{prefix}/mcp/public): Streamable HTTP
+             - [OpenAPI](#{@origin}#{prefix}/api/public/v1/openapi.json)
              """
     end
 

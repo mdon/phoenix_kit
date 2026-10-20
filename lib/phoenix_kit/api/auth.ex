@@ -29,6 +29,11 @@ defmodule PhoenixKit.API.Auth do
        the state of the IP's failure bucket). For the public audience it
        assigns an anonymous actor.
 
+  An optional `:deprecated` option (`[path: ..., successor: ...]`, set by the
+  forward of a deprecated path, see `PhoenixKit.API.Paths`) marks every answer
+  from step 3 on with `Deprecation` and a successor `Link`. The bare `404` of
+  step 2 does not carry it: a switched-off or gated API reveals nothing.
+
   An optional `:before_auth` hook, `{module, function}`, is called with the
   conn after step 3 and before step 4. The MCP transport uses it to refuse a
   foreign `Origin`. The function must return a conn; a halted conn ends the
@@ -67,6 +72,7 @@ defmodule PhoenixKit.API.Auth do
   alias PhoenixKit.API.Config
   alias PhoenixKit.API.Keys
   alias PhoenixKit.API.LogSafe
+  alias PhoenixKit.API.Paths
   alias PhoenixKit.API.Problem
   alias PhoenixKit.API.RateLimit
   alias PhoenixKit.Utils.IpAddress
@@ -95,16 +101,34 @@ defmodule PhoenixKit.API.Auth do
             "PhoenixKit.API.Auth :audience must be :admin or :public, got: #{inspect(audience)}"
     end
 
-    case Keyword.fetch(opts, :before_auth) do
-      :error ->
-        [audience: audience]
+    [audience: audience]
+    |> put_option(opts, :before_auth, &before_auth!/1)
+    |> put_option(opts, :deprecated, &deprecated!/1)
+  end
 
-      {:ok, {module, function}} when is_atom(module) and is_atom(function) ->
-        [audience: audience, before_auth: {module, function}]
+  defp put_option(init, opts, key, validate) do
+    case Keyword.fetch(opts, key) do
+      :error -> init
+      {:ok, value} -> init ++ [{key, validate.(value)}]
+    end
+  end
 
-      {:ok, other} ->
-        raise ArgumentError,
-              "PhoenixKit.API.Auth :before_auth must be {module, function}, got: #{inspect(other)}"
+  defp before_auth!({module, function} = hook) when is_atom(module) and is_atom(function),
+    do: hook
+
+  defp before_auth!(other) do
+    raise ArgumentError,
+          "PhoenixKit.API.Auth :before_auth must be {module, function}, got: #{inspect(other)}"
+  end
+
+  defp deprecated!(deprecated) do
+    if Keyword.keyword?(deprecated) and is_binary(deprecated[:path]) and
+         is_binary(deprecated[:successor]) do
+      deprecated
+    else
+      raise ArgumentError,
+            "PhoenixKit.API.Auth :deprecated must be [path: binary, successor: binary], " <>
+              "got: #{inspect(deprecated)}"
     end
   end
 
@@ -116,8 +140,15 @@ defmodule PhoenixKit.API.Auth do
     cond do
       not api_enabled?(audience) -> Problem.send(conn, :not_found, "", %{})
       gated?(conn, audience) -> Problem.send(conn, :not_found, "", %{})
-      token_in_url?(conn) -> token_in_url(conn, audience)
-      true -> conn |> run_before_auth(opts) |> admit(audience)
+      true -> conn |> Paths.put_deprecation(opts[:deprecated]) |> screen(audience, opts)
+    end
+  end
+
+  defp screen(conn, audience, opts) do
+    if token_in_url?(conn) do
+      token_in_url(conn, audience)
+    else
+      conn |> run_before_auth(opts) |> admit(audience)
     end
   end
 

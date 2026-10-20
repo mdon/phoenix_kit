@@ -22,6 +22,7 @@ if Code.ensure_loaded?(Igniter) do
     alias Igniter.Project.Application
     alias Igniter.Project.Deps
     alias Igniter.Project.Module, as: IgniterModule
+    alias PhoenixKit.API.Paths
     alias PhoenixKit.Install.IgniterHelpers
 
     # PDF.js viewer assets are vendored in phoenix_kit_catalogue's
@@ -155,7 +156,7 @@ if Code.ensure_loaded?(Igniter) do
 
       "Could not add PhoenixKit.API.BodyGuard to #{where}. Add `#{@body_guard_plug}` " <>
         "immediately before `plug Plug.Parsers` by hand; without it the shop API " <>
-        "(/api/admin/v1, /api/shop/v1) has no 2 MB body limit and answers malformed " <>
+        "(#{Paths.rest_path(:admin)}, #{Paths.rest_path(:public)}) has no 2 MB body limit and answers malformed " <>
         "JSON with an error page instead of a problem+json document."
     end
 

@@ -297,7 +297,7 @@ defmodule PhoenixKit.API.RESTOpenAPITest do
       assert document["info"]["title"] =~ "shop API"
 
       assert document["servers"] == [
-               %{"url" => "http://www.example.com" <> Routes.path("/api/shop/v1")}
+               %{"url" => "http://www.example.com" <> Routes.path("/api/public/v1")}
              ]
 
       refute Map.has_key?(document, "security")

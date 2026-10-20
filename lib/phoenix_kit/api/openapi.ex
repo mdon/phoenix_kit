@@ -2,7 +2,7 @@ defmodule PhoenixKit.API.OpenAPI do
   @moduledoc """
   The OpenAPI 3.1 document of the shop API, generated from the tool registry.
 
-  `GET /api/admin/v1/openapi.json` and `GET /api/shop/v1/openapi.json` serve
+  `GET /api/admin/v1/openapi.json` and `GET /api/public/v1/openapi.json` serve
   it (`PhoenixKit.API.REST`). An agent or a client generator reads it to learn
   every tool, its input and output schemas and the error format.
 
@@ -39,6 +39,7 @@ defmodule PhoenixKit.API.OpenAPI do
   alias PhoenixKit.API.Executor
   alias PhoenixKit.API.LogSafe
   alias PhoenixKit.API.OutputShape
+  alias PhoenixKit.API.Paths
   alias PhoenixKit.API.Problem
   alias PhoenixKit.API.RequestContext
   alias PhoenixKit.API.Tool
@@ -131,8 +132,7 @@ defmodule PhoenixKit.API.OpenAPI do
       Problem.send(conn, :internal_error, "The document could not be built.", %{})
   end
 
-  defp base_path(:admin), do: "/api/admin/v1"
-  defp base_path(:public), do: "/api/shop/v1"
+  defp base_path(audience), do: Paths.rest_path(audience)
 
   defp side(:admin), do: " admin API"
   defp side(:public), do: " shop API"

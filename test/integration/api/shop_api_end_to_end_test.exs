@@ -50,7 +50,7 @@ defmodule PhoenixKit.API.ShopApiEndToEndTest do
   # --- requests ---------------------------------------------------------
 
   defp api_path(tool \\ ""), do: Routes.path("/api/admin/v1/" <> tool)
-  defp shop_path(tool), do: Routes.path("/api/shop/v1/" <> tool)
+  defp shop_path(tool), do: Routes.path("/api/public/v1/" <> tool)
 
   defp from_ip(conn, ip \\ KeyTestSupport.unique_ip()),
     do: put_req_header(conn, "x-forwarded-for", ip)

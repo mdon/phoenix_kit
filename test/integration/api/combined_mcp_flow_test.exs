@@ -176,7 +176,7 @@ defmodule PhoenixKit.API.CombinedMcpFlowTest do
   defp dotted(mcp_name), do: String.replace(mcp_name, "_", ".", global: false)
 
   defp shop_call(conn, tool, arguments, opts \\ []),
-    do: mcp_call(conn, "/mcp/shop", nil, tool, arguments, opts)
+    do: mcp_call(conn, "/mcp/public", nil, tool, arguments, opts)
 
   defp idem,
     do: "idem-key-" <> String.pad_leading("#{System.unique_integer([:positive])}", 12, "0")
@@ -478,7 +478,7 @@ defmodule PhoenixKit.API.CombinedMcpFlowTest do
     test "the public tools/list leaves idempotency_key off a tool that cannot replay", %{
       conn: conn
     } do
-      tools = tools_list(conn, "/mcp/shop", nil)
+      tools = tools_list(conn, "/mcp/public", nil)
 
       properties = tools["flowkit_mint_cart"]["inputSchema"]["properties"]
       assert Map.keys(properties) |> Enum.sort() == ["confirm_token", "dry_run"]
@@ -489,7 +489,7 @@ defmodule PhoenixKit.API.CombinedMcpFlowTest do
     end
 
     test "the public tools/list shows them on public write tools", %{conn: conn} do
-      tools = tools_list(conn, "/mcp/shop", nil)
+      tools = tools_list(conn, "/mcp/public", nil)
 
       properties = tools["flowkit_public_write"]["inputSchema"]["properties"]
       assert Enum.all?(@control, &Map.has_key?(properties, &1))
@@ -540,7 +540,7 @@ defmodule PhoenixKit.API.CombinedMcpFlowTest do
       public =
         conn
         |> ApiHarness.with_client_ip()
-        |> get(Routes.path("/api/shop/v1/openapi.json"))
+        |> get(Routes.path("/api/public/v1/openapi.json"))
         |> json()
 
       assert Enum.all?(
@@ -649,7 +649,7 @@ defmodule PhoenixKit.API.CombinedMcpFlowTest do
       ip = KeyTestSupport.unique_ip()
 
       first =
-        mcp_call(conn, "/mcp/shop", nil, "counting_public_write", %{"dry_run" => true}, ip: ip)
+        mcp_call(conn, "/mcp/public", nil, "counting_public_write", %{"dry_run" => true}, ip: ip)
 
       assert first.status == 200
       assert %{"dry_run" => true} = structured(first)
@@ -663,7 +663,7 @@ defmodule PhoenixKit.API.CombinedMcpFlowTest do
             %{}
           ],
           name <- ["counting_public_write", "counting.public_write", "no_such_tool"] do
-        refused = mcp_call(conn, "/mcp/shop", nil, name, arguments, ip: ip)
+        refused = mcp_call(conn, "/mcp/public", nil, name, arguments, ip: ip)
         assert refused.status == 429
         assert %{"code" => "rate_limited"} = json(refused)
       end
@@ -675,7 +675,7 @@ defmodule PhoenixKit.API.CombinedMcpFlowTest do
       conn: conn
     } do
       ip = KeyTestSupport.unique_ip()
-      answer = mcp_call(conn, "/mcp/shop", nil, "no_such_tool", %{"dry_run" => true}, ip: ip)
+      answer = mcp_call(conn, "/mcp/public", nil, "no_such_tool", %{"dry_run" => true}, ip: ip)
 
       assert answer.status == 200
       refute Map.has_key?(json(answer), "result")

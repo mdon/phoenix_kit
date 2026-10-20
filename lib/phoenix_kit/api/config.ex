@@ -45,7 +45,7 @@ defmodule PhoenixKit.API.Config do
   @spec admin_enabled?() :: boolean()
   def admin_enabled?, do: flag("api_admin_enabled")
 
-  @doc "Whether the public API (`/api/shop/v1`, MCP) is switched on. Fails closed."
+  @doc "Whether the public API (`/api/public/v1`, MCP) is switched on. Fails closed."
   @spec public_enabled?() :: boolean()
   def public_enabled?, do: flag("api_public_enabled")
 
