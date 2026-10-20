@@ -284,8 +284,25 @@ defmodule PhoenixKit.Utils.IpAddressTrustedProxiesTest do
 
     test "an invalid value: nobody" do
       trust("172.18.0.7")
-      refute IpAddress.trusted_proxy?({172, 18, 0, 7})
-      refute IpAddress.trusted_proxy?({127, 0, 0, 1})
+
+      log =
+        capture_log(fn ->
+          refute IpAddress.trusted_proxy?({172, 18, 0, 7})
+          refute IpAddress.trusted_proxy?({127, 0, 0, 1})
+        end)
+
+      assert log =~ "is invalid"
+    end
+
+    test "IPv6: loopback and unique-local by default, a listed block, a mapped IPv4" do
+      assert IpAddress.trusted_proxy?("::1")
+      assert IpAddress.trusted_proxy?("fd00::7")
+      refute IpAddress.trusted_proxy?("2001:db8::1")
+
+      trust(["2001:db8::/32", "172.18.0.7/32"])
+      assert IpAddress.trusted_proxy?({0x2001, 0xDB8, 0, 0, 0, 0, 0, 1})
+      assert IpAddress.trusted_proxy?({0, 0, 0, 0, 0, 0xFFFF, 0xAC12, 0x0007})
+      refute IpAddress.trusted_proxy?("::1")
     end
 
     test "X-Forwarded-Proto follows the list" do
@@ -302,6 +319,42 @@ defmodule PhoenixKit.Utils.IpAddressTrustedProxiesTest do
       assert RequestContext.resolve(forwarded.({172, 18, 0, 7})).base_url == "https://shop.test"
       assert RequestContext.resolve(forwarded.({172, 18, 0, 8})).base_url == "http://shop.test"
       assert RequestContext.resolve(forwarded.({127, 0, 0, 1})).base_url == "http://shop.test"
+
+      trust(["203.0.113.0/24"])
+      assert RequestContext.resolve(forwarded.({203, 0, 113, 9})).base_url == "https://shop.test"
+    end
+
+    test "EnsureOAuthScheme follows the list" do
+      alias PhoenixKitWeb.Plugs.EnsureOAuthScheme
+
+      # A plain-HTTP base URL, so an ignored header shows as :http.
+      previous_base_url = Application.fetch_env(:phoenix_kit, :oauth_base_url)
+      Application.put_env(:phoenix_kit, :oauth_base_url, "http://shop.test")
+
+      on_exit(fn ->
+        case previous_base_url do
+          {:ok, value} -> Application.put_env(:phoenix_kit, :oauth_base_url, value)
+          :error -> Application.delete_env(:phoenix_kit, :oauth_base_url)
+        end
+      end)
+
+      scheme = fn ip ->
+        %{
+          Plug.Test.conn(:get, "http://shop.test/users/auth/google")
+          | remote_ip: ip,
+            req_headers: [{"x-forwarded-proto", "https"}]
+        }
+        |> EnsureOAuthScheme.call([])
+        |> Map.get(:scheme)
+      end
+
+      # Unset: a local peer is a proxy, a public one is not.
+      assert scheme.({127, 0, 0, 1}) == :https
+      assert scheme.({203, 0, 113, 9}) == :http
+
+      trust(["172.18.0.7/32"])
+      assert scheme.({172, 18, 0, 7}) == :https
+      assert scheme.({172, 18, 0, 8}) == :http
     end
 
     test "proxy_rebind_address/3 follows the list" do

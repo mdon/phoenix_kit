@@ -215,8 +215,9 @@ defmodule PhoenixKit.Utils.SessionFingerprint do
   request of such a session would be a changed IP: a warning each time, a
   sign-out under strict mode. A request that came through a proxy (its
   peer is a trusted proxy — by default loopback/private, see
-  `PhoenixKit.Utils.IpAddress.trusted_proxy?/1`), from the same browser, for a session stored
-  with a loopback/private address and now read as a public one, is that
+  `PhoenixKit.Utils.IpAddress.trusted_proxy?/1`), from the same browser,
+  for a session stored with a loopback/private address and now read as a
+  public one, is that
   session — it moves to the current address once and is checked as usual
   from then on.
 

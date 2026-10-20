@@ -51,7 +51,10 @@ defmodule PhoenixKit.Utils.IpAddress do
   silently stops matching and every client appears as the proxy.
 
   The same rule applies to `client_address/1` (Plug.Conn) and
-  `client_address_from_socket/1` (LiveView).
+  `client_address_from_socket/1` (LiveView), and through `trusted_proxy?/1`
+  to the other readers of a forwarded header: `X-Forwarded-Proto` in
+  `PhoenixKit.API.RequestContext` and `PhoenixKitWeb.Plugs.EnsureOAuthScheme`,
+  and the proxy rebind of `PhoenixKit.Utils.SessionFingerprint`.
 
   ## Examples
 
@@ -419,7 +422,8 @@ defmodule PhoenixKit.Utils.IpAddress do
   (`x-forwarded-proto`) or decide something by the peer alone. With
   `config :phoenix_kit, :trusted_proxies` unset, any loopback or private
   address (`local_address?/1`); with it set, only an address inside the
-  list; with an invalid value, nobody. Anything that does not parse is not.
+  list; with an invalid value, nobody (and the one warning per VM about the
+  invalid value is logged here as well). Anything that does not parse is not.
 
       iex> PhoenixKit.Utils.IpAddress.trusted_proxy?("203.0.113.7")
       false
