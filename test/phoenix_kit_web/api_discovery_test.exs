@@ -311,7 +311,7 @@ defmodule PhoenixKitWeb.APIDiscoveryTest do
     test "names the servers and lists the tools sorted, with both names", %{conn: conn} do
       body = fetch(conn, Routes.path("/mcp") <> "?format=md").resp_body
 
-      assert body =~ "# Acme Print — shop API and MCP server"
+      assert body =~ "# Acme Print — public API and MCP server"
       assert body =~ "https://shop.test" <> Routes.path("/mcp/public")
       assert body =~ "https://shop.test" <> Routes.path("/api/public/v1")
       assert body =~ "https://shop.test" <> Routes.path("/api/public/v1/openapi.json")
@@ -557,12 +557,12 @@ defmodule PhoenixKitWeb.APIDiscoveryTest do
 
       assert header(a, "content-language") == "de"
       assert a.resp_body =~ ~s(<html lang="de">)
-      assert a.resp_body =~ "Acme Print — Shop-API und MCP-Server"
+      assert a.resp_body =~ "Acme Print — öffentliche API und MCP-Server"
       assert a.resp_body =~ "Per MCP verbinden"
 
       assert header(b, "content-language") == "fr"
       assert b.resp_body =~ ~s(<html lang="fr">)
-      assert b.resp_body =~ "Acme Print — API de la boutique et serveur MCP"
+      assert b.resp_body =~ "Acme Print — API publique et serveur MCP"
     end
 
     test "a dialect is reduced to the base catalogue; an unknown language is English", %{
@@ -790,9 +790,9 @@ defmodule PhoenixKitWeb.APIDiscoveryTest do
       assert conn.resp_body =~
                """
 
-               ## Shop API and MCP
+               ## Public API and MCP
 
-               - [How to connect](https://shop.test#{Routes.path("/mcp")}): MCP server and REST API for the shop, no key needed
+               - [How to connect](https://shop.test#{Routes.path("/mcp")}): MCP server and REST API, no key needed
                - [MCP server](https://shop.test#{Routes.path("/mcp/public")}): Streamable HTTP
                - [OpenAPI](https://shop.test#{Routes.path("/api/public/v1/openapi.json")})
                """
@@ -805,7 +805,7 @@ defmodule PhoenixKitWeb.APIDiscoveryTest do
       Crawlers.update_llms_txt_extra("> About us.")
       body = fetch(conn, "/llms.txt").resp_body
 
-      assert body =~ "# Acme Print\n\n> About us.\n\n## Shop API and MCP\n"
+      assert body =~ "# Acme Print\n\n> About us.\n\n## Public API and MCP\n"
     end
 
     test "no section while the API is hidden", %{conn: conn} do
@@ -822,11 +822,11 @@ defmodule PhoenixKitWeb.APIDiscoveryTest do
       turn_gate_on(allowed)
 
       with_section = fetch(conn, "/llms.txt", ip: allowed)
-      assert with_section.resp_body =~ "## Shop API and MCP"
+      assert with_section.resp_body =~ "## Public API and MCP"
       assert header(with_section, "cache-control") == "private, no-store"
 
       without = fetch(conn, "/llms.txt")
-      refute without.resp_body =~ "## Shop API and MCP"
+      refute without.resp_body =~ "## Public API and MCP"
       assert header(without, "cache-control") == "public, max-age=3600"
     end
 

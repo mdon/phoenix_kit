@@ -294,7 +294,7 @@ defmodule PhoenixKit.API.RESTOpenAPITest do
       assert ["*"] = get_resp_header(conn, "access-control-allow-origin")
 
       document = json(conn)
-      assert document["info"]["title"] =~ "shop API"
+      assert document["info"]["title"] =~ "public API"
 
       assert document["servers"] == [
                %{"url" => "http://www.example.com" <> Routes.path("/api/public/v1")}

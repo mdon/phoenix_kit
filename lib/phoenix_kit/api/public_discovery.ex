@@ -254,9 +254,9 @@ defmodule PhoenixKit.API.PublicDiscovery do
   @spec llms_section(String.t()) :: String.t()
   def llms_section(origin) do
     """
-    ## Shop API and MCP
+    ## Public API and MCP
 
-    - [How to connect](#{guide_url(origin)}): MCP server and REST API for the shop, no key needed
+    - [How to connect](#{guide_url(origin)}): MCP server and REST API, no key needed
     - [MCP server](#{mcp_url(origin)}): Streamable HTTP
     - [OpenAPI](#{openapi_url(origin)})
     """

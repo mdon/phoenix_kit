@@ -19,7 +19,7 @@ defmodule PhoenixKit.API.Problem do
 
   The codes of core are a closed table here (`core_code?/1`). A module adds its
   own through `c:PhoenixKit.Module.api_problems/0` (it can never replace a code of
-  core), and `PhoenixKit.API.Legacy` supplies the few codes the shop API had
+  core), and `PhoenixKit.API.Legacy` supplies the few codes the API had
   before they became a module's, for as long as no enabled module declares them.
   Both are read only here, when an error is answered, so a successful call pays
   nothing. `statuses/0` is the table as it stands right now. A code that is in

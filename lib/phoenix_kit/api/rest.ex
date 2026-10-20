@@ -1,6 +1,6 @@
 defmodule PhoenixKit.API.REST do
   @moduledoc """
-  The REST transport of the shop API: a plug that the router `forward`s to,
+  The REST transport of the machine API: a plug that the router `forward`s to,
   once per audience.
 
       forward "/api/admin/v1", PhoenixKit.API.REST, audience: :admin

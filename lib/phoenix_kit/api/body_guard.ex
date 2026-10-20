@@ -23,7 +23,7 @@ defmodule PhoenixKit.API.BodyGuard do
 
   ## What it does
 
-  For `POST`, `PUT`, `PATCH` and `DELETE` requests to the shop API (every path
+  For `POST`, `PUT`, `PATCH` and `DELETE` requests to the machine API (every path
   of `PhoenixKit.API.Paths.entries/0`: `<prefix>/api/admin/v1`,
   `<prefix>/api/public/v1`, `<prefix>/mcp/admin`, `<prefix>/mcp/public` and the
   deprecated aliases of the public two, where `<prefix>` is the kit's URL
@@ -99,7 +99,7 @@ defmodule PhoenixKit.API.BodyGuard do
   method and whatever the switch says, and leaves the rest of `path_info`
   as sent. The request then takes the same road as the plain path.
 
-  The forwards of the shop API depend on this plug for that: a host whose
+  The forwards of the machine API depend on this plug for that: a host whose
   endpoint does not have it yet (it has not run `mix phoenix_kit.update`)
   answers such a crafted URL with a 500 from inside the router. Every future
   forward under an API prefix (the MCP endpoints) inherits the dependency.

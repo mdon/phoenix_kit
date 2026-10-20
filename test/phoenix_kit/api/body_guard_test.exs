@@ -2,7 +2,7 @@ defmodule PhoenixKit.API.BodyGuardTest do
   @moduledoc """
   `PhoenixKit.API.BodyGuard` as a plug: what it reads, what it sets, what it
   refuses and, as important, which requests it never touches: the paths
-  outside the shop API and every path while the API switch of its audience is
+  outside the machine API and every path while the API switch of its audience is
   off. The guard reads those switches (`api_admin_enabled`,
   `api_public_enabled`), so this is a database test; `setup` switches both on.
   The same plug in the real endpoint, ahead of `Plug.Parsers`, is in
@@ -249,7 +249,7 @@ defmodule PhoenixKit.API.BodyGuardTest do
     test "the body is neither read nor judged" do
       base = Routes.prefix_base()
 
-      # Under the kit's prefix, but not the shop API.
+      # Under the kit's prefix, but not the machine API.
       paths =
         Enum.map(
           [

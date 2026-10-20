@@ -19,7 +19,7 @@ defmodule PhoenixKit.API.Tool do
       under that name is ignored, so a module cannot declare a tool that skips the scope and
       permission checks.
     * `:permission` - the role permission the key's owner must hold right now
-      (`"shop.manage_catalog"`). `nil` under the same rule as `:scope`; a public tool must
+      (`"catalogue"`). `nil` under the same rule as `:scope`; a public tool must
       have no permission either.
     * `:title`, `:description` - written for a person and for an agent. The title defaults
       to the name, the description to `""`.

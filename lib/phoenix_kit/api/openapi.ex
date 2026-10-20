@@ -1,6 +1,6 @@
 defmodule PhoenixKit.API.OpenAPI do
   @moduledoc """
-  The OpenAPI 3.1 document of the shop API, generated from the tool registry.
+  The OpenAPI 3.1 document of the machine API, generated from the tool registry.
 
   `GET /api/admin/v1/openapi.json` and `GET /api/public/v1/openapi.json` serve
   it (`PhoenixKit.API.REST`). An agent or a client generator reads it to learn
@@ -135,10 +135,10 @@ defmodule PhoenixKit.API.OpenAPI do
   defp base_path(audience), do: Paths.rest_path(audience)
 
   defp side(:admin), do: " admin API"
-  defp side(:public), do: " shop API"
+  defp side(:public), do: " public API"
 
   defp description(:admin) do
-    "Admin tools of the shop. Every call is POST /<tool> with a JSON object; send the API key as " <>
+    "Admin tools of this site. Every call is POST /<tool> with a JSON object; send the API key as " <>
       "Authorization: Bearer. " <>
       json_body_text() <>
       " A dangerous call from a key that needs approval is not run: it is answered with HTTP 200 " <>
@@ -151,7 +151,7 @@ defmodule PhoenixKit.API.OpenAPI do
   end
 
   defp description(:public) do
-    "Public tools of the shop. Every call is POST /<tool> with a JSON object; no key is needed. " <>
+    "Public tools of this site. Every call is POST /<tool> with a JSON object; no key is needed. " <>
       json_body_text() <> " Errors are application/problem+json."
   end
 

@@ -1,6 +1,6 @@
 defmodule PhoenixKit.API.MCP do
   @moduledoc """
-  The MCP transport of the shop API: Model Context Protocol over Streamable
+  The MCP transport of the machine API: Model Context Protocol over Streamable
   HTTP, tools only, stateless, JSON answers only. A plug that the router
   `forward`s to, once per audience:
 

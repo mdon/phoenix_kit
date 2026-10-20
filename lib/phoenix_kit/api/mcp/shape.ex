@@ -161,7 +161,7 @@ defmodule PhoenixKit.API.MCP.Shape do
   end
 
   defp side(:admin), do: " admin API"
-  defp side(:public), do: " shop API"
+  defp side(:public), do: " public API"
 
   @doc "The `instructions` of the `initialize` answer."
   @spec instructions(Tool.audience()) :: String.t()

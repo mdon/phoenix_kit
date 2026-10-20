@@ -76,7 +76,7 @@ defmodule PhoenixKit.API.OutputShapeTest do
       document =
         OpenAPI.build([tool(:public, @write)], :public,
           server_url: "https://shop.test/api/public/v1",
-          title: "Shop API"
+          title: "Public API"
         )
 
       refute JSON.encode!(document) =~ ~r/approval/i

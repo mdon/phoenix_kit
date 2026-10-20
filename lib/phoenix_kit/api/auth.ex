@@ -1,6 +1,6 @@
 defmodule PhoenixKit.API.Auth do
   @moduledoc """
-  Plug that admits a request to the shop API: steps 1 to 3 of the request
+  Plug that admits a request to the machine API: steps 1 to 3 of the request
   flow (API switch, refusal of a credential in the URL, authentication;
   `PhoenixKit.API.Executor` runs the rest). The order below is the order of
   the code.

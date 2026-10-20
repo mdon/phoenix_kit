@@ -1,6 +1,6 @@
 defmodule PhoenixKit.API.FlowConfig do
   @moduledoc """
-  Settings of the dangerous-operation flow of the shop API: when an operation needs
+  Settings of the dangerous-operation flow of the machine API: when an operation needs
   a confirmation, how long a code, an approval and a stored idempotent answer live.
 
   | Setting | Default | Allowed |

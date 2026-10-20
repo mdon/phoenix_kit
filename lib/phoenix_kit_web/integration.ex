@@ -238,7 +238,7 @@ defmodule PhoenixKitWeb.Integration do
         plug :accepts, ["json"]
       end
 
-      # Pipeline of the shop API (`/api/admin/v1`, `/api/public/v1`). It has no
+      # Pipeline of the machine API (`/api/admin/v1`, `/api/public/v1`). It has no
       # `accepts`: the API negotiates nothing, and a client that sends
       # `Accept: application/problem+json` (or no Accept at all) must get the
       # same answer as one that sends `*/*`; `plug :accepts` would turn those
@@ -258,7 +258,7 @@ defmodule PhoenixKitWeb.Integration do
     end
   end
 
-  # The shop API: one forwarded plug per audience, so tools that modules
+  # The machine API: one forwarded plug per audience, so tools that modules
   # enable and disable at runtime need no route of their own.
   #
   # The scope carries no alias: `PhoenixKitWeb` would turn the plug into
@@ -646,7 +646,7 @@ defmodule PhoenixKitWeb.Integration do
       live "/admin/settings/integrations/new", Live.Settings.IntegrationForm, :new
       live "/admin/settings/integrations/:uuid", Live.Settings.IntegrationForm, :edit
 
-      # API keys, service users and the shop API switches (gated by "api").
+      # API keys, service users and the machine API switches (gated by "api").
       live "/admin/settings/api", Live.Settings.Api, :index
       live "/admin/settings/api/approvals", Live.Settings.ApiApprovals, :index
       live "/admin/settings/api/guide", Live.Settings.ApiGuide, :index
@@ -1720,7 +1720,7 @@ defmodule PhoenixKitWeb.Integration do
     end
   end
 
-  # The public guide of the shop API, `GET /mcp`; any other method is a 405
+  # The public guide of the machine API, `GET /mcp`; any other method is a 405
   # that points to the MCP server (`/mcp/public`). Declared with the files above:
   # same session-free shape, at the kit prefix and at the site root. The
   # discovery pages are answered by `PhoenixKitWeb.Controllers.ApiDiscovery`.
@@ -1961,7 +1961,7 @@ defmodule PhoenixKitWeb.Integration do
       # Generate basic routes scope
       unquote(generate_basic_scope(url_prefix))
 
-      # The shop API. Literal-rooted (`/api/...`), so it belongs with the
+      # The machine API. Literal-rooted (`/api/...`), so it belongs with the
       # surfaces declared BEFORE the `/:locale`-rooted ones below: a later
       # position would let a `/:locale/...` route bind `/api/public/v1/...` (or
       # its deprecated alias) with `locale = "api"`. Pinned by

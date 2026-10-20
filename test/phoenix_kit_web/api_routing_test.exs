@@ -1,6 +1,6 @@
 defmodule PhoenixKitWeb.APIRoutingTest do
   @moduledoc """
-  Where the shop API sits in `phoenix_kit_routes/0`, and how it answers
+  Where the machine API sits in `phoenix_kit_routes/0`, and how it answers
   through the real endpoint and router: the pipeline, the two forwards, the
   order against the `/:locale` catch-alls, the API switch and the website
   password gate.
@@ -31,7 +31,7 @@ defmodule PhoenixKitWeb.APIRoutingTest do
   # `body_guard_test.exs`).
   defp prefix_segments, do: String.split(Routes.prefix_base(), "/", trim: true)
 
-  # The shop API pipeline fetches no session and negotiates no format; neither
+  # The machine API pipeline fetches no session and negotiates no format; neither
   # leaves anything in `conn.private`, and no cookie is set.
   defp assert_no_browser_plugs(conn) do
     refute Map.has_key?(conn.private, :plug_session), "a session was fetched"
@@ -127,7 +127,8 @@ defmodule PhoenixKitWeb.APIRoutingTest do
           node, acc -> {node, acc}
         end)
 
-      assert plugs == [], "the shop API pipeline must stay empty (no :accepts, session or CSRF)"
+      assert plugs == [],
+             "the machine API pipeline must stay empty (no :accepts, session or CSRF)"
     end
 
     test "the forwards are declared before any route that starts with a :param" do
