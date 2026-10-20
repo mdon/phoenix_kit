@@ -229,12 +229,15 @@ defmodule PhoenixKit.Integrations.Encryption do
 
   Same cipher, key derivation and `enc:v1:` prefix as `encrypt_fields/1`.
   Nil/empty and already-encrypted values (see `encrypted?/1`) pass through
-  unchanged. When encryption is unavailable (no `secret_key_base`), the
-  value is stored as plaintext — same as `encrypt_fields/1` — but this
-  path logs a warning, since a caller that reaches for single-value
-  encryption is usually protecting something as sensitive as the fields
-  `encrypt_fields/1` already covers, and a schema field silently staying
-  plaintext is exactly the gap this API exists to close.
+  unchanged. When no key resolves, the value is stored as plaintext — same
+  as `encrypt_fields/1` — and the first such call on a VM logs a warning,
+  since a caller that reaches for single-value encryption is usually
+  protecting something as sensitive as the fields `encrypt_fields/1`
+  already covers, and a schema field silently staying plaintext is exactly
+  the gap this API exists to close. Once per VM, like `encrypt_fields/1`:
+  a bucket or setting save runs this per request. The same
+  `integration_encryption_warn_on_boot: false` rule applies: it skips the
+  warning for `:disabled_explicit`, never for `:disabled_no_key`.
   """
   @spec encrypt_value(String.t() | nil) :: String.t() | nil
   def encrypt_value(nil), do: nil
@@ -246,9 +249,10 @@ defmodule PhoenixKit.Integrations.Encryption do
     else
       case encryption_key() do
         nil ->
-          Logger.warning(
+          log_plaintext_once(
+            :plaintext_value_logged,
             "PhoenixKit.Integrations.Encryption.encrypt_value/1: no encryption key available " <>
-              "(secret_key_base not configured) — storing value as plaintext"
+              "— storing value as plaintext: "
           )
 
           value
@@ -1072,10 +1076,24 @@ defmodule PhoenixKit.Integrations.Encryption do
   end
 
   defp warn_plaintext_write_once(data) do
-    key = {__MODULE__, :plaintext_write_logged}
+    if plaintext_sensitive_value?(data) do
+      log_plaintext_once(
+        :plaintext_write_logged,
+        "[PhoenixKit.Integrations] Storing integration credentials as PLAINTEXT, " <>
+          "no encryption key is in use: "
+      )
+    end
 
-    if plaintext_sensitive_value?(data) and :persistent_term.get(key, false) == false and
-         not plaintext_warning_silenced?() do
+    :ok
+  end
+
+  # One latch per caller (`encrypt_fields/1`, `encrypt_value/1`), so a
+  # plaintext bucket secret is still reported after an integration write
+  # already was.
+  defp log_plaintext_once(latch, prefix) do
+    key = {__MODULE__, latch}
+
+    if :persistent_term.get(key, false) == false and not plaintext_warning_silenced?() do
       report = key_report()
 
       # The key can appear between the caller's lookup and this report; then
@@ -1083,11 +1101,7 @@ defmodule PhoenixKit.Integrations.Encryption do
       # is in use"), and there is nothing to warn about anyway.
       if report.severity != :ok do
         :persistent_term.put(key, true)
-
-        Logger.warning(
-          "[PhoenixKit.Integrations] Storing integration credentials as PLAINTEXT, " <>
-            "no encryption key is in use: " <> key_report_message(report)
-        )
+        Logger.warning(prefix <> key_report_message(report))
       end
     end
 
