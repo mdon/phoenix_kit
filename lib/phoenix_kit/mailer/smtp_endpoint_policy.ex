@@ -34,11 +34,16 @@ defmodule PhoenixKit.Mailer.SmtpEndpointPolicy do
       * a name that only means something inside a network — a bare name with
         no dot (`localhost`, `pgbouncer`), or one under `localhost`, `local`,
         `internal` or `home.arpa` — refused without a lookup;
-      * a host that is, or resolves to, anything but a public address:
-        loopback, private, carrier-grade NAT, link-local, unique-local,
-        multicast, unspecified or reserved space, classified by
-        `PhoenixKit.Modules.Storage.Endpoint.classify/1`. A name is resolved
-        for both IPv4 and IPv6, and **every** address it yields must be public;
+      * a host that is, or resolves to, anything but a public unicast
+        address, as `PhoenixKit.Utils.PublicAddress.public?/1` decides — the
+        core's rule for every server-side connection to a user-supplied host:
+        loopback, private, carrier-grade NAT, link-local, unique-local and
+        site-local, multicast, unspecified, reserved, documentation and
+        benchmarking ranges, IPv6 outside `2000::/3`, and every IPv6 form that
+        carries an IPv4 address (mapped, compatible, NAT64, 6to4, Teredo), plus
+        any range the host lists in `config :phoenix_kit, :blocked_ip_ranges`.
+        A name is resolved for both IPv4 and IPv6, and **every** address it
+        yields must be public;
       * a name that does not resolve, or not within the connection's timeout —
         there is no checked address to connect to, and handing the name to the
         SMTP client would let it resolve the name again unchecked.
@@ -75,7 +80,7 @@ defmodule PhoenixKit.Mailer.SmtpEndpointPolicy do
 
   use Gettext, backend: PhoenixKitWeb.Gettext
 
-  alias PhoenixKit.Modules.Storage.Endpoint
+  alias PhoenixKit.Utils.PublicAddress
 
   @allowed_ports [25, 465, 587, 2525]
   @internal_suffixes ~w(localhost local internal home.arpa)
@@ -221,7 +226,7 @@ defmodule PhoenixKit.Mailer.SmtpEndpointPolicy do
   end
 
   defp all_public([first | _] = ips) do
-    if Enum.all?(ips, &(Endpoint.classify(&1) == :public)),
+    if Enum.all?(ips, &PublicAddress.public?/1),
       do: {:ok, first},
       else: {:error, :blocked_host}
   end

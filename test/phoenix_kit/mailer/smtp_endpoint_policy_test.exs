@@ -73,12 +73,12 @@ defmodule PhoenixKit.Mailer.SmtpEndpointPolicyTest do
   describe "enforce/3 for a personal connection: ports" do
     test "only the mail submission ports are allowed" do
       for port <- [25, 465, 587, 2525] do
-        assert {:ok, _} = enforce(starttls_options("203.0.113.10", port), :personal)
+        assert {:ok, _} = enforce(starttls_options("8.8.8.8", port), :personal)
       end
 
       for port <- [22, 80, 443, 1025, 5432, 6432, 6379, 11_211] do
         assert {:error, {:smtp_endpoint_refused, :blocked_port}} =
-                 enforce(starttls_options("203.0.113.10", port), :personal)
+                 enforce(starttls_options("8.8.8.8", port), :personal)
       end
     end
 
@@ -107,7 +107,18 @@ defmodule PhoenixKit.Mailer.SmtpEndpointPolicyTest do
             "fd00::1",
             "fe80::1",
             "::ffff:127.0.0.1",
-            "::"
+            "::",
+            # documentation and special-purpose ranges
+            "203.0.113.10",
+            "198.51.100.7",
+            "2001:db8::1",
+            # IPv6 forms that carry an IPv4 address, even a public one
+            "::127.0.0.1",
+            "::ffff:8.8.8.8",
+            "2002:7f00:1::1",
+            "64:ff9b:1::a00:1",
+            "2001::1",
+            "fec0::1"
           ] do
         assert {:error, {:smtp_endpoint_refused, :blocked_host}} =
                  enforce(starttls_options(host), :personal, resolver: no_dns()),
@@ -118,8 +129,8 @@ defmodule PhoenixKit.Mailer.SmtpEndpointPolicyTest do
     end
 
     test "a public literal address is allowed and connected to as written" do
-      assert {:ok, options} = enforce(starttls_options("203.0.113.10"), :personal)
-      assert options[:relay] == "203.0.113.10"
+      assert {:ok, options} = enforce(starttls_options("8.8.8.8"), :personal)
+      assert options[:relay] == "8.8.8.8"
     end
 
     test "a public IPv6 literal is connected to over IPv6" do
@@ -156,21 +167,19 @@ defmodule PhoenixKit.Mailer.SmtpEndpointPolicyTest do
       options = starttls_options("smtp.example.com")
 
       assert {:ok, pinned} =
-               enforce(options, :personal,
-                 resolver: resolver(%{inet: {:ok, [{203, 0, 113, 25}]}})
-               )
+               enforce(options, :personal, resolver: resolver(%{inet: {:ok, [{1, 1, 1, 1}]}}))
 
       # The socket goes to the address that was checked — gen_smtp gets no name
       # to resolve again — while TLS still verifies the certificate against the
       # name the operator typed.
-      assert pinned[:relay] == "203.0.113.25"
+      assert pinned[:relay] == "1.1.1.1"
       assert pinned[:tls_options][:server_name_indication] == ~c"smtp.example.com"
       assert Keyword.delete(pinned, :relay) == Keyword.delete(options, :relay)
     end
 
     test "IPv4 is preferred when both families answer" do
       answers = %{
-        inet: {:ok, [{203, 0, 113, 25}]},
+        inet: {:ok, [{1, 1, 1, 1}]},
         inet6: {:ok, [{0x2606, 0x4700, 0x4700, 0, 0, 0, 0, 0x1111}]}
       }
 
@@ -179,7 +188,7 @@ defmodule PhoenixKit.Mailer.SmtpEndpointPolicyTest do
                  resolver: resolver(answers)
                )
 
-      assert pinned[:relay] == "203.0.113.25"
+      assert pinned[:relay] == "1.1.1.1"
       refute Keyword.has_key?(pinned, :sockopts)
     end
 
@@ -196,14 +205,14 @@ defmodule PhoenixKit.Mailer.SmtpEndpointPolicyTest do
     end
 
     test "one internal address among public ones refuses the name" do
-      answers = %{inet: {:ok, [{203, 0, 113, 25}, {10, 0, 0, 7}]}}
+      answers = %{inet: {:ok, [{1, 1, 1, 1}, {10, 0, 0, 7}]}}
 
       assert {:error, {:smtp_endpoint_refused, :blocked_host}} =
                enforce(starttls_options("smtp.example.com"), :personal,
                  resolver: resolver(answers)
                )
 
-      answers = %{inet: {:ok, [{203, 0, 113, 25}]}, inet6: {:ok, [{0, 0, 0, 0, 0, 0, 0, 1}]}}
+      answers = %{inet: {:ok, [{1, 1, 1, 1}]}, inet6: {:ok, [{0, 0, 0, 0, 0, 0, 0, 1}]}}
 
       assert {:error, {:smtp_endpoint_refused, :blocked_host}} =
                enforce(starttls_options("smtp.example.com"), :personal,
@@ -221,7 +230,7 @@ defmodule PhoenixKit.Mailer.SmtpEndpointPolicyTest do
     test "every connect checks again, so a name that changes its answer is caught" do
       # DNS rebinding: a public answer for the first connect, an internal one
       # for the next.
-      {:ok, agent} = Agent.start_link(fn -> [{203, 0, 113, 25}, {127, 0, 0, 1}] end)
+      {:ok, agent} = Agent.start_link(fn -> [{1, 1, 1, 1}, {127, 0, 0, 1}] end)
 
       rebinding = fn _name, family ->
         if family == :inet,
@@ -232,7 +241,7 @@ defmodule PhoenixKit.Mailer.SmtpEndpointPolicyTest do
       options = starttls_options("rebind.example.com")
 
       assert {:ok, first} = enforce(options, :personal, resolver: rebinding)
-      assert first[:relay] == "203.0.113.25"
+      assert first[:relay] == "1.1.1.1"
 
       assert {:error, {:smtp_endpoint_refused, :blocked_host}} =
                enforce(options, :personal, resolver: rebinding)
@@ -246,9 +255,35 @@ defmodule PhoenixKit.Mailer.SmtpEndpointPolicyTest do
     end
   end
 
+  describe "enforce/3 honours the host's own blocked ranges" do
+    setup do
+      original = Application.fetch_env(:phoenix_kit, :blocked_ip_ranges)
+      Application.put_env(:phoenix_kit, :blocked_ip_ranges, ["1.1.1.0/24"])
+
+      on_exit(fn ->
+        case original do
+          {:ok, value} -> Application.put_env(:phoenix_kit, :blocked_ip_ranges, value)
+          :error -> Application.delete_env(:phoenix_kit, :blocked_ip_ranges)
+        end
+      end)
+    end
+
+    test "an otherwise public host inside :blocked_ip_ranges is refused" do
+      assert {:error, {:smtp_endpoint_refused, :blocked_host}} =
+               enforce(starttls_options("1.1.1.1"), :personal)
+
+      assert {:error, {:smtp_endpoint_refused, :blocked_host}} =
+               enforce(starttls_options("smtp.example.com"), :personal,
+                 resolver: resolver(%{inet: {:ok, [{1, 1, 1, 1}]}})
+               )
+
+      assert {:ok, _} = enforce(starttls_options("8.8.8.8"), :personal)
+    end
+  end
+
   describe "enforce/3 keeps the TLS handshake as it was before pinning" do
     test "a name pinned to an IP still sends the name as SNI when certificates are not verified" do
-      answers = resolver(%{inet: {:ok, [{203, 0, 113, 25}]}})
+      answers = resolver(%{inet: {:ok, [{1, 1, 1, 1}]}})
 
       implicit =
         ssl_options("smtp.example.com") |> Keyword.put(:sockopts, verify: :verify_none)
@@ -265,7 +300,7 @@ defmodule PhoenixKit.Mailer.SmtpEndpointPolicyTest do
     end
 
     test "an SNI already built is kept, and none is invented for a literal or a plaintext relay" do
-      answers = resolver(%{inet: {:ok, [{203, 0, 113, 25}]}})
+      answers = resolver(%{inet: {:ok, [{1, 1, 1, 1}]}})
 
       assert {:ok, pinned} =
                enforce(ssl_options("smtp.example.com"), :personal, resolver: answers)
@@ -274,7 +309,7 @@ defmodule PhoenixKit.Mailer.SmtpEndpointPolicyTest do
                ~c"smtp.example.com"
              ]
 
-      literal = ssl_options("203.0.113.25") |> Keyword.put(:sockopts, verify: :verify_none)
+      literal = ssl_options("1.1.1.1") |> Keyword.put(:sockopts, verify: :verify_none)
       assert {:ok, pinned} = enforce(literal, :personal)
       refute Keyword.has_key?(pinned[:sockopts], :server_name_indication)
 
@@ -310,10 +345,10 @@ defmodule PhoenixKit.Mailer.SmtpEndpointPolicyTest do
 
     test "a family that times out does not hold up the one that answered" do
       options = starttls_options("v4only.example.com") |> Keyword.put(:timeout, 100)
-      resolver = hanging_resolver(%{inet: {:ok, [{203, 0, 113, 25}]}})
+      resolver = hanging_resolver(%{inet: {:ok, [{1, 1, 1, 1}]}})
 
       assert {:ok, pinned} = enforce(options, :personal, resolver: resolver)
-      assert pinned[:relay] == "203.0.113.25"
+      assert pinned[:relay] == "1.1.1.1"
     end
   end
 

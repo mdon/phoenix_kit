@@ -344,7 +344,7 @@ defmodule PhoenixKit.Integrations.ValidatorsTest do
     end
 
     test "a personal connection on a non-mail port is refused" do
-      creds = %{"host" => "203.0.113.10", "port" => "5432", "username" => "u", "password" => "p"}
+      creds = %{"host" => "8.8.8.8", "port" => "5432", "username" => "u", "password" => "p"}
 
       assert {:error, message} = Validators.smtp(creds, owner: {:user, "u-1"})
       assert message =~ "25, 465, 587"

@@ -797,7 +797,7 @@ defmodule PhoenixKit.MailerTest do
                Mailer.swoosh_config_for(smtp_creds("127.0.0.1", 587, owner))
 
       assert {:error, {:smtp_endpoint_refused, :blocked_port}} =
-               Mailer.swoosh_config_for(smtp_creds("203.0.113.10", 5432, owner))
+               Mailer.swoosh_config_for(smtp_creds("8.8.8.8", 5432, owner))
 
       assert {:error, {:smtp_endpoint_refused, :blocked_host}} =
                Mailer.swoosh_config_for(smtp_creds("pgbouncer", 587, owner))
@@ -805,9 +805,9 @@ defmodule PhoenixKit.MailerTest do
 
     test "swoosh_config_for/1 leaves a personal connection to a public address as it was" do
       assert {:ok, {Swoosh.Adapters.SMTP, config}} =
-               Mailer.swoosh_config_for(smtp_creds("203.0.113.10", 587, Ecto.UUID.generate()))
+               Mailer.swoosh_config_for(smtp_creds("8.8.8.8", 587, Ecto.UUID.generate()))
 
-      assert config[:relay] == "203.0.113.10"
+      assert config[:relay] == "8.8.8.8"
       assert config[:port] == 587
     end
 
