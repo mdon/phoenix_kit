@@ -1,4 +1,4 @@
-defmodule PhoenixKit.API.ShopApiFlowEndToEndTest do
+defmodule PhoenixKit.API.PublicApiFlowEndToEndTest do
   @moduledoc """
   The dangerous-operation flow through the real endpoint, router and database: nothing
   is called as a function except the Owner's decision on an approval. One `describe` per

@@ -1,6 +1,6 @@
-defmodule PhoenixKit.API.ShopApiEndToEndTest do
+defmodule PhoenixKit.API.PublicApiEndToEndTest do
   @moduledoc """
-  The shop API through the real endpoint, router and database: nothing is
+  The public API through the real endpoint, router and database: nothing is
   called as a function, every check is an HTTP request (or a web login) against
   `PhoenixKitWeb.Endpoint`.
 
