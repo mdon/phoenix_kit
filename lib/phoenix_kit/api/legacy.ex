@@ -6,8 +6,9 @@ defmodule PhoenixKit.API.Legacy do
   deleted and only its callers are touched: `PhoenixKit.API.Paths`, the
   fallback in `PhoenixKit.API.Config.rate_limits/0` (with
   `rate_limits_without_fallback/0`, which exists only for it), the
-  Settings -> API form's `write_limits`, `PhoenixKit.API.Executor` (the client
-  token of a tool that declares none) and `PhoenixKit.API.Idempotency` (the
+  Settings -> API form's `write_limits`, `PhoenixKit.API.Problem` (the four
+  error codes of the shop), `PhoenixKit.API.Executor` (the client token of a tool that
+  declares none) and `PhoenixKit.API.Idempotency` (the
   credential names and markers of the old checkout links).
 
   **This module is deleted in 3.0.0.** A client, a settings row or a module
@@ -28,6 +29,10 @@ defmodule PhoenixKit.API.Legacy do
       a module written before `PhoenixKit.API.Tool` had a `client_token` field named
       its anonymous caller's token `cart_token`, and the executor still reads it so
       such a module keeps its rate limit, its idempotency scope and its danger gate;
+    * the four error codes the shop API answered with before modules could declare
+      their own (`problems/0`): `PhoenixKit.API.Problem` (and, through it, the MCP advice)
+      uses them for as long as no enabled module declares the same code
+      (`c:PhoenixKit.Module.api_problems/0`);
     * the names a module's answers carried secrets under before `Tool.credentials`
       existed (`credential_keys/0`, `credential_markers/0`), which
       `PhoenixKit.API.Idempotency` still redacts and never stores for replay.
@@ -52,6 +57,31 @@ defmodule PhoenixKit.API.Legacy do
   # rule of core; it is listed because it was named.
   @credential_keys ~w(claim_url checkout_url claim_token)
   @credential_markers ["/checkout/claim/"]
+
+  # The wire values (`code`, `status`, `title`) are a contract with clients and must not
+  # change; the advice is what MCP tells an agent after the error.
+  @problems %{
+    cart_not_found: %{
+      status: 404,
+      title: "Cart not found",
+      advice: "Create a new cart and try again."
+    },
+    cart_locked: %{
+      status: 409,
+      title: "Cart locked",
+      advice: "The cart is already in checkout; start a new cart."
+    },
+    unsupported_source: %{
+      status: 422,
+      title: "Unsupported source",
+      advice: "This product source cannot be changed through the API."
+    },
+    insufficient_stock: %{
+      status: 422,
+      title: "Insufficient stock",
+      advice: "Reduce the quantities listed in context.lines; nothing was posted."
+    }
+  }
 
   @doc """
   The value of the `Deprecation` response header (RFC 9745) that every answer
@@ -113,4 +143,14 @@ defmodule PhoenixKit.API.Legacy do
   """
   @spec credential_markers() :: [String.t()]
   def credential_markers, do: @credential_markers
+
+  @doc """
+  The error codes the shop answered with before modules declared their own, as
+  `%{code => %{status, title, advice}}`. They apply to a code only while no enabled
+  module declares it.
+  """
+  @spec problems() :: %{
+          atom() => %{status: pos_integer(), title: String.t(), advice: String.t()}
+        }
+  def problems, do: @problems
 end
