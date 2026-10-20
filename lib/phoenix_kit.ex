@@ -181,11 +181,13 @@ defmodule PhoenixKit do
   # stored as plaintext (`:disabled_no_key`, `:disabled_explicit`), so that
   # state is loud by default. An explicit `false` logs nothing at boot (and
   # `Encryption.encrypt_fields/1` skips its one-time plaintext warning), for an
-  # install that turned encryption off on purpose and knows it.
+  # install that turned encryption off on purpose and knows it — except
+  # `:disabled_no_key`: encryption is on there and the key went missing, so
+  # it is reported whatever the flag says.
   #
-  # Unless the flag is `false`, `Encryption.status/0` below resolves the key on
-  # every boot, so the one-time error "a key store IS configured but its secret
-  # could not be read" may appear at boot even when the report itself is off.
+  # `Encryption.status/0` below resolves the key on every boot, so the
+  # one-time error "a key store IS configured but its secret could not be
+  # read" may appear at boot even when the report itself is off.
   #
   # A config value that is not a boolean (`nil` from an unset
   # `System.get_env/1`, or a string) must not raise here: only the boolean
@@ -195,7 +197,7 @@ defmodule PhoenixKit do
     flag = Application.get_env(:phoenix_kit, :integration_encryption_warn_on_boot)
 
     cond do
-      flag == false ->
+      flag == false and Encryption.status() != :disabled_no_key ->
         :ok
 
       flag ->

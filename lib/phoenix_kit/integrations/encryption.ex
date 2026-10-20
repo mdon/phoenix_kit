@@ -36,10 +36,13 @@ defmodule PhoenixKit.Integrations.Encryption do
        credentials are stored as plaintext (`:disabled_no_key`,
        `:disabled_explicit`) the report is logged unless the flag is set to
        an explicit `false`, which also silences the one-time warning on the
-       first plaintext write. Unless the flag is an explicit `false`,
-       `boot/1` resolves the key to learn which state the install is in, so
-       the one-time error "a key store IS configured but its secret could not
-       be read" may appear at boot even when the report itself is off. Only
+       first plaintext write. An explicit `false` silences only
+       `:disabled_explicit`, the state an operator chose: `:disabled_no_key`
+       means the key material went missing, and is reported whatever the
+       flag says. `boot/1` resolves the key to learn which state the install
+       is in, so the one-time error "a key store IS configured but its secret
+       could not be read" may appear at boot even when the report itself is
+       off. Only
        the boolean `false` silences: the string `"false"` (for example from
        `System.get_env/1`) is truthy and turns the full report on.
 
@@ -47,6 +50,8 @@ defmodule PhoenixKit.Integrations.Encryption do
   encryption off entirely (new and existing writes store plaintext). This is
   reported as `:disabled_explicit` by `status/0` and is warned about at boot
   unless `integration_encryption_warn_on_boot: false` is set as well.
+  That flag does not silence `:disabled_no_key`: encryption is on there, but
+  no key resolves, which is a fault rather than a choice.
 
   > #### Key rotation {: .warning}
   > Changing which secret produces the key — setting a dedicated key for the
@@ -127,7 +132,8 @@ defmodule PhoenixKit.Integrations.Encryption do
   write on a VM logs one warning, so the state is visible in the log of the
   node that is actually writing, not only at boot. An explicit
   `config :phoenix_kit, integration_encryption_warn_on_boot: false` skips
-  that warning.
+  that warning when encryption is switched off (`:disabled_explicit`), not
+  when it is on and no key resolves (`:disabled_no_key`).
   """
   @spec encrypt_fields(map()) :: map()
   def encrypt_fields(data) when is_map(data) do
@@ -962,9 +968,9 @@ defmodule PhoenixKit.Integrations.Encryption do
   `secret_key_base` fallback would get this log line on every single restart
   with no way to quiet it. The exception is plaintext storage
   (`status/0` is `:disabled_no_key` or `:disabled_explicit`): `boot/1` calls
-  this function in that case too, unless the flag is an explicit `false`.
-  Unless the flag is an explicit `false` (then `boot/1` skips the check
-  and does not resolve the key at all), `boot/1` resolves the key to learn
+  this function in that case too. An explicit `false` skips the call for
+  `:disabled_explicit` only; `:disabled_no_key` is reported regardless.
+  `boot/1` resolves the key to learn
   the state, so the one-time error "a key store IS configured but its
   secret could not be read" may be logged at boot even when this report is
   not. `mix phoenix_kit.doctor`
@@ -1055,15 +1061,21 @@ defmodule PhoenixKit.Integrations.Encryption do
   # once per VM: this runs per save, so it would otherwise repeat per request.
   # The message is the same rendered report the boot check uses — it names the
   # state and the location of a key store, never a field value.
+  # An explicit `integration_encryption_warn_on_boot: false` is the operator
+  # saying "I turned encryption off and know credentials are plaintext". It
+  # does not cover `:disabled_no_key`: there encryption is on and the key went
+  # missing, which nobody chose. Checked last in the caller, so the key is
+  # resolved only for a write that would otherwise warn.
+  defp plaintext_warning_silenced? do
+    Application.get_env(:phoenix_kit, :integration_encryption_warn_on_boot) == false and
+      status() != :disabled_no_key
+  end
+
   defp warn_plaintext_write_once(data) do
     key = {__MODULE__, :plaintext_write_logged}
 
-    # An explicit `integration_encryption_warn_on_boot: false` is the
-    # operator saying "I know credentials are stored as plaintext".
-    silenced? = Application.get_env(:phoenix_kit, :integration_encryption_warn_on_boot) == false
-
-    if not silenced? and plaintext_sensitive_value?(data) and
-         :persistent_term.get(key, false) == false do
+    if plaintext_sensitive_value?(data) and :persistent_term.get(key, false) == false and
+         not plaintext_warning_silenced?() do
       report = key_report()
 
       # The key can appear between the caller's lookup and this report; then
