@@ -23,10 +23,10 @@ defmodule PhoenixKit.API.Config do
   | `api_public_new_rows_per_ip_hour` | `120` |
   | `api_public_new_rows_global_hour` | `2000` |
 
-  The three `api_public_token_*` and `api_public_new_rows_*` limits were named
-  after a cart before the API was made module-neutral. While the deprecation
-  window lasts (`PhoenixKit.API.Legacy`) a limit whose new key holds no valid
-  number reads the old key, then the default.
+  The three `api_public_token_*` and `api_public_new_rows_*` limits were renamed
+  when the API was made module-neutral. While the deprecation window lasts
+  (`PhoenixKit.API.Legacy`) a limit whose new key holds no valid number reads
+  its old key, then the default.
 
   List settings are stored as newline-separated strings: `PhoenixKit.Settings`
   has no list setter and a JSON setting cannot hold a bare list. Use
@@ -163,7 +163,8 @@ defmodule PhoenixKit.API.Config do
   The rate-limit settings as `rate_limits/0` gives them, but reading each key
   alone: the deprecated key of a renamed limit is not consulted. The settings
   form compares what it is given with this, so that its first save writes a
-  value that was in effect through a deprecated key under the new key.
+  value that was in effect through a deprecated key under the new key. Goes
+  away with `PhoenixKit.API.Legacy`.
   """
   @spec rate_limits_without_fallback() :: rate_limits()
   def rate_limits_without_fallback do

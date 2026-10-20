@@ -3,7 +3,10 @@ defmodule PhoenixKit.API.Legacy do
   Every name the machine API had before it was made module-neutral, in one
   place. The rest of `PhoenixKit.API` knows no module (a guard test fails when
   it spells one), so the day the deprecation window closes this file is
-  deleted and nothing else changes.
+  deleted and only its callers are touched: `PhoenixKit.API.Paths`, the
+  fallback in `PhoenixKit.API.Config.rate_limits/0` (with
+  `rate_limits_without_fallback/0`, which exists only for it) and the
+  Settings -> API form's `write_limits`.
 
   **This module is deleted in 3.0.0.** A client, a settings row or a module
   that still uses a name below has until then to move to the canonical one.

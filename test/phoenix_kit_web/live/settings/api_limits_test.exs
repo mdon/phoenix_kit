@@ -135,10 +135,58 @@ defmodule PhoenixKitWeb.Live.Settings.ApiLimitsTest do
     {:ok, view, _html} = live(conn, @path)
     save(view, %{})
     assert "api_public_token_rate_per_min" in changed_settings(admin)
+    after_first = changed_settings(admin)
+
+    save(view, %{})
+
+    assert changed_settings(admin) == after_first
+  end
+
+  test "a migrated value can be edited afterwards, and the old row stays", %{
+    conn: conn
+  } do
+    {:ok, _} = Settings.update_setting("api_public_cart_rate_per_min", "55")
+    {:ok, view, _html} = live(conn, @path)
+    save(view, %{})
 
     save(view, %{"public_token_per_min" => "77"})
+
     assert Config.rate_limits().public_token_per_min == 77
     assert Settings.get_setting("api_public_cart_rate_per_min") == "55"
+  end
+
+  test "the default can be saved over a deprecated override", %{conn: conn} do
+    {:ok, _} = Settings.update_setting("api_public_cart_rate_per_min", "500")
+    {:ok, view, _html} = live(conn, @path)
+    assert Config.rate_limits().public_token_per_min == 500
+
+    save(view, %{"public_token_per_min" => "120"})
+
+    assert Settings.get_setting("api_public_token_rate_per_min") == "120"
+    assert Config.rate_limits().public_token_per_min == 120
+  end
+
+  for invalid <- ["0", "-3", "abc"] do
+    test "the default can be saved over a deprecated override when the new key holds #{inspect(invalid)}",
+         %{conn: conn} do
+      {:ok, _} = Settings.update_setting("api_public_cart_rate_per_min", "500")
+      {:ok, _} = Settings.update_setting("api_public_token_rate_per_min", unquote(invalid))
+      {:ok, view, _html} = live(conn, @path)
+      assert Config.rate_limits().public_token_per_min == 500
+
+      save(view, %{"public_token_per_min" => "120"})
+
+      assert Settings.get_setting("api_public_token_rate_per_min") == "120"
+      assert Config.rate_limits().public_token_per_min == 120
+    end
+  end
+
+  test "saving the default with nothing set writes nothing", %{conn: conn, admin: admin} do
+    {:ok, view, _html} = live(conn, @path)
+
+    save(view, %{})
+
+    assert changed_settings(admin) == []
   end
 
   test "saving writes the settings, Config reads them back, and the history has them", %{

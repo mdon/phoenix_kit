@@ -845,11 +845,18 @@ defmodule PhoenixKitWeb.Live.Settings.Api do
   end
 
   defp write_limits(socket, wanted) do
-    current = Config.rate_limits_without_fallback()
+    stored = Config.rate_limits_without_fallback()
+    effective = Config.rate_limits()
 
+    # A number is written when it differs from what its own key holds, or when its
+    # own key holds no valid number and a deprecated key is what is in effect: then
+    # even the default has to be written, to take over from the deprecated key.
     number_changes =
       Enum.map(wanted.numbers, fn {setting, name, number} ->
-        {setting, Integer.to_string(number), number != Map.fetch!(current, name)}
+        alone = Map.fetch!(stored, name)
+
+        {setting, Integer.to_string(number),
+         number != alone or alone != Map.fetch!(effective, name)}
       end)
 
     list_changes = [
