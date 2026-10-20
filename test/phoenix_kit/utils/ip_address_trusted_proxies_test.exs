@@ -261,4 +261,74 @@ defmodule PhoenixKit.Utils.IpAddressTrustedProxiesTest do
     assert IpAddress.extract_from_conn(conn({172, 18, 0, 7}, @xff)) == "203.0.113.7"
     assert IpAddress.extract_from_conn(conn({172, 18, 0, 8}, @xff)) == "172.18.0.8"
   end
+
+  describe "trusted_proxy?/1 and the readers that use it" do
+    alias PhoenixKit.API.RequestContext
+    alias PhoenixKit.Utils.SessionFingerprint
+
+    test "unset: loopback and private peers, as local_address?/1" do
+      assert IpAddress.trusted_proxy?({127, 0, 0, 1})
+      assert IpAddress.trusted_proxy?("172.18.0.8")
+      refute IpAddress.trusted_proxy?("203.0.113.7")
+      refute IpAddress.trusted_proxy?("not an address")
+      refute IpAddress.trusted_proxy?(nil)
+    end
+
+    test "a list: only addresses inside it, public ones included" do
+      trust(["172.18.0.7/32", "203.0.113.0/24"])
+      assert IpAddress.trusted_proxy?({172, 18, 0, 7})
+      assert IpAddress.trusted_proxy?("203.0.113.9")
+      refute IpAddress.trusted_proxy?({172, 18, 0, 8})
+      refute IpAddress.trusted_proxy?({127, 0, 0, 1})
+    end
+
+    test "an invalid value: nobody" do
+      trust("172.18.0.7")
+      refute IpAddress.trusted_proxy?({172, 18, 0, 7})
+      refute IpAddress.trusted_proxy?({127, 0, 0, 1})
+    end
+
+    test "X-Forwarded-Proto follows the list" do
+      trust(["172.18.0.7/32"])
+
+      forwarded = fn ip ->
+        %{
+          Plug.Test.conn(:get, "http://shop.test/x")
+          | remote_ip: ip,
+            req_headers: [{"x-forwarded-proto", "https"}]
+        }
+      end
+
+      assert RequestContext.resolve(forwarded.({172, 18, 0, 7})).base_url == "https://shop.test"
+      assert RequestContext.resolve(forwarded.({172, 18, 0, 8})).base_url == "http://shop.test"
+      assert RequestContext.resolve(forwarded.({127, 0, 0, 1})).base_url == "http://shop.test"
+    end
+
+    test "proxy_rebind_address/3 follows the list" do
+      ua = "Mozilla/5.0 same browser"
+
+      through = fn ip ->
+        %Plug.Conn{
+          remote_ip: ip,
+          req_headers: [{"x-forwarded-for", "9.9.9.9"}, {"user-agent", ua}]
+        }
+      end
+
+      ua_hash = SessionFingerprint.hash_user_agent(through.({172, 18, 0, 7}))
+
+      trust(["203.0.113.5/32"])
+
+      assert SessionFingerprint.proxy_rebind_address(
+               through.({203, 0, 113, 5}),
+               "172.18.0.8",
+               ua_hash
+             ) == "9.9.9.9"
+
+      refute SessionFingerprint.proxy_rebind_address(
+               through.({172, 18, 0, 7}),
+               "172.18.0.8",
+               ua_hash
+             )
+    end
+  end
 end

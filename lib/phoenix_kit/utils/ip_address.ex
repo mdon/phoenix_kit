@@ -391,7 +391,8 @@ defmodule PhoenixKit.Utils.IpAddress do
   not.
 
   This is the default rule `client_address/1` applies when `:trusted_proxies`
-  is not set; once that option is set, trust follows the list instead.
+  is not set; once that option is set, trust follows the list instead (see
+  `trusted_proxy?/1`).
 
       iex> PhoenixKit.Utils.IpAddress.local_address?("172.18.0.8")
       true
@@ -410,6 +411,30 @@ defmodule PhoenixKit.Utils.IpAddress do
   def local_address?(address) when is_tuple(address), do: local?(address)
 
   def local_address?(_), do: false
+
+  @doc """
+  Whether `address` (a string or an `:inet` tuple) is a trusted proxy: a peer
+  whose forwarded headers may be believed. The rule `client_address/1`
+  applies, for callers that read another forwarded header
+  (`x-forwarded-proto`) or decide something by the peer alone. With
+  `config :phoenix_kit, :trusted_proxies` unset, any loopback or private
+  address (`local_address?/1`); with it set, only an address inside the
+  list; with an invalid value, nobody. Anything that does not parse is not.
+
+      iex> PhoenixKit.Utils.IpAddress.trusted_proxy?("203.0.113.7")
+      false
+  """
+  @spec trusted_proxy?(String.t() | :inet.ip_address() | nil) :: boolean()
+  def trusted_proxy?(address) when is_binary(address) do
+    case :inet.parse_strict_address(String.to_charlist(address)) do
+      {:ok, tuple} -> proxy?(tuple)
+      {:error, _} -> false
+    end
+  end
+
+  def trusted_proxy?(address) when is_tuple(address), do: proxy?(address)
+
+  def trusted_proxy?(_), do: false
 
   # Mapped, NAT64, and IPv4-compatible all stash the IPv4 in the last 32 bits.
   defp unmap({_, _, _, _, _, _, ab, cd}),
