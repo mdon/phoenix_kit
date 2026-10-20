@@ -1,6 +1,6 @@
 defmodule PhoenixKit.API.RateLimitPublicTest do
   @moduledoc """
-  The public buckets: the client network's room first, then the cart token, then
+  The public buckets: the client network's room first, then the client token, then
   the network is charged.
   """
   use PhoenixKit.DataCase, async: false
@@ -36,8 +36,8 @@ defmodule PhoenixKit.API.RateLimitPublicTest do
       assert header_value(headers, "retry-after") == retry_after
     end
 
-    test "a cart token has its own bucket; other tokens from the same network are unaffected" do
-      set_limit("api_public_cart_rate_per_min", 2)
+    test "a client token has its own bucket; other tokens from the same network are unaffected" do
+      set_limit("api_public_token_rate_per_min", 2)
       set_limit("api_public_ip_rate_per_min", 100)
       ip = unique_ip()
       token_a = unique_token()
@@ -52,6 +52,16 @@ defmodule PhoenixKit.API.RateLimitPublicTest do
       assert {:ok, _} = RateLimit.check_public(ip, token_b, 1)
     end
 
+    test "a token bucket follows the deprecated setting while the new one is unset" do
+      set_limit("api_public_cart_rate_per_min", 1)
+      set_limit("api_public_ip_rate_per_min", 100)
+      ip = unique_ip()
+      token = unique_token()
+
+      assert {:ok, _} = RateLimit.check_public(ip, token, 1)
+      assert {:error, _, _} = RateLimit.check_public(ip, token, 1)
+    end
+
     test "a request without a client address is still counted, in one shared bucket" do
       set_limit("api_public_ip_rate_per_min", 2)
 
@@ -64,7 +74,7 @@ defmodule PhoenixKit.API.RateLimitPublicTest do
     end
 
     test "the network bucket caps all tokens behind one address" do
-      set_limit("api_public_cart_rate_per_min", 100)
+      set_limit("api_public_token_rate_per_min", 100)
       set_limit("api_public_ip_rate_per_min", 3)
       ip = unique_ip()
 
@@ -73,8 +83,8 @@ defmodule PhoenixKit.API.RateLimitPublicTest do
       assert header_value(headers, "ratelimit-limit") == 3
     end
 
-    test "a request refused by the cart bucket is not charged to the network bucket" do
-      set_limit("api_public_cart_rate_per_min", 1)
+    test "a request refused by the token bucket is not charged to the network bucket" do
+      set_limit("api_public_token_rate_per_min", 1)
       set_limit("api_public_ip_rate_per_min", 3)
       ip = unique_ip()
       noisy = unique_token()
@@ -88,8 +98,8 @@ defmodule PhoenixKit.API.RateLimitPublicTest do
       assert {:error, _, _} = RateLimit.check_public(ip, unique_token(), 1)
     end
 
-    test "a client over its network limit creates no cart counters with fresh tokens" do
-      set_limit("api_public_cart_rate_per_min", 100)
+    test "a client over its network limit creates no token counters with fresh tokens" do
+      set_limit("api_public_token_rate_per_min", 100)
       set_limit("api_public_ip_rate_per_min", 2)
       ip = unique_ip()
 
@@ -102,26 +112,26 @@ defmodule PhoenixKit.API.RateLimitPublicTest do
         assert header_value(headers, "retry-after") == retry_after
         assert header_value(headers, "ratelimit-limit") == 2
         assert header_value(headers, "ratelimit-remaining") == 0
-        assert Backend.get("api:public:cart:" <> token, 60_000) == 0
+        assert Backend.get("api:public:token:" <> token, 60_000) == 0
       end
     end
 
-    test "a cost that does not fit the network window is refused without a cart counter" do
-      set_limit("api_public_cart_rate_per_min", 100)
+    test "a cost that does not fit the network window is refused without a token counter" do
+      set_limit("api_public_token_rate_per_min", 100)
       set_limit("api_public_ip_rate_per_min", 5)
       ip = unique_ip()
       token = unique_token()
 
       assert {:ok, _} = RateLimit.check_public(ip, unique_token(), 3)
       assert {:error, _, _} = RateLimit.check_public(ip, token, 3)
-      assert Backend.get("api:public:cart:" <> token, 60_000) == 0
+      assert Backend.get("api:public:token:" <> token, 60_000) == 0
       # The refused call took nothing from the window: two units still fit.
       assert {:ok, headers} = RateLimit.check_public(ip, token, 2)
       assert header_value(headers, "ratelimit-remaining") == 0
     end
 
     test "the headers describe the bucket with the least room left" do
-      set_limit("api_public_cart_rate_per_min", 100)
+      set_limit("api_public_token_rate_per_min", 100)
       set_limit("api_public_ip_rate_per_min", 5)
 
       assert {:ok, headers} = RateLimit.check_public(unique_ip(), unique_token(), 2)
