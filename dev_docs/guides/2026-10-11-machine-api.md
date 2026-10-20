@@ -44,7 +44,7 @@ Limits and lists are settings too (`api_admin_rate_per_min`, `api_admin_preauth_
 
 Each module that declares tools (`PhoenixKit.ModuleRegistry.api_modules/0`) has a switch in the "Modules" card of Settings -> API (event `set_module_api`, checked on the server like every other event of the page). The event reads the stored list from the database under a row lock (`PhoenixKit.Settings.modify_setting_with_module/4`), not from the cache, so two admins, or a node with a stale cache, cannot undo each other's change. The change is a `setting.changed` entry in the Activity log with the admin as actor.
 
-On the Modules page every such module carries a badge that links to the card: "API off" when its switch is off, "API idle" when its switch is on but nothing can call it now (the module is disabled, or every audience its tools serve, admin or public, is switched off in the two switches at the top of the page), and "API on" when it can be called. The badge looks at the switches and the module only: while the website password gate is on, the public side also answers `404` to every client that is not on the gate's allow-list, and the badge does not show that.
+On the Modules page every such module that has a card carries a badge that links to the "Modules" card of Settings -> API: "API off" when its switch is off, "API idle" when its switch is on but nothing can call it now (the module is disabled, or every audience its tools serve, admin or public, is switched off in the two switches at the top of the page), and "API on" when it can be called. The badge looks at the switches and the module only: while the website password gate is on, the public side also answers `404` to every client that is not on the gate's allow-list, and the badge does not show that.
 
 ## Who may manage keys
 
@@ -188,6 +188,53 @@ end
 Enabled modules are asked only when an error is answered. `Problem.status/1`, the problem `title` and the MCP advice (`[code] message - advice`) read the declarations. A declaration cannot replace a code of core (it is dropped with a warning, like an invalid entry or a code another module declared first). The `code`, `status` and `title` are a contract with clients: change them like an API. A code that nothing declares answers `500` and is logged. A module that must also compile against an older core defines `api_problems/0` without `@impl`.
 
 Module cron jobs are declared with the optional `oban_crons/0` callback (one `{cron, worker_module}` per worker); `mix phoenix_kit.update` writes them into the host's Oban config.
+
+### Tools of the host application
+
+A host application declares tools for its own code the same way: one module in the host with `use PhoenixKit.Module` and `api_tools/0`. Discovery scans every application whose `.app` lists `:phoenix_kit`, the host included, so a module that only declares tools needs no config line (`config :phoenix_kit, modules: [...]` matters for a host module with routes or tabs, which the router must see on a cold build). A running node picks the module up after a restart or `PhoenixKit.ModuleRegistry.rescan/0`.
+
+```elixir
+defmodule MyApp.API.Tools do
+  use PhoenixKit.Module
+
+  @impl PhoenixKit.Module
+  def module_key, do: "orders_api"     # the key in api_disabled_modules
+
+  @impl PhoenixKit.Module
+  def module_name, do: "Orders"        # its row in Settings -> API, its tool group in the guide
+
+  # Always on; its API can still be switched off in the "Modules" card of Settings -> API.
+  @impl PhoenixKit.Module
+  def enabled?, do: true
+
+  @impl PhoenixKit.Module
+  def enable_system, do: {:error, :always_on}
+
+  @impl PhoenixKit.Module
+  def disable_system, do: {:error, :always_on}
+
+  @impl PhoenixKit.Module
+  def api_tools do
+    [
+      PhoenixKit.API.Tool.new!(
+        name: "orders.list_orders",
+        # ...the other required fields (audience, scope, permission, ...) as in "Declaring tools" above
+        handler: handler("Orders", :list_orders)
+      )
+    ]
+  end
+
+  # Built at run time: a literal {MyApp.API.Tools.Orders, :list_orders} would tie the
+  # router to the handler and to everything the handler calls.
+  defp handler(name, fun), do: {Module.concat(__MODULE__, name), fun}
+end
+```
+
+- `module_name/0` is what admins read: name it after what the tools do.
+- Without `permission_metadata/0` the module has no card on the Modules page and no permission key of its own. A tool uses a key the host already has, or one it registers at start with `PhoenixKit.Users.Permissions.register_custom_key/2`; pass `auto_grant_admin: false` unless every Admin should get it.
+- A handler reads and writes only what `ctx.scope` may reach, and answers nothing without one.
+- The router depends at compile time on this module and on every module it names, so a change in any of them recompiles the router: keep the module to declarations and name handlers as above.
+- REST and MCP serve the admin tools to keys that hold their scopes; an in-app assistant acting for a signed-in person (`PhoenixKit.API.Executor.visible_for/3`) gets the read tools that person may call. Check the tools with the lint below.
 
 ## Installing and upgrading a host
 
