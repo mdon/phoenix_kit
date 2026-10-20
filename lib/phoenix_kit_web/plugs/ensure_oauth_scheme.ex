@@ -10,6 +10,10 @@ defmodule PhoenixKitWeb.Plugs.EnsureOAuthScheme do
   2. Explicit `:phoenix_kit, :oauth_base_url` config
   3. Endpoint URL configuration
 
+  Known gap: with `:oauth_base_url` unset, `PhoenixKit.Config.get_string/2`
+  answers `""`, which is truthy, so step 2 always applies and forces https
+  and port 443; step 3 is not reached.
+
   ## Usage
 
   Automatically included in OAuth controller. No manual setup required.

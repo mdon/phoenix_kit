@@ -355,6 +355,9 @@ defmodule PhoenixKit.Utils.IpAddressTrustedProxiesTest do
       trust(["172.18.0.7/32"])
       assert scheme.({172, 18, 0, 7}) == :https
       assert scheme.({172, 18, 0, 8}) == :http
+
+      trust(["203.0.113.0/24"])
+      assert scheme.({203, 0, 113, 9}) == :https
     end
 
     test "proxy_rebind_address/3 follows the list" do
