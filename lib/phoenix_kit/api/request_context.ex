@@ -8,8 +8,8 @@ defmodule PhoenixKit.API.RequestContext do
 
     * `:language` is the install's primary language
       (`PhoenixKit.Utils.Multilang.primary_language/0`);
-    * `:currency` is `nil`, because core does not depend on Billing. The
-      e-commerce module fills it from its base currency;
+    * `:currency` is `nil`, because core does not depend on Billing. A
+      module that knows a base currency fills it;
     * `:hosts` is the request host;
     * `:base_url` is `scheme://host[:port]` of the request.
 

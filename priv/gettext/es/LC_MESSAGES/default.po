@@ -20157,7 +20157,7 @@ msgstr "Envíela solo en la cabecera Authorization, como Bearer seguido de la cl
 msgid "Service users"
 msgstr "Usuarios de servicio"
 
-#: lib/phoenix_kit_web/live/settings/api.html.heex:54
+#: lib/phoenix_kit_web/live/settings/api.html.heex:81
 #, elixir-autogen, elixir-format
 msgid "AI assistants and other programs use what the site offers, without a key."
 msgstr "Los asistentes de IA y otros programas usan lo que ofrece el sitio, sin clave."

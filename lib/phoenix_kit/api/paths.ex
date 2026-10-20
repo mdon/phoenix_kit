@@ -5,7 +5,7 @@ defmodule PhoenixKit.API.Paths do
   entry, so the two cannot disagree about where the API lives.
 
   The axis of the API is the audience, not a module: modules own the names of
-  their tools (`ecommerce.set_prices`), the paths are
+  their tools (`catalogue.set_prices`), the paths are
 
       /api/admin/v1   /mcp/admin     the admin audience, with a key
       /api/public/v1  /mcp/public    the public audience, without one

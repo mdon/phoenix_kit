@@ -53,7 +53,7 @@ defmodule PhoenixKit.API.ModuleNeutralTest do
       {"confirm/confirmation.ex", ~r/source: :cart_token_hash/},
       # The deprecated `check_cart_rows/1` (and its @spec), still called by name by a
       # module written before `check_new_rows/1`. Removed in 3.0.0.
-      {"rate_limit.ex", ~r/check_cart_rows/}
+      {"rate_limit.ex", ~r/^\s*(@spec|def) check_cart_rows\b/}
     ]
   end
 

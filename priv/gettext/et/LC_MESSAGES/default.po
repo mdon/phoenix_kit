@@ -20157,7 +20157,7 @@ msgstr "Saatke see ainult päises Authorization, kujul Bearer ja võti. Veebiaad
 msgid "Service users"
 msgstr "Teenusekasutajad"
 
-#: lib/phoenix_kit_web/live/settings/api.html.heex:54
+#: lib/phoenix_kit_web/live/settings/api.html.heex:81
 #, elixir-autogen, elixir-format
 msgid "AI assistants and other programs use what the site offers, without a key."
 msgstr "Tehisintellekti assistendid ja muud programmid kasutavad saidi pakutavat ilma võtmeta."

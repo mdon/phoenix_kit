@@ -8,7 +8,7 @@ defmodule PhoenixKit.API.Tool do
 
   ## Fields
 
-    * `:name` - `"<namespace>.<verb>_<noun>"`, lowercase, stable (`"ecommerce.set_prices"`),
+    * `:name` - `"<namespace>.<verb>_<noun>"`, lowercase, stable (`"catalogue.set_prices"`),
       at most 100 characters.
     * `:audience` - `:admin` (a key with scopes) or `:public` (no key).
     * `:scope` - the scope a key must carry, `"<module>.<resource>:<action>"`. `nil` for

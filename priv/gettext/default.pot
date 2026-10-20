@@ -20148,7 +20148,7 @@ msgstr ""
 msgid "Service users"
 msgstr ""
 
-#: lib/phoenix_kit_web/live/settings/api.html.heex:54
+#: lib/phoenix_kit_web/live/settings/api.html.heex:81
 #, elixir-autogen, elixir-format
 msgid "AI assistants and other programs use what the site offers, without a key."
 msgstr ""

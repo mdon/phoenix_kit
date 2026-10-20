@@ -20148,7 +20148,7 @@ msgstr "Envoyez-la uniquement dans l'en-tête Authorization, sous la forme Beare
 msgid "Service users"
 msgstr "Utilisateurs de service"
 
-#: lib/phoenix_kit_web/live/settings/api.html.heex:54
+#: lib/phoenix_kit_web/live/settings/api.html.heex:81
 #, elixir-autogen, elixir-format
 msgid "AI assistants and other programs use what the site offers, without a key."
 msgstr "Les assistants IA et d'autres programmes utilisent ce que propose le site, sans clé."

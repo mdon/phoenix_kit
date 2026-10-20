@@ -8,8 +8,8 @@ defmodule PhoenixKit.API.Problem do
 
       {"type": "https://phoenixkit.dev/api/errors/forbidden",
        "title": "Forbidden", "status": 403, "code": "forbidden",
-       "detail": "This key lacks ecommerce.prices:write.",
-       "context": {"required_scope": "ecommerce.prices:write"},
+       "detail": "This key lacks catalogue.prices:write.",
+       "context": {"required_scope": "catalogue.prices:write"},
        "request_id": "F9x..."}
 
   `code` is the contract: stable, machine-readable, and what an agent
