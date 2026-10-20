@@ -343,6 +343,22 @@ defmodule PhoenixKit.Mailer.SmtpEndpointPolicyTest do
       assert elapsed_us < 2_000_000
     end
 
+    test "a resolver that raises or exits is no answer, not a crash of the caller" do
+      options = starttls_options("smtp.example.com")
+
+      for broken <- [fn _, _ -> raise "resolver bug" end, fn _, _ -> exit(:boom) end] do
+        assert {:error, {:smtp_endpoint_refused, :blocked_host}} =
+                 enforce(options, :personal, resolver: broken)
+      end
+
+      only_aaaa_breaks = fn _name, family ->
+        if family == :inet, do: {:ok, [{1, 1, 1, 1}]}, else: raise("AAAA lookup bug")
+      end
+
+      assert {:ok, pinned} = enforce(options, :personal, resolver: only_aaaa_breaks)
+      assert pinned[:relay] == "1.1.1.1"
+    end
+
     test "a family that times out does not hold up the one that answered" do
       options = starttls_options("v4only.example.com") |> Keyword.put(:timeout, 100)
       resolver = hanging_resolver(%{inet: {:ok, [{1, 1, 1, 1}]}})

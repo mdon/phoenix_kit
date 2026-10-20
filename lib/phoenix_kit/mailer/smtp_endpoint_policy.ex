@@ -70,7 +70,15 @@ defmodule PhoenixKit.Mailer.SmtpEndpointPolicy do
 
   The lookup is bounded by the connection's `timeout` (5 s when none is set);
   IPv4 and IPv6 are asked at the same time, and a family that does not answer
-  in time counts as no addresses.
+  in time (or whose lookup fails) counts as no addresses. A failed lookup
+  therefore also comes back as `:blocked_host`; on the send path a caller
+  should treat that refusal as possibly transient.
+
+  On an IPv6-only host behind DNS64, every name of an IPv4-only relay also
+  answers with a synthesized `64:ff9b::/96` AAAA record. `PublicAddress`
+  refuses that range, and every address must pass, so such relays are refused
+  there. Such a network either keeps the policy off, or gives the server
+  IPv4 egress and a resolver without DNS64.
 
   Residual risk: the first address of the checked set is used (IPv4 preferred),
   with no fallback to the others — the same single attempt the client made
@@ -214,7 +222,7 @@ defmodule PhoenixKit.Mailer.SmtpEndpointPolicy do
     charlist = String.to_charlist(name)
 
     [:inet, :inet6]
-    |> Task.async_stream(fn family -> resolver.(charlist, family) end,
+    |> Task.async_stream(fn family -> safely_resolve(resolver, charlist, family) end,
       timeout: timeout,
       on_timeout: :kill_task,
       ordered: true
@@ -223,6 +231,16 @@ defmodule PhoenixKit.Mailer.SmtpEndpointPolicy do
       {:ok, {:ok, ips}} when is_list(ips) -> ips
       _no_answer -> []
     end)
+  end
+
+  # The lookup tasks are linked to the caller (a LiveView, a send): a resolver
+  # that raises or exits must read as "no addresses", not take the caller down.
+  defp safely_resolve(resolver, charlist, family) do
+    resolver.(charlist, family)
+  rescue
+    _error -> {:error, :resolver_failed}
+  catch
+    _kind, _reason -> {:error, :resolver_failed}
   end
 
   defp all_public([first | _] = ips) do
