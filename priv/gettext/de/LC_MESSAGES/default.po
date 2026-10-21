@@ -21274,3 +21274,48 @@ msgstr "API-Katalog"
 #, elixir-autogen, elixir-format
 msgid "This site"
 msgstr "Diese Website"
+
+#: lib/phoenix_kit/integrations/providers.ex:504
+#, elixir-autogen, elixir-format
+msgid "Anthropic"
+msgstr "Anthropic"
+
+#: lib/phoenix_kit/integrations/providers.ex:506
+#, elixir-autogen, elixir-format
+msgid "AI model access via Anthropic (Claude Opus, Sonnet and Haiku models)"
+msgstr "Zugriff auf KI-Modelle über Anthropic (Claude-Modelle Opus, Sonnet und Haiku)"
+
+#: lib/phoenix_kit/integrations/providers.ex:525
+#, elixir-autogen, elixir-format
+msgid "From console.anthropic.com/settings/keys"
+msgstr "Von console.anthropic.com/settings/keys"
+
+#: lib/phoenix_kit/integrations/providers.ex:532
+#, elixir-autogen, elixir-format
+msgid "Create an Anthropic account"
+msgstr "Anthropic-Konto erstellen"
+
+#: lib/phoenix_kit/integrations/providers.ex:534
+#, elixir-autogen, elixir-format
+msgid "Go to [console.anthropic.com](https://console.anthropic.com) and sign up or log in"
+msgstr "Gehen Sie zu [console.anthropic.com](https://console.anthropic.com) und registrieren Sie sich oder melden Sie sich an"
+
+#: lib/phoenix_kit/integrations/providers.ex:542
+#, elixir-autogen, elixir-format
+msgid "Go to [Billing](https://console.anthropic.com/settings/billing) and add a payment method or buy credits"
+msgstr "Gehen Sie zu [Billing](https://console.anthropic.com/settings/billing) und fügen Sie eine Zahlungsmethode hinzu oder kaufen Sie Guthaben"
+
+#: lib/phoenix_kit/integrations/providers.ex:545
+#, elixir-autogen, elixir-format
+msgid "Anthropic requires a positive credit balance before the API will answer requests"
+msgstr "Anthropic erfordert ein positives Guthaben, bevor die API Anfragen beantwortet"
+
+#: lib/phoenix_kit/integrations/providers.ex:550
+#, elixir-autogen, elixir-format
+msgid "API credits are billed separately from a Claude.ai subscription — a Pro or Max plan does not include them."
+msgstr "API-Guthaben wird getrennt von einem Claude.ai-Abonnement abgerechnet – ein Pro- oder Max-Tarif enthält es nicht."
+
+#: lib/phoenix_kit/integrations/providers.ex:557
+#, elixir-autogen, elixir-format
+msgid "Go to [API Keys](https://console.anthropic.com/settings/keys)"
+msgstr "Gehen Sie zu [API Keys](https://console.anthropic.com/settings/keys)"
