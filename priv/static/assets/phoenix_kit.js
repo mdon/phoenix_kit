@@ -8971,9 +8971,9 @@ if (typeof window.Chart === "undefined") {
   var GALLERY_GRID_CSS =
     GALLERY_SCOPE + ".fresco-viewer { background-image: none !important; }\n" +
     GALLERY_CHROME.map(function(sel) { return GALLERY_SCOPE + sel; }).join(",\n") +
-    " { transition: opacity 200ms ease; }\n" +
+    " { transition: opacity 120ms ease-out; }\n" +
     GALLERY_CHROME.map(function(sel) { return 'html[data-pk-gallery-chrome="hidden"] ' + GALLERY_SCOPE + sel; }).join(",\n") +
-    " { opacity: 0 !important; pointer-events: none !important; }";
+    " { opacity: 0 !important; pointer-events: none !important; transition-duration: 200ms; }";
   var GALLERY_TAP_SLOP = 10;      // px a tap may wander
   var GALLERY_TAP_MS = 350;       // longer is a press, not a tap
   var GALLERY_DOUBLE_TAP_MS = 300; // a second tap this soon is a double-tap (zoom)
@@ -9134,8 +9134,10 @@ if (typeof window.Chart === "undefined") {
           e.stopImmediatePropagation();
         }
       };
-      // Tap to hide / show the controls. Waits out the double-tap window
-      // so a double-tap zoom does not also flash them away.
+      // Tap to hide / show the controls. Hiding waits out the double-tap
+      // window so a double-tap zoom does not also flash them away; showing
+      // is at once (and quicker to fade in) so the tap feels answered, and
+      // a double-tap's second tap then just zooms.
       self._onTapDown = function(e) {
         var c = canvasEl();
         self._tap = null;
@@ -9151,11 +9153,12 @@ if (typeof window.Chart === "undefined") {
         if (Math.abs(e.clientX - tp.x) > GALLERY_TAP_SLOP || Math.abs(e.clientY - tp.y) > GALLERY_TAP_SLOP) return;
         if (Date.now() - tp.t > GALLERY_TAP_MS) return;
         if (self._tapTimer) { clearTimeout(self._tapTimer); self._tapTimer = null; return; } // the double-tap's second
+        var root = document.documentElement;
+        var show = root.getAttribute("data-pk-gallery-chrome") === "hidden";
+        if (show) root.removeAttribute("data-pk-gallery-chrome");
         self._tapTimer = setTimeout(function() {
           self._tapTimer = null;
-          var root = document.documentElement;
-          if (root.getAttribute("data-pk-gallery-chrome") === "hidden") root.removeAttribute("data-pk-gallery-chrome");
-          else root.setAttribute("data-pk-gallery-chrome", "hidden");
+          if (!show) root.setAttribute("data-pk-gallery-chrome", "hidden");
         }, GALLERY_DOUBLE_TAP_MS);
       };
       document.addEventListener("pointerdown", self._onTapDown, true);
