@@ -8973,7 +8973,7 @@ if (typeof window.Chart === "undefined") {
     GALLERY_CHROME.map(function(sel) { return GALLERY_SCOPE + sel; }).join(",\n") +
     " { transition: opacity 120ms ease-out; }\n" +
     GALLERY_CHROME.map(function(sel) { return 'html[data-pk-gallery-chrome="hidden"] ' + GALLERY_SCOPE + sel; }).join(",\n") +
-    " { opacity: 0 !important; pointer-events: none !important; transition-duration: 200ms; }";
+    " { opacity: 0 !important; pointer-events: none !important; }";
   var GALLERY_TAP_SLOP = 10;      // px a tap may wander
   var GALLERY_TAP_MS = 350;       // longer is a press, not a tap
   var GALLERY_DOUBLE_TAP_MS = 300; // a second tap this soon is a double-tap (zoom)
