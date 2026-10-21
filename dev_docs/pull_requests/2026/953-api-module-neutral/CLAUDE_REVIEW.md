@@ -36,3 +36,11 @@ Verified rather than assumed:
   but the network bucket bounds it and the callbacks are map literals. Cache only if a module ever computes its map.
 - **NITPICK (not changed):** a public tool that names its client token without the `_token` suffix is neither refused in a URL nor
   filtered from the request log; the `Tool` docs say so and tell authors to use `*_token`.
+- **NITPICK (fixed, found by /code-review):** the admin API guide still spelled `/api/admin/v1` and `/mcp/admin` by hand although
+  `Paths` is "the one table"; it now takes `Paths.rest_path(:admin)` / `Paths.mcp_path(:admin)`.
+- **NITPICK (not changed, /code-review):** `Paths.put_deprecation/2` runs at the top of `Auth.call`, so a request to a deprecated
+  alias computes `PublicDiscovery.origin/1` (and the host's `:api_request_context` hook) before the URL-credential check and
+  authentication. It touches only deprecated paths and the node's network bucket applies later; build the `Link` lazily if the
+  aliases stay long.
+- **NITPICK (not changed, /code-review):** the renamed `Actor.cart_token_hash` has no shim. `phoenix_kit_ecommerce` already reads the
+  new field, so the one known consumer is covered; an unknown third-party module reading the old field would see a `KeyError`.
