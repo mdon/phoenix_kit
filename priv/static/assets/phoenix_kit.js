@@ -9134,10 +9134,9 @@ if (typeof window.Chart === "undefined") {
           e.stopImmediatePropagation();
         }
       };
-      // Tap to hide / show the controls. Hiding waits out the double-tap
-      // window so a double-tap zoom does not also flash them away; showing
-      // is at once (and quicker to fade in) so the tap feels answered, and
-      // a double-tap's second tap then just zooms.
+      // Tap to hide / show the controls, at once either way so the tap
+      // feels answered. A double-tap's second tap does not toggle back —
+      // it just zooms, leaving the controls as the first tap set them.
       self._onTapDown = function(e) {
         var c = canvasEl();
         self._tap = null;
@@ -9154,12 +9153,9 @@ if (typeof window.Chart === "undefined") {
         if (Date.now() - tp.t > GALLERY_TAP_MS) return;
         if (self._tapTimer) { clearTimeout(self._tapTimer); self._tapTimer = null; return; } // the double-tap's second
         var root = document.documentElement;
-        var show = root.getAttribute("data-pk-gallery-chrome") === "hidden";
-        if (show) root.removeAttribute("data-pk-gallery-chrome");
-        self._tapTimer = setTimeout(function() {
-          self._tapTimer = null;
-          if (!show) root.setAttribute("data-pk-gallery-chrome", "hidden");
-        }, GALLERY_DOUBLE_TAP_MS);
+        if (root.getAttribute("data-pk-gallery-chrome") === "hidden") root.removeAttribute("data-pk-gallery-chrome");
+        else root.setAttribute("data-pk-gallery-chrome", "hidden");
+        self._tapTimer = setTimeout(function() { self._tapTimer = null; }, GALLERY_DOUBLE_TAP_MS);
       };
       document.addEventListener("pointerdown", self._onTapDown, true);
       document.addEventListener("pointerup", self._onTapUp, true);
