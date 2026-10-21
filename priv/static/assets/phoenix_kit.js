@@ -8978,15 +8978,22 @@ if (typeof window.Chart === "undefined") {
   var GALLERY_TAP_MS = 350;       // longer is a press, not a tap
   var GALLERY_DOUBLE_TAP_MS = 300; // a second tap this soon is a double-tap (zoom)
 
+  // In now, not at mount: the rules key on markup the server already sent,
+  // and a viewer opened from a link otherwise showed the dot grid for the
+  // second or more before the socket connected and the hook mounted.
+  function ensureGalleryCss() {
+    if (document.getElementById("pk-gallery-css")) return;
+    var css = document.createElement("style");
+    css.id = "pk-gallery-css";
+    css.textContent = GALLERY_GRID_CSS;
+    (document.head || document.documentElement).appendChild(css);
+  }
+  ensureGalleryCss();
+
   window.PhoenixKitHooks.ViewerGallery = {
     mounted() {
       var self = this;
-      if (!document.getElementById("pk-gallery-css")) {
-        var css = document.createElement("style");
-        css.id = "pk-gallery-css";
-        css.textContent = GALLERY_GRID_CSS;
-        document.head.appendChild(css);
-      }
+      ensureGalleryCss();
       if (!window.Fresco || !window.Fresco.gallery) return;
       self._modal = self.el.parentElement;
       // The strip goes in the ignored layer beside this element: a child the
