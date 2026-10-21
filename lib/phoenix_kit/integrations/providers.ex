@@ -20,8 +20,8 @@ defmodule PhoenixKit.Integrations.Providers do
   for ElevenLabs).
 
   A service that wants more than that one header declares
-  `validation.extra_headers`: a list of `{name, value}` pairs sent after the
-  auth header, unchanged. Anthropic needs it — its native API reads the key
+  `validation.extra_headers`: a list of `{name, value}` pairs sent along with
+  the auth header, unchanged. Anthropic needs it — its native API reads the key
   from `x-api-key` and wants the API version in `anthropic-version` alongside.
   Leaving it out sends exactly the auth header, as before. A service whose
   check is not a plain `GET` declares `validation.strategy` instead (see
@@ -57,7 +57,7 @@ defmodule PhoenixKit.Integrations.Providers do
             :auth_header => String.t(),
             :auth_prefix => String.t(),
             optional(:method) => atom(),
-            # `{name, value}` pairs sent after the auth header, as given.
+            # `{name, value}` pairs sent along with the auth header, as given.
             optional(:extra_headers) => [{String.t(), String.t()}]
           }
           | %{:strategy => atom(), optional(atom()) => term()}
@@ -493,10 +493,15 @@ defmodule PhoenixKit.Integrations.Providers do
   # takes `Authorization: Bearer <key>` on `POST /v1/chat/completions` — what
   # they send for every `:ai_completions` provider.
   #
-  # The key check uses the native API instead: `GET /v1/models` with the
-  # documented `x-api-key` + `anthropic-version` pair (`extra_headers` carries
-  # the version). The generic `authenticated_request/4` helper is Bearer-only,
-  # so it is not the way to call Anthropic's native endpoints.
+  # The key check uses the native API instead: `GET /v1/models`. Anthropic
+  # documents `Authorization: Bearer` as the main header and `x-api-key` as a
+  # legacy fallback that is still supported; the check sends `x-api-key`.
+  # `anthropic-version` is required on the native API, which is why the version
+  # travels in `extra_headers`.
+  #
+  # A key that is not scoped to one workspace needs an `anthropic-workspace-id`
+  # header on every request and is refused with a 400 without it; the
+  # instructions below send the admin to a single-workspace key.
   defp anthropic do
     %{
       key: "anthropic",
@@ -522,7 +527,7 @@ defmodule PhoenixKit.Integrations.Providers do
           type: :password,
           required: true,
           placeholder: "sk-ant-...",
-          help: gettext("From console.anthropic.com/settings/keys"),
+          help: gettext("From platform.claude.com/settings/keys"),
           options: nil
         }
       ],
@@ -532,7 +537,7 @@ defmodule PhoenixKit.Integrations.Providers do
           title: gettext("Create an Anthropic account"),
           steps: [
             {gettext(
-               "Go to [console.anthropic.com](https://console.anthropic.com) and sign up or log in"
+               "Go to [platform.claude.com](https://platform.claude.com) and sign up or log in"
              ), nil}
           ]
         },
@@ -540,7 +545,7 @@ defmodule PhoenixKit.Integrations.Providers do
           title: gettext("Add credits"),
           steps: [
             {gettext(
-               "Go to [Billing](https://console.anthropic.com/settings/billing) and add a payment method or buy credits"
+               "Go to [Billing](https://platform.claude.com/settings/billing) and add a payment method or buy credits"
              ), nil},
             {gettext(
                "Anthropic requires a positive credit balance before the API will answer requests"
@@ -554,9 +559,12 @@ defmodule PhoenixKit.Integrations.Providers do
         %{
           title: gettext("Create an API key"),
           steps: [
-            {gettext("Go to [API Keys](https://console.anthropic.com/settings/keys)"), nil},
+            {gettext("Go to [API Keys](https://platform.claude.com/settings/keys)"), nil},
             {gettext("Click **Create Key**"), nil},
             {gettext("Give it a name (e.g., your app name)"), nil},
+            {gettext(
+               "Scope the key to a single workspace (for example Default) — a key without one is refused"
+             ), nil},
             {gettext("Copy the key (shown once) and paste it into the form above"), nil}
           ]
         }

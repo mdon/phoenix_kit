@@ -72,7 +72,7 @@ defmodule PhoenixKit.Integrations.AnthropicProviderTest do
       assert [field] = Providers.get("anthropic").setup_fields
 
       assert %{key: "api_key", type: :password, required: true, placeholder: "sk-ant-..."} = field
-      assert field.help =~ "console.anthropic.com/settings/keys"
+      assert field.help =~ "platform.claude.com/settings/keys"
       assert "api_key" in Encryption.sensitive_fields()
     end
 
@@ -81,10 +81,12 @@ defmodule PhoenixKit.Integrations.AnthropicProviderTest do
       sections = Providers.instructions_for(p, :system)
       text = sections |> Enum.flat_map(& &1.steps) |> Enum.map_join("\n", &elem(&1, 0))
 
-      assert text =~ "console.anthropic.com"
+      assert text =~ "https://platform.claude.com"
+      refute text =~ "console.anthropic.com"
       assert text =~ "Billing"
       assert text =~ "API Keys"
       assert text =~ "Create Key"
+      assert text =~ "single workspace"
       assert text =~ "paste it into the form above"
 
       assert Providers.instructions_for(p, :personal) == sections
@@ -157,16 +159,23 @@ defmodule PhoenixKit.Integrations.AnthropicProviderTest do
   end
 
   describe "validation.extra_headers" do
-    test "are sent after the auth header, as declared" do
+    test "are sent along with the auth header, as declared" do
       provider = synthetic(extra_headers: [{"x-one", "1"}, {"x-two", "2"}])
 
+      # Presence only: `Req` keeps request headers in a map, so their order on
+      # the wire is not observable here.
       assert [{"x-key", "K secret"}, {"x-one", "1"}, {"x-two", "2"}] ==
-               request_headers(fn -> validate(provider, "secret") end)
+               Enum.sort(request_headers(fn -> validate(provider, "secret") end))
     end
 
     test "a provider that declares none sends only its own auth header" do
       assert [{"x-key", "K secret"}] ==
                request_headers(fn -> validate(synthetic([]), "secret") end)
+    end
+
+    test "an explicit nil sends only the auth header too" do
+      assert [{"x-key", "K secret"}] ==
+               request_headers(fn -> validate(synthetic(extra_headers: nil), "secret") end)
     end
 
     test "no other built-in key check changed: each sends its auth header and nothing more" do

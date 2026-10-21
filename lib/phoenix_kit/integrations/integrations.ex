@@ -1177,7 +1177,8 @@ defmodule PhoenixKit.Integrations do
 
       Map.has_key?(provider, :validation) and provider.validation != nil ->
         v = provider.validation
-        headers = [{v.auth_header, "#{v.auth_prefix}#{token}"} | Map.get(v, :extra_headers, [])]
+        extra_headers = Map.get(v, :extra_headers) || []
+        headers = [{v.auth_header, "#{v.auth_prefix}#{token}"} | extra_headers]
         check_http(v.url, headers)
 
       true ->
