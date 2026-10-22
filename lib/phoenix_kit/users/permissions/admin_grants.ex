@@ -25,6 +25,9 @@ defmodule PhoenixKit.Users.Permissions.AdminGrants do
   Each key logs at error level on its first pass, at warning on a retry, and
   giving up logs one error with the keys still missing.
 
+  A key given up on stays reported (by `await/2`) until the next restart: the
+  server cannot see a grant made behind its back.
+
   The server is `:permanent`: every step that touches the database rescues, so
   it does not crash-loop and take `PhoenixKit.Supervisor` with it.
 
@@ -45,7 +48,8 @@ defmodule PhoenixKit.Users.Permissions.AdminGrants do
 
   @doc """
   Options: `:name`, `:retry_base_ms` (first backoff, default #{@default_base_ms}),
-  `:max_attempts` (default #{@default_attempts}) and `:sync_registry` (default `true`).
+  `:max_attempts` (default #{@default_attempts}) and `:sync_registry` (default `true`),
+  `:sweep_fun` and `:registry_fun` (test seams for the sweep and the registry wait).
   """
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: Keyword.get(opts, :name, __MODULE__))
@@ -66,7 +70,8 @@ defmodule PhoenixKit.Users.Permissions.AdminGrants do
   end
 
   @doc "See `PhoenixKit.Users.Permissions.await_admin_grants/1`."
-  @spec await(timeout(), GenServer.server()) :: :ok | {:error, :timeout | {:failed, list()}}
+  @spec await(timeout(), GenServer.server()) ::
+          :ok | {:error, :timeout | {:failed, list()} | {:exit, term()}}
   def await(timeout \\ 5_000, server \\ __MODULE__) do
     if running?(server) do
       try do
@@ -96,7 +101,9 @@ defmodule PhoenixKit.Users.Permissions.AdminGrants do
       waiters: [],
       base_ms: Keyword.get(opts, :retry_base_ms, @default_base_ms),
       max_attempts: Keyword.get(opts, :max_attempts, @default_attempts),
-      sync_registry?: Keyword.get(opts, :sync_registry, true)
+      sync_registry?: Keyword.get(opts, :sync_registry, true),
+      sweep_fun: Keyword.get(opts, :sweep_fun, &Permissions.sweep_admin_grants/1),
+      registry_fun: Keyword.get(opts, :registry_fun, &Registry.await_initialized/1)
     }
 
     {:ok, state, {:continue, :sweep}}
@@ -104,11 +111,11 @@ defmodule PhoenixKit.Users.Permissions.AdminGrants do
 
   @impl true
   def handle_continue(:sweep, state) do
-    {retry, dropped} = sweep(:error)
+    {retry, dropped} = sweep(:error, state)
 
     # Wait for the tab load too, which registers (and grants) its own keys.
     retry =
-      if state.sync_registry? and Registry.await_initialized() != :ok,
+      if state.sync_registry? and state.registry_fun.(30_000) != :ok,
         do: [:registry | retry],
         else: retry
 
@@ -130,11 +137,8 @@ defmodule PhoenixKit.Users.Permissions.AdminGrants do
   def handle_info(:retry, state) do
     {pending, dropped} =
       Enum.reduce(state.pending, {MapSet.new(), state.dropped}, fn item, {keep, drop} ->
-        case retry(item, state) do
-          :ok -> {keep, drop}
-          {:retry, items} -> {Enum.into(items, keep), drop}
-          {:drop, items} -> {keep, Enum.into(items, drop)}
-        end
+        {retry, dropped} = retry(item, state)
+        {Enum.into(retry, keep), Enum.into(dropped, drop)}
       end)
 
     {:noreply, evaluate(%{state | timer: nil, pending: pending, dropped: dropped})}
@@ -165,8 +169,8 @@ defmodule PhoenixKit.Users.Permissions.AdminGrants do
 
   # One sweep pass, split into the keys worth retrying and the ones that are
   # not. Never raises: a crash here would restart the server in a loop.
-  defp sweep(level) do
-    failures = Permissions.sweep_admin_grants(report: false, level: level)
+  defp sweep(level, state) do
+    failures = state.sweep_fun.(report: false, level: level)
 
     media =
       case Permissions.backfill_media_subs(report: false, level: level) do
@@ -194,15 +198,11 @@ defmodule PhoenixKit.Users.Permissions.AdminGrants do
     {Enum.map(retry, &elem(&1, 0)), Enum.map(dropped, &elem(&1, 0))}
   end
 
-  defp retry(:sweep, _state) do
-    case sweep(:warning) do
-      {[], []} -> :ok
-      {retry, _dropped} -> {:retry, retry}
-    end
-  end
+  # Each retry answers `{keys_to_retry, keys_given_up}`.
+  defp retry(:sweep, state), do: sweep(:warning, state)
 
-  defp retry(:registry, _state) do
-    if Registry.await_initialized(5_000) == :ok, do: :ok, else: {:retry, [:registry]}
+  defp retry(:registry, state) do
+    if state.registry_fun.(5_000) == :ok, do: {[], []}, else: {[:registry], []}
   end
 
   defp retry(:media_subs, _state) do
@@ -213,10 +213,10 @@ defmodule PhoenixKit.Users.Permissions.AdminGrants do
     classify(key, Permissions.grant_to_admin_once(key, report: false, level: :warning))
   end
 
-  defp classify(_key, :ok), do: :ok
+  defp classify(_key, :ok), do: {[], []}
 
   defp classify(key, {:error, reason}) do
-    if Permissions.retriable_grant_error?(reason), do: {:retry, [key]}, else: {:drop, [key]}
+    if Permissions.retriable_grant_error?(reason), do: {[key], []}, else: {[], [key]}
   end
 
   # Decides what to do after any change: done, schedule the next attempt, or

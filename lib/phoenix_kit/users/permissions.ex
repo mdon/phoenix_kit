@@ -1669,7 +1669,8 @@ defmodule PhoenixKit.Users.Permissions do
   error is retried with a backoff, so the Admin role is complete once this
   returns `:ok` — without a restart. Returns `{:error, :timeout}` if the grants
   are still running after `timeout` ms, `{:error, {:failed, keys}}` if the
-  retries were exhausted, and `:ok` straight away when nothing is running
+  retries were exhausted or a key cannot be retried, `{:error, {:exit, reason}}`
+  if the server died while waiting, and `:ok` straight away when nothing is running
   (the supervisor is not started, e.g. in a test suite that skips it).
 
   A test suite should call it before handing the database to the sandbox, so
@@ -1680,7 +1681,8 @@ defmodule PhoenixKit.Users.Permissions do
       :ok = PhoenixKit.Users.Permissions.await_admin_grants(30_000)
       Ecto.Adapters.SQL.Sandbox.mode(MyApp.Repo, :manual)
   """
-  @spec await_admin_grants(timeout()) :: :ok | {:error, :timeout | {:failed, list()}}
+  @spec await_admin_grants(timeout()) ::
+          :ok | {:error, :timeout | {:failed, list()} | {:exit, term()}}
   defdelegate await_admin_grants(timeout \\ 5_000), to: AdminGrants, as: :await
 
   @doc """
@@ -1697,8 +1699,10 @@ defmodule PhoenixKit.Users.Permissions do
 
   Returns `:ok`, or `{:error, [{key, reason}]}` for the keys that could not be
   granted (a database error; each is logged at error level and left unflagged).
-  Failed keys are retried with a backoff by `PhoenixKit.Users.Permissions.AdminGrants`,
-  which a host can await with `await_admin_grants/1`.
+  Keys that failed on a database error are retried with a backoff by
+  `PhoenixKit.Users.Permissions.AdminGrants`, which a host can await with
+  `await_admin_grants/1`; a rejected changeset or a missing database owner
+  (a test already in the sandbox's manual mode) is not retried.
   """
   @spec auto_grant_new_keys_to_admin() :: :ok | {:error, [{String.t(), term()}]}
   def auto_grant_new_keys_to_admin do
@@ -1810,11 +1814,10 @@ defmodule PhoenixKit.Users.Permissions do
       # Flagged only when every grant went through; a failure is retried by
       # `AdminGrants` (and on the next boot).
       with nil <- Enum.find(results, &match?({:error, _}, &1)),
-           {:ok, _} <- Settings.update_setting(@media_subs_flag, "true") do
+           :ok <- save_flag(@media_subs_flag) do
         :ok
       else
         {:error, reason} -> grant_failure(reason, "media sub-permission backfill", opts)
-        other -> grant_failure({:flag_not_saved, other}, "media sub-permission backfill", opts)
       end
     end
   rescue
@@ -1834,8 +1837,9 @@ defmodule PhoenixKit.Users.Permissions do
   in `update_mode` (the flag is read from its row, not the settings reader
   that answers nil in that mode). A flag that cannot be read grants
   nothing: the grant fails closed. Returns `{:error, reason}` for a database
-  failure (logged at error level with the key, flag left unset) and the key is
-  retried with a backoff by `PhoenixKit.Users.Permissions.AdminGrants`.
+  failure (logged at error level with the key, flag left unset), and a database
+  error is retried with a backoff by `PhoenixKit.Users.Permissions.AdminGrants`.
+  A rejected changeset or a missing database owner is returned but not retried.
   """
   @spec auto_grant_to_admin_roles(String.t()) :: :ok | {:error, term()}
   # Opt-in keys are never auto-granted to Admin — they surface only on an explicit
@@ -1919,21 +1923,37 @@ defmodule PhoenixKit.Users.Permissions do
       :ok
     else
       with {:ok, _} <- grant_permission(admin_uuid, key, nil),
-           {:ok, _} <- Settings.update_setting(flag_key, "true") do
+           :ok <- save_flag(flag_key) do
         :ok
       else
         {:error, reason} ->
           grant_failure(reason, "auto-grant of #{inspect(key)} to Admin role", opts)
-
-        other ->
-          grant_failure(
-            {:flag_not_saved, other},
-            "auto-grant of #{inspect(key)} to Admin role",
-            opts
-          )
       end
     end
   end
+
+  # Records that a key was auto-granted. A concurrent grant of the same key (the
+  # boot sweep and the tab registry both grant the built-in keys) may have
+  # written the flag first; the unique index then rejects ours with a changeset
+  # error although the flag is exactly as wanted, so the row is read again
+  # before this counts as a failure.
+  defp save_flag(flag_key) do
+    case Settings.update_setting(flag_key, "true") do
+      {:ok, _} ->
+        :ok
+
+      {:error, %Ecto.Changeset{}} = error ->
+        if match?(%{value: "true"}, SettingsQueries.get_setting_by_key(flag_key)),
+          do: :ok,
+          else: flag_not_saved(error)
+
+      other ->
+        flag_not_saved(other)
+    end
+  end
+
+  defp flag_not_saved({:error, reason}), do: {:error, {:flag_not_saved, reason}}
+  defp flag_not_saved(other), do: {:error, {:flag_not_saved, other}}
 
   # Coerces a value to a string, returning the default for nil.
   # Handles atoms, integers, and other types gracefully via to_string/1.
