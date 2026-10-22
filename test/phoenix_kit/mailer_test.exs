@@ -194,6 +194,8 @@ defmodule PhoenixKit.MailerTest do
   alias PhoenixKit.MailerTest.FakeBrevoApiClient
   alias PhoenixKit.MailerTest.TrackingProvider
   alias PhoenixKit.Settings
+  alias PhoenixKit.Users.Auth.User
+  alias PhoenixKit.Users.Auth.UserNotifier
 
   describe "swoosh_config_for/1" do
     test "aws_ses credentials build an AmazonSES adapter config" do
@@ -781,7 +783,7 @@ defmodule PhoenixKit.MailerTest do
     end
 
     test "a delivered magic link counts once" do
-      user = %PhoenixKit.Users.Auth.User{uuid: UUIDv7.generate(), email: "to@example.com"}
+      user = %User{uuid: UUIDv7.generate(), email: "to@example.com"}
 
       assert {:ok, _} = Mailer.send_magic_link_email(user, "https://a.test/m")
 
@@ -795,7 +797,7 @@ defmodule PhoenixKit.MailerTest do
       ExUnit.CaptureLog.capture_log(fn ->
         assert {:error, _} = Mailer.send_from_template("usage_probe", "to@example.com")
 
-        user = %PhoenixKit.Users.Auth.User{uuid: UUIDv7.generate(), email: "to@example.com"}
+        user = %User{uuid: UUIDv7.generate(), email: "to@example.com"}
         assert {:error, _} = Mailer.send_magic_link_email(user, "https://a.test/m")
       end)
 
@@ -806,6 +808,51 @@ defmodule PhoenixKit.MailerTest do
       assert {:error, {:blocked, :blocklist}} =
                Mailer.send_from_template("usage_probe", "blocked@example.com")
 
+      refute_received {:track_usage, _}
+    end
+
+    test "a delivered welcome and reset-password email count once each" do
+      user = %User{uuid: UUIDv7.generate(), email: "to@example.com"}
+
+      assert {:ok, _} = UserNotifier.deliver_welcome(user)
+      assert_received {:track_usage, "welcome"}
+      refute_received {:track_usage, _}
+
+      assert {:ok, _} =
+               UserNotifier.deliver_reset_password_instructions(
+                 user,
+                 "https://a.test/reset"
+               )
+
+      assert_received {:track_usage, "reset_password"}
+      refute_received {:track_usage, _}
+    end
+
+    test "an auth email whose delivery fails does not count" do
+      use_brevo_integration({:ok, 400, [], Jason.encode!(%{"message" => "rejected"})})
+      user = %User{uuid: UUIDv7.generate(), email: "to@example.com"}
+
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert {:error, _} = UserNotifier.deliver_welcome(user)
+
+        assert {:error, _} =
+                 UserNotifier.deliver_reset_password_instructions(
+                   user,
+                   "https://a.test/reset"
+                 )
+      end)
+
+      refute_received {:track_usage, _}
+    end
+
+    test "building the welcome email without sending it does not count, delivering it does" do
+      user = %User{uuid: UUIDv7.generate(), email: "to@example.com"}
+
+      email = UserNotifier.build_welcome(user)
+      refute_received {:track_usage, _}
+
+      assert {:ok, _} = UserNotifier.deliver_built(email)
+      assert_received {:track_usage, "welcome"}
       refute_received {:track_usage, _}
     end
 
