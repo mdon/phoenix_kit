@@ -388,7 +388,7 @@ A code is bound to the key (or, for a public tool, the client token), the tool, 
 
 ### What this protects against, and what it does not
 
-A confirmation code protects against **accidents**, not against a malicious key holder: the same client that receives the code also uses it. A key holder can also stay under the thresholds (`api_confirm_batch_over`, a price change below the percentage) by splitting a change into several calls; the change log (Activity) is the control for that, so every write is logged with its key. The control for **AI agents** is the approval queue: give an agent a key marked "Needs approval", and a person decides every write it asks for, dangerous or not, so splitting a change does not get round it. A key without that mark confirms its own operations. The same sentence is the hint under the "Needs approval" box on the create-key form.
+A confirmation code protects against **accidents**, not against a malicious key holder: the same client that receives the code also uses it. A key holder can also stay under the thresholds (`api_confirm_batch_over`, a price change below the percentage) by splitting a change into several calls; the change log (Activity) is the control for that, so every write is logged with its key. The control for **AI agents** is the approval queue: give an agent a key marked "Needs approval", and a person decides every write it asks for, dangerous or not, so splitting a change does not get round it. A key without that mark confirms its own operations. The hint under the "Needs approval" box on the create-key form says the same in short.
 
 The approver sees what is approved: the totals first, then at most 25 rows of the preview as JSON, and a notice (and a second confirmation on **Approve**) when the preview is cut. Approving runs the whole operation, never only the rows shown.
 
@@ -404,9 +404,9 @@ Approvals (a menu entry for holders of `api`, at `/admin/approvals`, with a badg
 
 `mix phoenix_kit.update` runs V220 (`phoenix_kit_api_confirmations`, `phoenix_kit_api_idempotency`) and adds three cron entries to the host's Oban config: `PhoenixKit.API.Idempotency.PruneWorker` (daily), `PhoenixKit.API.Confirm.ExpiryWorker` (every five minutes) and `PhoenixKit.API.Confirm.PruneWorker` (daily). Without the update there are no tables and a dangerous call answers `500`. The host's `:phoenix, :filter_parameters` should contain `idempotency_key` (`PhoenixKit.boot/1` adds it). Confirmation codes are signed with the host's `secret_key_base`; with none, no code is issued.
 
-### Testing a dangerous tool
+### Testing a write tool
 
-`PhoenixKit.Test.ApiFlowTools` and `PhoenixKit.Test.ApiFlowHarness` (`test/support/`) show the whole contract with a handful of tools and an in-memory store; copy their shape. Test, for every dangerous tool: the dry run writes nothing; the fingerprint changes when a touched value changes and not otherwise; a confirm after the values changed is `409`; an approval after the key was revoked or the values changed writes nothing.
+`PhoenixKit.Test.ApiFlowTools` and `PhoenixKit.Test.ApiFlowHarness` (`test/support/`) show the whole contract with a handful of tools and an in-memory store; copy their shape. Test, for every write tool (a key marked "Needs approval" sends each of its writes through the dry run and the fingerprint, dangerous or not): the dry run writes nothing; the fingerprint changes when a touched value changes and not otherwise; a confirm after the values changed is `409`; an approval after the key was revoked or the values changed writes nothing.
 
 ## Deprecated aliases (until 3.0.0)
 

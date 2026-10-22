@@ -21210,9 +21210,9 @@ msgstr[2] "От 16 до 128 символов: буквы, цифры, - и _. Т
 #, elixir-autogen, elixir-format
 msgid "A key that requires approval does not run any write, dangerous or not: the call returns pending_approval and waits up to %{count} hour for a person to approve it."
 msgid_plural "A key that requires approval does not run any write, dangerous or not: the call returns pending_approval and waits up to %{count} hours for a person to approve it."
-msgstr[0] "Ключ, которому нужно одобрение, не выполняет никакую запись, опасную или нет: вызов возвращает pending_approval и ждёт до %{count} ч, пока человек её одобрит."
-msgstr[1] "Ключ, которому нужно одобрение, не выполняет никакую запись, опасную или нет: вызов возвращает pending_approval и ждёт до %{count} ч, пока человек её одобрит."
-msgstr[2] "Ключ, которому нужно одобрение, не выполняет никакую запись, опасную или нет: вызов возвращает pending_approval и ждёт до %{count} ч, пока человек её одобрит."
+msgstr[0] "Ключ, которому нужно одобрение, не выполняет ни одной записи, опасной или нет: вызов возвращает pending_approval и ждёт до %{count} ч, пока человек её одобрит."
+msgstr[1] "Ключ, которому нужно одобрение, не выполняет ни одной записи, опасной или нет: вызов возвращает pending_approval и ждёт до %{count} ч, пока человек её одобрит."
+msgstr[2] "Ключ, которому нужно одобрение, не выполняет ни одной записи, опасной или нет: вызов возвращает pending_approval и ждёт до %{count} ч, пока человек её одобрит."
 
 #: lib/phoenix_kit_web/live/settings/api_guide.html.heex:316
 #, elixir-autogen, elixir-format
