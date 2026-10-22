@@ -130,6 +130,56 @@ defmodule PhoenixKit.MailerTest.QueuingProvider do
   def adapter_to_provider_name(_adapter, default), do: default
 end
 
+defmodule PhoenixKit.MailerTest.UsageProvider do
+  @moduledoc false
+  # A provider that finds a "database template" for every name and reports each
+  # `track_usage/1` to the test process, to prove a template is counted only for
+  # a message that was handed over. `Process.put(:usage_queue, true)` makes it
+  # take the message into a queue instead.
+  @behaviour PhoenixKit.Email.Provider
+
+  @impl true
+  def intercept_before_send(email, _opts), do: email
+
+  @impl true
+  def maybe_enqueue(_email, _opts) do
+    if Process.get(:usage_queue), do: {:queued, "usage-queue-ref"}, else: :skip
+  end
+
+  @impl true
+  def handle_after_send(_email, _result), do: :ok
+
+  @impl true
+  def get_active_template_by_name(name),
+    do: %{uuid: "00000000-0000-0000-0000-000000000001", name: name, category: "system"}
+
+  @impl true
+  def render_template(_t, _v), do: %{subject: "S", html_body: "<p>H</p>", text_body: "T"}
+  @impl true
+  def render_template(_t, _v, _l), do: %{subject: "S", html_body: "<p>H</p>", text_body: "T"}
+  @impl true
+  def track_usage(template) do
+    if Process.get(:usage_raises), do: raise("usage store down")
+    send(self(), {:track_usage, template.name})
+    :ok
+  end
+
+  @impl true
+  def get_source_module(_template), do: nil
+  @impl true
+  def get_aws_region, do: ""
+  @impl true
+  def get_aws_access_key, do: ""
+  @impl true
+  def get_aws_secret_key, do: ""
+  @impl true
+  def aws_configured?, do: false
+  @impl true
+  def send_test_tracking_email(_recipient_email, _user_uuid), do: {:error, :not_supported}
+  @impl true
+  def adapter_to_provider_name(_adapter, default), do: default
+end
+
 defmodule PhoenixKit.MailerTest do
   # async: false — one test swaps the global `:swoosh, :api_client` and
   # `:phoenix_kit, :email_provider` app env, which `Mailer.deliver_email/2`
@@ -695,6 +745,84 @@ defmodule PhoenixKit.MailerTest do
       refute_received {:intercept_before_send_called, _opts}
       refute_received {:maybe_enqueue_called, _opts}
       assert_received {:handle_after_send_called, {:ok, _}}
+    end
+  end
+
+  describe "template usage is counted after delivery" do
+    setup do
+      previous = Application.get_env(:phoenix_kit, :email_provider)
+      Application.put_env(:phoenix_kit, :email_provider, PhoenixKit.MailerTest.UsageProvider)
+
+      on_exit(fn ->
+        if previous,
+          do: Application.put_env(:phoenix_kit, :email_provider, previous),
+          else: Application.delete_env(:phoenix_kit, :email_provider)
+      end)
+
+      :ok
+    end
+
+    defp use_brevo_integration(response) do
+      original = Application.get_env(:swoosh, :api_client)
+      Application.put_env(:swoosh, :api_client, FakeBrevoApiClient)
+      on_exit(fn -> Application.put_env(:swoosh, :api_client, original) end)
+
+      {:ok, %{uuid: uuid}} = Integrations.add_connection("brevo_api", "usage")
+      {:ok, _} = Integrations.save_setup(uuid, %{"api_key" => "xkeysib-test"})
+      {:ok, _} = Settings.update_setting("default_email_integration_uuid", uuid)
+      if response, do: Process.put(:fake_brevo_response, response)
+    end
+
+    test "a delivered message counts once" do
+      assert {:ok, _} = Mailer.send_from_template("usage_probe", "to@example.com")
+
+      assert_received {:track_usage, "usage_probe"}
+      refute_received {:track_usage, _}
+    end
+
+    test "a delivered magic link counts once" do
+      user = %PhoenixKit.Users.Auth.User{uuid: UUIDv7.generate(), email: "to@example.com"}
+
+      assert {:ok, _} = Mailer.send_magic_link_email(user, "https://a.test/m")
+
+      assert_received {:track_usage, "magic_link"}
+      refute_received {:track_usage, _}
+    end
+
+    test "an adapter error does not count" do
+      use_brevo_integration({:ok, 400, [], Jason.encode!(%{"message" => "rejected"})})
+
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert {:error, _} = Mailer.send_from_template("usage_probe", "to@example.com")
+
+        user = %PhoenixKit.Users.Auth.User{uuid: UUIDv7.generate(), email: "to@example.com"}
+        assert {:error, _} = Mailer.send_magic_link_email(user, "https://a.test/m")
+      end)
+
+      refute_received {:track_usage, _}
+    end
+
+    test "a blocklisted recipient does not count" do
+      assert {:error, {:blocked, :blocklist}} =
+               Mailer.send_from_template("usage_probe", "blocked@example.com")
+
+      refute_received {:track_usage, _}
+    end
+
+    test "a message taken into the provider's queue counts" do
+      Process.put(:usage_queue, true)
+
+      assert {:ok, %{queued: true}} = Mailer.send_from_template("usage_probe", "to@example.com")
+
+      assert_received {:track_usage, "usage_probe"}
+    end
+
+    test "a provider that cannot count does not turn a sent message into an error" do
+      Process.put(:usage_raises, true)
+
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert {:ok, _} = Mailer.send_from_template("usage_probe", "to@example.com")
+      end)
     end
   end
 
