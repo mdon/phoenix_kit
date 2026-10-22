@@ -12,6 +12,8 @@ defmodule PhoenixKit.Integration.AdminApprovalsTabTest do
   import Ecto.Query, only: [from: 2]
   import Phoenix.LiveViewTest, only: [render_component: 2]
 
+  alias PhoenixKit.API.Approvals
+  alias PhoenixKit.API.Confirm.Confirmation
   alias PhoenixKit.API.Keys.Key
   alias PhoenixKit.API.KeyTestSupport
   alias PhoenixKit.Dashboard.{AdminTabs, Registry}
@@ -133,22 +135,24 @@ defmodule PhoenixKit.Integration.AdminApprovalsTabTest do
     end
   end
 
+  defp set_key!(key, changes) do
+    {1, _} =
+      from(k in Key, where: k.uuid == ^key.uuid)
+      |> RepoHelper.repo().update_all(set: changes)
+
+    :ok
+  end
+
+  defp offered?(scope),
+    do: :admin_approvals in Enum.map(Registry.get_admin_tabs(scope: scope), & &1.id)
+
+  defp at(seconds), do: DateTime.utc_now() |> DateTime.add(seconds) |> DateTime.truncate(:second)
+
   describe "while nothing uses approvals" do
     setup %{agent: agent} do
       set_key!(agent.key, requires_approval: false)
       :ok
     end
-
-    defp set_key!(key, changes) do
-      {1, _} =
-        from(k in Key, where: k.uuid == ^key.uuid)
-        |> RepoHelper.repo().update_all(set: changes)
-
-      :ok
-    end
-
-    defp offered?(owner),
-      do: :admin_approvals in Enum.map(Registry.get_admin_tabs(scope: owner), & &1.id)
 
     test "an Owner is not offered it when no key needs approval and none was queued",
          %{owner: owner} do
@@ -167,12 +171,59 @@ defmodule PhoenixKit.Integration.AdminApprovalsTabTest do
     test "a revoked or expired key that needs approval does not", %{owner: owner} do
       revoked = ApiFlowHarness.agent()
       expired = ApiFlowHarness.agent()
-      past = DateTime.utc_now() |> DateTime.add(-60) |> DateTime.truncate(:second)
 
-      set_key!(revoked.key, revoked_at: past)
-      set_key!(expired.key, expires_at: past)
+      set_key!(revoked.key, revoked_at: at(-60))
+      set_key!(expired.key, expires_at: at(-60))
 
       refute offered?(KeyTestSupport.scope_of(owner))
+    end
+
+    test "a key that still works until a later revocation or expiry does", %{owner: owner} do
+      # A revocation in the future is a rotation's grace period: the key still works.
+      rotating = ApiFlowHarness.agent()
+      set_key!(rotating.key, revoked_at: at(3600))
+      assert offered?(KeyTestSupport.scope_of(owner))
+
+      set_key!(rotating.key, requires_approval: false)
+      expiring = ApiFlowHarness.agent()
+      set_key!(expiring.key, expires_at: at(3600))
+      assert offered?(KeyTestSupport.scope_of(owner))
+    end
+
+    test "a one-time confirmation code is not an approval", %{agent: agent, owner: owner} do
+      {:ok, _code} =
+        %Confirmation{}
+        |> Confirmation.changeset(%{
+          kind: "token",
+          tool: @delete,
+          input_hash: String.duplicate("a", 64),
+          fingerprint: "f",
+          status: "unused",
+          actor_key_uuid: agent.key.uuid,
+          expires_at: at(600)
+        })
+        |> RepoHelper.repo().insert()
+
+      refute offered?(KeyTestSupport.scope_of(owner))
+    end
+
+    test "a decided approval keeps it, as the page's history", %{agent: agent, owner: owner} do
+      owner_scope = KeyTestSupport.scope_of(owner)
+      set_key!(agent.key, requires_approval: true)
+      row = pending!(agent)
+      {:ok, _rejected} = Approvals.reject(row.uuid, owner_scope)
+      set_key!(agent.key, requires_approval: false)
+
+      assert offered?(owner_scope)
+      assert LazyHTML.query(sidebar(owner_scope), @link <> " .badge") |> Enum.count() == 0
+    end
+
+    test "an Admin who holds api follows the same rule", %{agent: agent} do
+      admin = scope(["Admin"], ["dashboard", "api"])
+      refute offered?(admin)
+
+      set_key!(agent.key, requires_approval: true)
+      assert offered?(admin)
     end
 
     test "an approval queued earlier keeps it, so it can still be decided",

@@ -447,10 +447,11 @@ defmodule PhoenixKit.API.Approvals do
   end
 
   @doc """
-  Whether the site uses approvals at all: a key that is neither revoked nor expired is
-  marked "requires approval", or an approval of any status is still kept (a pending one
-  outlives the flag being switched off, and the decided ones are the page's history). The
-  admin menu offers the Approvals entry only then; the page itself answers either way.
+  Whether the site uses approvals at all: a key that still works (`Keys.dead_reason/1` is
+  `nil`: a revocation or expiry in the future has not been reached) is marked "requires
+  approval", or an approval of any status is still kept (a pending one outlives the flag
+  being switched off, and the decided ones are the page's history). The admin menu offers
+  the Approvals entry only then; the page itself answers either way.
   """
   @spec in_use?() :: boolean()
   def in_use? do
@@ -459,7 +460,7 @@ defmodule PhoenixKit.API.Approvals do
     keys =
       from(k in Key,
         where:
-          k.requires_approval and is_nil(k.revoked_at) and
+          k.requires_approval and (is_nil(k.revoked_at) or k.revoked_at > ^now) and
             (is_nil(k.expires_at) or k.expires_at > ^now)
       )
 

@@ -3,7 +3,7 @@ defmodule PhoenixKitWeb.Live.Settings.ApiApprovals do
   Compatibility redirect for the retired `/admin/settings/api/approvals` page.
 
   The approvals queue is a menu entry of its own at `/admin/approvals`
-  (`PhoenixKitWeb.Live.Approvals`). This route stays registered, still gated by `api`,
+  (`PhoenixKitWeb.Live.Approvals`), shown while the site uses approvals. This route stays registered, still gated by `api`,
   because the old path is out in the world: bookmarks, and the link of notifications that
   were sent before the move. The `#approval-<uuid>` fragment of such a link is lost by the
   server-side redirect; the page then simply opens at the top.

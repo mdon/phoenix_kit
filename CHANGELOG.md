@@ -14,12 +14,12 @@
 - **`Libraries.create_user_library/3` / `probe_own_storage/3`:** the `"storage"` map takes `"targets"` (a list, or the
   `targets[0]` map a form posts); a single bucket given flat (`integration_uuid`, `bucket_name`, …) still works, and a
   provider, region or endpoint sent anyway wins over the integration's.
-- **The admin menu offers Approvals only while the site uses them** (`AdminTabs.approvals_visible?/1`,
-  `Approvals.in_use?/0`): a key that is neither revoked nor expired is marked "requires approval", or an approval of any
-  status is still kept. A site where no key asks for approval no longer shows an empty entry; `/admin/approvals` itself and
-  the link on Settings -> API answer as before.
 - **`Profiles.user_storage_for/1`** adds `buckets` (every one of the user's buckets, main first) beside `bucket`; `mode` is
   `:only` when one of them is the primary. **`Profiles.create_user_profile/3`** takes a bucket or a list.
+- **The admin menu offers Approvals only while the site uses them** (`AdminTabs.approvals_visible?/1`,
+  `Approvals.in_use?/0`): a key that still works is marked "requires approval", or an approval of any
+  status is still kept. A site where no key asks for approval no longer shows an empty entry; `/admin/approvals` itself and
+  the link on Settings -> API answer as before.
 
 ### Added
 
