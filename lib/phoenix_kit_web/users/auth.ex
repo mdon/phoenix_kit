@@ -3801,14 +3801,9 @@ defmodule PhoenixKitWeb.Users.Auth do
   # get nil and take the redirect to the base. An empty enabled list means
   # the Languages module is effectively off — nil too.
   defp sibling_dialect(locale) do
-    base = DialectMapper.extract_base(locale)
-
-    if String.contains?(locale, "-") and Languages.url_locale_segment(locale) != base do
-      down = String.downcase(locale)
-
-      Enum.find_value(Languages.get_enabled_languages(), fn lang ->
-        if String.downcase(lang.code) == down, do: lang.code
-      end)
+    case Languages.resolve_url_locale(locale) do
+      {:sibling, dialect} -> dialect
+      {:base, _base} -> nil
     end
   end
 

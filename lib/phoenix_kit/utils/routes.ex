@@ -1128,7 +1128,13 @@ defmodule PhoenixKit.Utils.Routes do
       true -> Languages.url_locale_segment(locale)
     end
   rescue
-    _ -> DialectMapper.extract_base(locale)
+    error ->
+      Logger.debug(fn ->
+        "[Routes] url_locale fell back to the base code for #{inspect(locale)}: " <>
+          Exception.message(error)
+      end)
+
+      DialectMapper.extract_base(locale)
   catch
     :exit, _ -> DialectMapper.extract_base(locale)
   end

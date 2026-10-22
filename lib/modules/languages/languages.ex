@@ -531,18 +531,20 @@ defmodule PhoenixKit.Modules.Languages do
   """
   def get_default_language do
     if enabled?() do
-      languages = get_languages()
-
-      request_override =
-        case request_default_language() do
-          nil -> nil
-          code -> find_request_override(languages, code)
-        end
-
-      request_override || Enum.find(languages, & &1.is_default)
+      default_language_in(get_languages())
     else
       nil
     end
+  end
+
+  defp default_language_in(languages) do
+    request_override =
+      case request_default_language() do
+        nil -> nil
+        code -> find_request_override(languages, code)
+      end
+
+    request_override || Enum.find(languages, & &1.is_default)
   end
 
   @doc """
@@ -576,11 +578,11 @@ defmodule PhoenixKit.Modules.Languages do
   """
   @spec configured_primary_language_code() :: String.t() | nil
   def configured_primary_language_code do
-    case get_default_language() do
-      %{code: code} when is_binary(code) -> code
-      _ -> stored_default_code()
-    end
+    code_or_stored_default(get_default_language())
   end
+
+  defp code_or_stored_default(%{code: code}) when is_binary(code), do: code
+  defp code_or_stored_default(_), do: stored_default_code()
 
   defp stored_default_code do
     case Settings.get_json_setting_cached(@config_key, nil) do
@@ -960,29 +962,57 @@ defmodule PhoenixKit.Modules.Languages do
   """
   @spec url_locale_segment(String.t()) :: String.t()
   def url_locale_segment(locale) when is_binary(locale) do
-    if String.contains?(locale, "-") do
-      base = DialectMapper.extract_base(locale)
-      down = String.downcase(locale)
-
-      of_base =
-        Enum.filter(get_enabled_language_codes(), &(DialectMapper.extract_base(&1) == base))
-
-      case Enum.find(of_base, &(String.downcase(&1) == down)) do
-        nil -> base
-        dialect -> if owns_base_urls?(dialect, base, of_base), do: base, else: down
-      end
-    else
-      locale
+    case resolve_url_locale(locale) do
+      {:base, base} -> base
+      {:sibling, dialect} -> String.downcase(dialect)
     end
   end
 
-  # `of_base` is the base's enabled codes in position order.
-  defp owns_base_urls?(dialect, base, of_base) do
+  @doc """
+  The rule behind `url_locale_segment/1`, with the matched dialect kept in
+  its stored case: `{:sibling, "en-GB"}` for an enabled sibling dialect that
+  its lowercase full code addresses, otherwise `{:base, base}` — the base
+  code for a full dialect, the locale itself for a code without a region.
+
+  Reads the languages setting once per call.
+  """
+  @spec resolve_url_locale(String.t()) :: {:base, String.t()} | {:sibling, String.t()}
+  def resolve_url_locale(locale) when is_binary(locale) do
+    if String.contains?(locale, "-") do
+      base = DialectMapper.extract_base(locale)
+      down = String.downcase(locale)
+      languages = get_languages()
+
+      of_base =
+        languages
+        |> Enum.filter(&(&1.is_enabled and DialectMapper.extract_base(&1.code) == base))
+        |> Enum.sort_by(& &1.position)
+        |> Enum.map(& &1.code)
+
+      case Enum.find(of_base, &(String.downcase(&1) == down)) do
+        nil ->
+          {:base, base}
+
+        dialect ->
+          primary = code_or_stored_default(default_language_in(languages))
+
+          if owns_base_urls?(dialect, base, of_base, primary),
+            do: {:base, base},
+            else: {:sibling, dialect}
+      end
+    else
+      {:base, locale}
+    end
+  end
+
+  # `of_base` is the base's enabled codes in position order; `primary` is
+  # `configured_primary_language_code/0`, read from the same languages list.
+  defp owns_base_urls?(dialect, base, of_base, primary) do
     default = DialectMapper.resolve_dialect(base)
     core_owner = if default in of_base, do: default, else: of_base |> Enum.sort() |> hd()
 
+    # A bare `en` next to `en-US` is not counted here; publishing counts it as a sibling.
     dialects = Enum.filter(of_base, &String.contains?(&1, "-"))
-    primary = configured_primary_language_code()
     content_owner = if primary in dialects, do: primary, else: List.first(dialects)
 
     dialect == core_owner and dialect == content_owner

@@ -694,6 +694,39 @@ defmodule PhoenixKit.Integration.Users.AuthLocaleTest do
     end
   end
 
+  describe "the default language's only dialect on a prefixless site" do
+    setup do
+      config = %{
+        "languages" => [
+          %{"code" => "en-US", "name" => "English", "is_default" => true, "is_enabled" => true},
+          %{"code" => "et", "name" => "Estonian", "is_default" => false, "is_enabled" => true}
+        ]
+      }
+
+      Settings.update_json_setting("languages_config", config)
+      Languages.set_default_language_no_prefix(true)
+      :ok
+    end
+
+    test "/en-US/ reaches the clean URL in two hops, without a loop" do
+      first =
+        Auth.validate_and_set_locale(locale_conn("/phoenix_kit/en-US/users/log-in", "en-US"), [])
+
+      assert redirected_to(first) == "/phoenix_kit/en/users/log-in"
+
+      second = Auth.validate_and_set_locale(locale_conn("/phoenix_kit/en/users/log-in", "en"), [])
+      assert redirected_to(second) == "/phoenix_kit/users/log-in"
+
+      clean =
+        build_conn(:get, "/phoenix_kit/users/log-in")
+        |> Plug.Conn.fetch_query_params()
+        |> Auth.validate_and_set_locale([])
+
+      refute clean.halted
+      assert clean.assigns.current_locale == "en-US"
+    end
+  end
+
   describe "sibling dialects whose owner is ambiguous" do
     # en-GB is the site's primary language, so content (publishing) serves it
     # at /en/, while core resolves /en/ to English's default dialect en-US.
