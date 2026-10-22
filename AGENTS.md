@@ -76,6 +76,7 @@ Var name = dep app upper-cased + `_PATH`; unset = published Hex pin (`mix hex.pu
 - Schemas use `@primary_key {:uuid, UUIDv7, autogenerate: true}`
 - New migrations use `uuid_generate_v7()` (NOT `gen_random_uuid()`)
 - Oban-style versioned migrations in `lib/phoenix_kit/migrations/postgres/`
+- Every edit to `v*.ex`, including comments, changes the manifest's `chain_hash`. For schema-neutral edits, run `mix run dev_docs/squash/restamp_chain_hash.exs --restamp` after `mix format`, then run the release-check tests. For schema changes and manifest verification, follow the [manifest regeneration policy](dev_docs/squash/README.md#manifest--reference-policy-regenerate-never-hand-merge).
 
 ### Prefix-safe migrations (named-schema installs)
 

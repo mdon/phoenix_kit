@@ -2,9 +2,9 @@
 
 // Unit tests for the gallery-mode hand-off in priv/static/assets/phoenix_kit.js.
 // In gallery mode (`ViewerGallery`) a swipe slides between pictures itself and
-// `ViewerSwipe` stands down — but only where `Fresco.gallery` exists. A host
-// still serving an older fresco.js mounts no gallery, and a swipe there must
-// keep stepping the viewer instead of doing nothing.
+// `ViewerSwipe` stands down only after that viewer's gallery initializes.
+// While Fresco loads, or on an older fresco.js, swiping keeps stepping the
+// viewer instead of doing nothing.
 //
 // These drive the REAL handler `ViewerSwipe.mounted()` installs.
 //
@@ -76,9 +76,10 @@ require("../../priv/static/assets/phoenix_kit.js");
 const { ViewerSwipe, ViewerGallery } = global.window.PhoenixKitHooks;
 
 // Mount ViewerSwipe over stubs; returns the pushed events and the swipe handler.
-function mountSwipe({ galleryHook }) {
+function mountSwipe({ activeGallery = false }) {
   let handler = null;
   const pane = {
+    closest: () => ({ _pkGallery: activeGallery ? {} : null }),
     addEventListener: (name, fn) => {
       if (name === "fresco:swipe") handler = fn;
     },
@@ -90,52 +91,62 @@ function mountSwipe({ galleryHook }) {
   hook.el = { parentElement: pane, dataset: { hasNext: "true", hasPrev: "true", target: "#mb" } };
   hook.pushEventTo = (target, event, payload) => pushed.push({ target, event, payload });
 
-  const realQuery = global.document.querySelector;
-  global.document.querySelector = (sel) =>
-    sel === '[phx-hook="ViewerGallery"]' && galleryHook ? {} : null;
   hook.mounted();
-  global.document.querySelector = realQuery;
 
   return {
     pushed,
-    swipe: (direction) => {
-      global.document.querySelector = (sel) =>
-        sel === '[phx-hook="ViewerGallery"]' && galleryHook ? {} : null;
-      try {
-        handler({ detail: { direction } });
-      } finally {
-        global.document.querySelector = realQuery;
-      }
-    },
+    swipe: (direction) => handler({ detail: { direction } }),
   };
 }
 
 test("without gallery mode a swipe steps the viewer", () => {
   global.window.Fresco = undefined;
-  const { pushed, swipe } = mountSwipe({ galleryHook: false });
+  const { pushed, swipe } = mountSwipe({});
   swipe("left");
   assert.deepEqual(pushed, [{ target: "#mb", event: "step_viewer", payload: { dir: "next" } }]);
 });
 
 test("with gallery mounted on a fresco that has it, the swipe is left to the gallery", () => {
   global.window.Fresco = { gallery: noop };
-  const { pushed, swipe } = mountSwipe({ galleryHook: true });
+  const { pushed, swipe } = mountSwipe({ activeGallery: true });
   swipe("left");
   assert.deepEqual(pushed, []);
 });
 
 test("a gallery hook on an older fresco.js (no Fresco.gallery) does not swallow the swipe", () => {
   global.window.Fresco = {};
-  const { pushed, swipe } = mountSwipe({ galleryHook: true });
+  const { pushed, swipe } = mountSwipe({});
   swipe("right");
   assert.deepEqual(pushed, [{ target: "#mb", event: "step_viewer", payload: { dir: "prev" } }]);
 });
 
-test("ViewerGallery mounts and tears down quietly without Fresco.gallery", () => {
+test("an uninitialized gallery does not swallow swipes even after Fresco loads", () => {
+  global.window.Fresco = { gallery: noop };
+  const { pushed, swipe } = mountSwipe({});
+  swipe("left");
+  assert.deepEqual(pushed, [{ target: "#mb", event: "step_viewer", payload: { dir: "next" } }]);
+});
+
+test("a gallery in another modal does not swallow this viewer's swipe", () => {
+  global.window.Fresco = { gallery: noop };
+  const realQuery = global.document.querySelector;
+  global.document.querySelector = () => ({});
+  try {
+    const { pushed, swipe } = mountSwipe({});
+    swipe("left");
+    assert.deepEqual(pushed, [{ target: "#mb", event: "step_viewer", payload: { dir: "next" } }]);
+  } finally {
+    global.document.querySelector = realQuery;
+  }
+});
+
+test("ViewerGallery mounts and tears down quietly without Fresco.gallery", async () => {
   global.window.Fresco = {};
+  global.window.FrescoHooks = { FrescoViewer: {} };
   const hook = Object.create(ViewerGallery);
   hook.el = { id: "g", dataset: {}, parentElement: {} };
   assert.doesNotThrow(() => hook.mounted());
+  await Promise.resolve();
   assert.doesNotThrow(() => hook.updated());
   assert.doesNotThrow(() => hook.destroyed());
 });
