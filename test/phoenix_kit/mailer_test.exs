@@ -143,7 +143,7 @@ defmodule PhoenixKit.MailerTest.UsageProvider do
 
   @impl true
   def maybe_enqueue(_email, _opts) do
-    if Process.get(:usage_queue), do: {:queued, "usage-queue-ref"}, else: :skip
+    if Process.get(:usage_queue), do: {:queued, "usage-queue-ref"}, else: :continue
   end
 
   @impl true
@@ -193,9 +193,12 @@ defmodule PhoenixKit.MailerTest do
   alias PhoenixKit.Mailer
   alias PhoenixKit.MailerTest.FakeBrevoApiClient
   alias PhoenixKit.MailerTest.TrackingProvider
+  alias PhoenixKit.Notifications.Channels.Email, as: EmailChannel
   alias PhoenixKit.Settings
+  alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Users.Auth.UserNotifier
+  alias Swoosh.Adapters.Local.Storage.Memory
 
   describe "swoosh_config_for/1" do
     test "aws_ses credentials build an AmazonSES adapter config" do
@@ -853,6 +856,80 @@ defmodule PhoenixKit.MailerTest do
 
       assert {:ok, _} = UserNotifier.deliver_built(email)
       assert_received {:track_usage, "welcome"}
+      refute_received {:track_usage, _}
+    end
+
+    defp use_local_mailbox do
+      prev_own = Application.get_env(:phoenix_kit, PhoenixKit.Mailer)
+      prev_delegate = Application.get_env(:phoenix_kit, :mailer)
+      Application.delete_env(:phoenix_kit, :mailer)
+      Application.put_env(:phoenix_kit, PhoenixKit.Mailer, adapter: Swoosh.Adapters.Local)
+
+      started_storage =
+        case :global.whereis_name(Memory) do
+          :undefined ->
+            {:ok, _pid} = Memory.start()
+            true
+
+          _pid ->
+            false
+        end
+
+      Memory.delete_all()
+
+      on_exit(fn ->
+        Application.delete_env(:phoenix_kit, PhoenixKit.Mailer)
+        if prev_own, do: Application.put_env(:phoenix_kit, PhoenixKit.Mailer, prev_own)
+        if prev_delegate, do: Application.put_env(:phoenix_kit, :mailer, prev_delegate)
+        if started_storage, do: Memory.stop()
+        # The cache is not transactional: drop a rolled-back "true".
+        PhoenixKit.Cache.invalidate(:settings, "dev_mailbox_enabled")
+      end)
+    end
+
+    test "a send the closed dev mailbox suppressed does not count, an open one does" do
+      use_local_mailbox()
+
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert {:ok, %{suppressed: true}} =
+                 Mailer.send_from_template("usage_probe", "to@example.com")
+      end)
+
+      refute_received {:track_usage, _}
+
+      {:ok, _} = Settings.update_setting("dev_mailbox_enabled", "true")
+      assert {:ok, _} = Mailer.send_from_template("usage_probe", "to@example.com")
+      assert_received {:track_usage, "usage_probe"}
+    end
+
+    test "the notification email channel counts a delivered message once, a blocked one never" do
+      register = fn email ->
+        {:ok, user} =
+          Auth.register_user(%{email: email, password: "ValidPassword123!"})
+
+        user
+      end
+
+      envelope = fn user ->
+        %{
+          recipient_uuid: user.uuid,
+          type_key: "comments",
+          notification_uuid: nil,
+          locale: "en",
+          icon: "hero-bell",
+          title: nil,
+          text: "Something happened",
+          url: nil
+        }
+      end
+
+      assert :ok = EmailChannel.deliver(envelope.(register.("notified@example.com")), %{})
+      assert_received {:track_usage, "notification"}
+      refute_received {:track_usage, _}
+
+      assert {:error, {:permanent, :blocklist}} =
+               EmailChannel.deliver(envelope.(register.("blocked@example.com")), %{})
+
       refute_received {:track_usage, _}
     end
 
