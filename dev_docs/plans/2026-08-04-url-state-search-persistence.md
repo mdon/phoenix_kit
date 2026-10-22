@@ -36,7 +36,7 @@ query.
 | Repo | Search surfaces | Broken |
 |---|---|---|
 | core (`phoenix_kit`) | 12 | **5** — `users`, `sessions`, `live_sessions`, `jobs/index`, `media_selector` (page only) |
-| host app (`/www/app`) | 2 | **2** — orders, sub-orders |
+| host app (`<host-app>/`) | 2 | **2** — orders, sub-orders |
 | `phoenix_kit_warehouse` | 7 | **7** |
 | `phoenix_kit_catalogue` | 4 | **3** |
 | `phoenix_kit_projects` | 3 | **3** (blocked — see Constraint) |

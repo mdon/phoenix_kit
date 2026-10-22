@@ -365,7 +365,7 @@ index 494e8552..278990a6 100644
    # ---------------------------------------------------------------------------
 -  # S5 — consumer wrapper replay (stub: fixtures are a P3 deliverable)
 +  # S5 — consumer wrapper replay (spec 8.2 S5 i-iv / 5.3; fixtures in
-+  # s5_fixtures.ex, mined from /www/app/priv/repo/migrations — never edited)
++  # s5_fixtures.ex, mined from <host-app>/priv/repo/migrations — never edited)
    # ---------------------------------------------------------------------------
  
 -  defp s5_stub(_ctx) do

@@ -27,7 +27,7 @@ exactly as it does today (gallery under each template checkbox, "view" preview,
 `UserMediaSelectorModal`, `MediaSelector` (legacy full-page), `<.image_set>`,
 JS hooks `SortableGrid` / `ViewerKeydown` / `MediaDragDrop`.
 
-**Host application (`/www/app`) — all committed:**
+**Host application (`<host-app>/`) — all committed:**
 - `MyAppWeb.Documents.TemplatePickerComponent` — Documents-tab LiveComponent. Owns a
   bespoke image-slot gallery: thumbnail strip (`SortableGrid`), per-item eye/×
   buttons, an inline lightbox modal, "Choose images" button → `MediaSelectorModal`.

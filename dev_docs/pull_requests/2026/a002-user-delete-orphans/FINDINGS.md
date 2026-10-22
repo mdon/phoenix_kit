@@ -319,7 +319,7 @@ test/phoenix_kit/migrations/v175_test.exs`), зелёные после.
 (идентичное значение подтверждено `ReleaseCheck.compute_chain_hash/0`
 внутри самого скрипта), офлайн-гейт `generate_baseline.exs --check` прошёл
 повторно. `verify.exs --scenario s7,s8` не гонялся — требует отдельную
-scratch-БД (`PGHOST=172.18.0.13` и `PK_SQUASH_FLOOR`), вне контура
+scratch-БД (`PGHOST=<db-host>` и `PK_SQUASH_FLOOR`), вне контура
 `pk-test`/`migration_test_db"; тот же выбор был сделан в раундах 1 и 2 —
 офлайн-гейта достаточно, когда правка не меняет форму схемы (restamp-скрипт
 сам это разрешает: «a comment, a warning message, repair logic that acts on
@@ -333,5 +333,5 @@ an already-declared object» — ровно этот случай).
 
 ## Границы
 
-Приложение `/www/app` не трогала. К боевой базе хост-приложения ничего не применяла: проба
+Приложение `<host-app>/` не трогала. К боевой базе хост-приложения ничего не применяла: проба
 каскада шла в транзакции с откатом.

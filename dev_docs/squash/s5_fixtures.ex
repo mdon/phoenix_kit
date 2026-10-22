@@ -6,7 +6,7 @@ defmodule PhoenixKit.Squash.S5Fixtures do
   ## Provenance
 
   Mined 2026-08-07 by reading (never modifying — CLAUDE.md forbids touching
-  that directory) `/www/app/priv/repo/migrations/`: 54 files matching
+  that directory) `<host-app>/priv/repo/migrations/`: 54 files matching
   `*phoenix_kit*`, in filename-timestamp order —
 
     * 1 unpinned installer (`add_phoenix_kit_tables.exs`,

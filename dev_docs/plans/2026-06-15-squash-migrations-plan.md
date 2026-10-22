@@ -75,7 +75,7 @@ normal `public` prefix in an isolated DB whose `public` is empty, `pg_dump --sch
 **Fallback (no grant, after the prefix fix lands):** throwaway SCHEMAS in the dev DB via the now-safe prefix mechanism
 (explicit qualification → no `public` corruption), `pg_dump -n <schema>`, `DROP SCHEMA … CASCADE`.
 
-Mechanism proven either way: Ecto migrator via a custom version-runner; host `pg_dump` over direct PG 172.18.0.6:5432
+Mechanism proven either way: Ecto migrator via a custom version-runner; host `pg_dump` over direct PG `<db-host>:5432`
 (creds in `.git/squash_verify.pgpass`); cleanup drops only throwaway objects; never drop `public` functions/extensions.
 
 1. **Fresh-install equivalence:** NEW chain (baseline + V111..135) vs OLD chain (V01..135) → normalized schema dumps

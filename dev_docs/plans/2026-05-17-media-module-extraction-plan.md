@@ -4,7 +4,7 @@
 
 **Goal:** Extract the image gallery/preview functionality into the PhoenixKit Core Media module as reusable components, then wire the host application to consume them and delete its duplicated code.
 
-**Architecture:** Part A works in `/www/phoenix_kit` — extract a standalone `MediaViewer` lightbox LiveComponent from `MediaGallery`, then commit. Part B works in `/www/app` (the host application) — replace the bespoke gallery in `TemplatePickerComponent` with `<MediaGallery>` and delete the moved code. The host app depends on phoenix_kit via `path: "../phoenix_kit"` (verified `mix.exs:66`), so Part A changes are available to the host app immediately — no hex publish needed.
+**Architecture:** Part A works in `/www/phoenix_kit` — extract a standalone `MediaViewer` lightbox LiveComponent from `MediaGallery`, then commit. Part B works in `<host-app>/` (the host application checkout) — replace the bespoke gallery in `TemplatePickerComponent` with `<MediaGallery>` and delete the moved code. The host app depends on phoenix_kit via `path: "../phoenix_kit"` (verified `mix.exs:66`), so Part A changes are available to the host app immediately — no hex publish needed.
 
 **Tech Stack:** Elixir, Phoenix LiveView (LiveComponents), daisyUI 5, `ExUnit` + `Phoenix.LiveViewTest`.
 
@@ -22,7 +22,7 @@
 - Modify: `lib/phoenix_kit_web/components/media_gallery.html.heex` — replace inline lightbox markup
 - Modify: `CHANGELOG.md`, `mix.exs` — version bump + entry
 
-**Part B — `/www/app` (the host application):**
+**Part B — `<host-app>/` (the host application checkout):**
 - Modify: `lib/my_app_web/documents/template_picker_component.ex` — embed `<MediaGallery>`, delete bespoke gallery
 - Modify: `lib/my_app_web/live/admin/orders/edit.ex` — delete picker-event forwarding plumbing
 
@@ -458,7 +458,7 @@ they are scratch notes, not part of the repo.)
 
 ---
 
-## PART B — Host application integration (`/www/app`)
+## PART B — Host application integration (`<host-app>/`)
 
 > Prerequisite: Part A complete on disk. The host app uses `phoenix_kit` via
 > `path: "../phoenix_kit"`, so the new components are immediately available.
@@ -502,7 +502,7 @@ embedded `MediaSelectorModal`, and the inline lightbox markup (426-449).
 
 - [ ] **Step 3: Verify it compiles**
 
-Run: `cd /www/app && mix compile --warnings-as-errors`
+Run: `cd <host-app> && mix compile --warnings-as-errors`
 Expected: success (handlers from Task 5 not yet removed — may warn about unused;
 acceptable until Task 5).
 
@@ -535,7 +535,7 @@ Delete the `{:media_selected, uuids}`, `{:media_selector_closed}`, and
 
 - [ ] **Step 3: Verify it compiles clean**
 
-Run: `cd /www/app && mix compile --warnings-as-errors`
+Run: `cd <host-app> && mix compile --warnings-as-errors`
 Expected: success, no unused-function warnings.
 
 ---
@@ -579,12 +579,12 @@ already seeds `image_values` from `order.document_draft` — leave it.
 
 - [ ] **Step 3: Verify it compiles**
 
-Run: `cd /www/app && mix compile --warnings-as-errors`
+Run: `cd <host-app> && mix compile --warnings-as-errors`
 Expected: success.
 
 - [ ] **Step 4: Run the host app's documents tests**
 
-Run: `cd /www/app && mix test test/my_app_web/documents/ test/my_app/orders/`
+Run: `cd <host-app> && mix test test/my_app_web/documents/ test/my_app/orders/`
 Expected: PASS. Fix any test that referenced the deleted handlers — update it to
 drive the new `__image_slot_changed__` path.
 
@@ -603,13 +603,13 @@ selections.
 
 - [ ] **Step 2: Format + quality**
 
-Run: `cd /www/app && mix format && mix credo --strict`
+Run: `cd <host-app> && mix format && mix credo --strict`
 Expected: no issues.
 
 - [ ] **Step 3: Commit the host app**
 
 ```bash
-cd /www/app
+cd <host-app>
 git add lib/my_app_web/documents/template_picker_component.ex lib/my_app_web/live/admin/orders/edit.ex
 git commit -m "Use PhoenixKit MediaGallery for documents-tab image slots"
 ```

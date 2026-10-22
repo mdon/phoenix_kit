@@ -5,7 +5,7 @@
 A general PhoenixKit LiveComponent for selecting, ordering, previewing and removing
 a set of images. Generalizes a host application's project-specific
 `MyAppWeb.Documents.TemplatePickerComponent` (`render_image_slots/1`,
-`/www/app/lib/my_app_web/documents/template_picker_component.ex:449-527`) so any
+`<host-app>/lib/my_app_web/documents/template_picker_component.ex:449-527`) so any
 PhoenixKit consumer can embed it instead of re-implementing the gallery + picker
 plumbing.
 

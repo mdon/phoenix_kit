@@ -8,7 +8,7 @@
 #
 # Scenario runs (need an operator scratch DB, spec section 8.1):
 #
-#     PGHOST=172.18.0.13 PGPORT=5432 PGUSER=... PGPASSWORD=... PGDATABASE=... \
+#     PGHOST=<db-host> PGPORT=5432 PGUSER=... PGPASSWORD=... PGDATABASE=... \
 #     PK_SQUASH_FLOOR=121 \
 #     MIX_ENV=test mix run dev_docs/squash/verify.exs --mode b --scenario s1_self,s2_self
 #
@@ -921,7 +921,7 @@ defmodule PhoenixKit.Squash.Verify do
 
   # ---------------------------------------------------------------------------
   # S5 — consumer wrapper replay (spec 8.2 S5 i-iv / 5.3; fixtures in
-  # s5_fixtures.ex, mined from /www/app/priv/repo/migrations — never edited)
+  # s5_fixtures.ex, mined from <host-app>/priv/repo/migrations — never edited)
   # ---------------------------------------------------------------------------
 
   defp s5_all(ctx) do
