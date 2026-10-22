@@ -112,7 +112,7 @@ defmodule PhoenixKitWeb.Plugs.EnsureOAuthScheme do
   end
 
   defp scheme_and_port(conn, url_config, host) do
-    port = url_config[:port]
+    port = url_port(url_config[:port])
 
     cond do
       url_config[:scheme] ->
@@ -131,6 +131,20 @@ defmodule PhoenixKitWeb.Plugs.EnsureOAuthScheme do
         {:https, port || 443}
     end
   end
+
+  # Phoenix accepts the endpoint `url: [port: ...]` as an integer, a numeric string or
+  # `{:system, env_var}`; `conn.port` must stay an integer and `443` must match as one.
+  defp url_port(port) when is_integer(port), do: port
+  defp url_port({:system, env_var}), do: url_port(System.get_env(env_var))
+
+  defp url_port(port) when is_binary(port) do
+    case Integer.parse(port) do
+      {port, ""} -> port
+      _ -> nil
+    end
+  end
+
+  defp url_port(_), do: nil
 
   defp endpoint_url_config(conn) do
     case Phoenix.Controller.endpoint_module(conn) do
