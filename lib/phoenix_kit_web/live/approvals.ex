@@ -1,6 +1,6 @@
 defmodule PhoenixKitWeb.Live.Approvals do
   @moduledoc """
-  Approvals: the queue of dangerous operations from API keys that need a person's approval
+  Approvals: the queue of write operations from API keys that need a person's approval
   (the approval path of the dangerous-operation flow), at `/admin/approvals` and in the
   admin menu with the number of approvals the viewer may decide.
 
