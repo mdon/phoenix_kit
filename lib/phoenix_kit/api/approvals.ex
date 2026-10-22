@@ -446,6 +446,26 @@ defmodule PhoenixKit.API.Approvals do
     end
   end
 
+  @doc """
+  Whether the site uses approvals at all: a key that is neither revoked nor expired is
+  marked "requires approval", or an approval of any status is still kept (a pending one
+  outlives the flag being switched off, and the decided ones are the page's history). The
+  admin menu offers the Approvals entry only then; the page itself answers either way.
+  """
+  @spec in_use?() :: boolean()
+  def in_use? do
+    now = second(DateTime.utc_now())
+
+    keys =
+      from(k in Key,
+        where:
+          k.requires_approval and is_nil(k.revoked_at) and
+            (is_nil(k.expires_at) or k.expires_at > ^now)
+      )
+
+    repo().exists?(keys) or repo().exists?(from(c in Confirmation, where: c.kind == "approval"))
+  end
+
   # The part of `decider?/3` that the database can answer: nothing without `api`, every key
   # for an Owner, the keys one created for anyone else. Done in SQL so the other keys'
   # approvals neither get loaded nor crowd the person's own out of the `limit`. What is

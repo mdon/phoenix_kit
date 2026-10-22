@@ -1,18 +1,21 @@
 defmodule PhoenixKit.Integration.AdminApprovalsTabTest do
   @moduledoc """
   The "Approvals" entry of the admin menu, end to end through a running
-  `PhoenixKit.Dashboard.Registry` and the real sidebar: who is offered it, and the
-  number it carries (the pending approvals that person may decide, read for that person
-  on every render).
+  `PhoenixKit.Dashboard.Registry` and the real sidebar: who is offered it, that it is
+  offered only while approvals are in use, and the number it carries (the pending
+  approvals that person may decide, read for that person on every render).
 
   The registry is not part of the test supervision tree, so the suite starts its own.
   """
   use PhoenixKit.DataCase, async: false
 
+  import Ecto.Query, only: [from: 2]
   import Phoenix.LiveViewTest, only: [render_component: 2]
 
+  alias PhoenixKit.API.Keys.Key
   alias PhoenixKit.API.KeyTestSupport
   alias PhoenixKit.Dashboard.{AdminTabs, Registry}
+  alias PhoenixKit.RepoHelper
   alias PhoenixKit.Test.ApiFlowHarness
   alias PhoenixKit.Users.Auth.{Scope, User}
   alias PhoenixKit.Users.Permissions
@@ -127,6 +130,61 @@ defmodule PhoenixKit.Integration.AdminApprovalsTabTest do
       document = sidebar(admin)
 
       assert LazyHTML.query(document, @link) |> Enum.count() == 0
+    end
+  end
+
+  describe "while nothing uses approvals" do
+    setup %{agent: agent} do
+      set_key!(agent.key, requires_approval: false)
+      :ok
+    end
+
+    defp set_key!(key, changes) do
+      {1, _} =
+        from(k in Key, where: k.uuid == ^key.uuid)
+        |> RepoHelper.repo().update_all(set: changes)
+
+      :ok
+    end
+
+    defp offered?(owner),
+      do: :admin_approvals in Enum.map(Registry.get_admin_tabs(scope: owner), & &1.id)
+
+    test "an Owner is not offered it when no key needs approval and none was queued",
+         %{owner: owner} do
+      owner_scope = KeyTestSupport.scope_of(owner)
+
+      refute offered?(owner_scope)
+      assert LazyHTML.query(sidebar(owner_scope), @link) |> Enum.count() == 0
+    end
+
+    test "a key that needs approval brings it back", %{agent: agent, owner: owner} do
+      set_key!(agent.key, requires_approval: true)
+
+      assert offered?(KeyTestSupport.scope_of(owner))
+    end
+
+    test "a revoked or expired key that needs approval does not", %{owner: owner} do
+      revoked = ApiFlowHarness.agent()
+      expired = ApiFlowHarness.agent()
+      past = DateTime.utc_now() |> DateTime.add(-60) |> DateTime.truncate(:second)
+
+      set_key!(revoked.key, revoked_at: past)
+      set_key!(expired.key, expires_at: past)
+
+      refute offered?(KeyTestSupport.scope_of(owner))
+    end
+
+    test "an approval queued earlier keeps it, so it can still be decided",
+         %{agent: agent, owner: owner} do
+      set_key!(agent.key, requires_approval: true)
+      pending!(agent)
+      set_key!(agent.key, requires_approval: false)
+
+      document = sidebar(KeyTestSupport.scope_of(owner))
+
+      assert link_text(document) =~ "Approvals"
+      assert document |> LazyHTML.query(@link <> " .badge") |> LazyHTML.text() =~ "1"
     end
   end
 end
