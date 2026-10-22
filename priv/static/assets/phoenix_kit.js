@@ -5983,10 +5983,95 @@ if (typeof window.Chart === "undefined") {
     // The mode flip replaces the canvas (its id changes, so LiveView mounts
     // a fresh one) but patches this element in place — so the rail the eye
     // was on is gone and the new one has no eye until this runs.
+    // The burned picture and the live layer are the same drawing on two
+    // canvases of different extents: the burn spans the picture AND every
+    // bit of ink past its edges, the live canvas just the picture, with the
+    // ink drawn around it. Each opened on its own fit, so switching the
+    // pencil on or off moved the picture — left, right, left — whenever
+    // anything was drawn beside it. Instead the switch carries the view:
+    // where the picture-plus-ink frame sat on screen before the patch is
+    // where it sits after, zoom and all.
+    beforeUpdate() {
+      this._viewCarry = this._captureFrame();
+    },
+
     updated() {
       this._addModeButton();
       this._allowCopy();
       if (this.el.dataset.autoAnnotate === "true") this._armEtcher();
+      var carry = this._viewCarry;
+      this._viewCarry = null;
+      if (carry && carry.from !== this.el.dataset.frescoId) this._applyFrame(carry);
+    },
+
+    // The frame in a canvas's own units: a burn's whole extent; on the live
+    // layer the picture plus the ink, measured the way the burn measures
+    // it (`burnInkBounds`), so the two describe the same piece of drawing.
+    // Null for the clean picture, and for a turned view.
+    _frameOf(id) {
+      var handle = window.Fresco && window.Fresco.viewerFor && window.Fresco.viewerFor(id);
+      var host = document.getElementById(id);
+      if (!handle || !host || !handle.fitBounds || !handle.imageToScreen || !handle.screenToImage) return null;
+      if (handle.getRotation && handle.getRotation()) return null;
+      var W = parseFloat(host.dataset.canvasWidth), H = parseFloat(host.dataset.canvasHeight);
+      if (!(W > 0 && H > 0)) return null;
+      if (id.indexOf("media-burn-") === 0) return { handle: handle, x: 0, y: 0, w: W, h: H };
+      if (id.indexOf("media-zoom-") !== 0) return null;
+      var svg = host.querySelector(".etcher-overlay svg");
+      var b = svg
+        ? burnInkBounds(svg.querySelectorAll(".etcher-shape, .etcher-shape *"),
+            function(x, y) { return handle.screenToImage({ x: x, y: y }); }, W, H)
+        : { minX: 0, minY: 0, maxX: W, maxY: H };
+      return { handle: handle, x: b.minX, y: b.minY, w: b.maxX - b.minX, h: b.maxY - b.minY };
+    },
+
+    _captureFrame() {
+      var id = this.el.dataset.frescoId;
+      var f = id && this._frameOf(id);
+      if (!f) return null;
+      var a = f.handle.imageToScreen({ x: f.x, y: f.y });
+      var b = f.handle.imageToScreen({ x: f.x + f.w, y: f.y + f.h });
+      return { from: id, x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y };
+    },
+
+    // Put the new canvas's frame where the old one's was. Its own fit is
+    // kept off screen until then — the live layer's frame is only known
+    // once Etcher has drawn its shapes — and given up on after a moment.
+    _applyFrame(carry, tries) {
+      var self = this;
+      var id = this.el.dataset.frescoId;
+      var host = document.getElementById(id);
+      var left = tries == null ? 30 : tries;
+      if (!host) return;
+      if (left === 30) host.style.visibility = "hidden";
+      var reveal = function() { host.style.visibility = ""; };
+      var live = id.indexOf("media-zoom-") === 0;
+      var ready = window.Fresco && window.Fresco.viewerFor && window.Fresco.viewerFor(id) &&
+        (!live || (window.Etcher && window.Etcher.layerFor && window.Etcher.layerFor(id) &&
+                   host.querySelector(".etcher-overlay svg")));
+      if (!ready) {
+        if (left > 0) setTimeout(function() { self._applyFrame(carry, left - 1); }, 30);
+        else reveal();
+        return;
+      }
+      requestAnimationFrame(function() {
+        if (self.el.dataset.frescoId !== id) { reveal(); return; }
+        var f = self._frameOf(id);
+        if (f && f.w > 0 && f.h > 0 && carry.w > 0 && carry.h > 0) {
+          // The view as a rectangle of this canvas: the viewport, seen from
+          // the old frame, carried into the new one. Fitting it puts the
+          // frame exactly where it was.
+          var c = host.getBoundingClientRect();
+          var kx = f.w / carry.w, ky = f.h / carry.h;
+          f.handle.fitBounds({
+            x: f.x + (c.left - carry.x) * kx,
+            y: f.y + (c.top - carry.y) * ky,
+            width: c.width * kx,
+            height: c.height * ky
+          });
+        }
+        requestAnimationFrame(reveal);
+      });
     },
 
     // Right-click → Copy image, on the burned picture — and on the clean
