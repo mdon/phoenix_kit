@@ -118,7 +118,7 @@ automatic destructive repair, ever; repair is NOT a migration bridge (§6.4).
    seed has no conflict guard; V35 seeds via upsert. Repair needs the manifest, not chain re-runs.
 3. **Feature modules have no own chains** — all module DDL (catalogue/locations/warehouse/crm/
    staff/…, incl. V149) lives in core versions; the baseline covers module tables too.
-4. **One local consumer** (`/www/app`, Andi, verified at '147', no drift; 41 wrapper files —
+4. **One local consumer** (`/www/app`, the host app, verified at '147', no drift; 41 wrapper files —
    §5.3's regression surface, including real consumer-authored migrations that ALTER phoenix_kit
    tables, e.g. `20260402133000_phoenix_kit_catalogue_v013_base_price.exs`). docker1 numbers are
    operator-confirmed only and stale.
@@ -131,7 +131,7 @@ automatic destructive repair, ever; repair is NOT a migration bridge (§6.4).
    installs differ), because immediate-query guards see pre-flush state on single runs: fresh
    single-run chains RETAIN `users.preferred_locale` + index (V30's immediate guard misses V28's
    queued add — `v30.ex:91-105`) and BOTH V13+V22 duplicate partial unique indexes; upgraded
-   installs don't. Verified live: bimodality is real in the fleet (Andi's initial install was a
+   installs don't. Verified live: bimodality is real in the fleet (the local host app's initial install was a
    single multi-step run). Consequence: "byte-for-byte" needs the §5.1 `presence:` model and the
    S1 whitelist.
 
@@ -149,7 +149,7 @@ stragglers at ANY floor). Confirmation must be a **fresh reading at implementati
 
 | install | version | as of | status |
 |---|---|---|---|
-| Andi/MebelKit (local host app) | 160 | 2026-08-04 | verified live (obj_description) |
+| local host app | 160 | 2026-08-04 | verified live (obj_description) |
 
 Operator confirmed (2026-08-04): this one-row table IS the complete seamless-upgrade set — the
 external DEV/prod installs listed in the June task file are no longer in scope and their names
@@ -422,7 +422,7 @@ presence either way, unknown extra `phoenix_kit_*` objects, pending versions →
 Immediate `repo.query!/3` per statement, autocommit, no queued `execute`, no regclass casts.
 PgBouncer: detect pooled connections (doctor heuristic + `pg_backend_pid()` sampling), warn,
 require `--unsafe-pooled` (skips FK `VALIDATE` + advisory locking). Direct connection
-recommended/documented (Andi runtime rides `pgbouncer:6432`; repair targets 172.18.0.13:5432).
+recommended/documented (the local host app's runtime rides `pgbouncer:6432`; repair targets 172.18.0.13:5432).
 No `CREATE INDEX CONCURRENTLY` in v1. FKs added `NOT VALID` + `VALIDATE` (validation failure →
 leave NOT VALID, report orphan diagnostic).
 
@@ -557,7 +557,7 @@ test (§10 Q6).
 | S2 | Seed-data equivalence: dump seeded tables incl. **email templates** (tolerance: rows match when the seeder ran; absence allowed only in release-mode) | diff empty; note: repair-mode seed semantics intentionally differ from historical upserts (V35/V45 `DO UPDATE` → `DO NOTHING`) |
 | S3 | Existing-install upgrade from exactly `floor` and `floor+k` | deltas only; comment = current; row-count+checksum probes unchanged |
 | S4 | Below-floor guard: `up`/`down`/update-generation at `floor-1` | **specific `BelowFloorError`** (struct+message asserted; ensure_current variant carries the test-reset hint) |
-| S5 | Consumer wrapper replay: (i) Andi's real 41-file set; (ii) synthetic pinned chain `[27,50,120,current]`; (iii) **interleaved consumer migration touching a below-floor-shaped object** → documented, actionable failure; (iv) rollback→migrate round-trip incl. one interleaved consumer down → final state ≡ fresh setup; repair afterwards creates NO spurious columns; doctor flags the desync | as stated |
+| S5 | Consumer wrapper replay: (i) the local host app's real 41-file set; (ii) synthetic pinned chain `[27,50,120,current]`; (iii) **interleaved consumer migration touching a below-floor-shaped object** → documented, actionable failure; (iv) rollback→migrate round-trip incl. one interleaved consumer down → final state ≡ fresh setup; repair afterwards creates NO spurious columns; doctor flags the desync | as stated |
 | S6 | Baseline down to 0 (range + direct `V{floor}.down` split) + re-up; Oban teardown via `Oban.Migration.down`; shared extensions/functions survive | clean teardown, identical re-create |
 | S7 | Repair tamper matrix: drop each object class one at a time → repair | restored; dump diff empty; EXTRA objects untouched |
 | S8 | Repair idempotence: healthy DB, twice | empty plan ×2; byte-identical dumps |

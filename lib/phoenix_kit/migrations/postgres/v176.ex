@@ -4,7 +4,7 @@ defmodule PhoenixKit.Migrations.Postgres.V176 do
 
   ## Where this comes from
 
-  Andi's A002 checked its own premise before writing code: the cascade
+  A host application's A002 checked its own premise before writing code: the cascade
   `UUIDFKColumns.@fk_constraints` declares for
   `phoenix_kit_users_tokens.user_uuid` and
   `phoenix_kit_user_role_assignments.user_uuid` already exists and already

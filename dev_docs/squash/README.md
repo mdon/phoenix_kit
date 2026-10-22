@@ -67,7 +67,7 @@ code state — scenarios light up automatically as the P2/P3 artifacts land.
 
 **Reality (probed 2026-07-14, §8.1 / audit):** the only reachable server is
 PostgreSQL 17.4 at **172.18.0.13:5432** (direct), role
-`tim_dev_manager_andi_user` with **no CREATEDB** — the harness cannot create
+(the local host app's own DB user) with **no CREATEDB** — the harness cannot create
 databases and no scratch DB exists yet. Client tooling is ready
 (psql/pg_dump 17.10). Nothing DB-backed runs until the operator provides one
 of (ranked, §8.1):
