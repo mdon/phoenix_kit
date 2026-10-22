@@ -931,6 +931,64 @@ defmodule PhoenixKit.Modules.Languages do
   end
 
   @doc """
+  The locale segment a URL carries for `locale`.
+
+  URLs carry base codes (`/en/`). A full dialect appears in a URL only when it
+  is an enabled dialect that does not own its base's URLs — a sibling such as
+  `en-GB` next to an `en-US` that `/en/` already serves — and then as its
+  lowercase full code (`"en-gb"`), the shape publishing's sibling URLs use.
+  Every other dialect (its base's only or primary enabled dialect, or one that
+  is not enabled) maps to its base code. A code without a region is returned
+  unchanged.
+
+  A dialect owns its base's URLs when `/<base>/` resolves to it everywhere:
+  in core (the base's default dialect when enabled, otherwise the first
+  enabled one alphabetically — `PhoenixKitWeb.Users.Auth`'s active-dialect
+  rule) and in content (the primary language when it has this base,
+  otherwise the base's first enabled dialect by position). Where the two
+  disagree no dialect owns the base, and each keeps its own full-code URL.
+
+  ## Examples
+
+      # en-US is the only enabled English dialect
+      iex> PhoenixKit.Modules.Languages.url_locale_segment("en-US")
+      "en"
+
+      # en-US (primary) and en-GB are both enabled
+      iex> PhoenixKit.Modules.Languages.url_locale_segment("en-GB")
+      "en-gb"
+  """
+  @spec url_locale_segment(String.t()) :: String.t()
+  def url_locale_segment(locale) when is_binary(locale) do
+    if String.contains?(locale, "-") do
+      base = DialectMapper.extract_base(locale)
+      down = String.downcase(locale)
+
+      of_base =
+        Enum.filter(get_enabled_language_codes(), &(DialectMapper.extract_base(&1) == base))
+
+      case Enum.find(of_base, &(String.downcase(&1) == down)) do
+        nil -> base
+        dialect -> if owns_base_urls?(dialect, base, of_base), do: base, else: down
+      end
+    else
+      locale
+    end
+  end
+
+  # `of_base` is the base's enabled codes in position order.
+  defp owns_base_urls?(dialect, base, of_base) do
+    default = DialectMapper.resolve_dialect(base)
+    core_owner = if default in of_base, do: default, else: of_base |> Enum.sort() |> hd()
+
+    dialects = Enum.filter(of_base, &String.contains?(&1, "-"))
+    primary = configured_primary_language_code()
+    content_owner = if primary in dialects, do: primary, else: List.first(dialects)
+
+    dialect == core_owner and dialect == content_owner
+  end
+
+  @doc """
   Gets the legacy language preview list.
 
   Returns the configured languages if the module is enabled.
