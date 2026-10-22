@@ -9058,7 +9058,11 @@ if (typeof window.Chart === "undefined") {
     GALLERY_CHROME.map(function(sel) { return GALLERY_SCOPE + sel; }).join(",\n") +
     " { transition: opacity 120ms ease-out; }\n" +
     GALLERY_CHROME.map(function(sel) { return 'html[data-pk-gallery-chrome="hidden"] ' + GALLERY_SCOPE + sel; }).join(",\n") +
-    " { opacity: 0 !important; pointer-events: none !important; }";
+    " { opacity: 0 !important; pointer-events: none !important; }\n" +
+    // Under a frozen copy (ViewerGallery `_freezeChrome`) the real controls
+    // are rebuilding; they stay out of sight until the copy goes.
+    'html[data-pk-chrome-frozen] ' + GALLERY_SCOPE + '.fresco-viewer .fresco-nav, ' +
+    'html[data-pk-chrome-frozen] ' + GALLERY_SCOPE + '.fresco-viewer .fresco-zoom { visibility: hidden !important; }';
   var GALLERY_TAP_SLOP = 10;      // px a tap may wander
   var GALLERY_TAP_MS = 350;       // longer is a press, not a tap
   var GALLERY_DOUBLE_TAP_MS = 300; // a second tap this soon is a double-tap (zoom)
@@ -9131,6 +9135,10 @@ if (typeof window.Chart === "undefined") {
           return !h || !h.isAtHome || h.isAtHome();
         },
         getCurrentRect: currentRect,
+        // The strip is drawn over the whole viewer, controls and all; still
+        // copies of the controls ride above it (see `_freezeChrome`).
+        onShow: function() { self._freezeChrome(); },
+        onHide: function() { self._thawChrome(); },
         onChange: function(_i, item) {
           // Only once the strip has been still a moment: the viewer's
           // re-render (Fresco, Etcher, Tessera mounting) is heavy main-thread
@@ -9246,7 +9254,7 @@ if (typeof window.Chart === "undefined") {
         if (self._tapTimer) { clearTimeout(self._tapTimer); self._tapTimer = null; return; } // the double-tap's second
         var root = document.documentElement;
         if (root.getAttribute("data-pk-gallery-chrome") === "hidden") root.removeAttribute("data-pk-gallery-chrome");
-        else root.setAttribute("data-pk-gallery-chrome", "hidden");
+        else { root.setAttribute("data-pk-gallery-chrome", "hidden"); self._dropFrozenChrome(); }
         self._tapTimer = setTimeout(function() { self._tapTimer = null; }, GALLERY_DOUBLE_TAP_MS);
       };
       document.addEventListener("pointerdown", self._onTapDown, true);
@@ -9263,7 +9271,110 @@ if (typeof window.Chart === "undefined") {
       if (this._load) this._load();
     },
 
+    // The controls stay put while the picture under them changes, as in
+    // Photos. The strip is drawn above the whole viewer while it runs —
+    // over the toolbar, the zoom pill, the side tabs — and the next file's
+    // canvas then builds a new toolbar of its own (briefly a different one:
+    // the whole row before its overflow folds, the zoom pill empty). Both
+    // read as the controls vanishing for a second and coming back. So from
+    // the moment the strip shows, still copies of the controls sit above
+    // it, exactly where the real ones are; they go once the strip has gone
+    // and the new canvas's controls have settled underneath. A press goes
+    // through them (and through the strip) to the real controls.
+    _freezeChrome() {
+      if (this._frozen) { this._frozen.thawing = false; return; }
+      var modal = this._modal;
+      var layer = document.getElementById(this.el.id + "-layer");
+      if (!modal || !layer) return;
+      if (document.documentElement.getAttribute("data-pk-gallery-chrome") === "hidden") return;
+      var canvas = modal.querySelector('[phx-hook="FrescoCanvas"]');
+      var picks = [];
+      if (canvas) {
+        picks = picks.concat(Array.prototype.slice.call(
+          canvas.querySelectorAll(".fresco-nav:not(.fresco-nav-overflow), .fresco-zoom")));
+      }
+      picks = picks.concat(Array.prototype.slice.call(modal.querySelectorAll(
+        'button[phx-click="close_viewer"], button[phx-click="toggle_viewer_sidebar"], button[phx-value-dir]')));
+      var vars = canvas ? window.getComputedStyle(canvas) : null;
+      var copies = [];
+      picks.forEach(function(el) {
+        if (!el.offsetParent) return;
+        var r = el.getBoundingClientRect();
+        if (!(r.width > 0 && r.height > 0)) return;
+        var copy = el.cloneNode(true);
+        [copy].concat(Array.prototype.slice.call(copy.querySelectorAll("*"))).forEach(function(n) {
+          Array.prototype.slice.call(n.attributes).forEach(function(at) {
+            if (at.name === "id" || at.name.indexOf("phx-") === 0) n.removeAttribute(at.name);
+          });
+        });
+        if (vars && canvas.contains(el)) {
+          for (var k = 0; k < vars.length; k++) {
+            if (vars[k].indexOf("--") === 0) copy.style.setProperty(vars[k], vars.getPropertyValue(vars[k]));
+          }
+        }
+        var st = copy.style;
+        st.position = "fixed";
+        st.left = r.left + "px"; st.top = r.top + "px";
+        st.right = "auto"; st.bottom = "auto";
+        st.width = r.width + "px"; st.height = r.height + "px";
+        st.margin = "0"; st.transform = "none"; st.translate = "none";
+        st.maxWidth = "none"; st.maxHeight = "none";
+        st.zIndex = "1002";
+        st.pointerEvents = "none";
+        st.transition = "none";
+        st.opacity = window.getComputedStyle(el).opacity;
+        copy.setAttribute("aria-hidden", "true");
+        copy.setAttribute("data-pk-frozen-chrome", "");
+        layer.appendChild(copy);
+        copies.push(copy);
+      });
+      if (!copies.length) return;
+      this._frozen = { els: copies, thawing: false };
+      document.documentElement.setAttribute("data-pk-chrome-frozen", "");
+    },
+
+    // The strip has gone: drop the copies once the canvas on screen is the
+    // picture the strip ended on and its controls have held still a few
+    // frames (or straight away when the swipe went back where it started).
+    _thawChrome() {
+      var self = this;
+      var st = this._frozen;
+      if (!st) return;
+      st.thawing = true;
+      var key = this._gallery && this._gallery.currentKey && this._gallery.currentKey();
+      var started = Date.now(), seenAt = 0, lastSig = "", steady = 0;
+      var tick = function() {
+        if (self._frozen !== st || !st.thawing) return;
+        var c = self._modal && self._modal.querySelector('[phx-hook="FrescoCanvas"]');
+        var hidden = document.documentElement.getAttribute("data-pk-gallery-chrome") === "hidden";
+        var done = hidden || !key || Date.now() - started > 5000;
+        if (!done && c && c.id.indexOf(key) !== -1) {
+          var nav = c.querySelector(".fresco-nav:not(.fresco-nav-overflow)");
+          var zoom = c.querySelector(".fresco-zoom");
+          var sig = nav ? nav.querySelectorAll("button:not([hidden])").length + "|" +
+            (zoom ? zoom.textContent : "") + "|" + Math.round(nav.getBoundingClientRect().width) : "";
+          if (sig && (!zoom || zoom.textContent)) {
+            if (!seenAt) seenAt = Date.now();
+            steady = sig === lastSig ? steady + 1 : 0;
+            lastSig = sig;
+            done = steady >= 6 && Date.now() - seenAt > 150;
+          }
+        }
+        if (done) self._dropFrozenChrome();
+        else requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    },
+
+    _dropFrozenChrome() {
+      var st = this._frozen;
+      this._frozen = null;
+      document.documentElement.removeAttribute("data-pk-chrome-frozen");
+      if (st) st.els.forEach(function(el) { if (el.parentNode) el.parentNode.removeChild(el); });
+    },
+
     destroyed() {
+      this._dropFrozenChrome();
       clearTimeout(this._goTimer);
       clearInterval(this._watch);
       if (this._onKey) window.removeEventListener("keydown", this._onKey, true);
