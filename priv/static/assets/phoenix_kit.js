@@ -9016,8 +9016,11 @@ if (typeof window.Chart === "undefined") {
         var dir = e.detail && e.detail.direction === "left" ? "next" : "prev";
         if (self.el.dataset[dir === "next" ? "hasNext" : "hasPrev"] !== "true") return;
         if (self._pane.querySelector(".etcher-pencil-active")) return;
-        // Gallery mode slides between pictures itself (ViewerGallery).
-        if (document.querySelector('[phx-hook="ViewerGallery"]')) return;
+        // Gallery mode slides between pictures itself (ViewerGallery) — but
+        // only where Fresco.gallery exists; a host still on an older fresco.js
+        // mounts no gallery, and the swipe keeps stepping the viewer.
+        if (window.Fresco && window.Fresco.gallery &&
+            document.querySelector('[phx-hook="ViewerGallery"]')) return;
         self.pushEventTo(self.el.dataset.target, "step_viewer", { dir: dir });
       };
       if (this._pane) this._pane.addEventListener("fresco:swipe", this._onSwipe);
