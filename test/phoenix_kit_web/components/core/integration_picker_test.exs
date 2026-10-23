@@ -69,6 +69,72 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationPickerTest do
     end
   end
 
+  # The class attribute split into its classes: a substring match passes even when two
+  # classes are glued together ("h-5text-base-content/20"), which the browser ignores.
+  defp classes_of(html, selector) do
+    html
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.query(selector)
+    |> LazyHTML.attribute("class")
+    |> Enum.flat_map(&String.split/1)
+  end
+
+  describe "class lists" do
+    test "an unselected card's check has its size and the ghost colour as separate classes" do
+      conn = conn_fixture(uuid: "01900000-0000-7000-8000-000000000003")
+      assigns = %{conns: [conn], selected: []}
+
+      html =
+        rendered_to_string(~H"""
+        <.integration_picker id="picker" connections={@conns} selected={@selected} on_select="x" />
+        """)
+
+      classes = classes_of(html, ".hero-check-circle-solid")
+
+      assert "w-5" in classes
+      assert "h-5" in classes
+      assert "text-base-content/20" in classes
+      refute "text-primary" in classes
+    end
+
+    test "a selected card's check has its size and the primary colour as separate classes" do
+      conn = conn_fixture(uuid: "01900000-0000-7000-8000-000000000004")
+      assigns = %{conns: [conn], selected: ["01900000-0000-7000-8000-000000000004"]}
+
+      html =
+        rendered_to_string(~H"""
+        <.integration_picker id="picker" connections={@conns} selected={@selected} on_select="x" />
+        """)
+
+      classes = classes_of(html, ".hero-check-circle-solid")
+
+      assert "h-5" in classes
+      assert "text-primary" in classes
+      refute "text-base-content/20" in classes
+    end
+
+    test "the status badge keeps its loading rule and its colour as separate classes" do
+      for {status, colour} <- [
+            {"connected", "badge-success"},
+            {"error", "badge-error"},
+            {"configured", "badge-warning"},
+            {"disconnected", "badge-ghost"}
+          ] do
+        assigns = %{conns: [conn_fixture(data: %{"status" => status})]}
+
+        html =
+          rendered_to_string(~H"""
+          <.integration_picker id="p" connections={@conns} on_select="x" />
+          """)
+
+        classes = classes_of(html, ~s(span.badge[class*="phx-click-loading"]))
+
+        assert "phx-click-loading:hidden" in classes, status
+        assert colour in classes, status
+      end
+    end
+  end
+
   # ===========================================================================
   # Subtitle priority: external_account_id → masked credential → empty
   # ===========================================================================
