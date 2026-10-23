@@ -345,7 +345,7 @@ defmodule PhoenixKitWeb.Live.Settings.ApiGuideTest do
 
       assert has_element?(
                view,
-               ~s(#guide-approvals-link[href="#{Routes.path("/admin/settings/api/approvals")}"])
+               ~s(#guide-approvals-link[href="#{Routes.path("/admin/approvals")}"])
              )
     end
 

@@ -22,8 +22,8 @@ This guide describes what exists in core: REST, MCP and the generated OpenAPI do
 | Paths | `PhoenixKit.API.Paths` | The one table of API paths; the router and the body guard both read it |
 | Legacy | `PhoenixKit.API.Legacy` | Every deprecated name (paths, settings keys, error codes), deleted in 3.0.0; see "Deprecated aliases" |
 | Body guard | `PhoenixKit.API.BodyGuard` | Endpoint plug before `Plug.Parsers`: 2 MB limit, JSON errors as problem+json (JSON-RPC parse errors on `/mcp/*`) |
-| Admin page | `PhoenixKitWeb.Live.Settings.Api` | Switches, keys, service users, limits and advanced (route `/admin/settings/api`) |
-| Admin guide | `PhoenixKitWeb.Live.Settings.ApiGuide` | Read-only "how to connect" page generated from the registry: endpoints, client snippets, tools by module, errors (route `/admin/settings/api/guide`, permission `api`) |
+| Admin page | `PhoenixKitWeb.Live.Settings.Api` | Four tabs held in the URL (`?tab=access\|keys\|approvals\|guide`): switches and modules, keys and service users, approvals and limits, the guide (route `/admin/settings/api`) |
+| Admin guide | `PhoenixKitWeb.Live.Settings.ApiGuidePanel` | Read-only "how to connect" tab (`/admin/settings/api?tab=guide`, permission `api`), built when the tab is opened from the registry: endpoints, client snippets, tools by module, errors. `ApiGuide` is only the redirect of the retired `/admin/settings/api/guide` |
 
 ## Switching it on
 
@@ -297,7 +297,7 @@ A request without an `Origin` header (every client that is not a browser) passes
 
 ### Connecting a client
 
-An MCP client that lets you set a request header for a remote server takes the key as `Authorization: Bearer <key>` and the endpoint URL `https://<host>/mcp/admin` (or `/mcp/public` without a key). Settings -> API -> Guide (`/admin/settings/api/guide`) shows the ready-made lines for this site, with the placeholder `<your key>`:
+An MCP client that lets you set a request header for a remote server takes the key as `Authorization: Bearer <key>` and the endpoint URL `https://<host>/mcp/admin` (or `/mcp/public` without a key). Settings -> API -> API guide tab (`/admin/settings/api?tab=guide`) shows the ready-made lines for this site, with the placeholder `<your key>`:
 
 ```sh
 claude mcp add --transport http <name>-admin 'https://<host>/mcp/admin' --header 'Authorization: Bearer <your key>'
