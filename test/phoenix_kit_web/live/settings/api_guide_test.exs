@@ -1,8 +1,8 @@
 defmodule PhoenixKitWeb.Live.Settings.ApiGuideTest do
   @moduledoc """
-  Settings -> API -> Guide: who may open it, what it says about the endpoints, the
-  client snippets (decoded, not matched as text, so a broken file shows), the tools
-  grouped by module, and the table of errors.
+  Settings -> API, the guide tab (`?tab=guide`): who may open it, what it says
+  about the endpoints, the client snippets (decoded, not matched as text, so a
+  broken file shows), the tools grouped by module, and the table of errors.
   """
   use PhoenixKitWeb.ConnCase, async: false
 
@@ -18,7 +18,7 @@ defmodule PhoenixKitWeb.Live.Settings.ApiGuideTest do
   alias PhoenixKit.Users.Roles
   alias PhoenixKit.Utils.Routes
 
-  @path Routes.path("/admin/settings/api/guide")
+  @path Routes.path("/admin/settings/api?tab=guide")
 
   setup %{conn: conn} do
     ApiFlowHarness.setup_flow()
@@ -66,11 +66,10 @@ defmodule PhoenixKitWeb.Live.Settings.ApiGuideTest do
   end
 
   describe "Settings -> API" do
-    test "links to the guide", %{conn: conn} do
+    test "has the guide as a tab", %{conn: conn} do
       {:ok, view, _html} = live(conn, Routes.path("/admin/settings/api"))
 
-      assert has_element?(view, "#api-guide-card")
-      assert has_element?(view, ~s(#api-guide-link[href="#{@path}"]))
+      assert has_element?(view, ~s([role="tablist"] [role="tab"][href="#{@path}"]), "API guide")
     end
   end
 
@@ -176,9 +175,9 @@ defmodule PhoenixKitWeb.Live.Settings.ApiGuideTest do
       assert token =~ ~r/\Apk_#{key.prefix}_/
 
       {:ok, view, _html} = live(conn, @path)
-      html = render(view)
+      html = view |> element("#api-tab-guide") |> render()
 
-      assert has_element?(view, "#guide-key-warning")
+      assert has_element?(view, "#api-tab-guide #guide-key-warning")
       refute html =~ token
       refute html =~ key.prefix
       refute html =~ ~r/\bpk_[0-9a-f]{8}_/
