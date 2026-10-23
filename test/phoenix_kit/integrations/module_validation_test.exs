@@ -29,6 +29,9 @@ defmodule PhoenixKit.Integrations.ModuleValidationTest do
     def validate_connection(%{"api_key" => "odd"}), do: :perhaps
     def validate_connection(%{"api_key" => "raises"}), do: raise("boom")
     def validate_connection(%{"api_key" => "throws"}), do: throw(:boom)
+    def validate_connection(%{"api_key" => "exits"}), do: exit(:boom)
+    def validate_connection(%{"api_key" => "string_keys"}), do: {:ok, %{"fact" => "Account Acme"}}
+    def validate_connection(%{"api_key" => "struct_note"}), do: {:ok, %URI{path: "x"}}
     def validate_connection(%{"api_key" => "hangs"}), do: Process.sleep(:infinity)
     def validate_connection(%{"api_key" => "empty_ok"}), do: {:ok, ""}
     def validate_connection(%{"api_key" => "empty_note"}), do: {:ok, %{}}
@@ -151,10 +154,12 @@ defmodule PhoenixKit.Integrations.ModuleValidationTest do
         capture_log(fn ->
           assert check("raises") == {:error, "Validation failed unexpectedly"}
           assert check("throws") == {:error, "Validation failed unexpectedly"}
+          assert check("exits") == {:error, "Validation failed unexpectedly"}
         end)
 
       assert log =~ "#{inspect(Checker)}.validate_connection/1 failed with ** (RuntimeError)"
-      assert log =~ "failed with a throw"
+      assert log =~ "failed with an uncaught throw"
+      assert log =~ "failed with an uncaught exit"
     end
 
     test "a module that never answers is cut off at the deadline" do
@@ -191,10 +196,12 @@ defmodule PhoenixKit.Integrations.ModuleValidationTest do
       assert check("empty_note") == {:ok, %{}}
     end
 
-    test "a note whose fact is not text is an unexpected answer" do
+    test "a note that is not a plain map of text under :fact and :reading is an unexpected answer" do
       capture_log(fn ->
-        assert {:error, message} = check("bad_note")
-        assert message =~ "unexpected"
+        for key <- ["bad_note", "string_keys", "struct_note"] do
+          assert {:error, message} = check(key)
+          assert message =~ "unexpected"
+        end
       end)
     end
 

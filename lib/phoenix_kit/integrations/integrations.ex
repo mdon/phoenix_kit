@@ -1245,7 +1245,7 @@ defmodule PhoenixKit.Integrations do
       rescue
         error -> module_check_failed(module, "with #{LogSafe.exception_label(error)}")
       catch
-        kind, _reason -> module_check_failed(module, "with a #{kind}")
+        kind, _reason -> module_check_failed(module, "with an uncaught #{kind}")
       end
     end
   end
@@ -1273,16 +1273,19 @@ defmodule PhoenixKit.Integrations do
   defp module_verdict({:ok, note}) when is_binary(note), do: {:ok, note}
 
   defp module_verdict({:ok, %{} = note} = verdict) do
-    note = Map.take(note, [:fact, :reading])
-
-    if note |> Map.values() |> Enum.all?(&is_binary/1),
-      do: {:ok, note},
-      else: unexpected_verdict(verdict)
+    if note?(note), do: {:ok, note}, else: unexpected_verdict(verdict)
   end
 
   defp module_verdict({:error, message}) when is_binary(message), do: {:error, message}
   defp module_verdict({:inconclusive, message}) when is_binary(message), do: {:error, message}
   defp module_verdict(other), do: unexpected_verdict(other)
+
+  # `Probe.note/0`: a plain map of `:fact` and `:reading` strings. A struct or
+  # string keys are a module author's slip, reported rather than dropped.
+  defp note?(%_{}), do: false
+
+  defp note?(note),
+    do: Enum.all?(note, fn {key, value} -> key in [:fact, :reading] and is_binary(value) end)
 
   defp unexpected_verdict(other) do
     Logger.warning("[Integrations] a module's connection check answered #{LogSafe.shape(other)}")
