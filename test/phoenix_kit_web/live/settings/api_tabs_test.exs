@@ -171,6 +171,32 @@ defmodule PhoenixKitWeb.Live.Settings.ApiTabsTest do
     end
   end
 
+  describe "a role that holds only api" do
+    setup do
+      {user, role} = KeyTestSupport.user_with([])
+      assert Permissions.get_permissions_for_role(role.uuid) == ["api"]
+
+      %{api_conn: log_in_user(build_conn(), user)}
+    end
+
+    test "opens every tab with its cards", %{api_conn: conn} do
+      for {tab, cards} <- @panes do
+        assert {:ok, view, _html} = live(conn, tab_path(tab)), "?tab=#{tab} is refused"
+        assert_only_visible(view, tab)
+        for card <- cards, do: assert(has_element?(view, "#api-tab-#{tab} ##{card}"))
+      end
+    end
+
+    test "follows the old guide address to the guide tab", %{api_conn: conn} do
+      assert {:error, {:live_redirect, %{to: to}}} =
+               live(conn, Routes.path("/admin/settings/api/guide"))
+
+      assert to == tab_path("guide")
+      assert {:ok, view, _html} = live(conn, to)
+      assert_only_visible(view, "guide")
+    end
+  end
+
   describe "the old guide address" do
     test "opens the guide tab", %{conn: conn} do
       assert {:error, {:live_redirect, %{to: to}}} =
