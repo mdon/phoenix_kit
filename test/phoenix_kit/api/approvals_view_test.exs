@@ -195,6 +195,29 @@ defmodule PhoenixKit.API.Approvals.ViewTest do
       end
     end
 
+    test "the path and message share the code-point limit and preserve technical details" do
+      for {path, message, expected, cut?} <- [
+            {String.duplicate("😀", 150), String.duplicate("😀", 8),
+             String.duplicate("😀", 150) <> ": " <> String.duplicate("😀", 8), false},
+            {String.duplicate("😀", 150), String.duplicate("😀", 9),
+             String.duplicate("😀", 150) <> ": " <> String.duplicate("😀", 7) <> "…", true},
+            {"a" <> String.duplicate("\u0301", 200_000), "bad",
+             "a" <> String.duplicate("\u0301", 158) <> "…", true}
+          ] do
+        error = %{
+          "message" => "Failed.",
+          "context" => %{"errors" => [%{"path" => path, "message" => message}]}
+        }
+
+        preview = %{"rows" => [%{"ref" => "a", "error" => error}]}
+        view = View.preview(preview)
+
+        assert [%{error_reasons: [^expected]}] = view.rows
+        assert String.valid?(expected)
+        assert view.technical == if(cut?, do: preview, else: nil)
+      end
+    end
+
     test "message and detail are both shown, the message first" do
       error = %{"message" => "The product could not be saved.", "detail" => "Try again later."}
       view = View.preview(%{"rows" => [%{"ref" => "a", "error" => error}]})

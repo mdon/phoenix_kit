@@ -984,7 +984,7 @@ defmodule PhoenixKit.Integrations do
             cond do
               is_nil(provider) -> {:error, gettext("Unknown provider")}
               not has_credentials?(data) -> {:error, gettext("Not configured")}
-              true -> do_validate(provider, data, owner: Keyword.get(opts, :owner, :system))
+              true -> do_validate(provider, data, owner: owner_of(data))
             end
 
           {inner, base_provider, name}
@@ -1130,19 +1130,18 @@ defmodule PhoenixKit.Integrations do
   defp do_validate(%{auth_type: :credentials, validation: %{strategy: :smtp}}, data, opts),
     do: Validators.smtp(data, opts)
 
-  defp do_validate(provider, data, _opts), do: do_validate(provider, data)
-
   # A provider that another module contributes cannot add a named strategy
   # here, so it names a module to ask instead — see
   # `PhoenixKit.Integrations.Validator`. Ahead of the auth-type clauses: the
   # module knows how its service is checked, whatever the auth type.
-  defp do_validate(%{validation: %{strategy: :module} = validation} = provider, data) do
+  defp do_validate(%{validation: %{strategy: :module} = validation} = provider, data, opts) do
     module = Map.get(validation, :module)
+    arity = module_check_arity(module)
 
     cond do
-      not module_check?(module) ->
+      is_nil(arity) ->
         Logger.warning(
-          "[Integrations] #{inspect(module)} has no validate_connection/1 " <>
+          "[Integrations] #{inspect(module)} has no validate_connection/1 or /2 " <>
             "(provider #{inspect(provider[:key])}); connection left unverified"
         )
 
@@ -1152,9 +1151,14 @@ defmodule PhoenixKit.Integrations do
         {:error, gettext("No credentials configured")}
 
       true ->
-        module |> module_check(data) |> Probe.run() |> module_verdict()
+        module |> module_check(arity, data, opts) |> Probe.run() |> module_verdict()
     end
   end
+
+  defp do_validate(provider, data, _opts), do: do_validate(provider, data)
+
+  defp do_validate(%{validation: %{strategy: :module}} = provider, data),
+    do: do_validate(provider, data, owner: owner_of(data))
 
   defp do_validate(%{auth_type: :oauth2} = provider, data) do
     token = data["access_token"]
@@ -1177,9 +1181,8 @@ defmodule PhoenixKit.Integrations do
   defp do_validate(%{auth_type: :key_secret, validation: %{strategy: :aws_ses}}, data),
     do: Validators.aws_ses(data)
 
-  # Reached without the caller's owner (`validate_connection_without_logging/2`):
-  # a saved personal row still carries its `owner_uuid`, which is what makes
-  # `SmtpEndpointPolicy` treat it as personal.
+  # Direct /2 checks have no caller options; a saved personal row still carries
+  # its `owner_uuid`, which makes `SmtpEndpointPolicy` treat it as personal.
   defp do_validate(%{auth_type: :credentials, validation: %{strategy: :smtp}}, data),
     do: Validators.smtp(data, owner: :system)
 
@@ -1229,29 +1232,38 @@ defmodule PhoenixKit.Integrations do
     def __do_validate__(provider, data), do: do_validate(provider, data)
   end
 
-  defp module_check?(module) do
-    is_atom(module) and Code.ensure_loaded?(module) and
-      function_exported?(module, :validate_connection, 1)
+  defp module_check_arity(module) do
+    if is_atom(module) and Code.ensure_loaded?(module) do
+      cond do
+        function_exported?(module, :validate_connection, 2) -> 2
+        function_exported?(module, :validate_connection, 1) -> 1
+        true -> nil
+      end
+    end
   end
 
   # The module is a stranger to this code: the data it is handed holds the
   # credentials, and a blamed `FunctionClauseError` (or its crash report)
   # prints the arguments of the call. So nothing is left to crash — the
   # exception is caught here and only its label reaches the log.
-  defp module_check(module, data) do
+  defp module_check(module, arity, data, opts) do
     fn ->
       try do
-        module.validate_connection(data)
+        args = if arity == 2, do: [data, opts], else: [data]
+        apply(module, :validate_connection, args)
       rescue
-        error -> module_check_failed(module, "with #{LogSafe.exception_label(error)}")
+        error -> module_check_failed(module, arity, "with #{LogSafe.exception_label(error)}")
       catch
-        kind, _reason -> module_check_failed(module, "with an uncaught #{kind}")
+        kind, _reason -> module_check_failed(module, arity, "with an uncaught #{kind}")
       end
     end
   end
 
-  defp module_check_failed(module, what) do
-    Logger.warning("[Integrations] #{inspect(module)}.validate_connection/1 failed #{what}")
+  defp module_check_failed(module, arity, what) do
+    Logger.warning(
+      "[Integrations] #{inspect(module)}.validate_connection/#{arity} failed #{what}"
+    )
+
     {:error, gettext("Validation failed unexpectedly")}
   end
 
@@ -1263,7 +1275,7 @@ defmodule PhoenixKit.Integrations do
     provider
     |> Providers.setup_fields(data)
     |> Enum.filter(&Map.get(&1, :required, false))
-    |> Enum.all?(&present?(Map.get(data, &1.key)))
+    |> Enum.all?(&field_present?(Map.get(data, &1.key)))
   end
 
   # What a module's check may answer is `PhoenixKit.Integrations.Validator`'s
@@ -1374,7 +1386,7 @@ defmodule PhoenixKit.Integrations do
 
           provider ->
             if has_credentials?(data),
-              do: do_validate(provider, data),
+              do: do_validate(provider, data, owner: owner_of(data)),
               else: {:error, gettext("Not configured")}
         end
 
