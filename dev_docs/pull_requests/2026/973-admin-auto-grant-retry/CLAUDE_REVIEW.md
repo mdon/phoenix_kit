@@ -20,6 +20,9 @@ report; opt-in keys stay un-granted at both chokepoints; `Dashboard.Registry.han
 - **BUG - MEDIUM (fixed):** `mix precommit` fails on this merge: dialyzer `pattern_match_cov` at `permissions.ex` (`flag_not_saved/1`'s fallback clause can never
   match, `Settings.update_setting/2,3` returns only `{:ok, _}` or `{:error, _}`). `save_flag/1` now has one `{:error, reason}` clause (re-read the flag row,
   else `{:flag_not_saved, reason}`) and `flag_not_saved/1` is gone. Behaviour for both reachable outcomes is unchanged; `admin_grants_test` green.
+- **IMPROVEMENT - MEDIUM (fixed):** `AdminGrantsNoOwnerTest` failed about one run in four (seed dependent): without its own pool mode it inherited a shared
+  owner an earlier test had left, so the lookup exited (`owner exited`) instead of raising `OwnershipError`, and `{:no_owner, _}` never matched. It now sets
+  the sandbox to `:manual` in `setup`; eight consecutive green runs.
 - **NITPICK (not changed):** `handle_continue(:sweep)` can hold the server for up to 30 s on the registry wait, during which `report_failure/2` casts only
   queue. Harmless (they are evaluated afterwards), but `await/2` with the default 5 s timeout returns `{:error, :timeout}` for a registry that is merely slow.
   The docs already say the retries take about 63 s.
