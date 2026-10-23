@@ -148,6 +148,17 @@ defmodule PhoenixKit.API.MCPTransportTest do
       conn = post_rpc(:admin, message(String.duplicate("m", 5_000)), token: token)
       assert String.length(error(conn)["message"]) < 200
     end
+
+    test "a method name is clipped by code points, not graphemes", %{token: token} do
+      # One letter and 200000 combining marks is a single grapheme.
+      method = "a" <> String.duplicate("\u0301", 200_000)
+      conn = post_rpc(:admin, message(method), token: token)
+
+      assert %{"code" => -32_601, "message" => "Method not found: " <> echoed} = error(conn)
+      # 80 code points of the name, then the closing dot.
+      assert String.length(echoed) == 2
+      assert length(String.to_charlist(echoed)) == 81
+    end
   end
 
   describe "messages that get no answer" do
@@ -269,6 +280,19 @@ defmodule PhoenixKit.API.MCPTransportTest do
       assert %{"id" => 5, "error" => %{"code" => -32_600, "message" => text}} = json(conn)
       assert text =~ "1999-01-01"
       assert text =~ "2025-06-18"
+    end
+
+    test "an unsupported value is clipped by code points, not graphemes", %{token: token} do
+      # One letter and 8000 combining marks is a single grapheme.
+      version = "a" <> String.duplicate("\u0301", 8_000)
+      headers = [{"accept", "application/json"}, {"mcp-protocol-version", version}]
+      conn = post_rpc(:admin, message("ping", nil, 5), token: token, headers: headers)
+
+      assert conn.status == 400
+      assert %{"error" => %{"message" => text}} = json(conn)
+      assert text =~ "Unsupported MCP-Protocol-Version"
+      # 40 code points of the value, not the whole header.
+      assert String.length(text) < 400
     end
 
     test "two values are 400", %{token: token} do

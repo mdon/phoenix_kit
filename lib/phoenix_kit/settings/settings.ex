@@ -193,6 +193,7 @@ defmodule PhoenixKit.Settings do
     week_start_day
     time_zone
     date_format
+    format_country
     time_format
     editor_default_mode
     track_registration_geolocation
@@ -339,6 +340,9 @@ defmodule PhoenixKit.Settings do
       "week_start_day" => "1",
       "time_zone" => "0",
       "date_format" => "Y-m-d",
+      # Site default country for date formats (PhoenixKit.Users.FormatCountry).
+      # Blank = none: a viewer with no country of their own sees `date_format`.
+      "format_country" => "",
       "time_format" => "H:i",
       # Content editor (Leaf): default mode for every editor the kit renders
       "editor_default_mode" => "hybrid",
@@ -2339,6 +2343,13 @@ defmodule PhoenixKit.Settings do
       (changeset.params || %{})
       |> Enum.map(fn {k, v} ->
         key = to_string(k)
+        # Country codes are canonicalized by SettingsForm. Persist that value,
+        # while still writing only keys this form submitted.
+        v =
+          if key == "format_country",
+            do: Ecto.Changeset.get_field(changeset, :format_country),
+            else: v
+
         # Use default value if nil or empty string
         value = if is_nil(v) or v == "", do: Map.get(defaults, key, ""), else: v
         {key, value}

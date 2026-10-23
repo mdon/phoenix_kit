@@ -55,10 +55,12 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.AvatarCrop
   alias PhoenixKit.Users.CustomFields
+  alias PhoenixKit.Users.FormatCountry
   alias PhoenixKit.Users.LoginAttempts
   alias PhoenixKit.Users.OAuth
   alias PhoenixKit.Users.OAuthAvailability
   alias PhoenixKit.Users.Sessions
+  alias PhoenixKit.Utils.CountryData
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
   alias PhoenixKit.Utils.TimeZone
@@ -177,6 +179,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
           | TimeZone.options(selected: user.user_timezone)
         ]
       )
+      |> assign_new(:country_options, fn -> CountryData.countries_for_select() end)
       |> assign_new(:browser_timezone_name, fn -> nil end)
       |> assign_new(:browser_timezone_offset, fn -> nil end)
       |> assign_new(:timezone_mismatch_warning, fn -> nil end)
@@ -374,9 +377,13 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
       {:ok, updated_user} ->
         send(self(), {:phoenix_kit_user_updated, updated_user})
 
+        # Dates on the page read by the new country from this render on.
+        FormatCountry.put_viewer(updated_user)
+
         socket =
           socket
           |> assign(:user, updated_user)
+          |> assign(:profile_form, to_form(Auth.change_user_profile(updated_user)))
           |> assign(:profile_success_message, gettext("Profile updated successfully"))
 
         {:noreply, socket}
@@ -1211,6 +1218,19 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
                     {gettext("Browser detected: %{zone}", zone: @browser_timezone_name)}
                   </div>
                 <% end %>
+              </div>
+
+              <%!-- Country. Decides how dates are written for this account. --%>
+              <div>
+                <.select
+                  field={@profile_form[:country]}
+                  label={gettext("Country")}
+                  prompt={gettext("— Not set —")}
+                  options={@country_options}
+                />
+                <div class="text-xs text-base-content/60 mt-1">
+                  {gettext("Dates are written the way your country does.")}
+                </div>
               </div>
 
               <%!-- Google address. Separate from the sign-in email on purpose: --%>

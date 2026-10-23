@@ -7,7 +7,18 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V220 - The dangerous-operation flow of the shop API ⚡ LATEST
+  ### V222 - Confirmations of a live session ⚡ LATEST
+
+  `phoenix_kit_api_confirmations.actor_user_uuid` (foreign key to the users, deleted with
+  the user) binds a confirmation to the person whose live session asked for the write; the
+  actor CHECK accepts it, and `(actor_user_uuid, status)` is indexed. No row is created.
+
+  ### V221 - A country on the user
+
+  `phoenix_kit_users.country` (`varchar(2)`, nullable): the ISO 3166-1 alpha-2
+  code that decides how dates are written for that account. Nothing is backfilled.
+
+  ### V220 - The dangerous-operation flow of the shop API
 
   `phoenix_kit_api_confirmations`: confirmation codes and approval requests of
   dangerous API operations (arguments, preview, status, who decided).
@@ -1003,7 +1014,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 220
+  @current_version 222
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

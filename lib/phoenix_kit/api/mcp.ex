@@ -224,7 +224,7 @@ defmodule PhoenixKit.API.MCP do
 
   defp unsupported(given, message) do
     text =
-      "Unsupported MCP-Protocol-Version #{inspect(String.slice(given, 0, 40))}. " <>
+      "Unsupported MCP-Protocol-Version #{inspect(LogSafe.take_codepoints(given, 40))}. " <>
         "Supported: #{Enum.join(Versions.supported(), ", ")}."
 
     {:rpc_error, 400, request_id(message), :invalid_request, text}
@@ -272,7 +272,7 @@ defmodule PhoenixKit.API.MCP do
         200,
         id,
         :method_not_found,
-        "Method not found: #{String.slice(method, 0, 80)}."
+        "Method not found: #{LogSafe.take_codepoints(method, 80)}."
       )
     )
   end

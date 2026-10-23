@@ -36,6 +36,8 @@ defmodule PhoenixKit.API.MCP.Shape do
     not_found: "Check the tool name or the id with tools/list and try again.",
     module_disabled:
       "The module behind this tool is switched off; use another tool or ask an administrator to enable it.",
+    module_write_disabled:
+      "Writes of this module are off for a person's session; ask an administrator to let the agent act in Settings -> API.",
     method_not_allowed: "Use the method named in the Allow header.",
     not_acceptable:
       "Ask for text/html or text/markdown, or use the endpoint named in the detail.",
@@ -168,8 +170,8 @@ defmodule PhoenixKit.API.MCP.Shape do
   def instructions(:admin) do
     "Call system_get_identity first: it lists the scopes this key holds right now and the tools they unlock. " <>
       "A failed call of a tool comes back as a result with isError set (an unknown tool name is a JSON-RPC error, -32602); the code in square brackets is stable and " <>
-      "the second text item is the full problem document. A dangerous call from a key that needs approval " <>
-      "is not run: it comes back as a normal result with executed false, status pending_approval and an " <>
+      "the second text item is the full problem document. A write call from a key that needs approval " <>
+      "(other than a dry run) is not run, dangerous or not: it comes back as a normal result with executed false, status pending_approval and an " <>
       "approval_id, and runs only when an owner approves it; while that approval is still waiting, asking " <>
       "again for the same operation returns the same approval_id, unless the values it touches changed " <>
       "meanwhile (the waiting approval is then closed and a new one is queued). A write tool also takes " <>
