@@ -7,7 +7,7 @@
   `format_date_with_cached_settings/2`, `format_datetime_with_cached_settings/2`, and the `*_with_user_timezone` /
   `*_with_user_timezone_cached` ones for the user they are given) a country now wins over the site-wide `date_format`:
   `09.11.2026` for a German viewer, `09/11/2026` for a British one, `11/9/2026` for an American. It is written by
-  `BeamLabCountries.Formats.format_date/2` (`beamlab_countries` ~> 2.1). Nobody with a country, and no site default country, sees `date_format` exactly
+  `BeamLabCountries.Formats.format_date/2` (`beamlab_countries` ~> 2.1). Anyone without a country, and no site default country, sees `date_format` exactly
   as before, so nothing changes on upgrade until users get a country. The viewer is set when the scope is mounted (the
   `fetch_phoenix_kit_current_*` plugs and the `mount_phoenix_kit_current_*` hooks) and resolved on first use. The time format
   and the date picker (`<.date_input>`, which parses what is typed) still follow the settings. `Utils.Date.format_date/2`
@@ -85,6 +85,11 @@
   regenerating them.
 
 ### Fixed
+
+- **Country format preferences stay current.** Viewers without a personal country follow changes to the site default in
+  an open LiveView; embedded identity mounts and scope refreshes also set the viewer's country. The default-country
+  setting trims and uppercases its saved code, and a successful profile save redraws the country select from the saved
+  values. V221's regression test now applies the migration to an existing account to verify that GeoIP data is not backfilled.
 
 - **An HDR video no longer makes renditions a browser cannot play, nor a washed-out poster.** A phone records HDR as 10-bit HEVC
   (HLG or PQ, BT.2020). Its renditions were encoded as 10-bit H.264 ("High 10"), which most browsers refuse, and its poster was
