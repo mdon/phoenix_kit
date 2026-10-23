@@ -6,6 +6,13 @@ defmodule PhoenixKitWeb.Live.Settings.Api do
   one-time dialog that shows a new key, and the "Limits and advanced" settings
   (rate limits, hidden tools, allowed MCP origins).
 
+  The page is split into tabs held in the URL (`?tab=…`, see
+  `PhoenixKitWeb.Live.Settings.UrlTabs`): switches and modules (the default), keys and
+  service users, approvals and limits, and the API guide
+  (`PhoenixKitWeb.Live.Settings.ApiGuidePanel`, built each time its tab is opened). The
+  other panes are all rendered and only hidden, so a form keeps what was typed when the
+  tab changes; the dialogs sit outside the panes.
+
   Gated by the `api` permission (opt-in for Admin; see
   `PhoenixKitWeb.Users.Auth`'s view map). Every change goes through
   `PhoenixKit.API.Keys` and `PhoenixKit.Settings`, with this admin as the actor.
@@ -99,6 +106,8 @@ defmodule PhoenixKitWeb.Live.Settings.Api do
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Actor
+  alias PhoenixKitWeb.Live.Settings.ApiGuidePanel
+  alias PhoenixKitWeb.Live.Settings.UrlTabs
 
   # The two switches: the name used in the page, the setting it writes.
   @switches %{"admin" => "api_admin_enabled", "public" => "api_public_enabled"}
@@ -143,11 +152,36 @@ defmodule PhoenixKitWeb.Live.Settings.Api do
       |> assign(:service_user_params, default_service_user_params())
       |> assign(:service_user_errors, [])
       |> assign(:api_scope, socket.assigns.phoenix_kit_current_scope)
+      |> assign(:guide, nil)
       |> assign_limits()
       |> assign_flow()
       |> assign_state()
 
     {:ok, socket}
+  end
+
+  # The tab lives in the URL (`?tab=keys`); see `UrlTabs`. The guide is built when its
+  # tab is opened, so the other tabs do not read the tool registry and the guide shows
+  # the switches as they are now.
+  @impl true
+  def handle_params(params, _url, socket) do
+    socket = assign(socket, :active_tab, UrlTabs.active(params, tabs()))
+
+    socket =
+      if socket.assigns.active_tab == "guide",
+        do: ApiGuidePanel.assign_guide(socket),
+        else: socket
+
+    {:noreply, socket}
+  end
+
+  defp tabs do
+    [
+      %{id: "access", label: gettext("Switches and modules"), icon: "hero-power"},
+      %{id: "keys", label: gettext("Keys and service users"), icon: "hero-key"},
+      %{id: "approvals", label: gettext("Approvals and limits"), icon: "hero-shield-check"},
+      %{id: "guide", label: gettext("API guide"), icon: "hero-book-open"}
+    ]
   end
 
   # ── Switches ───────────────────────────────────────────────────────
