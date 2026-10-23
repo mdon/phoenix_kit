@@ -4,7 +4,8 @@ defmodule PhoenixKitWeb.Live.Settings.ApiTabsTest do
   `PhoenixKitWeb.Live.Settings.UrlTabs`): switches and modules, keys and service
   users, approvals and limits, and the guide. Every pane but the guide is rendered
   and only hidden, so a form in a hidden pane keeps what was typed; the guide is
-  built the first time its tab is shown. The old guide address opens the guide tab.
+  built only when its tab is shown, again on each visit. The old guide address
+  opens the guide tab.
   """
   use PhoenixKitWeb.ConnCase, async: false
 
@@ -148,7 +149,7 @@ defmodule PhoenixKitWeb.Live.Settings.ApiTabsTest do
       end
     end
 
-    test "is built only when its tab is first shown", %{conn: conn} do
+    test "is built only when its tab is shown, again on each visit", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
 
       refute has_element?(view, "#api-guide-page")

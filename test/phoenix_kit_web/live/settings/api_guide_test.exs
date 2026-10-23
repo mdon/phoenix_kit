@@ -1,8 +1,8 @@
 defmodule PhoenixKitWeb.Live.Settings.ApiGuideTest do
   @moduledoc """
-  Settings -> API, the guide tab (`?tab=guide`): who may open it, what it says about the endpoints, the
-  client snippets (decoded, not matched as text, so a broken file shows), the tools
-  grouped by module, and the table of errors.
+  Settings -> API, the guide tab (`?tab=guide`): who may open it, what it says
+  about the endpoints, the client snippets (decoded, not matched as text, so a
+  broken file shows), the tools grouped by module, and the table of errors.
   """
   use PhoenixKitWeb.ConnCase, async: false
 
