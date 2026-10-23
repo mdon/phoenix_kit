@@ -30,9 +30,11 @@ defmodule PhoenixKit.Integrations.Validator do
         end
       end
 
-  `validate_connection/1` gets the connection's data (the setup fields, string
-  keys) once every required setup field of the provider is filled in, whether
-  the connection is saved or the operator is testing it before saving; with a
+  `validate_connection/1` gets the connection's data (string keys: the setup
+  fields, and for a saved connection what is stored beside them, such as
+  `"status"`, so match on the keys you need and ignore the rest) once every
+  required setup field of the provider is filled in, whether the connection is
+  saved or the operator is testing it before saving; with a
   field missing the check is not run and "No credentials configured" is
   reported. Optional fields may still be absent, so a module that matches on
   one needs a clause for it being missing. The check answers like any other:
