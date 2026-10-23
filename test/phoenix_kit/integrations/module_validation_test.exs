@@ -7,6 +7,8 @@ defmodule PhoenixKit.Integrations.ModuleValidationTest do
   # async: false — registers a fixture provider, which is global state.
   use PhoenixKit.DataCase, async: false
 
+  import ExUnit.CaptureLog
+
   alias PhoenixKit.Integrations
   alias PhoenixKit.Integrations.Providers
   alias PhoenixKit.ModuleRegistry
@@ -26,9 +28,27 @@ defmodule PhoenixKit.Integrations.ModuleValidationTest do
     def validate_connection(%{"api_key" => "bad"}), do: {:error, "The key was rejected"}
     def validate_connection(%{"api_key" => "odd"}), do: :perhaps
     def validate_connection(%{"api_key" => "raises"}), do: raise("boom")
+    def validate_connection(%{"api_key" => "throws"}), do: throw(:boom)
+    def validate_connection(%{"api_key" => "hangs"}), do: Process.sleep(:infinity)
+    def validate_connection(%{"api_key" => "empty_ok"}), do: {:ok, ""}
+    def validate_connection(%{"api_key" => "empty_note"}), do: {:ok, %{}}
+    def validate_connection(%{"api_key" => "bad_note"}), do: {:ok, %{fact: {:not, :text}}}
+
+    def validate_connection(%{"api_key" => "leaks"}),
+      do: {:error, %{api_key: "SECRET-ANSWER-456"}}
 
     def validate_connection(%{"api_key" => "echo"}),
       do: {:error, "locale: #{Gettext.get_locale(PhoenixKitWeb.Gettext)}"}
+  end
+
+  # No catch-all clause, as the `Validator` moduledoc's own example: a map
+  # without the key it matches crashes with a `FunctionClauseError`.
+  defmodule Strict do
+    @moduledoc false
+    @behaviour PhoenixKit.Integrations.Validator
+
+    @impl true
+    def validate_connection(%{"api_key" => key}) when is_binary(key), do: :ok
   end
 
   defmodule NoChecker do
@@ -41,11 +61,14 @@ defmodule PhoenixKit.Integrations.ModuleValidationTest do
       [
         provider("module_checked", Checker),
         provider("module_without_check", NoChecker),
-        provider("module_not_loaded", Elixir.PhoenixKit.NoSuchModule)
+        provider("module_not_loaded", Elixir.PhoenixKit.NoSuchModule),
+        provider("module_strict", Strict, false),
+        provider("module_not_an_atom", "Elixir.PhoenixKit.NoSuchModule"),
+        Map.put(provider("module_unnamed", nil), :validation, %{strategy: :module})
       ]
     end
 
-    defp provider(key, module) do
+    defp provider(key, module, required \\ true) do
       %{
         key: key,
         name: "Fixture #{key}",
@@ -58,7 +81,7 @@ defmodule PhoenixKit.Integrations.ModuleValidationTest do
             key: "api_key",
             label: "API key",
             type: :password,
-            required: true,
+            required: required,
             placeholder: "",
             help: nil,
             options: nil
@@ -114,13 +137,65 @@ defmodule PhoenixKit.Integrations.ModuleValidationTest do
     end
 
     test "an answer outside the contract is an error, not a guess" do
-      assert {:error, message} = check("odd")
-      assert message =~ "unexpected"
+      log =
+        capture_log(fn ->
+          assert {:error, message} = check("odd")
+          assert message =~ "unexpected"
+        end)
+
+      assert log =~ "answered an atom"
     end
 
     test "a module that raises does not take the caller down" do
-      assert {:error, _message} = check("raises")
-      assert Process.alive?(self())
+      log =
+        capture_log(fn ->
+          assert check("raises") == {:error, "Validation failed unexpectedly"}
+          assert check("throws") == {:error, "Validation failed unexpectedly"}
+        end)
+
+      assert log =~ "#{inspect(Checker)}.validate_connection/1 failed with ** (RuntimeError)"
+      assert log =~ "failed with a throw"
+    end
+
+    test "a module that never answers is cut off at the deadline" do
+      Application.put_env(:phoenix_kit, :integration_check_deadline, 50)
+      on_exit(fn -> Application.delete_env(:phoenix_kit, :integration_check_deadline) end)
+
+      capture_log(fn -> assert {:error, _message} = check("hangs") end)
+    end
+
+    test "a crash does not write the credentials it was handed to the log" do
+      sentinel = "SECRET-#{System.unique_integer([:positive])}"
+
+      log =
+        capture_log(fn ->
+          # The key is optional here, so the module meets a map without it — the
+          # case the moduledoc's own example crashes on.
+          assert {:error, _} =
+                   Integrations.validate_credentials("module_strict", %{"other" => sentinel})
+        end)
+
+      assert log =~ "FunctionClauseError"
+      refute log =~ sentinel
+    end
+
+    test "an answer outside the contract is not written to the log" do
+      log = capture_log(fn -> assert {:error, _} = check("leaks") end)
+
+      assert log =~ "answered a tuple of size 2 tagged :error"
+      refute log =~ "SECRET-ANSWER-456"
+    end
+
+    test "an empty note is a plain pass" do
+      assert check("empty_ok") == :ok
+      assert check("empty_note") == {:ok, %{}}
+    end
+
+    test "a note whose fact is not text is an unexpected answer" do
+      capture_log(fn ->
+        assert {:error, message} = check("bad_note")
+        assert message =~ "unexpected"
+      end)
     end
 
     test "the check runs in the operator's locale" do
@@ -152,17 +227,40 @@ defmodule PhoenixKit.Integrations.ModuleValidationTest do
       assert Integrations.validate_credentials("module_checked", %{"api_key" => "bad"}) ==
                {:error, "The key was rejected"}
     end
+
+    test "does not hand the module a form with a required field empty" do
+      expected = {:error, "No credentials configured"}
+
+      assert Integrations.validate_credentials("module_checked", %{}) == expected
+      assert Integrations.validate_credentials("module_checked", %{"api_key" => ""}) == expected
+    end
   end
 
   describe "a provider whose module cannot check" do
     test "stays unverified when the module has no validate_connection/1" do
-      uuid = connect("module_without_check", "good")
-      assert Integrations.validate_connection(uuid) == :unverified
+      capture_log(fn ->
+        uuid = connect("module_without_check", "good")
+        assert Integrations.validate_connection(uuid) == :unverified
+      end)
     end
 
     test "stays unverified when the module is not loaded" do
-      uuid = connect("module_not_loaded", "good")
-      assert Integrations.validate_connection(uuid) == :unverified
+      log =
+        capture_log(fn ->
+          uuid = connect("module_not_loaded", "good")
+          assert Integrations.validate_connection(uuid) == :unverified
+        end)
+
+      assert log =~ "has no validate_connection/1"
+    end
+
+    test "stays unverified when the provider names no module, or not an atom" do
+      capture_log(fn ->
+        for key <- ["module_unnamed", "module_not_an_atom"] do
+          assert Integrations.validate_credentials(key, %{"api_key" => "good"}) == :unverified
+          assert key |> connect("good") |> Integrations.validate_connection() == :unverified
+        end
+      end)
     end
   end
 

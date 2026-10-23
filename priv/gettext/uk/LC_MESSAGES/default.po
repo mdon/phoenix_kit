@@ -21395,3 +21395,8 @@ msgstr "Особисті SMTP-з’єднання можуть використ�
 #, elixir-autogen, elixir-format
 msgid "The SMTP host must resolve to a public address"
 msgstr "SMTP-сервер має вказувати на публічну адресу"
+
+#: lib/phoenix_kit/integrations/integrations.ex:1290
+#, elixir-autogen, elixir-format
+msgid "The connection check gave an unexpected answer"
+msgstr "Перевірка з’єднання дала несподівану відповідь"

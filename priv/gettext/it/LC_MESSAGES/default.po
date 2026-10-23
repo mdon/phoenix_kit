@@ -21334,3 +21334,8 @@ msgstr "Le connessioni SMTP personali possono usare solo le porte 25, 465, 587 o
 #, elixir-autogen, elixir-format
 msgid "The SMTP host must resolve to a public address"
 msgstr "L’host SMTP deve risolversi in un indirizzo pubblico"
+
+#: lib/phoenix_kit/integrations/integrations.ex:1290
+#, elixir-autogen, elixir-format
+msgid "The connection check gave an unexpected answer"
+msgstr "Il controllo della connessione ha dato una risposta inattesa"

@@ -30,18 +30,32 @@ defmodule PhoenixKit.Integrations.Validator do
         end
       end
 
-  `validate_connection/1` gets the connection's data (the saved setup fields,
-  string keys) once it is known to hold credentials, and answers like any other
-  check: `:ok`, `{:ok, note}` (see `t:PhoenixKit.Integrations.Probe.note/0`),
-  `:unverified` when it has no way to tell, or `{:error, message}` with
-  something the operator can read (`{:inconclusive, message}` is reported as an
-  error too). It runs through
-  `PhoenixKit.Integrations.Probe`: in its own process, under a hard deadline,
-  with `PhoenixKitWeb.Gettext` already in the operator's locale. A crash or an
-  overrun comes back as an error; it does not reach the page.
+  `validate_connection/1` gets the connection's data (the setup fields, string
+  keys) once every required setup field of the provider is filled in, whether
+  the connection is saved or the operator is testing it before saving; with a
+  field missing the check is not run and "No credentials configured" is
+  reported. Optional fields may still be absent, so a module that matches on
+  one needs a clause for it being missing. The check answers like any other:
+  `:ok`, `{:ok, note}` (see `t:PhoenixKit.Integrations.Probe.note/0`, `:fact`
+  and `:reading` strings only), `:unverified` when it has no way to tell, or
+  `{:error, message}` with something the operator can read
+  (`{:inconclusive, message}` is reported as an error too). Any other answer is
+  reported as an error.
+
+  It runs through `PhoenixKit.Integrations.Probe`: in its own process, under a
+  hard deadline, with `PhoenixKitWeb.Gettext` already in the operator's locale.
+  A crash or an overrun comes back as an error; it does not reach the page. A
+  crash is logged by its exception module only, because the arguments of a
+  failed call are the credentials. Do the same for anything the module logs.
+
+  The check does not learn whose connection it is (system-wide or personal). A
+  provider that is available as `:personal` must therefore not dial a host the
+  operator typed into a setup field: such a check cannot apply the personal
+  policy (no loopback, private or plain-http endpoints).
 
   A module that is not loaded, or has no `validate_connection/1`, leaves the
-  provider as it was: `:unverified`.
+  provider as it was: `:unverified`. So does a provider whose `validation` names
+  no `module:`.
   """
 
   alias PhoenixKit.Integrations.Probe
