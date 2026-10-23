@@ -223,6 +223,22 @@ defmodule PhoenixKit.ModuleRegistry do
     |> Enum.map(&Tab.resolve_path(&1, :user_dashboard))
   end
 
+  @doc """
+  Collect the profile settings tabs (`c:PhoenixKit.Module.profile_settings_tabs/0`) of the
+  **enabled** modules, as `PhoenixKit.ProfileSettingsTab` structs tagged with `:module`.
+  Only a module that defines the callback is asked whether it is enabled, so the strip's
+  render path pays nothing on an install without such modules.
+  """
+  @spec all_profile_settings_tabs() :: [PhoenixKit.ProfileSettingsTab.t()]
+  def all_profile_settings_tabs do
+    all_modules()
+    |> Enum.filter(fn mod ->
+      Code.ensure_loaded?(mod) and function_exported?(mod, :profile_settings_tabs, 0) and
+        function_exported?(mod, :enabled?, 0) and safe_enabled?(mod)
+    end)
+    |> Enum.flat_map(&PhoenixKit.ProfileSettingsTab.from_module/1)
+  end
+
   @doc "Collect all supervisor child specs from all registered modules."
   @spec all_children() :: [Supervisor.child_spec()]
   def all_children do
