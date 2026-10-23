@@ -264,7 +264,8 @@ defmodule PhoenixKit.API.Approvals.View do
   defp reason(_other), do: :error
 
   # By code points, not graphemes: the path and the message come from the client, and a
-  # single grapheme can carry any number of combining marks.
+  # single grapheme can carry any number of combining marks. A text of up to `@max_text`
+  # code points is kept whole; a longer one becomes `@max_text - 1` code points and "…".
   defp cap(text) do
     case LogSafe.take_codepoints(text, @max_text) do
       ^text -> {text, false}
