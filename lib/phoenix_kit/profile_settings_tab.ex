@@ -61,7 +61,10 @@ defmodule PhoenixKit.ProfileSettingsTab do
       at the end. Tabs after the same one keep their declared order.
     * `:permission` — a permission key the user must hold
       (`PhoenixKit.Users.Auth.Scope.can?/2`, including its base permission
-      and live feature-enablement checks).
+      and live feature-enablement checks). It must be a key the permission
+      system knows — a module's, a core section's, or a host key registered
+      with `PhoenixKit.Users.Permissions.register_custom_key/2`; an unknown
+      key reads as a disabled feature and hides the tab.
     * `:visible` — `{module, function}` or a one-argument function, called
       with the scope (`nil` for nobody signed in); the tab is offered when it
       returns `true`. One that raises hides the tab (with one warning). With
