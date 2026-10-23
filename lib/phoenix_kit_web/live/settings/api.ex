@@ -496,9 +496,14 @@ defmodule PhoenixKitWeb.Live.Settings.Api do
   @doc false
   # A module's name, translated: by the gettext backend the module declares in its
   # `permission_metadata/0` (the one the permissions matrix uses for its label), then by
-  # core's own catalogue. A module without a backend reads as before.
-  def module_label(%{key: key, name: name}) do
-    with {backend, domain} <- Map.get(ModuleRegistry.permission_gettext(), key),
+  # core's own catalogue. A module without a backend reads as before. A module of
+  # `api_modules/0` already carries its `:label`; resolving one asks every module for its
+  # metadata, which the template must not repeat for each row and aria-label of a render.
+  def module_label(%{label: label}) when is_binary(label), do: label
+  def module_label(mod), do: label_in(ModuleRegistry.permission_gettext(), mod)
+
+  defp label_in(backends, %{key: key, name: name}) do
+    with {backend, domain} <- Map.get(backends, key),
          translated when translated != name <- Gettext.dgettext(backend, domain, name) do
       translated
     else
@@ -511,11 +516,13 @@ defmodule PhoenixKitWeb.Live.Settings.Api do
   defp api_modules do
     disabled = Config.disabled_modules()
     writes = Config.session_write_modules()
+    backends = ModuleRegistry.permission_gettext()
 
     Enum.map(ModuleRegistry.api_modules(), fn mod ->
       mod
       |> Map.put(:api_on?, mod.key not in disabled)
       |> Map.put(:session_write?, mod.key in writes)
+      |> Map.put(:label, label_in(backends, mod))
     end)
   end
 

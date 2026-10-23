@@ -59,4 +59,9 @@ defmodule PhoenixKitWeb.Live.Settings.ApiModuleLabelTest do
     assert Api.module_label(%{key: "apilabeltest", name: "Users"}) ==
              Gettext.gettext(PhoenixKitWeb.Gettext, "Users")
   end
+
+  test "a module that already carries its label is not resolved again" do
+    assert Api.module_label(%{key: "apilabeltest", name: "can't be blank", label: "Already"}) ==
+             "Already"
+  end
 end
