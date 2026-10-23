@@ -79,6 +79,11 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationPickerTest do
     |> Enum.flat_map(&String.split/1)
   end
 
+  # The status badge, found by its loading rule: the provider-name badge shares
+  # `badge badge-xs badge-ghost`, so those classes cannot tell the two apart.
+  defp status_badge_classes(html),
+    do: classes_of(html, ~s(span.badge[class*="phx-click-loading"]))
+
   describe "class lists" do
     test "an unselected card's check has its size and the ghost colour as separate classes" do
       conn = conn_fixture(uuid: "01900000-0000-7000-8000-000000000003")
@@ -111,27 +116,6 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationPickerTest do
       assert "h-5" in classes
       assert "text-primary" in classes
       refute "text-base-content/20" in classes
-    end
-
-    test "the status badge keeps its loading rule and its colour as separate classes" do
-      for {status, colour} <- [
-            {"connected", "badge-success"},
-            {"error", "badge-error"},
-            {"configured", "badge-warning"},
-            {"disconnected", "badge-ghost"}
-          ] do
-        assigns = %{conns: [conn_fixture(data: %{"status" => status})]}
-
-        html =
-          rendered_to_string(~H"""
-          <.integration_picker id="p" connections={@conns} on_select="x" />
-          """)
-
-        classes = classes_of(html, ~s(span.badge[class*="phx-click-loading"]))
-
-        assert "phx-click-loading:hidden" in classes, status
-        assert colour in classes, status
-      end
     end
   end
 
@@ -369,7 +353,8 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationPickerTest do
         """)
 
       assert html =~ "Connected"
-      assert html =~ "badge-success"
+      assert "badge-success" in status_badge_classes(html)
+      assert "phx-click-loading:hidden" in status_badge_classes(html)
     end
 
     test "Auth-failed badge (red) for status='error' — distinguishable from never-tested" do
@@ -386,7 +371,8 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationPickerTest do
         """)
 
       assert html =~ "Auth failed"
-      assert html =~ "badge-error"
+      assert "badge-error" in status_badge_classes(html)
+      assert "phx-click-loading:hidden" in status_badge_classes(html)
       # The validation message hovers as a title attribute so the
       # operator can see WHY without leaving the form.
       assert html =~ ~s(title="error: Invalid credentials")
@@ -403,7 +389,8 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationPickerTest do
         """)
 
       assert html =~ "Not tested"
-      assert html =~ "badge-warning"
+      assert "badge-warning" in status_badge_classes(html)
+      assert "phx-click-loading:hidden" in status_badge_classes(html)
     end
 
     test "Not-connected badge (grey) for status='disconnected'" do
@@ -417,7 +404,8 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationPickerTest do
         """)
 
       assert html =~ "Not connected"
-      assert html =~ "badge-ghost"
+      assert "badge-ghost" in status_badge_classes(html)
+      assert "phx-click-loading:hidden" in status_badge_classes(html)
     end
 
     test "Not-connected fallback for unknown / nil status" do
@@ -431,7 +419,8 @@ defmodule PhoenixKitWeb.Components.Core.IntegrationPickerTest do
         """)
 
       assert html =~ "Not connected"
-      assert html =~ "badge-ghost"
+      assert "badge-ghost" in status_badge_classes(html)
+      assert "phx-click-loading:hidden" in status_badge_classes(html)
     end
   end
 
