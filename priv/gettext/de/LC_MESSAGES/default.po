@@ -21337,6 +21337,86 @@ msgstr "Persönliche SMTP-Verbindungen dürfen nur die Ports 25, 465, 587 oder 2
 msgid "The SMTP host must resolve to a public address"
 msgstr "Der SMTP-Host muss auf eine öffentliche Adresse auflösen"
 
+#: lib/phoenix_kit_web/live/settings/api.html.heex:598
+#, elixir-autogen, elixir-format
+msgid "Lifetime of a confirmation in a signed-in session, in seconds (60 to 86400)"
+msgstr "Gültigkeit einer Bestätigung in einer angemeldeten Sitzung in Sekunden (60 bis 86400)"
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex:118
+#, elixir-autogen, elixir-format
+msgid "Agent may act"
+msgstr "Agent darf handeln"
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex:169
+#, elixir-autogen, elixir-format
+msgid "Let the agent act in %{module}"
+msgstr "Dem Agenten Aktionen im Modul %{module} erlauben"
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex:168
+#, elixir-autogen, elixir-format
+msgid "Stop the agent acting in %{module}"
+msgstr "Dem Agenten Aktionen im Modul %{module} nicht mehr erlauben"
+
+#: lib/phoenix_kit_web/live/settings/api.ex:474
+#, elixir-autogen, elixir-format
+msgid "The agent may act in %{module}."
+msgstr "Der Agent darf im Modul %{module} handeln."
+
+#: lib/phoenix_kit_web/live/settings/api.ex:477
+#, elixir-autogen, elixir-format
+msgid "The agent may no longer act in %{module}."
+msgstr "Der Agent darf im Modul %{module} nicht mehr handeln."
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex:118
+#, elixir-autogen, elixir-format
+msgid "“Agent may act” lets an assistant that works in a person's signed-in session propose the module's changes; each change runs only after that person confirms it. It is off until you turn it on and does not change what API keys may do."
+msgstr "„Agent darf handeln“ erlaubt einem Assistenten, der in der angemeldeten Sitzung einer Person arbeitet, Änderungen des Moduls vorzuschlagen; jede Änderung wird erst ausgeführt, wenn diese Person sie bestätigt. Es ist aus, bis Sie es einschalten, und ändert nichts daran, was API-Schlüssel dürfen."
+
+#: lib/phoenix_kit_web/components/core/operation_preview.ex:99
+#, elixir-autogen, elixir-format
+msgid "The preview is cut: %{count} rows are not shown. Confirming runs the whole operation, not only the rows shown."
+msgstr "Die Vorschau ist gekürzt: %{count} Zeilen werden nicht angezeigt. Die Bestätigung führt den gesamten Vorgang aus, nicht nur die angezeigten Zeilen."
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex:187
+#, elixir-autogen, elixir-format
+msgid "Tools for the assistant: %{available} of %{total} available"
+msgstr "Werkzeuge für den Assistenten: %{available} von %{total} verfügbar"
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex:194
+#, elixir-autogen, elixir-format
+msgid "What an assistant working in a person's signed-in session may call, by these settings alone. Rights are still checked for each person: a tool shown as available is refused to someone whose roles lack its permission."
+msgstr "Was ein Assistent, der in der angemeldeten Sitzung einer Person arbeitet, allein nach diesen Einstellungen aufrufen darf. Die Rechte werden trotzdem für jede Person geprüft: Ein als verfügbar angezeigtes Werkzeug wird jemandem verweigert, dessen Rollen seine Berechtigung nicht gewähren."
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex:218
+#, elixir-autogen, elixir-format
+msgid "Permission: %{permission}"
+msgstr "Berechtigung: %{permission}"
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex:229
+#, elixir-autogen, elixir-format
+msgid "Closed"
+msgstr "Gesperrt"
+
+#: lib/phoenix_kit_web/live/settings/api.ex:529
+#, elixir-autogen, elixir-format
+msgid "The module is switched off."
+msgstr "Das Modul ist ausgeschaltet."
+
+#: lib/phoenix_kit_web/live/settings/api.ex:530
+#, elixir-autogen, elixir-format
+msgid "The module's API is off."
+msgstr "Die API des Moduls ist ausgeschaltet."
+
+#: lib/phoenix_kit_web/live/settings/api.ex:533
+#, elixir-autogen, elixir-format
+msgid "The tool is hidden in “Limits and advanced”."
+msgstr "Das Werkzeug ist in „Limits und erweiterte Einstellungen“ ausgeblendet."
+
+#: lib/phoenix_kit_web/live/settings/api.ex:536
+#, elixir-autogen, elixir-format
+msgid "It writes, and “Agent may act” is off."
+msgstr "Es schreibt, und „Agent darf handeln“ ist aus."
+
 #: lib/phoenix_kit_web/users/user_form.html.heex:272
 #: lib/phoenix_kit_web/live/components/user_settings.ex:1227
 #, elixir-autogen, elixir-format
@@ -21367,3 +21447,48 @@ msgstr "Datumsangaben richten sich nach dem Land der jeweiligen Person. Dieses L
 #, elixir-autogen, elixir-format
 msgid "Dates are written the way this country does. When empty, the company's country, the sign-up country and then the site default are used."
 msgstr "Datumsangaben werden so geschrieben, wie es in diesem Land üblich ist. Ist das Feld leer, werden das Land des Unternehmens, das Land bei der Registrierung und dann die Standardeinstellung der Website verwendet."
+
+#: lib/phoenix_kit/integrations/providers.ex:837
+#, elixir-autogen, elixir-format
+msgid "Z.ai"
+msgstr "Z.ai"
+
+#: lib/phoenix_kit/integrations/providers.ex:838
+#, elixir-autogen, elixir-format
+msgid "AI model access via Z.ai (GLM models)"
+msgstr "Zugriff auf KI-Modelle über Z.ai (GLM-Modelle)"
+
+#: lib/phoenix_kit/integrations/providers.ex:856
+#, elixir-autogen, elixir-format
+msgid "From z.ai/manage-apikey/apikey-list"
+msgstr "Von z.ai/manage-apikey/apikey-list"
+
+#: lib/phoenix_kit/integrations/providers.ex:863
+#, elixir-autogen, elixir-format
+msgid "Create a Z.ai account"
+msgstr "Z.ai-Konto erstellen"
+
+#: lib/phoenix_kit/integrations/providers.ex:865
+#, elixir-autogen, elixir-format
+msgid "Go to [z.ai/model-api](https://z.ai/model-api) and sign up or log in"
+msgstr "Gehen Sie zu [z.ai/model-api](https://z.ai/model-api) und registrieren Sie sich oder melden Sie sich an"
+
+#: lib/phoenix_kit/integrations/providers.ex:871
+#, elixir-autogen, elixir-format
+msgid "Go to [Billing](https://z.ai/manage-apikey/billing) and top up your balance"
+msgstr "Gehen Sie zu [Billing](https://z.ai/manage-apikey/billing) und laden Sie Ihr Guthaben auf"
+
+#: lib/phoenix_kit/integrations/providers.ex:874
+#, elixir-autogen, elixir-format
+msgid "The API bills the account balance — without credit Z.ai refuses requests with code 1113 (insufficient balance)"
+msgstr "Die API rechnet über das Kontoguthaben ab – ohne Guthaben lehnt Z.ai Anfragen mit dem Code 1113 (unzureichendes Guthaben) ab"
+
+#: lib/phoenix_kit/integrations/providers.ex:879
+#, elixir-autogen, elixir-format
+msgid "An existing key of an account that has had a GLM Coding Plan (a Compatible key, created before 16 October 2026) is billed on this API from the account balance or usage bundles, not from the plan quota."
+msgstr "Ein bestehender Schlüssel eines Kontos, das einen GLM Coding Plan hatte (ein Compatible-Schlüssel, erstellt vor dem 16. Oktober 2026), wird über diese API vom Kontoguthaben oder von Nutzungspaketen abgerechnet, nicht vom Kontingent des Plans."
+
+#: lib/phoenix_kit/integrations/providers.ex:886
+#, elixir-autogen, elixir-format
+msgid "Go to [API Keys](https://z.ai/manage-apikey/apikey-list) and create a key under **Standard API Key**"
+msgstr "Gehen Sie zu [API Keys](https://z.ai/manage-apikey/apikey-list) und erstellen Sie einen Schlüssel unter **Standard API Key**"
