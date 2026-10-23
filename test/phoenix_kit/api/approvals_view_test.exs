@@ -170,6 +170,31 @@ defmodule PhoenixKit.API.Approvals.ViewTest do
       assert view.technical == preview
     end
 
+    test "a reason is cut by code points, not graphemes" do
+      # One letter and 200000 combining marks is a single grapheme.
+      long = "a" <> String.duplicate("\u0301", 200_000)
+      error = %{"message" => "Failed.", "context" => %{"errors" => [%{"message" => long}]}}
+      preview = %{"rows" => [%{"ref" => "a", "error" => error}]}
+
+      assert [%{error_reasons: [reason]}] = View.preview(preview).rows
+      assert length(String.to_charlist(reason)) == 160
+      assert String.ends_with?(reason, "…")
+    end
+
+    test "a reason of 160 code points is kept whole, one more is cut" do
+      # "e" and a combining mark: two code points, one grapheme.
+      whole = String.duplicate("e\u0301", 80)
+
+      for {text, cut?} <- [{whole, false}, {whole <> "x", true}] do
+        error = %{"message" => "Failed.", "context" => %{"errors" => [%{"message" => text}]}}
+        preview = %{"rows" => [%{"ref" => "a", "error" => error}]}
+
+        assert [%{error_reasons: [reason]}] = View.preview(preview).rows
+        assert reason != text == cut?
+        assert length(String.to_charlist(reason)) == 160
+      end
+    end
+
     test "message and detail are both shown, the message first" do
       error = %{"message" => "The product could not be saved.", "detail" => "Try again later."}
       view = View.preview(%{"rows" => [%{"ref" => "a", "error" => error}]})
