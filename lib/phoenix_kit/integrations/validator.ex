@@ -33,14 +33,13 @@ defmodule PhoenixKit.Integrations.Validator do
   `validate_connection/1` (or `/2`, below) gets the connection's data (string
   keys: the setup fields, and for a saved connection what is stored beside
   them, such as `"status"`, so match on the keys you need and ignore the rest)
-  once every
-  required setup field of the provider is filled in, whether the connection is
-  saved or the operator is testing it before saving; with a
-  field missing the check is not run and "No credentials configured" is
-  reported. Optional fields may still be absent, so a module that matches on
-  one needs a clause for it being missing. The check answers like any other:
-  `:ok`, `{:ok, note}` (see `t:PhoenixKit.Integrations.Probe.note/0`, `:fact`
-  and `:reading` strings only), `:unverified` when it has no way to tell, or
+  once every required setup field of the provider is filled in, whether the
+  connection is saved or the operator is testing it before saving; with a field
+  missing the check is not run and "No credentials configured" is reported.
+  Optional fields may still be absent, so a module that matches on one needs a
+  clause for it being missing. The check answers like any other: `:ok`,
+  `{:ok, note}` (see `t:PhoenixKit.Integrations.Probe.note/0`, `:fact` and
+  `:reading` strings only), `:unverified` when it has no way to tell, or
   `{:error, message}` with something the operator can read
   (`{:inconclusive, message}` is reported as an error too). Any other answer is
   reported as an error.
