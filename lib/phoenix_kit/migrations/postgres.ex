@@ -7,7 +7,14 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V222 - Confirmations of a live session ⚡ LATEST
+  ### V223 - AI request costs in nanodollars ⚡ LATEST
+
+  `phoenix_kit_ai_requests.cost_cents` (`integer`, which held millionths of a dollar)
+  becomes `cost_nanodollars` (`bigint`, billionths), every cost multiplied by 1,000. The
+  AI spend caps stay in millionths and are not touched. A rollback divides the costs
+  back and restores the old column.
+
+  ### V222 - Confirmations of a live session
 
   `phoenix_kit_api_confirmations.actor_user_uuid` (foreign key to the users, deleted with
   the user) binds a confirmation to the person whose live session asked for the write; the
@@ -1014,7 +1021,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 222
+  @current_version 223
   @default_prefix "public"
 
   # The frozen pre-squash bridge: the last 1.7.x release, which still carries

@@ -202,6 +202,19 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # access to; the real-database integration suite re-ran clean against a DB
   # migrated through V196, which is the property s7/s8 exist to prove.
   #
+  # V223 (2026-10-23, AI request costs in nanodollars) RENAMES one object and
+  # RESHAPES two. `column:phoenix_kit_ai_requests.cost_cents` (integer, since 32)
+  # is gone; `column:phoenix_kit_ai_requests.cost_nanodollars` (bigint, nullable,
+  # position 10 — a rename keeps the attribute number) is declared since 223 by
+  # `v223_objects/0`. The manifest has no way to say "present from 32 until 222",
+  # so a database whose comment is below 223 is no longer checked for `cost_cents`:
+  # repair would otherwise re-add the old column next to the new one. The two V193
+  # spend indexes carry the column in INCLUDE and get a `{223, …}` revision naming
+  # it. The multiplication of the costs is row DATA, which the manifest does not
+  # track. Read from a test database migrated through V223, kept honest by
+  # `PhoenixKit.Migrations.Postgres.V223Test`. `chain_hash` restamped over the
+  # shipped files.
+  #
   # V222 (2026-10-22, a confirmation of a live session) DECLARES three objects,
   # built by `v222_objects/1`: `column:phoenix_kit_api_confirmations.actor_user_uuid`
   # (uuid, nullable, position 20), its foreign key to `phoenix_kit_users` (ON DELETE
@@ -624,7 +637,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "ef4e383e4ee02dd476dda15e33eb0a52a9f36556c60069c2537d2738277fd38b"
+  @chain_hash "d43c7983daf87d13cc11f9753665b6e3c3053e5f33bd7cd145ab8bef6253ef26"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -14763,19 +14776,8 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         presence: :required,
         backfill: nil
       },
-      %{
-        id: "column:phoenix_kit_ai_requests.cost_cents",
-        owner: :ai,
-        check:
-          {:catalog, %{table: "phoenix_kit_ai_requests", column: "cost_cents", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_ai_requests ADD COLUMN IF NOT EXISTS \"cost_cents\" integer",
-        since: 32,
-        class: :column,
-        revisions: [{32, %{default: nil, type: "integer", pos: 10, not_null: false}}],
-        presence: :required,
-        backfill: nil
-      },
+      # column:phoenix_kit_ai_requests.cost_cents (since 32) was renamed by V223 — now
+      # column:phoenix_kit_ai_requests.cost_nanodollars in v223_objects/0.
       %{
         id: "column:phoenix_kit_ai_requests.error_message",
         owner: :ai,
@@ -72569,7 +72571,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              kind: :index
            }},
         create:
-          "CREATE INDEX IF NOT EXISTS phoenix_kit_ai_requests_endpoint_spend_idx ON __SCHEMA__.phoenix_kit_ai_requests USING btree (endpoint_uuid, inserted_at) INCLUDE (cost_cents) WHERE ((status)::text = 'success'::text)",
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_ai_requests_endpoint_spend_idx ON __SCHEMA__.phoenix_kit_ai_requests USING btree (endpoint_uuid, inserted_at) INCLUDE (cost_nanodollars) WHERE ((status)::text = 'success'::text)",
         since: 193,
         class: :index,
         revisions: [
@@ -72581,6 +72583,18 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              method: "btree",
              definition:
                "CREATE INDEX phoenix_kit_ai_requests_endpoint_spend_idx ON __SCHEMA__.phoenix_kit_ai_requests USING btree (endpoint_uuid, inserted_at) INCLUDE (cost_cents) WHERE ((status)::text = 'success'::text)",
+             predicate: "((status)::text = 'success'::text)",
+             opclasses: ["uuid_ops", "timestamptz_ops"],
+             name_template: nil
+           }},
+          {223,
+           %{
+             table: "phoenix_kit_ai_requests",
+             keys: ["endpoint_uuid", "inserted_at", "cost_nanodollars"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_ai_requests_endpoint_spend_idx ON __SCHEMA__.phoenix_kit_ai_requests USING btree (endpoint_uuid, inserted_at) INCLUDE (cost_nanodollars) WHERE ((status)::text = 'success'::text)",
              predicate: "((status)::text = 'success'::text)",
              opclasses: ["uuid_ops", "timestamptz_ops"],
              name_template: nil
@@ -72600,7 +72614,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              kind: :index
            }},
         create:
-          "CREATE INDEX IF NOT EXISTS phoenix_kit_ai_requests_user_spend_idx ON __SCHEMA__.phoenix_kit_ai_requests USING btree (user_uuid, inserted_at) INCLUDE (cost_cents) WHERE ((status)::text = 'success'::text)",
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_ai_requests_user_spend_idx ON __SCHEMA__.phoenix_kit_ai_requests USING btree (user_uuid, inserted_at) INCLUDE (cost_nanodollars) WHERE ((status)::text = 'success'::text)",
         since: 193,
         class: :index,
         revisions: [
@@ -72612,6 +72626,18 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              method: "btree",
              definition:
                "CREATE INDEX phoenix_kit_ai_requests_user_spend_idx ON __SCHEMA__.phoenix_kit_ai_requests USING btree (user_uuid, inserted_at) INCLUDE (cost_cents) WHERE ((status)::text = 'success'::text)",
+             predicate: "((status)::text = 'success'::text)",
+             opclasses: ["uuid_ops", "timestamptz_ops"],
+             name_template: nil
+           }},
+          {223,
+           %{
+             table: "phoenix_kit_ai_requests",
+             keys: ["user_uuid", "inserted_at", "cost_nanodollars"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_ai_requests_user_spend_idx ON __SCHEMA__.phoenix_kit_ai_requests USING btree (user_uuid, inserted_at) INCLUDE (cost_nanodollars) WHERE ((status)::text = 'success'::text)",
              predicate: "((status)::text = 'success'::text)",
              opclasses: ["uuid_ops", "timestamptz_ops"],
              name_template: nil
@@ -76878,7 +76904,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         presence: :required,
         backfill: nil
       }
-    ] ++ v220_objects()
+    ] ++ v220_objects() ++ v223_objects()
   end
 
   # --- V220: the dangerous-operation flow (built, not typed; see the header) ---
@@ -77021,6 +77047,27 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
           "timestamp_ops"
         ])
       ] ++ v222_objects(conf)
+  end
+
+  # --- V223: AI request costs in nanodollars (see the header) ---
+
+  defp v223_objects do
+    [
+      %{
+        id: "column:phoenix_kit_ai_requests.cost_nanodollars",
+        owner: :ai,
+        check:
+          {:catalog,
+           %{table: "phoenix_kit_ai_requests", column: "cost_nanodollars", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_ai_requests ADD COLUMN IF NOT EXISTS \"cost_nanodollars\" bigint",
+        since: 223,
+        class: :column,
+        revisions: [{223, %{default: nil, type: "bigint", pos: 10, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      }
+    ]
   end
 
   # --- V222: a confirmation of a live session (see the header) ---
