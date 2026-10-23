@@ -21520,3 +21520,8 @@ msgstr "Võtmed ja teenusekasutajad"
 #, elixir-autogen, elixir-format
 msgid "Approvals and limits"
 msgstr "Heakskiidud ja piirangud"
+
+#: lib/phoenix_kit/integrations/integrations.ex:1290
+#, elixir-autogen, elixir-format
+msgid "The connection check gave an unexpected answer"
+msgstr "Ühenduse kontroll andis ootamatu vastuse"

@@ -25,7 +25,9 @@ defmodule PhoenixKit.Integrations.Providers do
   from `x-api-key` and wants the API version in `anthropic-version` alongside.
   Leaving it out sends exactly the auth header, as before. A service whose
   check is not a plain `GET` declares `validation.strategy` instead (see
-  `t:validation/0`).
+  `t:validation/0`). A provider contributed by another module can name the
+  module that does the check: `validation: %{strategy: :module, module: Mod}`
+  (see `PhoenixKit.Integrations.Validator`).
   """
 
   use Gettext, backend: PhoenixKitWeb.Gettext
@@ -48,7 +50,9 @@ defmodule PhoenixKit.Integrations.Providers do
 
   # How "Test Connection" checks a key. Either a plain authenticated `GET`
   # (`url` + `auth_header` + `auth_prefix`, optionally `extra_headers`), or a
-  # `strategy` naming a dedicated check in `PhoenixKit.Integrations.Validators`.
+  # `strategy` naming a dedicated check in `PhoenixKit.Integrations.Validators`,
+  # or, for a provider another module contributes, `strategy: :module` with the
+  # `module` that does the check (`PhoenixKit.Integrations.Validator`).
   # `method` is declared by the plain-`GET` providers; the check always issues a
   # `GET`.
   @type validation ::
@@ -60,6 +64,7 @@ defmodule PhoenixKit.Integrations.Providers do
             # `{name, value}` pairs sent along with the auth header, as given.
             optional(:extra_headers) => [{String.t(), String.t()}]
           }
+          | %{:strategy => :module, :module => module()}
           | %{:strategy => atom(), optional(atom()) => term()}
 
   @type provider :: %{
@@ -75,6 +80,9 @@ defmodule PhoenixKit.Integrations.Providers do
           # `:ai_completions` providers declare it (used as the default
           # endpoint base by AI consumers). `validation` and `instructions`
           # are present on most built-ins but absent on a few, hence optional.
+          # A provider a module contributes names its own check with
+          # `validation: %{strategy: :module, module: Mod}` — see
+          # `PhoenixKit.Integrations.Validator`.
           optional(:base_url) => String.t(),
           optional(:validation) => validation(),
           optional(:instructions) => [map()],

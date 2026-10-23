@@ -21579,3 +21579,8 @@ msgstr "Klucze i użytkownicy usługowi"
 #, elixir-autogen, elixir-format
 msgid "Approvals and limits"
 msgstr "Zatwierdzenia i limity"
+
+#: lib/phoenix_kit/integrations/integrations.ex:1290
+#, elixir-autogen, elixir-format
+msgid "The connection check gave an unexpected answer"
+msgstr "Sprawdzenie połączenia zwróciło nieoczekiwaną odpowiedź"
