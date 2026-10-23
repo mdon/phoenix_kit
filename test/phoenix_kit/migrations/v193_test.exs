@@ -19,7 +19,7 @@ defmodule PhoenixKit.Migrations.Postgres.V193Test do
 
   defp run(statements), do: Enum.each(statements, &Repo.query!/1)
 
-  # V193's SQL names `cost_cents`, which V223 renamed to `cost_nanodollars`: put the
+  # V193's SQL names `cost_cents`, which V223 renamed to `cost`: put the
   # column back as V193 knew it (inside the test's transaction, so the database is
   # left at the chain head).
   setup do

@@ -7,12 +7,12 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V223 - AI request costs in nanodollars ⚡ LATEST
+  ### V223 - An AI request's cost in dollars ⚡ LATEST
 
   `phoenix_kit_ai_requests.cost_cents` (`integer`, which held millionths of a dollar)
-  becomes `cost_nanodollars` (`bigint`, billionths), every cost multiplied by 1,000. The
-  AI spend caps stay in millionths and are not touched. A rollback divides the costs
-  back and restores the old column.
+  becomes `cost` (`numeric(20,10)`, US dollars), every stored cost converted. The AI
+  spend caps are converted by `phoenix_kit_ai`'s own chain, not here. A rollback turns
+  the costs back into millionths and restores the old column.
 
   ### V222 - Confirmations of a live session
 
