@@ -67,6 +67,7 @@ defmodule PhoenixKitWeb.Users.Auth do
   alias PhoenixKit.Modules.Maintenance
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.{Scope, User}
+  alias PhoenixKit.Users.FormatCountry
   alias PhoenixKit.Users.LoginAlerts
   alias PhoenixKit.Users.Permissions
   alias PhoenixKit.Users.Referrals
@@ -485,6 +486,7 @@ defmodule PhoenixKitWeb.Users.Auth do
 
     # Check if user is active using centralized function
     active_user = Auth.ensure_active_user(user)
+    FormatCountry.put_viewer(active_user)
 
     assign(conn, :phoenix_kit_current_user, active_user)
   end
@@ -565,6 +567,8 @@ defmodule PhoenixKitWeb.Users.Auth do
       | multi_session_accounts: multi_session_accounts,
         multi_session_allowed?: multi_session_allowed?
     }
+
+    FormatCountry.put_viewer(active_user)
 
     conn
     |> assign(:phoenix_kit_current_user, active_user)
@@ -1475,14 +1479,19 @@ defmodule PhoenixKitWeb.Users.Auth do
     # reload the user THROUGH it (`refresh_scope_assigns/1`): the role a
     # session acts as rides on the token (`PhoenixKit.Users.ActiveRole`), and
     # a reload by uuid would drop it. Server-side only; never rendered.
+    socket =
+      socket
+      |> Phoenix.Component.assign_new(:phoenix_kit_session_token, fn -> session["user_token"] end)
+      |> Phoenix.Component.assign_new(:phoenix_kit_current_user, fn ->
+        case session["user_token"] do
+          nil -> nil
+          user_token -> get_active_user_from_token(user_token)
+        end
+      end)
+
+    # Dates follow the viewer's country, as strings follow their language.
+    FormatCountry.put_viewer(socket.assigns.phoenix_kit_current_user)
     socket
-    |> Phoenix.Component.assign_new(:phoenix_kit_session_token, fn -> session["user_token"] end)
-    |> Phoenix.Component.assign_new(:phoenix_kit_current_user, fn ->
-      case session["user_token"] do
-        nil -> nil
-        user_token -> get_active_user_from_token(user_token)
-      end
-    end)
   end
 
   # Guarded like the locale, scope-refresh and timezone hooks: LiveView raises

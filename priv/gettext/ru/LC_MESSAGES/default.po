@@ -21417,3 +21417,34 @@ msgstr "Личные SMTP-подключения могут использова
 #, elixir-autogen, elixir-format
 msgid "The SMTP host must resolve to a public address"
 msgstr "SMTP-сервер должен указывать на публичный адрес"
+
+#: lib/phoenix_kit_web/users/user_form.html.heex:272
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1227
+#, elixir-autogen, elixir-format
+msgid "— Not set —"
+msgstr "— Не задана —"
+
+#: lib/phoenix_kit_web/live/settings.html.heex:617
+#, elixir-autogen, elixir-format
+msgid "— None —"
+msgstr "— Нет —"
+
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1231
+#, elixir-autogen, elixir-format
+msgid "Dates are written the way your country does."
+msgstr "Даты записываются так, как принято в вашей стране."
+
+#: lib/phoenix_kit_web/live/settings.html.heex:606
+#, elixir-autogen, elixir-format
+msgid "Default Country for Formats"
+msgstr "Страна по умолчанию для форматов"
+
+#: lib/phoenix_kit_web/live/settings.html.heex:610
+#, elixir-autogen, elixir-format
+msgid "Dates follow each person's country. This one applies to anyone without a country and to signed-out visitors. Leave it empty to use the Date Format above for them."
+msgstr "Даты записываются по стране каждого человека. Эта страна применяется к тем, у кого её нет, и к посетителям без входа в систему. Оставьте пустым, чтобы для них использовался формат даты, выбранный выше."
+
+#: lib/phoenix_kit_web/users/user_form.html.heex:277
+#, elixir-autogen, elixir-format
+msgid "Dates are written the way this country does. When empty, the company's country, the sign-up country and then the site default are used."
+msgstr "Даты записываются так, как принято в этой стране. Если поле пусто, используются страна компании, страна регистрации, а затем страна по умолчанию для сайта."

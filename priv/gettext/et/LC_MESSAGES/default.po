@@ -21345,3 +21345,34 @@ msgstr "Isiklikud SMTP-ühendused tohivad kasutada ainult porte 25, 465, 587 võ
 #, elixir-autogen, elixir-format
 msgid "The SMTP host must resolve to a public address"
 msgstr "SMTP-host peab lahenduma avalikuks aadressiks"
+
+#: lib/phoenix_kit_web/users/user_form.html.heex:272
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1227
+#, elixir-autogen, elixir-format
+msgid "— Not set —"
+msgstr "— Määramata —"
+
+#: lib/phoenix_kit_web/live/settings.html.heex:617
+#, elixir-autogen, elixir-format
+msgid "— None —"
+msgstr "— Puudub —"
+
+#: lib/phoenix_kit_web/live/components/user_settings.ex:1231
+#, elixir-autogen, elixir-format
+msgid "Dates are written the way your country does."
+msgstr "Kuupäevad kirjutatakse nii, nagu sinu riigis tavaks on."
+
+#: lib/phoenix_kit_web/live/settings.html.heex:606
+#, elixir-autogen, elixir-format
+msgid "Default Country for Formats"
+msgstr "Vormingute vaikeriik"
+
+#: lib/phoenix_kit_web/live/settings.html.heex:610
+#, elixir-autogen, elixir-format
+msgid "Dates follow each person's country. This one applies to anyone without a country and to signed-out visitors. Leave it empty to use the Date Format above for them."
+msgstr "Kuupäevad järgivad iga inimese riiki. See kehtib neile, kellel riiki pole, ja sisselogimata külastajatele. Jäta tühjaks, et neile kasutataks ülaltoodud kuupäevavormingut."
+
+#: lib/phoenix_kit_web/users/user_form.html.heex:277
+#, elixir-autogen, elixir-format
+msgid "Dates are written the way this country does. When empty, the company's country, the sign-up country and then the site default are used."
+msgstr "Kuupäevad kirjutatakse nii, nagu selles riigis tavaks on. Kui väli on tühi, kasutatakse ettevõtte riiki, registreerumise riiki ja seejärel saidi vaikeriiki."
