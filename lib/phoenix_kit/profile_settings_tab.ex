@@ -60,7 +60,8 @@ defmodule PhoenixKit.ProfileSettingsTab do
       registered one). Absent, or naming a tab that does not exist, puts it
       at the end. Tabs after the same one keep their declared order.
     * `:permission` — a permission key the user must hold
-      (`PhoenixKit.Users.Auth.Scope.has_module_access?/2`).
+      (`PhoenixKit.Users.Auth.Scope.can?/2`, including its base permission
+      and live feature-enablement checks).
     * `:visible` — `{module, function}` or a one-argument function, called
       with the scope (`nil` for nobody signed in); the tab is offered when it
       returns `true`. One that raises hides the tab (with one warning). With
@@ -277,7 +278,8 @@ defmodule PhoenixKit.ProfileSettingsTab do
   defp check_live_view(mod) when is_atom(mod), do: {:ok, {mod, :index}}
   defp check_live_view(_live_view), do: {:error, "live_view must be a module or {module, action}"}
 
-  defp drop_duplicates(tabs) do
+  @doc false
+  def drop_duplicates(tabs) do
     {kept, _seen} =
       Enum.reduce(tabs, {[], MapSet.new()}, fn tab, {kept, seen} ->
         if MapSet.member?(seen, tab.id) do
@@ -328,13 +330,29 @@ defmodule PhoenixKit.ProfileSettingsTab do
   @spec visible?(t(), term()) :: boolean()
   def visible?(%__MODULE__{} = tab, scope) do
     permitted?(tab, scope) and call_visible(tab, scope)
+  rescue
+    error ->
+      warn_once(
+        {:permission, tab.id},
+        "the permission check of the tab #{inspect(tab.id)} raised #{inspect(error.__struct__)}"
+      )
+
+      false
+  catch
+    kind, _reason ->
+      warn_once(
+        {:permission, tab.id},
+        "the permission check of the tab #{inspect(tab.id)} failed (#{kind})"
+      )
+
+      false
   end
 
   defp permitted?(%{permission: nil}, _scope), do: true
   defp permitted?(_tab, nil), do: false
 
   defp permitted?(%{permission: key}, scope),
-    do: Scope.has_module_access?(scope, key)
+    do: Scope.can?(scope, key)
 
   defp call_visible(%{visible: nil}, _scope), do: true
 

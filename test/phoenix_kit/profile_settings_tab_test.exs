@@ -11,6 +11,8 @@ defmodule PhoenixKit.ProfileSettingsTabTest do
   import Phoenix.LiveViewTest
 
   alias PhoenixKit.ProfileSettingsTab
+  alias PhoenixKit.Users.Auth.Scope
+  alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Components.ProfileSettingsTabs
 
   defmodule OnModule do
@@ -19,10 +21,30 @@ defmodule PhoenixKit.ProfileSettingsTabTest do
   end
 
   defmodule OffModule do
+    def permission_metadata, do: %{key: "profile_tab_off"}
     def enabled?, do: false
 
     def profile_settings_tabs,
       do: [%{id: "from-off", label: "Off", live_view: PhoenixKit.ProfileSettingsTabTest}]
+  end
+
+  defmodule UnavailableModule do
+    def permission_metadata, do: %{key: "profile_tab_unavailable"}
+    def enabled?, do: exit(:unavailable)
+  end
+
+  defmodule CollisionModule do
+    def enabled?, do: true
+
+    def profile_settings_tabs,
+      do: [%{id: "from-off", label: "Collision", live_view: PhoenixKit.ProfileSettingsTabTest}]
+  end
+
+  defmodule ProbeLive do
+    use Phoenix.LiveView
+
+    @impl true
+    def render(assigns), do: ~H"<div>Registered settings page</div>"
   end
 
   setup do
@@ -104,6 +126,18 @@ defmodule PhoenixKit.ProfileSettingsTabTest do
   end
 
   describe "module tabs" do
+    test "a disabled route owner does not hand its id to another module" do
+      put_tabs([])
+      modules = [OffModule, CollisionModule]
+      Enum.each(modules, &PhoenixKit.ModuleRegistry.register/1)
+      on_exit(fn -> Enum.each(modules, &PhoenixKit.ModuleRegistry.unregister/1) end)
+
+      capture_log(fn ->
+        assert [%{module: OffModule}] = ProfileSettingsTab.routed(modules)
+        refute Enum.any?(ProfileSettingsTab.all(), &(&1.id == "from-off"))
+      end)
+    end
+
     test "come after the host's, and only while the module is enabled" do
       put_tabs([%{id: "from-host", label: "Host"}])
       Enum.each([OnModule, OffModule], &PhoenixKit.ModuleRegistry.register/1)
@@ -122,6 +156,31 @@ defmodule PhoenixKit.ProfileSettingsTabTest do
   end
 
   describe "the strip" do
+    test "permission checks respect live feature state and fail closed on an exit" do
+      modules = [OffModule, UnavailableModule]
+      Enum.each(modules, &PhoenixKit.ModuleRegistry.register/1)
+      on_exit(fn -> Enum.each(modules, &PhoenixKit.ModuleRegistry.unregister/1) end)
+
+      for key <- ["profile_tab_off", "profile_tab_unavailable"] do
+        {:ok, tab} = ProfileSettingsTab.new(%{id: "restricted", label: "X", permission: key})
+        scope = %Scope{cached_permissions: MapSet.new([key])}
+        capture_log(fn -> refute ProfileSettingsTab.visible?(tab, scope) end)
+      end
+    end
+
+    test "a sub-permission requires its base permission" do
+      {:ok, tab} =
+        ProfileSettingsTab.new(%{id: "restricted", label: "X", permission: "media.manage"})
+
+      refute ProfileSettingsTab.visible?(tab, %Scope{
+               cached_permissions: MapSet.new(["media.manage"])
+             })
+
+      assert ProfileSettingsTab.visible?(tab, %Scope{
+               cached_permissions: MapSet.new(["media", "media.manage"])
+             })
+    end
+
     test "places tabs after the one they name, in declared order, the rest at the end" do
       put_tabs([
         %{id: "loose", label: "Loose"},
@@ -211,6 +270,49 @@ defmodule PhoenixKit.ProfileSettingsTabTest do
   end
 
   describe "routes" do
+    test "the compiled host router routes both URL shapes to the registered view before :tab" do
+      put_tabs([%{id: "routed", label: "Routed", live_view: {ProbeLive, :show}}])
+
+      # Compile in the sync test phase, after all test files have loaded: application
+      # config mutations at file scope race the other router fixtures.
+      Module.create(
+        __MODULE__.ProbeRouter,
+        quote do
+          use PhoenixKitWeb, :router
+          import PhoenixKitWeb.Integration
+
+          pipeline :browser do
+            plug :fetch_session
+          end
+
+          phoenix_kit_routes()
+        end,
+        Macro.Env.location(__ENV__)
+      )
+
+      on_exit(fn ->
+        :code.purge(__MODULE__.ProbeRouter)
+        :code.delete(__MODULE__.ProbeRouter)
+      end)
+
+      prefix = Routes.prefix_base()
+
+      for path <- ["#{prefix}/profile/settings/routed", "#{prefix}/et/profile/settings/routed"] do
+        info = Phoenix.Router.route_info(__MODULE__.ProbeRouter, "GET", path, "localhost")
+
+        assert %{phoenix_live_view: {ProbeLive, :show, _, session}} = info
+        assert session.name == :phoenix_kit_authenticated
+
+        assert Enum.any?(session.extra.on_mount, fn hook ->
+                 hook.id == {PhoenixKitWeb.Users.Auth, :phoenix_kit_ensure_authenticated_scope}
+               end)
+      end
+
+      refute __MODULE__.ProbeRouter.__mix_recompile__?()
+      Application.put_env(:phoenix_kit, :profile_settings_tabs, [])
+      assert __MODULE__.ProbeRouter.__mix_recompile__?()
+    end
+
     test "a tab with a live_view gets a route, one without does not" do
       put_tabs([
         %{id: "routed", label: "Routed", live_view: __MODULE__},

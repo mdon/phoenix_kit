@@ -226,17 +226,20 @@ defmodule PhoenixKit.ModuleRegistry do
   @doc """
   Collect the profile settings tabs (`c:PhoenixKit.Module.profile_settings_tabs/0`) of the
   **enabled** modules, as `PhoenixKit.ProfileSettingsTab` structs tagged with `:module`.
-  Only a module that defines the callback is asked whether it is enabled, so the strip's
-  render path pays nothing on an install without such modules.
+  Duplicate ids are resolved before enablement, matching the compiled routes: disabling
+  the first declaring module cannot hand its URL to a different module's tab.
+  Only modules whose declarations survive are asked whether they are enabled.
   """
   @spec all_profile_settings_tabs() :: [PhoenixKit.ProfileSettingsTab.t()]
   def all_profile_settings_tabs do
     all_modules()
     |> Enum.filter(fn mod ->
       Code.ensure_loaded?(mod) and function_exported?(mod, :profile_settings_tabs, 0) and
-        function_exported?(mod, :enabled?, 0) and safe_enabled?(mod)
+        function_exported?(mod, :enabled?, 0)
     end)
     |> Enum.flat_map(&PhoenixKit.ProfileSettingsTab.from_module/1)
+    |> PhoenixKit.ProfileSettingsTab.drop_duplicates()
+    |> Enum.filter(&safe_enabled?(&1.module))
   end
 
   @doc "Collect all supervisor child specs from all registered modules."
