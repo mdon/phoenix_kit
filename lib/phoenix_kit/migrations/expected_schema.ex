@@ -202,6 +202,25 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # access to; the real-database integration suite re-ran clean against a DB
   # migrated through V196, which is the property s7/s8 exist to prove.
   #
+  # V223 (2026-10-23, an AI request's cost in dollars; the AI tables' leftovers)
+  # RENAMES one object, RESHAPES three and REMOVES twenty. `column:phoenix_kit_ai_requests.cost_cents`
+  # (integer, since 32) is gone; `column:phoenix_kit_ai_requests.cost` (numeric(28,18),
+  # nullable, position 10 — a rename keeps the attribute number) is declared since 223 by
+  # `v223_objects/0`. `column:phoenix_kit_ai_requests.model` gets a `{223, …}` revision,
+  # varchar(150). The two V193 spend indexes carry the cost in INCLUDE and get a
+  # `{223, …}` revision naming `cost`. Removed: `table:phoenix_kit_ai_accounts` with its
+  # columns, primary key and indexes, `column:phoenix_kit_ai_requests.account_uuid` and
+  # its index, and the unique `uuid` indexes beside the primary keys
+  # (`phoenix_kit_ai_endpoints_uuid_idx`, `phoenix_kit_ai_prompts_uuid_idx`,
+  # `phoenix_kit_ai_prompts_uuid_index`, `phoenix_kit_ai_requests_uuid_idx`). The manifest
+  # has no way to say "present from N until 222", so a database whose comment is below
+  # 223 is no longer checked for them: repair would otherwise re-add them next to their
+  # replacements. Which unique index a foreign key binds to is not part of a key's
+  # shape (the probe reads no `conindid`), so the keys V223 re-adds verify as before.
+  # The data conversion is row DATA, which the manifest does not track. Read from a test
+  # database migrated through V223, kept honest by
+  # `PhoenixKit.Migrations.Postgres.V223Test`. `chain_hash` restamped over the shipped files.
+  #
   # V222 (2026-10-22, a confirmation of a live session) DECLARES three objects,
   # built by `v222_objects/1`: `column:phoenix_kit_api_confirmations.actor_user_uuid`
   # (uuid, nullable, position 20), its foreign key to `phoenix_kit_users` (ON DELETE
@@ -624,7 +643,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "ef4e383e4ee02dd476dda15e33eb0a52a9f36556c60069c2537d2738277fd38b"
+  @chain_hash "361393bd4e707c7d75fb2dc66769adb5eb789d76c7a0cf3d71eda7672f5cb2d2"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -14611,17 +14630,6 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         backfill: nil
       },
       %{
-        id: "table:phoenix_kit_ai_accounts",
-        owner: :ai,
-        check: {:catalog, %{name: "phoenix_kit_ai_accounts", kind: :table}},
-        create: "CREATE TABLE IF NOT EXISTS __SCHEMA__.phoenix_kit_ai_accounts ()",
-        since: 32,
-        class: :table,
-        revisions: [{32, %{}}],
-        presence: :required,
-        backfill: nil
-      },
-      %{
         id: "table:phoenix_kit_ai_requests",
         owner: :ai,
         check: {:catalog, %{name: "phoenix_kit_ai_requests", kind: :table}},
@@ -14632,150 +14640,8 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         presence: :required,
         backfill: nil
       },
-      %{
-        id: "column:phoenix_kit_ai_accounts.api_key",
-        owner: :ai,
-        check: {:catalog, %{table: "phoenix_kit_ai_accounts", column: "api_key", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_ai_accounts ADD COLUMN IF NOT EXISTS \"api_key\" text",
-        since: 32,
-        class: :column,
-        revisions: [{32, %{default: nil, type: "text", pos: 4, not_null: true}}],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "column:phoenix_kit_ai_accounts.base_url",
-        owner: :ai,
-        check: {:catalog, %{table: "phoenix_kit_ai_accounts", column: "base_url", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_ai_accounts ADD COLUMN IF NOT EXISTS \"base_url\" character varying(255)",
-        since: 32,
-        class: :column,
-        revisions: [
-          {32, %{default: nil, type: "character varying(255)", pos: 5, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "column:phoenix_kit_ai_accounts.enabled",
-        owner: :ai,
-        check: {:catalog, %{table: "phoenix_kit_ai_accounts", column: "enabled", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_ai_accounts ADD COLUMN IF NOT EXISTS \"enabled\" boolean DEFAULT true NOT NULL",
-        since: 32,
-        class: :column,
-        revisions: [{32, %{default: "true", type: "boolean", pos: 7, not_null: true}}],
-        presence: :required,
-        backfill: :default
-      },
-      %{
-        id: "column:phoenix_kit_ai_accounts.inserted_at",
-        owner: :ai,
-        check:
-          {:catalog, %{table: "phoenix_kit_ai_accounts", column: "inserted_at", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_ai_accounts ADD COLUMN IF NOT EXISTS \"inserted_at\" timestamp with time zone",
-        since: 32,
-        class: :column,
-        revisions: [
-          {32, %{default: nil, type: "timestamp without time zone", pos: 9, not_null: true}},
-          {58, %{default: nil, type: "timestamp with time zone", pos: 9, not_null: true}}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "column:phoenix_kit_ai_accounts.last_validated_at",
-        owner: :ai,
-        check:
-          {:catalog,
-           %{table: "phoenix_kit_ai_accounts", column: "last_validated_at", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_ai_accounts ADD COLUMN IF NOT EXISTS \"last_validated_at\" timestamp with time zone",
-        since: 32,
-        class: :column,
-        revisions: [
-          {32, %{default: nil, type: "timestamp without time zone", pos: 8, not_null: false}},
-          {58, %{default: nil, type: "timestamp with time zone", pos: 8, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "column:phoenix_kit_ai_accounts.name",
-        owner: :ai,
-        check: {:catalog, %{table: "phoenix_kit_ai_accounts", column: "name", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_ai_accounts ADD COLUMN IF NOT EXISTS \"name\" character varying(100)",
-        since: 32,
-        class: :column,
-        revisions: [{32, %{default: nil, type: "character varying(100)", pos: 2, not_null: true}}],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "column:phoenix_kit_ai_accounts.provider",
-        owner: :ai,
-        check: {:catalog, %{table: "phoenix_kit_ai_accounts", column: "provider", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_ai_accounts ADD COLUMN IF NOT EXISTS \"provider\" character varying(50) DEFAULT 'openrouter'::character varying NOT NULL",
-        since: 32,
-        class: :column,
-        revisions: [
-          {32,
-           %{
-             default: "'openrouter'::character varying",
-             type: "character varying(50)",
-             pos: 3,
-             not_null: true
-           }}
-        ],
-        presence: :required,
-        backfill: :default
-      },
-      %{
-        id: "column:phoenix_kit_ai_accounts.settings",
-        owner: :ai,
-        check: {:catalog, %{table: "phoenix_kit_ai_accounts", column: "settings", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_ai_accounts ADD COLUMN IF NOT EXISTS \"settings\" jsonb DEFAULT '{}'::jsonb",
-        since: 32,
-        class: :column,
-        revisions: [{32, %{default: "'{}'::jsonb", type: "jsonb", pos: 6, not_null: false}}],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "column:phoenix_kit_ai_accounts.updated_at",
-        owner: :ai,
-        check:
-          {:catalog, %{table: "phoenix_kit_ai_accounts", column: "updated_at", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_ai_accounts ADD COLUMN IF NOT EXISTS \"updated_at\" timestamp with time zone",
-        since: 32,
-        class: :column,
-        revisions: [
-          {32, %{default: nil, type: "timestamp without time zone", pos: 10, not_null: true}},
-          {58, %{default: nil, type: "timestamp with time zone", pos: 10, not_null: true}}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "column:phoenix_kit_ai_requests.cost_cents",
-        owner: :ai,
-        check:
-          {:catalog, %{table: "phoenix_kit_ai_requests", column: "cost_cents", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_ai_requests ADD COLUMN IF NOT EXISTS \"cost_cents\" integer",
-        since: 32,
-        class: :column,
-        revisions: [{32, %{default: nil, type: "integer", pos: 10, not_null: false}}],
-        presence: :required,
-        backfill: nil
-      },
+      # column:phoenix_kit_ai_requests.cost_cents (since 32) was renamed by V223 — now
+      # column:phoenix_kit_ai_requests.cost in v223_objects/0.
       %{
         id: "column:phoenix_kit_ai_requests.error_message",
         owner: :ai,
@@ -14848,11 +14714,12 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         owner: :ai,
         check: {:catalog, %{table: "phoenix_kit_ai_requests", column: "model", kind: :column}},
         create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_ai_requests ADD COLUMN IF NOT EXISTS \"model\" character varying(100)",
+          "ALTER TABLE __SCHEMA__.phoenix_kit_ai_requests ADD COLUMN IF NOT EXISTS \"model\" character varying(150)",
         since: 32,
         class: :column,
         revisions: [
-          {32, %{default: nil, type: "character varying(100)", pos: 5, not_null: false}}
+          {32, %{default: nil, type: "character varying(100)", pos: 5, not_null: false}},
+          {223, %{default: nil, type: "character varying(150)", pos: 5, not_null: false}}
         ],
         presence: :required,
         backfill: nil
@@ -14949,68 +14816,6 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         revisions: [
           {32, %{default: nil, type: "timestamp without time zone", pos: 16, not_null: true}},
           {58, %{default: nil, type: "timestamp with time zone", pos: 16, not_null: true}}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "index:phoenix_kit_ai_accounts_enabled_idx",
-        owner: :ai,
-        check:
-          {:catalog,
-           %{
-             name: "phoenix_kit_ai_accounts_enabled_idx",
-             table: "phoenix_kit_ai_accounts",
-             kind: :index
-           }},
-        create:
-          "CREATE INDEX IF NOT EXISTS phoenix_kit_ai_accounts_enabled_idx ON __SCHEMA__.phoenix_kit_ai_accounts USING btree (enabled)",
-        since: 32,
-        class: :index,
-        revisions: [
-          {32,
-           %{
-             table: "phoenix_kit_ai_accounts",
-             keys: ["enabled"],
-             unique: false,
-             method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_ai_accounts_enabled_idx ON __SCHEMA__.phoenix_kit_ai_accounts USING btree (enabled)",
-             predicate: nil,
-             opclasses: ["bool_ops"],
-             name_template: nil
-           }}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "index:phoenix_kit_ai_accounts_provider_idx",
-        owner: :ai,
-        check:
-          {:catalog,
-           %{
-             name: "phoenix_kit_ai_accounts_provider_idx",
-             table: "phoenix_kit_ai_accounts",
-             kind: :index
-           }},
-        create:
-          "CREATE INDEX IF NOT EXISTS phoenix_kit_ai_accounts_provider_idx ON __SCHEMA__.phoenix_kit_ai_accounts USING btree (provider)",
-        since: 32,
-        class: :index,
-        revisions: [
-          {32,
-           %{
-             table: "phoenix_kit_ai_accounts",
-             keys: ["provider"],
-             unique: false,
-             method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_ai_accounts_provider_idx ON __SCHEMA__.phoenix_kit_ai_accounts USING btree (provider)",
-             predicate: nil,
-             opclasses: ["text_ops"],
-             name_template: nil
-           }}
         ],
         presence: :required,
         backfill: nil
@@ -15115,47 +14920,6 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              predicate: nil,
              opclasses: ["text_ops"],
              name_template: nil
-           }}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "constraint:phoenix_kit_ai_accounts.phoenix_kit_ai_accounts_pkey",
-        owner: :ai,
-        check:
-          {:catalog,
-           %{
-             name: "phoenix_kit_ai_accounts_pkey",
-             table: "phoenix_kit_ai_accounts",
-             kind: :constraint
-           }},
-        create:
-          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_ai_accounts_pkey'\n      AND t.relname = 'phoenix_kit_ai_accounts'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_ai_accounts ADD CONSTRAINT phoenix_kit_ai_accounts_pkey PRIMARY KEY (uuid);\n  END IF;\nEND\n$$",
-        since: 32,
-        class: :constraint,
-        revisions: [
-          {32,
-           %{
-             type: "p",
-             columns: ["id"],
-             definition: "PRIMARY KEY (id)",
-             name_template: nil,
-             foreign_table: nil,
-             foreign_columns: nil,
-             on_delete: nil,
-             on_update: nil
-           }},
-          {74,
-           %{
-             type: "p",
-             columns: ["uuid"],
-             definition: "PRIMARY KEY (uuid)",
-             name_template: nil,
-             foreign_table: nil,
-             foreign_columns: nil,
-             on_delete: nil,
-             on_update: nil
            }}
         ],
         presence: :required,
@@ -20629,123 +20393,6 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              method: "btree",
              definition:
                "CREATE UNIQUE INDEX phoenix_kit_admin_notes_uuid_idx ON __SCHEMA__.phoenix_kit_admin_notes USING btree (uuid)",
-             predicate: nil,
-             opclasses: ["uuid_ops"],
-             name_template: nil
-           }}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "index:phoenix_kit_ai_endpoints_uuid_idx",
-        owner: :ai,
-        check:
-          {:catalog,
-           %{
-             name: "__PK_NAME_EXEMPT__phoenix_kit_ai_endpoints_uuid_idx",
-             table: "phoenix_kit_ai_endpoints",
-             kind: :index
-           }},
-        create:
-          "CREATE UNIQUE INDEX IF NOT EXISTS __PK_NAME_EXEMPT__phoenix_kit_ai_endpoints_uuid_idx ON __SCHEMA__.phoenix_kit_ai_endpoints USING btree (uuid)",
-        since: 40,
-        class: :index,
-        revisions: [
-          {40,
-           %{
-             table: "phoenix_kit_ai_endpoints",
-             keys: ["uuid"],
-             unique: true,
-             method: "btree",
-             definition:
-               "CREATE UNIQUE INDEX phoenix_kit_ai_endpoints_uuid_idx ON __SCHEMA__.phoenix_kit_ai_endpoints USING btree (uuid)",
-             predicate: nil,
-             opclasses: ["uuid_ops"],
-             name_template: nil
-           }},
-          {56,
-           %{
-             table: "phoenix_kit_ai_endpoints",
-             keys: ["uuid"],
-             unique: true,
-             method: "btree",
-             definition:
-               "CREATE UNIQUE INDEX __PK_NAME_EXEMPT__phoenix_kit_ai_endpoints_uuid_idx ON __SCHEMA__.phoenix_kit_ai_endpoints USING btree (uuid)",
-             predicate: nil,
-             opclasses: ["uuid_ops"],
-             name_template: :exempt
-           }}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "index:phoenix_kit_ai_prompts_uuid_idx",
-        owner: :ai,
-        check:
-          {:catalog,
-           %{
-             name: "__PK_NAME_EXEMPT__phoenix_kit_ai_prompts_uuid_idx",
-             table: "phoenix_kit_ai_prompts",
-             kind: :index
-           }},
-        create:
-          "CREATE UNIQUE INDEX IF NOT EXISTS __PK_NAME_EXEMPT__phoenix_kit_ai_prompts_uuid_idx ON __SCHEMA__.phoenix_kit_ai_prompts USING btree (uuid)",
-        since: 40,
-        class: :index,
-        revisions: [
-          {40,
-           %{
-             table: "phoenix_kit_ai_prompts",
-             keys: ["uuid"],
-             unique: true,
-             method: "btree",
-             definition:
-               "CREATE UNIQUE INDEX phoenix_kit_ai_prompts_uuid_idx ON __SCHEMA__.phoenix_kit_ai_prompts USING btree (uuid)",
-             predicate: nil,
-             opclasses: ["uuid_ops"],
-             name_template: nil
-           }},
-          {56,
-           %{
-             table: "phoenix_kit_ai_prompts",
-             keys: ["uuid"],
-             unique: true,
-             method: "btree",
-             definition:
-               "CREATE UNIQUE INDEX __PK_NAME_EXEMPT__phoenix_kit_ai_prompts_uuid_idx ON __SCHEMA__.phoenix_kit_ai_prompts USING btree (uuid)",
-             predicate: nil,
-             opclasses: ["uuid_ops"],
-             name_template: :exempt
-           }}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "index:phoenix_kit_ai_requests_uuid_idx",
-        owner: :ai,
-        check:
-          {:catalog,
-           %{
-             name: "phoenix_kit_ai_requests_uuid_idx",
-             table: "phoenix_kit_ai_requests",
-             kind: :index
-           }},
-        create:
-          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_ai_requests_uuid_idx ON __SCHEMA__.phoenix_kit_ai_requests USING btree (uuid)",
-        since: 40,
-        class: :index,
-        revisions: [
-          {40,
-           %{
-             table: "phoenix_kit_ai_requests",
-             keys: ["uuid"],
-             unique: true,
-             method: "btree",
-             definition:
-               "CREATE UNIQUE INDEX phoenix_kit_ai_requests_uuid_idx ON __SCHEMA__.phoenix_kit_ai_requests USING btree (uuid)",
              predicate: nil,
              opclasses: ["uuid_ops"],
              name_template: nil
@@ -38308,33 +37955,6 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         backfill: nil
       },
       %{
-        id: "column:phoenix_kit_ai_accounts.uuid",
-        owner: :ai,
-        check: {:catalog, %{table: "phoenix_kit_ai_accounts", column: "uuid", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_ai_accounts ADD COLUMN IF NOT EXISTS \"uuid\" uuid DEFAULT __SCHEMA__.uuid_generate_v7() NOT NULL",
-        since: 63,
-        class: :column,
-        revisions: [
-          {63, %{default: "__SCHEMA__.uuid_generate_v7()", type: "uuid", pos: 11, not_null: true}}
-        ],
-        presence: :required,
-        backfill: :default
-      },
-      %{
-        id: "column:phoenix_kit_ai_requests.account_uuid",
-        owner: :ai,
-        check:
-          {:catalog, %{table: "phoenix_kit_ai_requests", column: "account_uuid", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_ai_requests ADD COLUMN IF NOT EXISTS \"account_uuid\" uuid",
-        since: 63,
-        class: :column,
-        revisions: [{63, %{default: nil, type: "uuid", pos: 25, not_null: false}}],
-        presence: :required,
-        backfill: nil
-      },
-      %{
         id: "column:phoenix_kit_email_orphaned_events.matched_email_log_uuid",
         owner: :core,
         check:
@@ -38376,68 +37996,6 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         since: 63,
         class: :column,
         revisions: [{63, %{default: nil, type: "uuid", pos: 24, not_null: false}}],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "index:phoenix_kit_ai_accounts_uuid_idx",
-        owner: :ai,
-        check:
-          {:catalog,
-           %{
-             name: "phoenix_kit_ai_accounts_uuid_idx",
-             table: "phoenix_kit_ai_accounts",
-             kind: :index
-           }},
-        create:
-          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_ai_accounts_uuid_idx ON __SCHEMA__.phoenix_kit_ai_accounts USING btree (uuid)",
-        since: 63,
-        class: :index,
-        revisions: [
-          {63,
-           %{
-             table: "phoenix_kit_ai_accounts",
-             keys: ["uuid"],
-             unique: true,
-             method: "btree",
-             definition:
-               "CREATE UNIQUE INDEX phoenix_kit_ai_accounts_uuid_idx ON __SCHEMA__.phoenix_kit_ai_accounts USING btree (uuid)",
-             predicate: nil,
-             opclasses: ["uuid_ops"],
-             name_template: nil
-           }}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "index:phoenix_kit_ai_requests_account_uuid_idx",
-        owner: :ai,
-        check:
-          {:catalog,
-           %{
-             name: "phoenix_kit_ai_requests_account_uuid_idx",
-             table: "phoenix_kit_ai_requests",
-             kind: :index
-           }},
-        create:
-          "CREATE INDEX IF NOT EXISTS phoenix_kit_ai_requests_account_uuid_idx ON __SCHEMA__.phoenix_kit_ai_requests USING btree (account_uuid)",
-        since: 63,
-        class: :index,
-        revisions: [
-          {63,
-           %{
-             table: "phoenix_kit_ai_requests",
-             keys: ["account_uuid"],
-             unique: false,
-             method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_ai_requests_account_uuid_idx ON __SCHEMA__.phoenix_kit_ai_requests USING btree (account_uuid)",
-             predicate: nil,
-             opclasses: ["uuid_ops"],
-             name_template: nil
-           }}
-        ],
         presence: :required,
         backfill: nil
       },
@@ -39678,37 +39236,6 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              },
              key_value: "storage_default_bucket_uuid",
              key_column: "key"
-           }}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "index:phoenix_kit_ai_prompts_uuid_index",
-        owner: :ai,
-        check:
-          {:catalog,
-           %{
-             name: "phoenix_kit_ai_prompts_uuid_index",
-             table: "phoenix_kit_ai_prompts",
-             kind: :index
-           }},
-        create:
-          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_ai_prompts_uuid_index ON __SCHEMA__.phoenix_kit_ai_prompts USING btree (uuid)",
-        since: 78,
-        class: :index,
-        revisions: [
-          {78,
-           %{
-             table: "phoenix_kit_ai_prompts",
-             keys: ["uuid"],
-             unique: true,
-             method: "btree",
-             definition:
-               "CREATE UNIQUE INDEX phoenix_kit_ai_prompts_uuid_index ON __SCHEMA__.phoenix_kit_ai_prompts USING btree (uuid)",
-             predicate: nil,
-             opclasses: ["uuid_ops"],
-             name_template: nil
            }}
         ],
         presence: :required,
@@ -72569,7 +72096,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              kind: :index
            }},
         create:
-          "CREATE INDEX IF NOT EXISTS phoenix_kit_ai_requests_endpoint_spend_idx ON __SCHEMA__.phoenix_kit_ai_requests USING btree (endpoint_uuid, inserted_at) INCLUDE (cost_cents) WHERE ((status)::text = 'success'::text)",
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_ai_requests_endpoint_spend_idx ON __SCHEMA__.phoenix_kit_ai_requests USING btree (endpoint_uuid, inserted_at) INCLUDE (cost) WHERE ((status)::text = 'success'::text)",
         since: 193,
         class: :index,
         revisions: [
@@ -72581,6 +72108,18 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              method: "btree",
              definition:
                "CREATE INDEX phoenix_kit_ai_requests_endpoint_spend_idx ON __SCHEMA__.phoenix_kit_ai_requests USING btree (endpoint_uuid, inserted_at) INCLUDE (cost_cents) WHERE ((status)::text = 'success'::text)",
+             predicate: "((status)::text = 'success'::text)",
+             opclasses: ["uuid_ops", "timestamptz_ops"],
+             name_template: nil
+           }},
+          {223,
+           %{
+             table: "phoenix_kit_ai_requests",
+             keys: ["endpoint_uuid", "inserted_at", "cost"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_ai_requests_endpoint_spend_idx ON __SCHEMA__.phoenix_kit_ai_requests USING btree (endpoint_uuid, inserted_at) INCLUDE (cost) WHERE ((status)::text = 'success'::text)",
              predicate: "((status)::text = 'success'::text)",
              opclasses: ["uuid_ops", "timestamptz_ops"],
              name_template: nil
@@ -72600,7 +72139,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              kind: :index
            }},
         create:
-          "CREATE INDEX IF NOT EXISTS phoenix_kit_ai_requests_user_spend_idx ON __SCHEMA__.phoenix_kit_ai_requests USING btree (user_uuid, inserted_at) INCLUDE (cost_cents) WHERE ((status)::text = 'success'::text)",
+          "CREATE INDEX IF NOT EXISTS phoenix_kit_ai_requests_user_spend_idx ON __SCHEMA__.phoenix_kit_ai_requests USING btree (user_uuid, inserted_at) INCLUDE (cost) WHERE ((status)::text = 'success'::text)",
         since: 193,
         class: :index,
         revisions: [
@@ -72612,6 +72151,18 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              method: "btree",
              definition:
                "CREATE INDEX phoenix_kit_ai_requests_user_spend_idx ON __SCHEMA__.phoenix_kit_ai_requests USING btree (user_uuid, inserted_at) INCLUDE (cost_cents) WHERE ((status)::text = 'success'::text)",
+             predicate: "((status)::text = 'success'::text)",
+             opclasses: ["uuid_ops", "timestamptz_ops"],
+             name_template: nil
+           }},
+          {223,
+           %{
+             table: "phoenix_kit_ai_requests",
+             keys: ["user_uuid", "inserted_at", "cost"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX phoenix_kit_ai_requests_user_spend_idx ON __SCHEMA__.phoenix_kit_ai_requests USING btree (user_uuid, inserted_at) INCLUDE (cost) WHERE ((status)::text = 'success'::text)",
              predicate: "((status)::text = 'success'::text)",
              opclasses: ["uuid_ops", "timestamptz_ops"],
              name_template: nil
@@ -76878,7 +76429,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         presence: :required,
         backfill: nil
       }
-    ] ++ v220_objects()
+    ] ++ v220_objects() ++ v223_objects()
   end
 
   # --- V220: the dangerous-operation flow (built, not typed; see the header) ---
@@ -77021,6 +76572,25 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
           "timestamp_ops"
         ])
       ] ++ v222_objects(conf)
+  end
+
+  # --- V223: an AI request's cost in dollars (see the header) ---
+
+  defp v223_objects do
+    [
+      %{
+        id: "column:phoenix_kit_ai_requests.cost",
+        owner: :ai,
+        check: {:catalog, %{table: "phoenix_kit_ai_requests", column: "cost", kind: :column}},
+        create:
+          "ALTER TABLE __SCHEMA__.phoenix_kit_ai_requests ADD COLUMN IF NOT EXISTS \"cost\" numeric(28,18)",
+        since: 223,
+        class: :column,
+        revisions: [{223, %{default: nil, type: "numeric(28,18)", pos: 10, not_null: false}}],
+        presence: :required,
+        backfill: nil
+      }
+    ]
   end
 
   # --- V222: a confirmation of a live session (see the header) ---
