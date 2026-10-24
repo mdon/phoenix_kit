@@ -5623,11 +5623,10 @@ defmodule PhoenixKit.Modules.Storage do
   """
   @spec direct_urls([{String.t(), String.t()}]) :: %{{String.t(), String.t()} => String.t()}
   def direct_urls(pairs) when is_list(pairs) do
-    # A variant that is not a string is left out here: it would make the
-    # instance query raise a cast error for the whole batch.
+    # Non-string values are left out so one malformed pair cannot fail the batch.
     wanted =
-      for {uuid, variant} <- pairs, is_binary(variant), into: MapSet.new() do
-        {to_string(uuid), variant}
+      for {uuid, variant} <- pairs, is_binary(uuid), is_binary(variant), into: MapSet.new() do
+        {uuid, variant}
       end
 
     case Enum.flat_map(wanted, &cast_pair_uuid/1) do

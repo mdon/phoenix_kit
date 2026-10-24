@@ -339,6 +339,14 @@ defmodule PhoenixKit.Modules.Storage.DirectUrlsTest do
              %{{uuid, "medium"} => "#{@cdn}/#{key}"}
 
     assert Storage.direct_urls([
+             {%{}, "medium"},
+             {[], "medium"},
+             {nil, "medium"},
+             {123, "medium"},
+             {uuid, "medium"}
+           ]) == %{{uuid, "medium"} => "#{@cdn}/#{key}"}
+
+    assert Storage.direct_urls([
              {"not-a-uuid", "medium"},
              {uuid, "medium"},
              {uuid, "medium"},
