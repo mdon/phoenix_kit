@@ -1,7 +1,7 @@
 defmodule PhoenixKit.Migrations.Postgres.V223Test do
   @moduledoc """
   V223's AI costs in dollars, run as the real SQL: `cost_cents` (integer, millionths)
-  becomes `cost` (numeric(20,10), dollars) with every cost converted, an unreleased
+  becomes `cost` (numeric(28,18), dollars) with every cost converted, an unreleased
   `cost_nanodollars` (billionths) likewise, the settings untouched, the spend indexes
   follow the rename, a re-run converts nothing twice, a rollback turns the costs back into
   millionths, and the same statements work in a named schema.
@@ -103,9 +103,9 @@ defmodule PhoenixKit.Migrations.Postgres.V223Test do
     ])
   end
 
-  test "the chain is at 223 or later, with a numeric(20,10) cost in both spend indexes" do
+  test "the chain is at 223 or later, with a numeric(28,18) cost in both spend indexes" do
     assert String.to_integer(marker()) >= 223
-    assert [["cost", "numeric(20,10)"]] = cost_column()
+    assert [["cost", "numeric(28,18)"]] = cost_column()
 
     assert [endpoint_idx, user_idx] = spend_index_definitions()
     assert endpoint_idx =~ "(endpoint_uuid, inserted_at) INCLUDE (cost)"
@@ -124,7 +124,7 @@ defmodule PhoenixKit.Migrations.Postgres.V223Test do
 
     run(V223.up_statements("public"))
 
-    assert [["cost", "numeric(20,10)"]] = cost_column()
+    assert [["cost", "numeric(28,18)"]] = cost_column()
     assert marker() == "223"
 
     assert_costs("cost", %{
@@ -149,10 +149,25 @@ defmodule PhoenixKit.Migrations.Postgres.V223Test do
 
     run(V223.up_statements("public"))
 
-    assert [["cost", "numeric(20,10)"]] = cost_column()
+    assert [["cost", "numeric(28,18)"]] = cost_column()
     assert_costs("cost", %{"embedding" => "0.00000004", "chat" => "1.5"})
     assert [endpoint_idx, _] = spend_index_definitions()
     assert endpoint_idx =~ "INCLUDE (cost)"
+  end
+
+  test "a cost from an earlier unreleased V223 (numeric(20,10)) is widened, nothing lost" do
+    insert_request("chat", "1.2345678901", "cost")
+    run(["ALTER TABLE public.phoenix_kit_ai_requests ALTER COLUMN cost TYPE numeric(20,10)"])
+    assert [["cost", "numeric(20,10)"]] = cost_column()
+
+    run(V223.up_statements("public"))
+
+    assert [["cost", "numeric(28,18)"]] = cost_column()
+    assert_costs("cost", %{"chat" => "1.2345678901"})
+
+    # an attodollar fits now
+    insert_request("token", "0.000000000000000001", "cost")
+    assert_costs("cost", %{"chat" => "1.2345678901", "token" => "0.000000000000000001"})
   end
 
   test "a table with cost and a legacy column stops the migration, up and down" do
@@ -203,7 +218,7 @@ defmodule PhoenixKit.Migrations.Postgres.V223Test do
     assert costs("cost_cents") == %{"embedding" => 20, "tiny" => 0}
 
     run(V223.up_statements("public"))
-    assert [["cost", "numeric(20,10)"]] = cost_column()
+    assert [["cost", "numeric(28,18)"]] = cost_column()
     assert_costs("cost", %{"embedding" => "0.00002", "tiny" => "0"})
   end
 
@@ -241,7 +256,7 @@ defmodule PhoenixKit.Migrations.Postgres.V223Test do
 
     run(V223.up_statements(@scratch))
 
-    assert [["cost", "numeric(20,10)"]] = cost_column(@scratch)
+    assert [["cost", "numeric(28,18)"]] = cost_column(@scratch)
     assert_costs("cost", %{"scratch_row" => "0.000007"}, @scratch)
     assert setting("ai_daily_budget", @scratch) == "5000000"
     assert marker(@scratch) == "223"
@@ -398,7 +413,7 @@ defmodule PhoenixKit.Migrations.Postgres.V223Test do
       "CREATE TABLE #{@scratch}.phoenix_kit_ai_endpoints (uuid uuid PRIMARY KEY)",
       "CREATE TABLE #{@scratch}.phoenix_kit_ai_prompts (uuid uuid PRIMARY KEY)",
       "CREATE TABLE #{@scratch}.phoenix_kit_ai_requests " <>
-        "(uuid uuid PRIMARY KEY, model varchar(100), cost numeric(20,10), endpoint_uuid uuid)",
+        "(uuid uuid PRIMARY KEY, model varchar(100), cost numeric(28,18), endpoint_uuid uuid)",
       # V135's names outside public
       "CREATE UNIQUE INDEX #{@scratch}_phoenix_kit_ai_endpoints_uuid_idx " <>
         "ON #{@scratch}.phoenix_kit_ai_endpoints (uuid)",

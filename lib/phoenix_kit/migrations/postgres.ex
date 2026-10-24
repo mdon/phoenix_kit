@@ -10,7 +10,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   ### V223 - An AI request's cost in dollars; the AI tables' leftovers ⚡ LATEST
 
   `phoenix_kit_ai_requests.cost_cents` (`integer`, which held millionths of a dollar)
-  becomes `cost` (`numeric(20,10)`, US dollars), every stored cost converted. The AI
+  becomes `cost` (`numeric(28,18)`, US dollars), every stored cost converted. The AI
   spend caps are converted by `phoenix_kit_ai`'s own chain, not here. Also: the requests'
   `model` widened to `varchar(150)` (the endpoints' width); the unused pre-V34
   `phoenix_kit_ai_accounts` table and `phoenix_kit_ai_requests.account_uuid` dropped;

@@ -204,7 +204,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   #
   # V223 (2026-10-23, an AI request's cost in dollars; the AI tables' leftovers)
   # RENAMES one object, RESHAPES three and REMOVES twenty. `column:phoenix_kit_ai_requests.cost_cents`
-  # (integer, since 32) is gone; `column:phoenix_kit_ai_requests.cost` (numeric(20,10),
+  # (integer, since 32) is gone; `column:phoenix_kit_ai_requests.cost` (numeric(28,18),
   # nullable, position 10 — a rename keeps the attribute number) is declared since 223 by
   # `v223_objects/0`. `column:phoenix_kit_ai_requests.model` gets a `{223, …}` revision,
   # varchar(150). The two V193 spend indexes carry the cost in INCLUDE and get a
@@ -643,7 +643,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "9272ea7f98f48274d31ed40a3583a28d0c17ba9cb4c3ccaeb55f76082d31cf16"
+  @chain_hash "361393bd4e707c7d75fb2dc66769adb5eb789d76c7a0cf3d71eda7672f5cb2d2"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -76583,10 +76583,10 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         owner: :ai,
         check: {:catalog, %{table: "phoenix_kit_ai_requests", column: "cost", kind: :column}},
         create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_ai_requests ADD COLUMN IF NOT EXISTS \"cost\" numeric(20,10)",
+          "ALTER TABLE __SCHEMA__.phoenix_kit_ai_requests ADD COLUMN IF NOT EXISTS \"cost\" numeric(28,18)",
         since: 223,
         class: :column,
-        revisions: [{223, %{default: nil, type: "numeric(20,10)", pos: 10, not_null: false}}],
+        revisions: [{223, %{default: nil, type: "numeric(28,18)", pos: 10, not_null: false}}],
         presence: :required,
         backfill: nil
       }

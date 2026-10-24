@@ -9,9 +9,14 @@ defmodule PhoenixKit.Migrations.Postgres.V223 do
   cheap call (a short embedding costs about $0.0000001) was stored as `0`, and every
   reader had to divide.
 
-  The column becomes **`cost`**, a **`numeric(20,10)`** amount of US dollars, like every
+  The column becomes **`cost`**, a **`numeric(28,18)`** amount of US dollars, like every
   other amount of money in the kit (`price`, `total`, `amount`): `0.00003` is three
-  thousandths of a cent, and ten decimal places keep a call of $0.0000000001. The stored
+  thousandths of a cent. Eighteen decimal places (an attodollar) keep the cheapest
+  single tokens with room to spare: a cached input token at $0.0014 per million
+  (OpenRouter's cheapest in 2026) is `0.0000000014`, and a small embedding model run
+  locally, priced at its electricity, is about `0.0000000001` a token — prices keep
+  falling, and a scale is costly to change once released. Postgres stores a numeric's
+  significant digits, not its declared scale, so the places cost nothing. The stored
   costs are converted in the same rewrite (`cost_cents / 1_000_000`). The rename is
   deliberate: a `phoenix_kit_ai` that still writes millionths fails on the missing column
   instead of storing costs a million times too large. A database that ran an unreleased
@@ -161,13 +166,19 @@ defmodule PhoenixKit.Migrations.Postgres.V223 do
         -- 3. The cost in dollars (after the drops, so the rewrite rebuilds
         --    fewer indexes).
         IF #{column_exists(prefix, "phoenix_kit_ai_requests", "cost_cents")} THEN
-          ALTER TABLE #{t} ALTER COLUMN cost_cents TYPE numeric(20,10)
+          ALTER TABLE #{t} ALTER COLUMN cost_cents TYPE numeric(28,18)
             USING cost_cents::numeric / 1000000;
           ALTER TABLE #{t} RENAME COLUMN cost_cents TO cost;
         ELSIF #{column_exists(prefix, "phoenix_kit_ai_requests", "cost_nanodollars")} THEN
-          ALTER TABLE #{t} ALTER COLUMN cost_nanodollars TYPE numeric(20,10)
+          ALTER TABLE #{t} ALTER COLUMN cost_nanodollars TYPE numeric(28,18)
             USING cost_nanodollars::numeric / 1000000000;
           ALTER TABLE #{t} RENAME COLUMN cost_nanodollars TO cost;
+        ELSIF EXISTS (SELECT 1 FROM information_schema.columns
+                      WHERE table_schema = '#{prefix}' AND table_name = 'phoenix_kit_ai_requests'
+                        AND column_name = 'cost' AND data_type = 'numeric'
+                        AND (numeric_scale < 18 OR numeric_precision < 28)) THEN
+          -- a dev database on an earlier unreleased V223 (numeric(20,10)): widen, lossless
+          ALTER TABLE #{t} ALTER COLUMN cost TYPE numeric(28,18);
         END IF;
 
         -- 4. The foreign keys back, by name, now bound to the primary keys.
