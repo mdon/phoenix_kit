@@ -205,6 +205,18 @@ defmodule PhoenixKit.Modules.Storage.DirectUrlsTest do
     assert direct(uuid) == nil
   end
 
+  # The query-count block covers a disabled bucket ranked first and skipped
+  # for the next one; this is the case with nothing to fall through to.
+  test "a copy recorded only on a disabled bucket stays on the app", ctx do
+    n = System.unique_integer([:positive])
+
+    {:ok, disabled} =
+      Storage.create_bucket(cloud_attrs(n, %{name: "direct-off-#{n}", enabled: false}))
+
+    {uuid, _key} = image!(ctx, [disabled])
+    assert direct(uuid) == nil
+  end
+
   test "a backup copy is never linked", ctx do
     {uuid, _key} = image!(ctx, [ctx.cloud])
     {:ok, _} = Profiles.put_bucket(ctx.profile, ctx.cloud.uuid, %{role: "backup"})
@@ -320,6 +332,11 @@ defmodule PhoenixKit.Modules.Storage.DirectUrlsTest do
 
     # Results are keyed by the canonical lower-case uuid.
     assert Storage.direct_urls([{String.upcase(uuid), "medium"}]) == %{}
+
+    # A variant that is not a string is left out, not a cast error for the
+    # whole batch.
+    assert Storage.direct_urls([{uuid, :medium}, {uuid, nil}, {uuid, "medium"}]) ==
+             %{{uuid, "medium"} => "#{@cdn}/#{key}"}
 
     assert Storage.direct_urls([
              {"not-a-uuid", "medium"},
