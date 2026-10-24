@@ -1,6 +1,21 @@
-## Unreleased
+## 2.64.0 - 2026-10-24
+
+**Migrations V221–V223.** Run `mix phoenix_kit.update` after upgrading. Hosts using
+`phoenix_kit_ai` must upgrade it together with core to **0.26.0 or later**, which
+writes dollar-valued `cost`; older AI releases use the removed `cost_cents` column.
+V223 rewrites the request journal under an exclusive lock and removes the unused
+legacy AI accounts table; allow a maintenance window for a large journal.
 
 ### Changed
+
+- **AI request costs are stored as dollars (V223).** `cost_cents` (integer millionths
+  of a dollar) becomes `cost` (`numeric(28,18)`), with existing costs converted.
+  Request model names now allow 150 characters. Unused AI accounts, `account_uuid`
+  and redundant UUID indexes are removed; foreign keys are preserved.
+- **Settings → API uses core form components and URL-held tabs** for Access, Keys,
+  Approvals and the API guide. Module rows show each tool's availability to an agent.
+- **Template usage counts successful delivery handoffs**, including provider queues;
+  failed, blocked and development-suppressed messages no longer increment it.
 
 - **Dates follow the viewer's country (`PhoenixKit.Users.FormatCountry`).** Where a date is shown in "the user's format"
   (`Utils.Date.format_date_with_user_format/1`, `format_datetime_with_user_format/1`, `format_datetime_full_with_user_format/1`,
@@ -33,6 +48,31 @@
   longer shows an empty entry; `/admin/approvals` itself and the link on Settings -> API answer as before.
 
 ### Added
+
+- **Confirmed writes from live sessions (V222).** Hosts can call `Executor.execute_as/5`
+  with `allow: :all` for modules enabled through the "Agent may act" setting. Every
+  write waits for that person's confirmation; `redeem_as/6` rechecks current session
+  permissions, module settings and the preview before executing it once.
+- **Module-supplied integration validators** support `validate_connection/1` or the
+  owner-aware `/2`, isolated under a deadline with credential-safe crash logging.
+  Z.ai is available as an AI integration provider.
+- **`Storage.direct_urls/1`** resolves batches of public file variants to bucket URLs
+  with a fixed query count, retaining application URLs for private and ineligible files.
+- **Boot-time Admin permission grants retry transient failures** and expose
+  `Permissions.await_admin_grants/1` for hosts that need to wait for completion.
+- **Machine API discovery and administration:** a public `/mcp` guide, API catalog,
+  discovery links, a generated admin connection guide, per-module API switches,
+  an approval review page and read-only execution on behalf of a live session.
+  A key requiring approval now holds every write, including non-dangerous tools.
+- **A gallery viewer mode** adds touch swiping, neighboring-image handoffs and steady
+  controls, with follow-up fixes for teardown, editing and download behavior.
+- **`<.date_input>`** combines a localized text field with a calendar while submitting
+  an ISO date. Header widgets can contribute a dock beside the admin page.
+- **Canonical URL helpers** resolve public origins through the host's configured
+  resolver. Explicit `:trusted_proxies` controls forwarded client IP and protocol
+  handling; personal SMTP connections can opt into a restricted address policy.
+- **Hidden system libraries** keep module-owned files private and outside site media;
+  `Storage.store_file_in_buckets/7` supports explicitly opting out of deduplication.
 
 - **Tabs of your own on the profile settings strip (`PhoenixKit.ProfileSettingsTab`).** A host lists them in
   `config :phoenix_kit, :profile_settings_tabs`, a module returns them from the new optional
@@ -95,6 +135,18 @@
   regenerating them.
 
 ### Fixed
+
+- Malformed UUID and variant values in a direct-URL batch are skipped without losing
+  valid results. Bucket-scoped object-storage keys pass connection validation with a
+  note when listing buckets is forbidden; each bucket still needs its own access probe.
+- OAuth callback scheme resolution handles an unset base URL and integer, string or
+  environment-based endpoint ports. MCP error clipping bounds combining characters
+  by code points, including protocol-version headers and approval reasons.
+- Integration picker check marks and badges use separate CSS class tokens; dashboard
+  overview grids follow their container width. Country-select type-ahead matches names.
+- Storage endpoint checks reject IPv6 forms that reach non-public addresses. Setting,
+  header-widget and API failure logs omit sensitive request-derived values. Remembered
+  account recovery and primary-language dialect redirects retain their intended state.
 
 - **Country format preferences stay current.** Viewers without a personal country follow changes to the site default in
   an open LiveView; embedded identity mounts and scope refreshes also set the viewer's country. The default-country
