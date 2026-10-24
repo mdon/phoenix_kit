@@ -226,7 +226,14 @@ defmodule PhoenixKit.Migrations.Postgres.V223Test do
       "CREATE TABLE #{@scratch}.phoenix_kit_ai_requests " <>
         "(LIKE public.phoenix_kit_ai_requests INCLUDING DEFAULTS INCLUDING INDEXES)",
       "CREATE TABLE #{@scratch}.phoenix_kit_settings " <>
-        "(LIKE public.phoenix_kit_settings INCLUDING DEFAULTS INCLUDING INDEXES)"
+        "(LIKE public.phoenix_kit_settings INCLUDING DEFAULTS INCLUDING INDEXES)",
+      "CREATE TABLE #{@scratch}.phoenix_kit_ai_endpoints " <>
+        "(LIKE public.phoenix_kit_ai_endpoints INCLUDING DEFAULTS INCLUDING INDEXES)",
+      "CREATE TABLE #{@scratch}.phoenix_kit_ai_prompts " <>
+        "(LIKE public.phoenix_kit_ai_prompts INCLUDING DEFAULTS INCLUDING INDEXES)",
+      # a named-schema install has its own uuid_generate_v7 (the accounts' default)
+      "CREATE FUNCTION #{@scratch}.uuid_generate_v7() RETURNS uuid " <>
+        "LANGUAGE sql AS 'SELECT public.uuid_generate_v7()'"
     ])
 
     insert_request("scratch_row", 7, "cost_cents", @scratch)
@@ -246,5 +253,175 @@ defmodule PhoenixKit.Migrations.Postgres.V223Test do
     assert [["cost_cents", "integer"]] = cost_column(@scratch)
     assert costs("cost_cents", @scratch) == %{"scratch_row" => 7}
     assert marker(@scratch) == "222"
+  end
+
+  # ---- the leftovers: model width, accounts, duplicate uuid indexes ----
+
+  defp column_type(table, column, schema \\ "public") do
+    query(
+      """
+      SELECT format_type(atttypid, atttypmod) FROM pg_attribute
+      WHERE attrelid = to_regclass($1) AND attname = $2 AND NOT attisdropped
+      """,
+      ["#{schema}.#{table}", column]
+    )
+  end
+
+  defp table?(table, schema \\ "public"),
+    do: query("SELECT to_regclass($1) IS NOT NULL", ["#{schema}.#{table}"]) == [[true]]
+
+  # names of the unique, non-primary indexes on `uuid` of a table
+  defp uuid_duplicates(table, schema \\ "public") do
+    query(
+      """
+      SELECT ic.relname FROM pg_index i
+      JOIN pg_class ic ON ic.oid = i.indexrelid
+      JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = i.indkey[0]
+      WHERE i.indrelid = to_regclass($1) AND i.indisunique AND NOT i.indisprimary
+        AND i.indnatts = 1 AND a.attname = 'uuid'
+      ORDER BY 1
+      """,
+      ["#{schema}.#{table}"]
+    )
+    |> List.flatten()
+  end
+
+  # the index a foreign key is bound to
+  defp fk_index(table, name, schema \\ "public") do
+    [[index]] =
+      query(
+        "SELECT conindid::regclass::text FROM pg_constraint WHERE conrelid = to_regclass($1) AND conname = $2",
+        ["#{schema}.#{table}", name]
+      )
+
+    index
+  end
+
+  test "the chain head has no accounts, no account_uuid, no duplicate uuid indexes, a wide model" do
+    refute table?("phoenix_kit_ai_accounts")
+    assert column_type("phoenix_kit_ai_requests", "account_uuid") == []
+    assert column_type("phoenix_kit_ai_requests", "model") == [["character varying(150)"]]
+
+    for table <- ~w(phoenix_kit_ai_endpoints phoenix_kit_ai_prompts phoenix_kit_ai_requests) do
+      assert uuid_duplicates(table) == [], table
+    end
+
+    assert fk_index("phoenix_kit_ai_requests", "fk_ai_requests_endpoint_uuid") =~
+             "phoenix_kit_ai_endpoints_pkey"
+  end
+
+  test "down restores the V222 shape; up drops it again and re-binds the keys to the pkeys" do
+    run(V223.down_statements("public"))
+
+    assert table?("phoenix_kit_ai_accounts")
+    assert column_type("phoenix_kit_ai_requests", "account_uuid") == [["uuid"]]
+    assert column_type("phoenix_kit_ai_requests", "model") == [["character varying(100)"]]
+
+    assert uuid_duplicates("phoenix_kit_ai_prompts") ==
+             ["phoenix_kit_ai_prompts_uuid_idx", "phoenix_kit_ai_prompts_uuid_index"]
+
+    # A key bound to a duplicate, as the old chain left them (re-created while the
+    # duplicate is the only unique index on endpoints.uuid).
+    run([
+      "ALTER TABLE public.phoenix_kit_ai_requests DROP CONSTRAINT fk_ai_requests_endpoint_uuid",
+      "ALTER TABLE public.phoenix_kit_ai_requests DROP CONSTRAINT IF EXISTS phoenix_kit_ai_requests_endpoint_uuid_fkey",
+      "ALTER TABLE public.phoenix_kit_ai_endpoints DROP CONSTRAINT phoenix_kit_ai_endpoints_pkey CASCADE",
+      "ALTER TABLE public.phoenix_kit_ai_requests ADD CONSTRAINT fk_ai_requests_endpoint_uuid " <>
+        "FOREIGN KEY (endpoint_uuid) REFERENCES public.phoenix_kit_ai_endpoints(uuid) ON DELETE SET NULL",
+      "ALTER TABLE public.phoenix_kit_ai_endpoints ADD CONSTRAINT phoenix_kit_ai_endpoints_pkey PRIMARY KEY (uuid)"
+    ])
+
+    assert fk_index("phoenix_kit_ai_requests", "fk_ai_requests_endpoint_uuid") ==
+             "phoenix_kit_ai_endpoints_uuid_idx"
+
+    query(
+      "INSERT INTO public.phoenix_kit_ai_accounts (name, api_key, inserted_at, updated_at) " <>
+        "VALUES ('old', 'sk-old-plaintext', now(), now())"
+    )
+
+    run(V223.up_statements("public"))
+
+    refute table?("phoenix_kit_ai_accounts")
+    assert column_type("phoenix_kit_ai_requests", "account_uuid") == []
+    assert column_type("phoenix_kit_ai_requests", "model") == [["character varying(150)"]]
+
+    for table <- ~w(phoenix_kit_ai_endpoints phoenix_kit_ai_prompts phoenix_kit_ai_requests) do
+      assert uuid_duplicates(table) == [], table
+    end
+
+    # the key is back under its own name and definition, bound to the pkey
+    assert fk_index("phoenix_kit_ai_requests", "fk_ai_requests_endpoint_uuid") ==
+             "phoenix_kit_ai_endpoints_pkey"
+
+    assert [[def]] =
+             query(
+               "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'fk_ai_requests_endpoint_uuid'"
+             )
+
+    assert def =~ "REFERENCES phoenix_kit_ai_endpoints(uuid) ON DELETE SET NULL"
+
+    # and still enforced
+    assert_raise Postgrex.Error, ~r/foreign key/, fn ->
+      Repo.transaction(fn ->
+        query(
+          "INSERT INTO public.phoenix_kit_ai_requests (model, endpoint_uuid, inserted_at, updated_at) " <>
+            "VALUES ('m', $1, now(), now())",
+          [Ecto.UUID.bingenerate()]
+        )
+      end)
+    end
+
+    # a re-run has nothing left to do
+    run(V223.up_statements("public"))
+
+    assert fk_index("phoenix_kit_ai_requests", "fk_ai_requests_endpoint_uuid") ==
+             "phoenix_kit_ai_endpoints_pkey"
+  end
+
+  test "a model longer than V222's 100 characters stops the rollback" do
+    query(
+      "INSERT INTO public.phoenix_kit_ai_requests (model, inserted_at, updated_at) VALUES ($1, now(), now())",
+      [String.duplicate("m", 120)]
+    )
+
+    assert_raise Postgrex.Error, ~r/model longer than 100 characters/, fn ->
+      Repo.transaction(fn -> run(V223.down_statements("public")) end)
+    end
+  end
+
+  test "in a named schema the <prefix>_ duplicate indexes are found and dropped" do
+    run([
+      "CREATE SCHEMA #{@scratch}",
+      "CREATE TABLE #{@scratch}.phoenix_kit (id integer)",
+      "CREATE FUNCTION #{@scratch}.uuid_generate_v7() RETURNS uuid " <>
+        "LANGUAGE sql AS 'SELECT public.uuid_generate_v7()'",
+      "CREATE TABLE #{@scratch}.phoenix_kit_ai_endpoints (uuid uuid PRIMARY KEY)",
+      "CREATE TABLE #{@scratch}.phoenix_kit_ai_prompts (uuid uuid PRIMARY KEY)",
+      "CREATE TABLE #{@scratch}.phoenix_kit_ai_requests " <>
+        "(uuid uuid PRIMARY KEY, model varchar(100), cost numeric(20,10), endpoint_uuid uuid)",
+      # V135's names outside public
+      "CREATE UNIQUE INDEX #{@scratch}_phoenix_kit_ai_endpoints_uuid_idx " <>
+        "ON #{@scratch}.phoenix_kit_ai_endpoints (uuid)",
+      "CREATE UNIQUE INDEX #{@scratch}_phoenix_kit_ai_prompts_uuid_idx " <>
+        "ON #{@scratch}.phoenix_kit_ai_prompts (uuid)"
+    ])
+
+    run(V223.up_statements(@scratch))
+
+    assert uuid_duplicates("phoenix_kit_ai_endpoints", @scratch) == []
+    assert uuid_duplicates("phoenix_kit_ai_prompts", @scratch) == []
+
+    assert column_type("phoenix_kit_ai_requests", "model", @scratch) ==
+             [["character varying(150)"]]
+
+    # public is untouched by a named-schema run
+    assert uuid_duplicates("phoenix_kit_ai_endpoints") == []
+
+    run(V223.down_statements(@scratch))
+
+    assert uuid_duplicates("phoenix_kit_ai_endpoints", @scratch) ==
+             ["#{@scratch}_phoenix_kit_ai_endpoints_uuid_idx"]
+
+    assert table?("phoenix_kit_ai_accounts", @scratch)
   end
 end
