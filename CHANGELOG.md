@@ -1,21 +1,46 @@
 ## 2.64.0 - 2026-10-24
 
-**Migrations V221–V223.** Run `mix phoenix_kit.update` after upgrading. Hosts using
-`phoenix_kit_ai` must upgrade it together with core to **0.26.0 or later**, which
-writes dollar-valued `cost`; older AI releases use the removed `cost_cents` column.
-V223 rewrites the request journal under an exclusive lock and removes the unused
-legacy AI accounts table; allow a maintenance window for a large journal.
+**Migrations V221–V223.** Run `mix phoenix_kit.update` after upgrading.
+
+**Upgrade notes**
+
+- **`phoenix_kit_ai` must be upgraded together with core, to 0.26.0 or later.** V223 renames
+  `phoenix_kit_ai_requests.cost_cents` to `cost`; an older AI release writes the removed column and every usage insert
+  fails. V223 rewrites the request journal under an `ACCESS EXCLUSIVE` lock and drops the unused legacy
+  `phoenix_kit_ai_accounts` table (its rows are not restored by a rollback); allow a maintenance window for a large journal.
+- **The public machine API moved to `/api/public/v1` and `/mcp/public` (#953).** `/api/shop/v1` and `/mcp/shop` still
+  answer, with `Deprecation` and `Link: rel="successor-version"` headers, until 3.0.0. `PhoenixKit.API.Actor.cart_token_hash`
+  is renamed to `client_token_hash` (no alias); the `api_public_cart_*` limits become `api_public_token_rate_per_min`,
+  `api_public_new_rows_per_ip_hour` and `api_public_new_rows_global_hour`, the old keys read as a fallback.
+- **Forwarded headers follow `config :phoenix_kit, :trusted_proxies` (#943, #955).** Unset, any loopback or private peer
+  is trusted as before. Set it to your proxy's ranges to stop another container on the network from choosing the client
+  IP (API `allowed_ips`, rate limits, audit) or the scheme (`X-Forwarded-Proto` for the API context and the OAuth callback
+  — `EnsureOAuthScheme` used to believe it from any peer).
+- **A key marked "Needs approval" now holds every write (#961)**, not only dangerous ones; reads and dry runs are unchanged.
+- **A query parameter ending in `_token` answers `400 token_in_url`** on the machine API (#953), e.g. `?page_token=`.
 
 ### Changed
 
-- **AI request costs are stored as dollars (V223).** `cost_cents` (integer millionths
-  of a dollar) becomes `cost` (`numeric(28,18)`), with existing costs converted.
-  Request model names now allow 150 characters. Unused AI accounts, `account_uuid`
-  and redundant UUID indexes are removed; foreign keys are preserved.
-- **Settings → API uses core form components and URL-held tabs** for Access, Keys,
-  Approvals and the API guide. Module rows show each tool's availability to an agent.
-- **Template usage counts successful delivery handoffs**, including provider queues;
-  failed, blocked and development-suppressed messages no longer increment it.
+- **AI request costs are stored as dollars (V223, #981).** `cost_cents` (an `integer` that held millionths of a dollar,
+  so a cheap call was stored as `0`) becomes `cost`, `numeric(28,18)` US dollars, with existing costs converted. The
+  requests' `model` widens to `varchar(150)` (the endpoints' width; a longer id failed the usage insert). The pre-V34
+  `phoenix_kit_ai_accounts` table and `phoenix_kit_ai_requests.account_uuid` are dropped, and the unique `uuid` indexes
+  beside the AI tables' primary keys are removed, the foreign keys bound to them re-added on the primary keys. A rollback
+  restores the V222 shape with an empty accounts table.
+- **The public machine API is module-neutral (#953).** Core no longer names a shop: a tool names the input carrying its
+  anonymous caller's token with `Tool.client_token` and its secret output fields with `Tool.credentials` (core's rule:
+  a known name or any name ending in `_token`), a module adds error codes with the optional `api_problems/0` callback, and
+  `RateLimit.check_new_rows/1` is the shared new-rows quota. Every deprecated name lives in `PhoenixKit.API.Legacy`, deleted
+  in 3.0.0. The guide is renamed `dev_docs/guides/2026-10-11-machine-api.md`.
+- **Settings → API is built from core's components and split into URL-held tabs (#976, #979):** Access, Keys, Approvals
+  and the API guide (`?tab=…`), the guide moving in from its own page. Module rows show each tool's availability to an agent.
+- **Template usage counts delivered messages only (#972)**, including a provider's queue handoff; failed, blocked and
+  development-suppressed messages no longer increment it.
+- **`integration_encryption_warn_on_boot: false` silences only encryption switched off on purpose (#954).** A missing
+  key (`:disabled_no_key`) is reported regardless, and `Encryption.encrypt_value/1`'s plaintext warning is logged once per VM
+  instead of on every save.
+- **MCP echoes of client text are clipped by code points, not graphemes (#963, #980)** — "Method not found", the
+  protocol-version echo and approval reasons — so one letter with thousands of combining marks is no longer echoed whole.
 
 - **Dates follow the viewer's country (`PhoenixKit.Users.FormatCountry`).** Where a date is shown in "the user's format"
   (`Utils.Date.format_date_with_user_format/1`, `format_datetime_with_user_format/1`, `format_datetime_full_with_user_format/1`,
@@ -49,30 +74,52 @@ legacy AI accounts table; allow a maintenance window for a large journal.
 
 ### Added
 
-- **Confirmed writes from live sessions (V222).** Hosts can call `Executor.execute_as/5`
-  with `allow: :all` for modules enabled through the "Agent may act" setting. Every
-  write waits for that person's confirmation; `redeem_as/6` rechecks current session
-  permissions, module settings and the preview before executing it once.
-- **Module-supplied integration validators** support `validate_connection/1` or the
-  owner-aware `/2`, isolated under a deadline with credential-safe crash logging.
-  Z.ai is available as an AI integration provider.
-- **`Storage.direct_urls/1`** resolves batches of public file variants to bucket URLs
-  with a fixed query count, retaining application URLs for private and ineligible files.
-- **Boot-time Admin permission grants retry transient failures** and expose
-  `Permissions.await_admin_grants/1` for hosts that need to wait for completion.
-- **Machine API discovery and administration:** a public `/mcp` guide, API catalog,
-  discovery links, a generated admin connection guide, per-module API switches,
-  an approval review page and read-only execution on behalf of a live session.
-  A key requiring approval now holds every write, including non-dangerous tools.
-- **A gallery viewer mode** adds touch swiping, neighboring-image handoffs and steady
-  controls, with follow-up fixes for teardown, editing and download behavior.
-- **`<.date_input>`** combines a localized text field with a calendar while submitting
-  an ISO date. Header widgets can contribute a dock beside the admin page.
-- **Canonical URL helpers** resolve public origins through the host's configured
-  resolver. Explicit `:trusted_proxies` controls forwarded client IP and protocol
-  handling; personal SMTP connections can opt into a restricted address policy.
-- **Hidden system libraries** keep module-owned files private and outside site media;
-  `Storage.store_file_in_buckets/7` supports explicitly opting out of deduplication.
+- **API tools run on behalf of a live session (#948, #974, V222).** `Executor.visible_for/3` / `execute_as/5` take a
+  `SessionRef` (`Users.Auth.SessionRef.from_session/1`) and act with that person's current rights (actor kind `:user`).
+  Reads run directly; with `allow: :all`, for modules an admin ticks under Settings → API ("Agent may act",
+  `api_session_write_modules`), a write is held in a confirmation row bound to the person
+  (`phoenix_kit_api_confirmations.actor_user_uuid`, V222) and runs once through `Executor.redeem_as/6`, which repeats the
+  whole request path.
+- **Public API discovery (#944):** a guide at `GET /mcp` (HTML, or Markdown for `Accept: text/markdown`), an RFC 9727
+  catalog at `/.well-known/api-catalog`, `Link` headers and an API section in `/llms.txt`, all shown only while the public
+  API is on and has a tool, and none naming the admin API.
+- **An admin guide to the machine API (#945)**, generated from this installation's tools and error codes, with
+  connection snippets for Claude Code, Claude Desktop, VS Code and a generic client (now a Settings → API tab).
+- **An Approvals menu entry and a readable approvals page (#946)** at `/admin/approvals`, for `api` holders, with a
+  per-viewer badge and previews rendered as fields instead of JSON; offered only while a key requires approval or an
+  approval is kept (#970).
+- **Per-module API switches (#940)** on Settings → API (`api_disabled_modules`, empty = all on) and an API badge on the
+  Modules page; a switched-off module's tools are withheld everywhere, core's `system.*` tools never.
+- **`replay: false` on a `PhoenixKit.API.Tool` (#941)** for a write whose answer always carries a credential: it stops
+  advertising `idempotency_key` in MCP and OpenAPI and refuses one with `422`.
+- **Per-language public URLs through the canonical host resolver (#939):** new `PhoenixKit.Utils.Routes` helpers, so
+  modules stop calling `:canonical_host_resolver` themselves.
+- **Header widgets for modules and an optional dock column (#950).** The optional `header_widgets/0` callback returns
+  sticky nested LiveViews rendered before the notifications bell; `dock: true` adds a third admin-layout column
+  (`--pk-dock-width`). Without a widget the layout is unchanged.
+- **Module-supplied connection checks (#962):** a module contributing an integration provider names a
+  `PhoenixKit.Integrations.Validator` (`validate_connection/1`, or the owner-aware `/2`), run under a deadline with
+  credential-safe crash logging.
+- **Anthropic (#958) and Z.ai (#967) integration providers** (`:ai_completions`, site-wide and personal connections, a key
+  check).
+- **An opt-in address policy for personal SMTP integrations (#956):** `config :phoenix_kit, :personal_smtp_policy,
+  :restricted` refuses a user's SMTP host on a non-public address at Test Connection and before every send. Off by default;
+  site-wide connections are never checked.
+- **`Storage.direct_urls/1` (#964)** resolves many file variants at once to the public bucket's object URL, with a fixed
+  number of queries; private and ineligible files keep the app URL.
+- **Hidden system libraries (#949):** `Libraries.create_system_library(attrs, hidden: true)` for a module's own files —
+  private, time-window URLs only, absent from Media, settings lists and pickers.
+- **`dedup: false` on `Storage.store_file_in_buckets/7` (#938)**: each call gets its own file row, for a host storing
+  files of independent records under one owner (form attachments). The checksum backfill keeps the opt-out.
+- **A gallery mode for the media viewer (#965):** Photos-style swiping between neighbours (Fresco 0.15), steady
+  controls and a picture that stays put.
+- **`<.date_input>` (#936)**: a date in the site format with a clear button and a calendar in the UI language, submitting
+  an ISO date (and working before the socket connects).
+- **Boot-time Admin permission grants retry and report failures (#973).** The grants return `{:error, _}` instead of
+  `:ok`, a supervised `Permissions.AdminGrants` retries failed keys, and a host can wait with
+  `Permissions.await_admin_grants/1`.
+- **Docs:** core's admin building blocks in `usage-rules.md` (#947), host application API tools (#952), host-neutral
+  examples (#966).
 
 - **Tabs of your own on the profile settings strip (`PhoenixKit.ProfileSettingsTab`).** A host lists them in
   `config :phoenix_kit, :profile_settings_tabs`, a module returns them from the new optional
@@ -136,17 +183,23 @@ legacy AI accounts table; allow a maintenance window for a large journal.
 
 ### Fixed
 
-- Malformed UUID and variant values in a direct-URL batch are skipped without losing
-  valid results. Bucket-scoped object-storage keys pass connection validation with a
-  note when listing buckets is forbidden; each bucket still needs its own access probe.
-- OAuth callback scheme resolution handles an unset base URL and integer, string or
-  environment-based endpoint ports. MCP error clipping bounds combining characters
-  by code points, including protocol-version headers and approval reasons.
-- Integration picker check marks and badges use separate CSS class tokens; dashboard
-  overview grids follow their container width. Country-select type-ahead matches names.
-- Storage endpoint checks reject IPv6 forms that reach non-public addresses. Setting,
-  header-widget and API failure logs omit sensitive request-derived values. Remembered
-  account recovery and primary-language dialect redirects retain their intended state.
+- **Integration secrets stay out of logs, and key rotation re-encrypts bucket secrets (#942).** Settings and bucket
+  writes run with `log: false`, `Setting.value`/`value_json` are `redact: true`, and a failed save logs the changeset's
+  errors only. `KeyRotation.rotate/2` now re-encrypts buckets' own `secret_access_key` in the same transaction — before, every
+  such bucket failed to decrypt its secret after a rotation and a restart.
+- **An object storage key limited to buckets passes Test Connection (#977)** with the note "not allowed to list
+  buckets — bucket access was not verified"; invalid keys still fail.
+- **Storage endpoint checks refuse IPv6 forms that reach non-public addresses (#957)**: IPv4-compatible `::a.b.c.d`,
+  6to4, the local-use NAT64 prefix, site-local, Teredo and documentation ranges passed a personal endpoint's check.
+- **A base language's own dialect URL redirects to the base code (#968):** with `en-US` the only English, `/en-US/…`
+  goes to `/en/…` instead of serving a duplicate page (`Languages.url_locale_segment/1`).
+- **`EnsureOAuthScheme` no longer forces `https` on port 443 when `oauth_base_url` is unset (#971)**: the endpoint's
+  `url:` config applies again, its port read whether it is an integer, a string or an environment tuple.
+- **The integration picker lit every card's check (#975)**: glued CSS classes are separated. **Dashboard overview grids
+  size by their container (#978)**, not the window.
+- **`Storage.direct_urls/1` skips a malformed uuid or variant** instead of failing the whole batch.
+- **Switching back to a remembered account works again**, and the country select's type-ahead matches names (the flag
+  now follows the name).
 
 - **Country format preferences stay current.** Viewers without a personal country follow changes to the site default in
   an open LiveView; embedded identity mounts and scope refreshes also set the viewer's country. The default-country
@@ -176,7 +229,7 @@ legacy AI accounts table; allow a maintenance window for a large journal.
   (`TileSource`), and cuts every tile from it.
 - **`POST /api/upload` takes HEIC, HEIF, AVIF, TIFF and BMP** (it turned them away as "not allowed"), and its size cap follows the
   `storage_max_upload_size_mb` setting (default 500) instead of a fixed 100 MB.
-- **`<.time_ago>` reads in the user's language.** Its `TimeAgo` client hook rewrote the text in English once the page was
+- **`<.time_ago>` reads in the user's language (#969).** Its `TimeAgo` client hook rewrote the text in English once the page was
   live; the component now has no hook and is rendered by the server alone, with `ngettext` plural forms ("1 день назад",
   "2 дня назад", "5 дней назад"; "1 päev tagasi", "3 päeva tagasi"). The tooltip is the moment in the site time zone as
   `YYYY-MM-DD HH:MM` instead of an English date in UTC. A moment ahead of the clock reads "0s ago". The text no longer
