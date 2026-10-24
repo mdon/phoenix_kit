@@ -1,3 +1,21 @@
+## 2.64.1 - 2026-10-24
+
+**No migration** (still V223). Ships PR #982's avatar crop editor fix.
+
+### Fixed
+
+- **The avatar crop editor pans again (#982).** After the first move of a drag the picture froze where it was: the
+  drag state lost the frame's size, and every later move computed a `NaN` focal point. One pointer (mouse or a finger)
+  now pans the whole way in every direction, clamped at the picture's edge as before.
+
+### Changed
+
+- **Avatar crop zoom follows the cursor and the fingers (#982).** The wheel and a trackpad zoom toward the point under
+  the cursor, in proportion to how far they turned (a trackpad pinch, `ctrlKey`, too), instead of fixed 8% steps about
+  the focal point; two fingers on a phone pinch about their midpoint and pan as it moves; the slider zooms about the
+  frame's centre. The stored crop and its layout are unchanged, so saved avatars render as before.
+- The `AvatarCrop` hook's drag, wheel and pinch gestures are covered by JS tests (`test/js/avatar_crop.test.cjs`).
+
 ## 2.64.0 - 2026-10-24
 
 **Migrations V221–V223.** Run `mix phoenix_kit.update` after upgrading.
