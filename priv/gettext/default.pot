@@ -11932,9 +11932,9 @@ msgstr ""
 msgid "Could not switch account."
 msgstr ""
 
-#: lib/phoenix_kit/integrations/validators.ex:771
+#: lib/phoenix_kit/integrations/validators.ex:805
 #, elixir-autogen, elixir-format
-msgid "Credentials are valid, but not authorized to list buckets"
+msgid "Credentials are valid, but not allowed to list buckets — bucket access was not verified"
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/crawlers.html.heex:90
