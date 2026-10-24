@@ -200,6 +200,20 @@ defmodule PhoenixKit.Migrations.Postgres.V223Test do
     assert_costs("cost", %{"embedding" => "0.00002"})
   end
 
+  # Both blocks empty search_path to make the re-added keys' definitions
+  # schema-qualified; inside a caller's transaction (this test's sandbox) that
+  # local setting would otherwise outlive the block.
+  test "leaves the caller's search_path as it found it, up and down" do
+    query("SET LOCAL search_path TO pg_catalog, public")
+    [[before]] = query("SELECT current_setting('search_path')")
+
+    run(V223.down_statements("public"))
+    assert [[^before]] = query("SELECT current_setting('search_path')")
+
+    run(V223.up_statements("public"))
+    assert [[^before]] = query("SELECT current_setting('search_path')")
+  end
+
   test "rolls back to integer cost_cents in millionths, and forward again" do
     insert_request("embedding", "0.0000204", "cost")
     insert_request("tiny", "0.00000016", "cost")
