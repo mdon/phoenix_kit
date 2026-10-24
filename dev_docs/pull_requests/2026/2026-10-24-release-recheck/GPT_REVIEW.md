@@ -15,6 +15,6 @@ Rechecked recent PRs #963–#981 and their follow-up fixes, concentrating on ses
 - `mix precommit` passed: warnings-as-errors compilation, unused-dependency check, test-tree compilation, formatting, strict Credo, Dialyzer and all 473 JavaScript tests.
 - Isolated PostgreSQL regression run: `direct_urls_test`, V223, V193 and the complete named-schema migration-chain test — 39 tests, 0 failures. The scratch database was created for this run and removed afterwards.
 - Companion `phoenix_kit_ai`: full suite against local core — 1,977 tests, 0 failures, including a new revoked-session guard test.
-- Initial `mix prerelease`: compilation, quality checks, both dependency audits, docs, package build, manifest hash and package contents passed; the expected dirty-tree check remains until the release commit. ExDoc emits existing documentation-reference warnings.
+- Final `mix prerelease` on clean, pushed candidate `e365b0be8`: passed, including production compilation, quality checks, both dependency audits, docs, package build, migration/manifest checks, clean Git state, tag collision and package contents. ExDoc emits existing documentation-reference warnings; all 7 release checks passed and the tarball was cleaned.
 - `PGPOOL=12 mix test --max-cases 8`: 12,774 tests and 89 doctests, 0 failures, 21 skipped and 1 excluded. PostgreSQL was reachable; the excluded privilege test requires CREATEROLE, which this role lacks.
-- Final clean-tree release gate pending the release commit.
+- Core 2.64.0 is committed and pushed. Publication/tagging is held pending authorization to include the necessary AI 0.26.0 companion, prepared and tested locally. The companion still needs normal Hex dependency resolution after core is published.
