@@ -34,6 +34,16 @@
 
 ### Added
 
+- **Tabs of your own on the profile settings strip (`PhoenixKit.ProfileSettingsTab`).** A host lists them in
+  `config :phoenix_kit, :profile_settings_tabs`, a module returns them from the new optional
+  `c:PhoenixKit.Module.profile_settings_tabs/0` (offered only while the module is enabled). Each has an `id` (its URL,
+  `/profile/settings/<id>`; core's ids are refused), a `label` (a string, or an `{m, f, a}` / function called on render, so it
+  can be the host's own `gettext`), an `icon`, `after:` (the tab it follows; the end otherwise), and an optional `permission:`
+  and `visible:` check of the scope (a check that raises hides the tab). With `live_view:` core declares the page's route in
+  its authenticated `live_session`, in both the locale-prefixed and plain URL shapes, ahead of `/profile/settings/:tab`; the
+  router recompiles when the config changes. Without it the host routes the page itself, before `phoenix_kit_routes()`. The
+  page renders `<ProfileSettingsTabs.profile_tabs active="<id>">` itself; from there every tab navigates. `tab_ids/1`,
+  `tab_label/1` and `tab_icon/1` read the registry; an id that is not routed still lands on the first tab.
 - **A country on the user (V221, `phoenix_kit_users.country`).** The ISO 3166-1 alpha-2 code of a person's or a company
   account's country, checked against `BeamLabCountries` and stored upper-case. Editable on the profile page and on the admin
   user form, shown on the user details page. A new account starts with its `registration_country` when that is a known code;
