@@ -202,6 +202,16 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # access to; the real-database integration suite re-ran clean against a DB
   # migrated through V196, which is the property s7/s8 exist to prove.
   #
+  # V224 (2026-10-25, an index for one resource's activity) DECLARES one object here by
+  # hand, a new index and the V175/V193 class:
+  # `index:phoenix_kit_activities_resource_uuid_inserted_at_index`,
+  # `(resource_uuid, inserted_at)` on `phoenix_kit_activities`, built by `v224_objects/0`.
+  # No column, constraint or reshape. The shape is CATALOG-EXACT: read with the repair
+  # probe and `pg_get_indexdef`/`pg_opclass` from a test database migrated through V224
+  # (`inserted_at` is `timestamp(0) without time zone`, hence `timestamp_ops`), and kept
+  # honest by `PhoenixKit.Migrations.Postgres.V224Test`, which runs the repair differ over
+  # every `since: 224` object. `chain_hash` restamped over the shipped files.
+  #
   # V223 (2026-10-23, an AI request's cost in dollars; the AI tables' leftovers)
   # RENAMES one object, RESHAPES three and REMOVES twenty. `column:phoenix_kit_ai_requests.cost_cents`
   # (integer, since 32) is gone; `column:phoenix_kit_ai_requests.cost` (numeric(28,18),
@@ -643,7 +653,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "361393bd4e707c7d75fb2dc66769adb5eb789d76c7a0cf3d71eda7672f5cb2d2"
+  @chain_hash "6c990a5588ac1a4a9e695d549f84f0041c043f6029f63e9a7a09949f44c5632d"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -76479,7 +76489,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
         presence: :required,
         backfill: nil
       }
-    ] ++ v220_objects() ++ v223_objects()
+    ] ++ v220_objects() ++ v223_objects() ++ v224_objects()
   end
 
   # --- V220: the dangerous-operation flow (built, not typed; see the header) ---
@@ -76622,6 +76632,40 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
           "timestamp_ops"
         ])
       ] ++ v222_objects(conf)
+  end
+
+  # --- V224: an index for one resource's activity (see the header) ---
+
+  defp v224_objects do
+    name = "phoenix_kit_activities_resource_uuid_inserted_at_index"
+
+    [
+      %{
+        id: "index:#{name}",
+        owner: :core,
+        check: {:catalog, %{name: name, table: "phoenix_kit_activities", kind: :index}},
+        create:
+          "CREATE INDEX IF NOT EXISTS #{name} ON __SCHEMA__.phoenix_kit_activities USING btree (resource_uuid, inserted_at)",
+        since: 224,
+        class: :index,
+        revisions: [
+          {224,
+           %{
+             table: "phoenix_kit_activities",
+             keys: ["resource_uuid", "inserted_at"],
+             unique: false,
+             method: "btree",
+             definition:
+               "CREATE INDEX #{name} ON __SCHEMA__.phoenix_kit_activities USING btree (resource_uuid, inserted_at)",
+             predicate: nil,
+             opclasses: ["uuid_ops", "timestamp_ops"],
+             name_template: nil
+           }}
+        ],
+        presence: :required,
+        backfill: nil
+      }
+    ]
   end
 
   # --- V223: an AI request's cost in dollars (see the header) ---

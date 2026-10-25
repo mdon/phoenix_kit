@@ -21516,3 +21516,78 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "The connection check gave an unexpected answer"
 msgstr ""
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "New sign-ins to your account from an unrecognized device, and sessions opened on your account by someone else"
+msgstr ""
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Password, email, role, timezone and profile changes made to your account"
+msgstr ""
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Likes, comments, mentions, and shares on your posts"
+msgstr ""
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Likes"
+msgstr ""
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Likes on your posts"
+msgstr ""
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Comments on your posts"
+msgstr ""
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Mentions"
+msgstr ""
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Mentions of you in posts"
+msgstr ""
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Shares"
+msgstr ""
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Shares of your posts"
+msgstr ""
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Replies and reactions to your comments"
+msgstr ""
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Replies"
+msgstr ""
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Replies to your comments"
+msgstr ""
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Reactions"
+msgstr ""
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Likes and reactions to your comments"
+msgstr ""

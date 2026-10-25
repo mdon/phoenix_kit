@@ -21525,3 +21525,78 @@ msgstr "Heakskiidud ja piirangud"
 #, elixir-autogen, elixir-format
 msgid "The connection check gave an unexpected answer"
 msgstr "Ühenduse kontroll andis ootamatu vastuse"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "New sign-ins to your account from an unrecognized device, and sessions opened on your account by someone else"
+msgstr "Uued sisselogimised sinu kontole tundmatust seadmest ja seansid, mille keegi teine sinu kontol avas"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Password, email, role, timezone and profile changes made to your account"
+msgstr "Sinu konto parooli, e-posti, rolli, ajavööndi ja profiili muudatused"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Likes, comments, mentions, and shares on your posts"
+msgstr "Meeldimised, kommentaarid, mainimised ja jagamised sinu postitustel"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Likes"
+msgstr "Meeldimised"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Likes on your posts"
+msgstr "Meeldimised sinu postitustel"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Comments on your posts"
+msgstr "Kommentaarid sinu postitustel"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Mentions"
+msgstr "Mainimised"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Mentions of you in posts"
+msgstr "Sinu mainimised postitustes"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Shares"
+msgstr "Jagamised"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Shares of your posts"
+msgstr "Sinu postituste jagamised"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Replies and reactions to your comments"
+msgstr "Vastused ja reaktsioonid sinu kommentaaridele"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Replies"
+msgstr "Vastused"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Replies to your comments"
+msgstr "Vastused sinu kommentaaridele"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Reactions"
+msgstr "Reaktsioonid"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Likes and reactions to your comments"
+msgstr "Meeldimised ja reaktsioonid sinu kommentaaridele"
