@@ -1,6 +1,6 @@
 # Module tables: every module owns its own
 
-**Status:** in progress — steps 1–3 done, step 4 done (document_creator, ai), all unreleased; step 5 next. See the
+**Status:** in progress — steps 1–3 done, step 4 done, step 5 started (billing done; ecommerce, emails and the 15 passing modules left), all unreleased. See the
 [progress log](#progress-log).
 **Started:** 2026-10-25. **Tracks:** this file is the shared record of where
 the work stands; update it in the same commit as each step.
@@ -54,7 +54,7 @@ unedited.
   (`phoenix_kit_doc_{categories,document_sections,documents,headers_footers,template_presets,templates,types}`);
   the generator's templates do not fit as-is, use `adoption_ddl.exs` output by
   hand. Fails alone today at `phoenix_kit_doc_documents` missing.
-- **billing** (step 5): V2 demotes duplicate default currencies in
+- **billing** (step 5) — **DONE**, `3fa1164`: V6 emits the base `CREATE TABLE` of `phoenix_kit_currencies` and `phoenix_kit_orders` between V1 and V2 (sharing V4's text; output for targets 1–5 verified byte-identical, public and named prefix); seeds ride inside the `DO` block that creates the table (`to_regclass IS NULL`), because replaying them with `ON CONFLICT DO NOTHING` on an existing host would restore deleted rows and a second `is_default` EUR would hit V2's unique index. The `#{pn}` indexes were already handled by V4. The email-template seeding is not carried (`EmailDefaults` is billing's own fallback). The four skipped tests were stale and are back (50 tests pass). 883 tests, 0 failures against local core. Original note: V2 demotes duplicate default currencies in
   `phoenix_kit_currencies` before V4 adopts it → fails alone. Also carries core's
   **seed rows** (currencies EUR/GBP/USD, payment options bank_transfer/cod/paypal/
   stripe; and `phoenix_kit_email_templates`' billing seeder) — `ModuleChainCheck`
@@ -126,7 +126,7 @@ new protocol.
 | 2 | "Builds from scratch" test helper + a true fresh-install test | core | **Done** 2026-10-25 (unreleased) |
 | 3 | First migration chain for comments, staff, user_connections, sync, calendar, referrals | 6 modules | **Done** 2026-10-25 (unreleased) |
 | 4 | Complete the chains of ai (3 tables) and document_creator (7 tables) | 2 modules **Done** 2026-10-25 — document_creator `f67f163`, ai `c118542` (unreleased) |
-| 5 | The step-2 test in every adopted module; fix what it finds | 17 modules | Not started — only billing and ecommerce fail (preview below) |
+| 5 | The step-2 test in every adopted module; fix what it finds | 17 modules | In progress — billing done 2026-10-25 (`3fa1164`); ecommerce, emails seeds/index, then the test in the 15 that pass |
 | 6 | Core's manifest hands every module-owned entry over | core | Not started |
 | 7 | Manifest generator (frozen pre-squash part + generated rest, compact, in `priv/`); move core's hard-coded module-table lists to module callbacks | core | Not started |
 | 8 | Core stops creating module tables on fresh installs | core | Not started — approach to decide |
@@ -338,6 +338,7 @@ owning module's chain, never core's.
   their own chains (pushed, unreleased; each ships after the core release that
   carries `ModuleChainCheck`). `dev_docs/squash/adoption_ddl.exs` added to core
   for the DDL. user_connections' floor raised to 2.22.3.
+- **2026-10-25** — Step 5 started: billing V6 (`3fa1164`); the checker passes it. Unreleased.
 - **2026-10-25** — Step 4 done: document_creator V3 (`f67f163`) and ai V5 (`c118542`); the checker passes both. Unreleased; both ship after the core release.
 - **2026-10-25** — Step 3 done: sync, calendar and referrals too. sync's floor
   raised to 2.63.0; user_connections and referrals gained a test database.
