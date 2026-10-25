@@ -5,6 +5,78 @@
 **Started:** 2026-10-25. **Tracks:** this file is the shared record of where
 the work stands; update it in the same commit as each step.
 
+## Start here (handoff for the next session, 2026-10-25)
+
+**Where it stands.** Steps 1–3 are done, committed and pushed to `main` in
+every repo; **nothing is released**. Hosts see no change until the releases.
+
+| Repo | Commits (latest first) |
+|---|---|
+| phoenix_kit | `c5cc437a7` plan; `fa7b25fe7` adoption_ddl fix; `7d52910ab` adoption_ddl; `39a0d4324` ModuleChainCheck + fresh-install test (step 2); `7e582bc0b` ModuleOwnedTables + guard (step 1); plus this handoff and `dev_docs/squash/adoption/` |
+| hello_world | `a9afe70`, `4a436ce` (docs only) |
+| comments `3f1e0b3` · staff `9b9d0a0` · user_connections `b5f10ab` · sync `b9cfcfb` · calendar `0110162` · referrals `e04892b` | step 3 chains |
+
+**Release day (Friday 2026-10-30), in this order:**
+
+1. **Core** — minor bump (new public modules `PhoenixKit.Migrations.ModuleOwnedTables`
+   and `PhoenixKit.TestSupport.ModuleChainCheck`; `Repair.Differ.canonical_expression/1`).
+   Steps 1–2 have no host-visible effect. Gate as usual (`mix prerelease`, full suite).
+2. **The six step-3 modules**, after `mix deps.update phoenix_kit` in each so
+   the lock resolves that core. Their `migrations_build_alone_test.exs` then
+   runs instead of being excluded; it passed against local core for all six.
+   Two raised their floor: user_connections `>= 2.22.3`, sync `>= 2.63.0`.
+   On hosts, `mix phoenix_kit.update` runs each new chain once and only stamps
+   the marker.
+
+**Tools** (all in core): `dev_docs/squash/adoption_ddl.exs` (DDL as a fresh core
+builds it), `dev_docs/squash/adoption/` (`gen_chain.py` + templates + README:
+chain and tests from that DDL; `check_module_chains.exs`: `ModuleChainCheck`
+over every module chain from core's VM — 27 of 31 pass today).
+
+**Next: step 4, then step 5.** All four failing chains share one shape:
+*an earlier version of the chain touches a table only core creates*, so on a
+database without core's copy that version fails before anything adopts the
+table. ai and billing build `up_statements/2` by replaying every version up to
+`target` in order (`version_up/2`; billing's `if target >= N` blocks), so the
+adoption DDL for core-created tables must be **emitted ahead of the first
+statement that touches them** — not appended as the last version — while the
+version number still goes up by one. Shipped versions' own statements stay
+unedited.
+
+- **ai** (step 4, needs its owner's OK — ai's moduledoc says the three tables
+  "stay in core's chain"): adopt `phoenix_kit_ai_endpoints`, `_prompts`,
+  `_requests` (core changed them in V164, V169, V193, V223). ai's V4 raises
+  unless core's V223 `ai_requests.cost` exists; once ai creates that table
+  itself, that guard has to accept ai's own copy. Floor is already `~> 2.64`.
+  Fails alone today at `phoenix_kit_ai_endpoints` missing.
+- **document_creator** (step 4): `PhoenixKitDocumentCreator.Migrations.Schema`
+  is Ecto-DSL (`execute/1`, no `up_statements/2`), V2, marker on
+  `phoenix_kit_doc_documents` — itself core-created. Adopt its 7 V135 tables
+  (`phoenix_kit_doc_{categories,document_sections,documents,headers_footers,template_presets,templates,types}`);
+  the generator's templates do not fit as-is, use `adoption_ddl.exs` output by
+  hand. Fails alone today at `phoenix_kit_doc_documents` missing.
+- **billing** (step 5): V2 demotes duplicate default currencies in
+  `phoenix_kit_currencies` before V4 adopts it → fails alone. Also carries core's
+  **seed rows** (currencies EUR/GBP/USD, payment options bank_transfer/cod/paypal/
+  stripe; and `phoenix_kit_email_templates`' billing seeder) — `ModuleChainCheck`
+  compares shape, not rows, so seeds need their own check. Two of its indexes use
+  core's schema-name convention (`#{np}`; see step 3's notes). Its AGENTS.md
+  landmine about `subscription_type_uuid` missing on fresh builds is stale (it
+  exists) — its four `@tag :skip` tests can likely come back.
+- **ecommerce** (step 5): its chain lacks core's V186 columns
+  (`phoenix_kit_shop_carts.base_currency`, `.exchange_rate`,
+  `phoenix_kit_shop_cart_items.base_unit_price`); four `shop_*` indexes use the
+  `#{np}` convention.
+- **emails** passes the check but owns `phoenix_kit_email_templates` (seed rows,
+  one `#{np}` index): verify both in step 5.
+
+**Known, not part of this plan:** staff's suite has 31 web-test failures that
+predate this work (redirects to `/admin/...` where its test router expects
+`/en/admin/...`); core's `MediaFiltersTest` is flaky under load (passes alone).
+
+**Local test databases created on this machine:** `phoenix_kit_user_connections_test`,
+`phoenix_kit_referrals_test` (`createdb` them elsewhere).
+
 Builds on [the module-table extraction guide](../guides/2026-09-05-module-table-extraction-guide.md)
 (its Phase 0 / 1 / 2) and finishes it for every module, instead of inventing a
 new protocol.
