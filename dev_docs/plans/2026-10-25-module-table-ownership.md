@@ -1,6 +1,6 @@
 # Module tables: every module owns its own
 
-**Status:** in progress — steps 1–3 done, step 4 done, step 5 started (**step 5 done**), all unreleased. See the
+**Status:** in progress — steps 1–3 done, step 4 done, step 5 done, all unreleased. See the
 [progress log](#progress-log).
 **Started:** 2026-10-25. **Tracks:** this file is the shared record of where
 the work stands; update it in the same commit as each step.
