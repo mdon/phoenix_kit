@@ -158,6 +158,15 @@ Adoption`'s moduledoc, which this section mirrors in short form.
 
 ## Inventory: which core-baseline tables are already module-owned
 
+**The complete, current list is `PhoenixKit.Migrations.ModuleOwnedTables`**
+(2026-10-25): every table core's chain creates, as core's own (40) or under
+its owning module (141 tables, 25 modules), held against the chain by
+`test/phoenix_kit/migrations/module_owned_tables_test.exs`, which also fails a
+core version after V223 that names a module's table. Finishing all three
+phases for every module is planned and tracked in
+`dev_docs/plans/2026-10-25-module-table-ownership.md`. The per-module notes
+below predate that list and cover only the first three modules to adopt.
+
 Each module below is at Phase 0 (adopted, `down/1` only unstamps) or
 already past it. Core's baseline still creates every table listed — this
 inventory is what a future baseline squash removes from core once all

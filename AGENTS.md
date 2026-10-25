@@ -76,6 +76,7 @@ Var name = dep app upper-cased + `_PATH`; unset = published Hex pin (`mix hex.pu
 - Schemas use `@primary_key {:uuid, UUIDv7, autogenerate: true}`
 - New migrations use `uuid_generate_v7()` (NOT `gen_random_uuid()`)
 - Oban-style versioned migrations in `lib/phoenix_kit/migrations/postgres/`
+- ⚠️ **A module's table is never touched by a core migration.** Core's chain still creates 141 tables that belong to 25 modules (a leftover from when they lived in core); `PhoenixKit.Migrations.ModuleOwnedTables` says whose each table is. No version after V223 may create, change or drop one: put the change in the owning module's own chain. A new core table goes into `ModuleOwnedTables`' core list. `test/phoenix_kit/migrations/module_owned_tables_test.exs` enforces both. The move of these tables into their modules: `dev_docs/plans/2026-10-25-module-table-ownership.md`.
 - Every edit to `v*.ex`, including comments, changes the manifest's `chain_hash`. For schema-neutral edits, run `mix run dev_docs/squash/restamp_chain_hash.exs --restamp` after `mix format`, then run the release-check tests. For schema changes and manifest verification, follow the [manifest regeneration policy](dev_docs/squash/README.md#manifest--reference-policy-regenerate-never-hand-merge).
 
 ### Prefix-safe migrations (named-schema installs)
