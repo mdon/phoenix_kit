@@ -21597,3 +21597,78 @@ msgstr "Одобрения и лимиты"
 #, elixir-autogen, elixir-format
 msgid "The connection check gave an unexpected answer"
 msgstr "Проверка подключения дала неожиданный ответ"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "New sign-ins to your account from an unrecognized device, and sessions opened on your account by someone else"
+msgstr "Новые входы в вашу учётную запись с незнакомого устройства и сеансы, открытые в ней кем-то другим"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Password, email, role, timezone and profile changes made to your account"
+msgstr "Изменения пароля, почты, роли, часового пояса и профиля вашей учётной записи"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Likes, comments, mentions, and shares on your posts"
+msgstr "Отметки «нравится», комментарии, упоминания и репосты ваших публикаций"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Likes"
+msgstr "Отметки «нравится»"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Likes on your posts"
+msgstr "Отметки «нравится» под вашими публикациями"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Comments on your posts"
+msgstr "Комментарии к вашим публикациям"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Mentions"
+msgstr "Упоминания"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Mentions of you in posts"
+msgstr "Упоминания вас в публикациях"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Shares"
+msgstr "Репосты"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Shares of your posts"
+msgstr "Репосты ваших публикаций"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Replies and reactions to your comments"
+msgstr "Ответы и реакции на ваши комментарии"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Replies"
+msgstr "Ответы"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Replies to your comments"
+msgstr "Ответы на ваши комментарии"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Reactions"
+msgstr "Реакции"
+
+#: lib/phoenix_kit/notifications/types.ex
+#, elixir-autogen, elixir-format
+msgid "Likes and reactions to your comments"
+msgstr "Отметки «нравится» и реакции на ваши комментарии"

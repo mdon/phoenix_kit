@@ -230,7 +230,11 @@ defmodule PhoenixKit.Module do
   filter in `PhoenixKit.Notifications.maybe_create_from_activity/1` resolves each
   action to its most-specific type/sub-type via `PhoenixKit.Notifications.Types`
   and skips the fan-out when the user has muted it. Labels/descriptions are
-  runtime data — `mix gettext.extract` won't see them.
+  runtime data — `mix gettext.extract` won't see them — so register each in
+  your module's backend with `gettext_noop/1` and name that backend as
+  `gettext_backend:` on the type: the settings pages show them through it in
+  the reader's locale, the sub-types included
+  (`PhoenixKit.Notifications.Types.translate/2`).
 
   Headless modules (no user-facing actions) can skip this callback — the
   default is `[]`.
@@ -241,8 +245,9 @@ defmodule PhoenixKit.Module do
         [
           %{
             key: "reviews",
-            label: "Reviews",
-            description: "Reviews people leave you",
+            label: gettext_noop("Reviews"),
+            description: gettext_noop("Reviews people leave you"),
+            gettext_backend: MyModule.Gettext,
             actions: [],
             default: true,
             sub_types: [
