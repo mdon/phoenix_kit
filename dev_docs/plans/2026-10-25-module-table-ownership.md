@@ -1,6 +1,6 @@
 # Module tables: every module owns its own
 
-**Status:** in progress — steps 1–3 done, step 4 done, step 5 started (billing done; ecommerce, emails and the 15 passing modules left), all unreleased. See the
+**Status:** in progress — steps 1–3 done, step 4 done, step 5 started (billing and ecommerce done; emails and the 15 passing modules left), all unreleased. See the
 [progress log](#progress-log).
 **Started:** 2026-10-25. **Tracks:** this file is the shared record of where
 the work stands; update it in the same commit as each step.
@@ -33,7 +33,7 @@ builds it), `dev_docs/squash/adoption/` (`gen_chain.py` + templates + README:
 chain and tests from that DDL; `check_module_chains.exs`: `ModuleChainCheck`
 over every module chain from core's VM — 27 of 31 pass today).
 
-**Next: step 5** (step 4 is done; the shape below still governs billing and ecommerce). The failing chains shared one shape:
+**Next: step 5** (step 4 is done; billing and ecommerce are done). The failing chains shared one shape:
 *an earlier version of the chain touches a table only core creates*, so on a
 database without core's copy that version fails before anything adopts the
 table. ai and billing build `up_statements/2` by replaying every version up to
@@ -126,7 +126,7 @@ new protocol.
 | 2 | "Builds from scratch" test helper + a true fresh-install test | core | **Done** 2026-10-25 (unreleased) |
 | 3 | First migration chain for comments, staff, user_connections, sync, calendar, referrals | 6 modules | **Done** 2026-10-25 (unreleased) |
 | 4 | Complete the chains of ai (3 tables) and document_creator (7 tables) | 2 modules **Done** 2026-10-25 — document_creator `f67f163`, ai `c118542` (unreleased) |
-| 5 | The step-2 test in every adopted module; fix what it finds | 17 modules | In progress — billing done 2026-10-25 (`3fa1164`); ecommerce, emails seeds/index, then the test in the 15 that pass |
+| 5 | The step-2 test in every adopted module; fix what it finds | 17 modules | In progress — billing (`3fa1164`) and ecommerce (`54061bd`) done 2026-10-25; emails seeds/index, then the test in the 15 that pass |
 | 6 | Core's manifest hands every module-owned entry over | core | Not started |
 | 7 | Manifest generator (frozen pre-squash part + generated rest, compact, in `priv/`); move core's hard-coded module-table lists to module callbacks | core | Not started |
 | 8 | Core stops creating module tables on fresh installs | core | Not started — approach to decide |
@@ -339,6 +339,7 @@ owning module's chain, never core's.
   carries `ModuleChainCheck`). `dev_docs/squash/adoption_ddl.exs` added to core
   for the DDL. user_connections' floor raised to 2.22.3.
 - **2026-10-25** — Step 5 started: billing V6 (`3fa1164`); the checker passes it. Unreleased.
+- **2026-10-25** — Step 5: ecommerce V6 (`54061bd`) adds core V186's three columns (`ADD COLUMN IF NOT EXISTS`, no backfill) plus the builds-alone test; checker OK, 4771 tests (3 position-pinned migration tests adjusted), quality.ci clean. Unreleased.
 - **2026-10-25** — Step 4 done: document_creator V3 (`f67f163`) and ai V5 (`c118542`); the checker passes both. Unreleased; both ship after the core release.
 - **2026-10-25** — Step 3 done: sync, calendar and referrals too. sync's floor
   raised to 2.63.0; user_connections and referrals gained a test database.
