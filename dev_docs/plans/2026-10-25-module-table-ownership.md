@@ -1,7 +1,7 @@
 # Module tables: every module owns its own
 
-**Status:** in progress — steps 1 and 2 done (unreleased), step 3 next. See
-the [progress log](#progress-log).
+**Status:** in progress — steps 1 and 2 done (unreleased); step 3 underway
+(3 of 6 modules). See the [progress log](#progress-log).
 **Started:** 2026-10-25. **Tracks:** this file is the shared record of where
 the work stands; update it in the same commit as each step.
 
@@ -53,7 +53,7 @@ new protocol.
 |---|---|---|---|
 | 1 | Ownership map + guard test + rule in the docs | core, hello_world | **Done** 2026-10-25 (unreleased) |
 | 2 | "Builds from scratch" test helper + a true fresh-install test | core | **Done** 2026-10-25 (unreleased) |
-| 3 | First migration chain for comments, staff, user_connections, sync, calendar, referrals | 6 modules | Not started |
+| 3 | First migration chain for comments, staff, user_connections, sync, calendar, referrals | 6 modules | **In progress** — comments, staff, user_connections done (unreleased) |
 | 4 | Complete the chains of ai (3 tables) and document_creator (7 tables) | 2 modules | Not started — ai needs its owner's agreement |
 | 5 | The step-2 test in every adopted module; fix what it finds | 17 modules | Not started — only billing and ecommerce fail (preview below) |
 | 6 | Core's manifest hands every module-owned entry over | core | Not started |
@@ -112,7 +112,10 @@ in the modules):
 | Fails alone — step 5 | billing (V2 updates `phoenix_kit_currencies`, which only V4 adopts), ecommerce (lacks `base_currency`, `exchange_rate`, `base_unit_price`, core's V186 columns on carts and cart items) |
 | Not checkable yet — step 3 | comments, staff, user_connections, sync, calendar, referrals (no chain) |
 
-Found on the way: on a fresh build `phoenix_kit_subscriptions.subscription_type_uuid`
+Found on the way: core seeds rows into three module tables (`phoenix_kit_currencies`
+and `phoenix_kit_payment_options` for billing, `phoenix_kit_email_templates` for
+emails); `ModuleChainCheck` compares shape, not rows, so those seeds are
+billing's and emails' to carry in step 5. On a fresh build `phoenix_kit_subscriptions.subscription_type_uuid`
 **exists**, so `phoenix_kit_billing`'s landmine ("missing on a from-scratch
 build") and its four `@tag :skip` subscription tests look stale — check when
 billing is fixed in step 5.
@@ -124,6 +127,35 @@ hello_world coordinator: V1 adopts its tables with `CREATE … IF NOT EXISTS`,
 shape- and name-identical to what core builds **today** (including core's later
 changes: V136, V141, V164, V166, V188, V218), stamps a marker, `down/1` only
 unstamps; the step-2 test proves it. comments and staff first (most dependents).
+
+**How each one is done** (comments is the worked example):
+
+1. `MIX_ENV=test mix run --no-start dev_docs/squash/adoption_ddl.exs OUT.ex <tables>`
+   in core prints the tables' DDL exactly as a fresh core install builds them.
+2. The module gets `<App>.Migrations` in the shape of `phoenix_kit_locations`'
+   chain: V1 = those statements, a namespaced `<ns>_schema:1` marker, `down/1`
+   only rewrites the marker; `migration_module/0` returns it.
+3. `test_helper.exs` replays `up_statements/1` after core's `ensure_current/2`,
+   so the suite runs on the adopted schema; `migrations_test.exs` pins every
+   name, FK action and the prefix, and checks the statements against core's
+   manifest; `migrations_build_alone_test.exs` runs `ModuleChainCheck`, tagged
+   `:requires_module_chain_check` and excluded until the module resolves a core
+   that ships it.
+4. The core floor must include every core version that shaped the tables: V1
+   re-states today's shape, and over an older core's tables it could fail
+   (user_connections: V188's unique indexes meet the duplicates V188 removes
+   first). Checked per module against the core release that first carried each
+   version.
+5. AGENTS.md (no longer "owns no migrations"), CHANGELOG `Unreleased`.
+
+| Module | Chain | Marker | Floor | Commit | Notes |
+|---|---|---|---|---|---|
+| comments | V1, 4 tables | `pkcmt_schema:` on `phoenix_kit_comments` | 2.38.0 (unchanged; V166 is in 2.0.0) | `3f1e0b3` | 151 tests, 0 failures |
+| staff | V1, 7 tables | `pkstf_schema:` on `phoenix_kit_staff_people` | 2.43.0 (unchanged; V136 is in 2.0.0) | `9b9d0a0` | 31 web-test failures **predate this** (redirects to `/admin/...` where tests expect `/en/admin/...`; same 31 at HEAD before the change) |
+| user_connections | V1, 6 tables | `pkucn_schema:` on `phoenix_kit_user_connections` | **2.22.3** (was `~> 2.0`; V188) | `b5f10ab` | gained a test Repo and database (`phoenix_kit_user_connections_test`); no `pk_dep/3`, so its builds-alone check ran from core's VM |
+| sync | — | | needs 2.63.0 (V218) | | |
+| calendar | — | | | | |
+| referrals | — | | | | no test database yet |
 
 ### Step 4 — ai and document_creator
 
@@ -165,7 +197,10 @@ NULL-uuid check) to module callbacks.
 ### Step 8 — core stops creating module tables (fresh installs only)
 
 Remove the module DDL from V135 and from the later versions that touch module
-tables. Risk: a fresh install of new core with an old module version that has
+tables. Prerequisite found in step 3: modules' tables reference each other
+(`phoenix_kit_projects`' tables carry nine foreign keys to staff's), so module
+chains must run in dependency order (staff before projects), or such foreign
+keys must be guarded, wherever core no longer creates the referenced tables. Risk: a fresh install of new core with an old module version that has
 no chain. Options, decided when we get here:
 
 - **(a) at core 3.0** — modules pin `< 3.0.0`, so a 3.0 install always has module
@@ -205,6 +240,10 @@ owning module's chain, never core's.
   12,785 tests, 0 failures (21 skipped, `:requires_createrole` excluded). One
   earlier run hit a flaky async test (`MediaFiltersTest`, stack badge count;
   passes 5/5 alone, runs before any `async: false` test). Unreleased.
+- **2026-10-25** — Step 3 started: comments, staff and user_connections have
+  their own chains (pushed, unreleased; each ships after the core release that
+  carries `ModuleChainCheck`). `dev_docs/squash/adoption_ddl.exs` added to core
+  for the DDL. user_connections' floor raised to 2.22.3.
 
 ## Inventory (2026-10-25)
 
