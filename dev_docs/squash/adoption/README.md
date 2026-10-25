@@ -40,6 +40,11 @@ examples, by commit, in the plan's step 3 table):
    restore `mix.lock` from a copy and `mix deps.get` (never commit the path
    lock). A module without `pk_dep/3` is checked with `check_module_chains.exs`.
 
+The `template_*` files are not valid Elixir (`@@NAME@@` placeholders): core's
+format-on-edit hook (`.claude/hooks/format-edited-file.sh`) reports a failure
+when one is edited, and that is expected. `mix format` and credo never read
+`dev_docs/`.
+
 The generator handles the common cases; read what it writes. It asserts when a
 constraint name uses `#{np}` (none so far) and reports triggers and seed rows,
 which it does not generate.
