@@ -1,7 +1,7 @@
 # Module tables: every module owns its own
 
-**Status:** in progress — steps 1 and 2 done (unreleased); step 3 underway
-(3 of 6 modules). See the [progress log](#progress-log).
+**Status:** in progress — steps 1–3 done (unreleased), step 4 next. See the
+[progress log](#progress-log).
 **Started:** 2026-10-25. **Tracks:** this file is the shared record of where
 the work stands; update it in the same commit as each step.
 
@@ -53,7 +53,7 @@ new protocol.
 |---|---|---|---|
 | 1 | Ownership map + guard test + rule in the docs | core, hello_world | **Done** 2026-10-25 (unreleased) |
 | 2 | "Builds from scratch" test helper + a true fresh-install test | core | **Done** 2026-10-25 (unreleased) |
-| 3 | First migration chain for comments, staff, user_connections, sync, calendar, referrals | 6 modules | **In progress** — comments, staff, user_connections done (unreleased) |
+| 3 | First migration chain for comments, staff, user_connections, sync, calendar, referrals | 6 modules | **Done** 2026-10-25 (unreleased) |
 | 4 | Complete the chains of ai (3 tables) and document_creator (7 tables) | 2 modules | Not started — ai needs its owner's agreement |
 | 5 | The step-2 test in every adopted module; fix what it finds | 17 modules | Not started — only billing and ecommerce fail (preview below) |
 | 6 | Core's manifest hands every module-owned entry over | core | Not started |
@@ -153,9 +153,26 @@ unstamps; the step-2 test proves it. comments and staff first (most dependents).
 | comments | V1, 4 tables | `pkcmt_schema:` on `phoenix_kit_comments` | 2.38.0 (unchanged; V166 is in 2.0.0) | `3f1e0b3` | 151 tests, 0 failures |
 | staff | V1, 7 tables | `pkstf_schema:` on `phoenix_kit_staff_people` | 2.43.0 (unchanged; V136 is in 2.0.0) | `9b9d0a0` | 31 web-test failures **predate this** (redirects to `/admin/...` where tests expect `/en/admin/...`; same 31 at HEAD before the change) |
 | user_connections | V1, 6 tables | `pkucn_schema:` on `phoenix_kit_user_connections` | **2.22.3** (was `~> 2.0`; V188) | `b5f10ab` | gained a test Repo and database (`phoenix_kit_user_connections_test`); no `pk_dep/3`, so its builds-alone check ran from core's VM |
-| sync | — | | needs 2.63.0 (V218) | | |
-| calendar | — | | | | |
-| referrals | — | | | | no test database yet |
+| sync | V1, 2 tables | `pksyn_schema:` on `phoenix_kit_sync_connections` | **2.63.0** (was 2.38.0; V218) | `b9cfcfb` | 2198 tests, 0 failures; one index uses core's schema-name convention (`np`); the old `PhoenixKitSync.Migration` stays, marked superseded |
+| calendar | V1, 2 tables | `pkcal_schema:` on `phoenix_kit_calendar_events` | 2.38.0 (unchanged; V141 is in 2.0.0) | `0110162` | 157 tests, 0 failures |
+| referrals | V1, 2 tables | `pkref_schema:` on `phoenix_kit_referral_codes` | `~> 2.0` (unchanged; nothing after V135) | `e04892b` | gained a test Repo and database (`phoenix_kit_referrals_test`) |
+
+After step 3 every module chain in the workspace was checked again from core's
+VM: **27 of 31 build their tables without core**; the four that do not are
+steps 4 (ai, document_creator) and 5 (billing, ecommerce).
+
+**A trap found on the way, now handled:** core's V56 convention puts the schema
+name in front of nine index names on a named-schema install (none on `public`).
+`adoption_ddl.exs` first copied its own scratch schema's name into such a name;
+it now emits `#{np}`, which a chain sets per prefix (sync is the first user).
+The drift-lock test against core's manifest caught it before anything was
+pushed. The nine are sync's `phoenix_kit_sync_connections_uuid_idx` and eight
+on billing, ecommerce and emails tables — step 5 checks those.
+
+**Releasing step 3:** the six modules ship after the core release that carries
+`ModuleChainCheck`, in the same release day. Their `:requires_module_chain_check`
+exclusion then stops excluding anything; it can go when a module next raises
+its core floor.
 
 ### Step 4 — ai and document_creator
 
@@ -244,6 +261,12 @@ owning module's chain, never core's.
   their own chains (pushed, unreleased; each ships after the core release that
   carries `ModuleChainCheck`). `dev_docs/squash/adoption_ddl.exs` added to core
   for the DDL. user_connections' floor raised to 2.22.3.
+- **2026-10-25** — Step 3 done: sync, calendar and referrals too. sync's floor
+  raised to 2.63.0; user_connections and referrals gained a test database.
+  `adoption_ddl.exs` fixed for core's schema-name index convention. Builds-alone
+  check over all 31 module chains: 27 pass, the other four are steps 4 and 5.
+  Found on the way: staff's suite has 31 web-test failures that predate this
+  work (locale prefix in its test router).
 
 ## Inventory (2026-10-25)
 
