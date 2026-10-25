@@ -26,7 +26,16 @@ Repo.query!("DROP SCHEMA IF EXISTS #{s} CASCADE"); Repo.query!("CREATE SCHEMA #{
 {:ok, dev} = StringIO.open(""); gl = Process.group_leader(); Process.group_leader(self(), dev)
 :ok = PhoenixKit.Migration.ensure_current(Repo, prefix: s, log: false)
 Process.group_leader(self(), gl)
-un = fn text -> text |> String.replace(~s("#{s}".), "\#{p}") |> String.replace("#{s}.", "\#{p}") end
+# A schema-qualified reference becomes `#{p}`. Core's V56 convention also puts
+# the schema name in front of a few index names on a named-schema install (none
+# on `public`): such a name becomes `#{np}`, which the chain sets to "" for
+# `public` and "<prefix>_" otherwise.
+un = fn text ->
+  text
+  |> String.replace(~s("#{s}".), "\#{p}")
+  |> String.replace("#{s}.", "\#{p}")
+  |> String.replace("#{s}_", "\#{np}")
+end
 ind = fn text, n -> text |> String.split("\n") |> Enum.map_join("\n", &(String.duplicate(" ", n) <> &1)) end
 missing = tables -- (q.("SELECT relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=$1 AND relkind='r'", [s]) |> List.flatten())
 missing == [] || raise "not on a fresh core build: #{inspect(missing)}"
@@ -82,6 +91,7 @@ File.write!(out, """
 [
 #{Enum.map_join(indexes, ",\n", &ind.(&1, 2))}
 ]
+# ---- names using `\#{np}` (core's V56 schema-name convention): #{if String.contains?(Enum.join(indexes ++ guards), "\#{np}"), do: "yes — define np = if prefix == \"public\", do: \"\", else: \"\#{prefix}_\"", else: "none"}
 # ---- triggers: #{inspect(trg)}
 # ---- seed rows on a fresh build: #{inspect(seeds)}
 """)
