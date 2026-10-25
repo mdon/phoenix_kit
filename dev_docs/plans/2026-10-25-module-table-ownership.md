@@ -1,6 +1,6 @@
 # Module tables: every module owns its own
 
-**Status:** in progress — steps 1–3 done, step 4 done, step 5 started (billing, ecommerce and emails done; the other 14 passing modules left), all unreleased. See the
+**Status:** in progress — steps 1–3 done, step 4 done, step 5 started (**step 5 done**), all unreleased. See the
 [progress log](#progress-log).
 **Started:** 2026-10-25. **Tracks:** this file is the shared record of where
 the work stands; update it in the same commit as each step.
@@ -33,7 +33,7 @@ builds it), `dev_docs/squash/adoption/` (`gen_chain.py` + templates + README:
 chain and tests from that DDL; `check_module_chains.exs`: `ModuleChainCheck`
 over every module chain from core's VM — 27 of 31 pass today).
 
-**Next: step 5** (step 4 is done; billing, ecommerce and emails are done). The failing chains shared one shape:
+**Next: step 6** (steps 4 and 5 are done). The failing chains shared one shape:
 *an earlier version of the chain touches a table only core creates*, so on a
 database without core's copy that version fails before anything adopts the
 table. ai and billing build `up_statements/2` by replaying every version up to
@@ -126,7 +126,7 @@ new protocol.
 | 2 | "Builds from scratch" test helper + a true fresh-install test | core | **Done** 2026-10-25 (unreleased) |
 | 3 | First migration chain for comments, staff, user_connections, sync, calendar, referrals | 6 modules | **Done** 2026-10-25 (unreleased) |
 | 4 | Complete the chains of ai (3 tables) and document_creator (7 tables) | 2 modules **Done** 2026-10-25 — document_creator `f67f163`, ai `c118542` (unreleased) |
-| 5 | The step-2 test in every adopted module; fix what it finds | 17 modules | In progress — billing (`3fa1164`) and ecommerce (`54061bd`) done 2026-10-25; emails checked (no chain change; test added), then the test in the 14 that pass |
+| 5 | The step-2 test in every adopted module; fix what it finds | 17 modules | In progress — billing (`3fa1164`) and ecommerce (`54061bd`) done 2026-10-25; **Done 2026-10-25**: billing, ecommerce, emails, and the builds-alone test in the other 14 |
 | 6 | Core's manifest hands every module-owned entry over | core | Not started |
 | 7 | Manifest generator (frozen pre-squash part + generated rest, compact, in `priv/`); move core's hard-coded module-table lists to module callbacks | core | Not started |
 | 8 | Core stops creating module tables on fresh installs | core | Not started — approach to decide |
@@ -341,6 +341,7 @@ owning module's chain, never core's.
 - **2026-10-25** — Step 5 started: billing V6 (`3fa1164`); the checker passes it. Unreleased.
 - **2026-10-25** — Step 5: ecommerce V6 (`54061bd`) adds core V186's three columns (`ADD COLUMN IF NOT EXISTS`, no backfill) plus the builds-alone test; checker OK, 4771 tests (3 position-pinned migration tests adjusted), quality.ci clean. Unreleased.
 - **2026-10-25** — Step 5: emails (`a081f13`) checked. Core's chain seeds nothing into `phoenix_kit_email_templates` (the package seeds system templates at runtime) and its one `__PK_NAME_EXEMPT__` index is already carried, so no chain change; builds-alone test added. 2028 tests green against a local core (emails pins core on Hex with no `PHOENIX_KIT_PATH` switch, so a temporary uncommitted path dep). Unreleased.
+- **2026-10-25** — Step 5 finished: the builds-alone test added to catalogue `131c998`, crm `a16a608`, customer_support `80be167`, dashboards `e755a88`, entities `b24d02b`, legal `465f889`, locations `c6ef9ce`, manufacturing `b0c8ec5`, newsletters `740a0c3`, open_graph `1342c66`, posts `922793a`, projects `d587883`, publishing `ce4952c`, warehouse `4bede57`. Every one passes against local core; full suites and credo green against Hex core. legal's test points core's `:repo` env at its test repo for its own duration (its config never set it). Two failures are already there without the change and are not part of this plan: legal `DataCollectionTest` (registry) and open_graph `EditorLiveTest` (3, locale-prefixed URLs). Unreleased.
 - **2026-10-25** — Step 4 done: document_creator V3 (`f67f163`) and ai V5 (`c118542`); the checker passes both. Unreleased; both ship after the core release.
 - **2026-10-25** — Step 3 done: sync, calendar and referrals too. sync's floor
   raised to 2.63.0; user_connections and referrals gained a test database.
