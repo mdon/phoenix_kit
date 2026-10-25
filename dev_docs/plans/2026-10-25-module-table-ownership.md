@@ -1,7 +1,7 @@
 # Module tables: every module owns its own
 
-**Status:** in progress — step 1 done (unreleased), step 2 next. See the
-[progress log](#progress-log).
+**Status:** in progress — steps 1 and 2 done (unreleased), step 3 next. See
+the [progress log](#progress-log).
 **Started:** 2026-10-25. **Tracks:** this file is the shared record of where
 the work stands; update it in the same commit as each step.
 
@@ -52,10 +52,10 @@ new protocol.
 | # | Step | Where | Status |
 |---|---|---|---|
 | 1 | Ownership map + guard test + rule in the docs | core, hello_world | **Done** 2026-10-25 (unreleased) |
-| 2 | "Builds from scratch" test helper + a true fresh-install test | core | Not started |
+| 2 | "Builds from scratch" test helper + a true fresh-install test | core | **Done** 2026-10-25 (unreleased) |
 | 3 | First migration chain for comments, staff, user_connections, sync, calendar, referrals | 6 modules | Not started |
 | 4 | Complete the chains of ai (3 tables) and document_creator (7 tables) | 2 modules | Not started — ai needs its owner's agreement |
-| 5 | The step-2 test in every adopted module; fix what it finds | 17 modules | Not started |
+| 5 | The step-2 test in every adopted module; fix what it finds | 17 modules | Not started — only billing and ecommerce fail (preview below) |
 | 6 | Core's manifest hands every module-owned entry over | core | Not started |
 | 7 | Manifest generator (frozen pre-squash part + generated rest, compact, in `priv/`); move core's hard-coded module-table lists to module callbacks | core | Not started |
 | 8 | Core stops creating module tables on fresh installs | core | Not started — approach to decide |
@@ -77,19 +77,45 @@ new protocol.
 - Docs: core `AGENTS.md` (Database), the extraction guide's inventory,
   hello_world's README (the template's database conventions), workspace `AGENTS.md`.
 
-### Step 2 — prove a module can build its tables alone
+### Step 2 — prove a module can build its tables alone (done)
 
-A helper core ships in `lib/` (like `PhoenixKit.TestSupport.PostgresPreflight`)
-for module test suites: in a scratch schema, run core's chain, drop the
-module's tables, run the module's chain, and compare the module's tables
-(columns, types, defaults, nullability, indexes, constraints and their names)
-with what core built, using repair's catalog snapshot. Plus a core test that
-builds a database **from nothing** and compares it with the incrementally
-migrated one — `phoenix_kit_billing` reports `phoenix_kit_subscriptions.subscription_type_uuid`
-missing on from-scratch builds; this test settles that first.
+- `PhoenixKit.TestSupport.ModuleChainCheck.check(repo, MyModule.Migrations)`
+  (`lib/phoenix_kit/test_support/module_chain_check.ex`, ships in `lib/` like
+  `PostgresPreflight`). In a scratch schema: core's chain; the module's chain
+  the way `mix phoenix_kit.update` runs it (**today**); drop the module's
+  tables; the module's chain again (**alone**); compare columns, indexes,
+  constraints and triggers by name and definition, in the canonical form
+  repair's differ uses (`Differ.canonical_expression/1`, made public for
+  this). A chain that raises is a finding. Takes ~2 s per module.
+- Tested in core against three fixture chains
+  (`test/phoenix_kit/test_support/module_chain_check_test.exs`): a chain with
+  its own table passes; a module relying on core and an incomplete adoption
+  are reported table by table and column by column.
+- `test/integration/fresh_install_manifest_test.exs`: a database built **from
+  nothing** verifies clean against `ExpectedSchema` (0 error or repairable
+  findings; the same 17 informational ones as the suite's database) and holds
+  exactly the 181 tables `ModuleOwnedTables` classifies.
+- Documented in the extraction guide ("Proving the chain builds the tables
+  without core") and hello_world's README.
+- Each module adds the one-test file once it depends on the core release that
+  ships the helper; the first ones come with step 3.
 
-Done when: the helper is released, documented in the extraction guide, and
-used by at least one module as the worked example.
+**Preview, 2026-10-25** — every module chain in the workspace checked from
+core's test VM (module beams loaded from their own `_build`, nothing changed
+in the modules):
+
+| Result | Modules |
+|---|---|
+| Pass (15 adopted) | catalogue, crm, customer_support, dashboards, emails, entities, legal, locations, manufacturing, newsletters, open_graph, posts, projects, publishing, warehouse |
+| Pass (6 independent) | agent, boards, bookings, inbox, stats, web_analytics |
+| Fails alone — expected, step 4 | ai (`phoenix_kit_ai_endpoints` missing), document_creator (`phoenix_kit_doc_documents` missing) |
+| Fails alone — step 5 | billing (V2 updates `phoenix_kit_currencies`, which only V4 adopts), ecommerce (lacks `base_currency`, `exchange_rate`, `base_unit_price`, core's V186 columns on carts and cart items) |
+| Not checkable yet — step 3 | comments, staff, user_connections, sync, calendar, referrals (no chain) |
+
+Found on the way: on a fresh build `phoenix_kit_subscriptions.subscription_type_uuid`
+**exists**, so `phoenix_kit_billing`'s landmine ("missing on a from-scratch
+build") and its four `@tag :skip` subscription tests look stale — check when
+billing is fixed in step 5.
 
 ### Step 3 — six modules get their first chain
 
@@ -109,7 +135,14 @@ other 7 come from V135.
 ### Step 5 — the 17 adopted modules
 
 Add the step-2 test to each; any whose chain cannot really build its tables
-alone gets fixed. This is where hidden gaps surface.
+alone gets fixed. The preview (step 2) found two:
+
+- **billing** — its V2 demotes duplicate default currencies in
+  `phoenix_kit_currencies` before V4 adopts that table; alone, V2 hits a
+  missing table. The adoption has to come first (a new version that creates
+  every adopted table before the V2/V3 changes apply, or guards on V2/V3).
+- **ecommerce** — core's V186 added `base_currency`, `exchange_rate` (carts)
+  and `base_unit_price` (cart items); ecommerce's chain never declares them.
 
 ### Step 6 — core's manifest lets go
 
@@ -165,6 +198,13 @@ owning module's chain, never core's.
   docs (core, hello_world). Gate: `mix precommit` clean; full suite 89 doctests,
   12,780 tests, 0 failures (21 skipped, `:requires_createrole` excluded).
   Unreleased; ships with core's next release.
+- **2026-10-25** — Step 2 done: `ModuleChainCheck`, its fixture tests, the
+  fresh-install test, docs. Preview over all 25 module chains: 21 pass;
+  ai and document_creator fail as expected (step 4); billing and ecommerce are
+  step 5's real work. Gate: `mix precommit` clean; full suite 89 doctests,
+  12,785 tests, 0 failures (21 skipped, `:requires_createrole` excluded). One
+  earlier run hit a flaky async test (`MediaFiltersTest`, stack badge count;
+  passes 5/5 alone, runs before any `async: false` test). Unreleased.
 
 ## Inventory (2026-10-25)
 
