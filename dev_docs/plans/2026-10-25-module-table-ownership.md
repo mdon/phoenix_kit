@@ -1,6 +1,6 @@
 # Module tables: every module owns its own
 
-**Status:** in progress — steps 1–3 done, step 4 done, step 5 done, all unreleased. See the
+**Status:** in progress — steps 1–3 done, step 4 done, step 5 done, step 6 done, all unreleased. See the
 [progress log](#progress-log).
 **Started:** 2026-10-25. **Tracks:** this file is the shared record of where
 the work stands; update it in the same commit as each step.
@@ -33,7 +33,7 @@ builds it), `dev_docs/squash/adoption/` (`gen_chain.py` + templates + README:
 chain and tests from that DDL; `check_module_chains.exs`: `ModuleChainCheck`
 over every module chain from core's VM — 27 of 31 pass today).
 
-**Next: step 6** (steps 4 and 5 are done). The failing chains shared one shape:
+**Next: step 7** (steps 4, 5 and 6 are done). The failing chains shared one shape:
 *an earlier version of the chain touches a table only core creates*, so on a
 database without core's copy that version fails before anything adopts the
 table. ai and billing build `up_statements/2` by replaying every version up to
@@ -270,13 +270,26 @@ alone gets fixed. The preview (step 2) found two:
 - **ecommerce** — core's V186 added `base_currency`, `exchange_rate` (carts)
   and `base_unit_price` (cart items); ecommerce's chain never declares them.
 
-### Step 6 — core's manifest lets go
+### Step 6 — core's manifest lets go (done)
 
 Remove every module-owned object from `ExpectedSchema` (the guide's Phase 1 for
 all of them at once), using `ModuleOwnedTables`; `doctor`/`repair` then check
 core's tables only. Requires steps 3–5, so each module can vouch for its own
 tables. Later, step 7's generator can produce a manifest per module so repair
 checks module tables again, owned by the module this time.
+
+*Done as a filter, not a deletion* (decided 2026-10-25): `ExpectedSchema.objects/1`
+and `data_invariants/1` drop everything on a table `ModuleOwnedTables` lists as a
+module's: its table, columns, constraints and indexes, the seeds on it, the
+sequences named after it, and the two V137 email invariants. What is left is 40
+tables, 489 columns, 124 constraints, 165 indexes, 108 seeds and 4 invariants,
+all core's. The dead text stays in `expected_schema.ex` (about 60% of it) until
+step 7 rewrites the file, so no `v*.ex` changes and `chain_hash` is untouched.
+The newsletters FK exception in `@module_owned_ids` is now covered by the rule.
+Consequence: until step 7, `doctor` and `repair` say nothing about a module's
+tables. Repair is additive-only (its executor never issues a `DROP`), and no
+database changes: re-running `mix phoenix_kit.update` re-runs each module chain,
+which is idempotent, and puts back what is missing.
 
 ### Step 7 — generated manifest
 
@@ -342,6 +355,12 @@ owning module's chain, never core's.
 - **2026-10-25** — Step 5: ecommerce V6 (`54061bd`) adds core V186's three columns (`ADD COLUMN IF NOT EXISTS`, no backfill) plus the builds-alone test; checker OK, 4771 tests (3 position-pinned migration tests adjusted), quality.ci clean. Unreleased.
 - **2026-10-25** — Step 5: emails (`a081f13`) checked. Core's chain seeds nothing into `phoenix_kit_email_templates` (the package seeds system templates at runtime) and its one `__PK_NAME_EXEMPT__` index is already carried, so no chain change; builds-alone test added. 2028 tests green against a local core (emails pins core on Hex with no `PHOENIX_KIT_PATH` switch, so a temporary uncommitted path dep). Unreleased.
 - **2026-10-25** — Step 5 finished: the builds-alone test added to catalogue `131c998`, crm `a16a608`, customer_support `80be167`, dashboards `e755a88`, entities `b24d02b`, legal `465f889`, locations `c6ef9ce`, manufacturing `b0c8ec5`, newsletters `740a0c3`, open_graph `1342c66`, posts `922793a`, projects `d587883`, publishing `ce4952c`, warehouse `4bede57`. Every one passes against local core; full suites and credo green against Hex core. legal's test points core's `:repo` env at its test repo for its own duration (its config never set it). Two failures are already there without the change and are not part of this plan: legal `DataCollectionTest` (registry) and open_graph `EditorLiveTest` (3, locale-prefixed URLs). Unreleased.
+- **2026-10-25** — Step 6 done: `ExpectedSchema` filters by `ModuleOwnedTables` (see step 6). Tests:
+  `ModuleOwnedTablesTest` gains "lists core's tables only" and "lists every table of core's own", and
+  reads the created tables through `ExpectedSchema.created_table_names/0` (unfiltered, goes in step 7);
+  `ModuleOwnedManifestTest`'s "rest of the broadcasts table" now asserts the opposite (the whole table is
+  the module's); the V167 posts-slug and V171 shop-slug manifest tests assert the objects are gone;
+  `PhoenixKitRepairTest` accepts a subset of the classes. Unreleased.
 - **2026-10-25** — Step 4 done: document_creator V3 (`f67f163`) and ai V5 (`c118542`); the checker passes both. Unreleased; both ship after the core release.
 - **2026-10-25** — Step 3 done: sync, calendar and referrals too. sync's floor
   raised to 2.63.0; user_connections and referrals gained a test database.

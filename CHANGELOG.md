@@ -1,3 +1,15 @@
+## Unreleased
+
+**No migration** (still V223).
+
+### Changed
+
+- **`mix phoenix_kit.doctor` and `mix phoenix_kit.repair` check core's tables only.** The manifest no longer lists
+  the 141 tables that belong to modules (`PhoenixKit.Migrations.ModuleOwnedTables`), their columns, constraints,
+  indexes, seed rows and the two email-table data invariants. A damaged module table is no longer reported or
+  repaired by core; the module's own chain puts it back on `mix phoenix_kit.update`. Nothing is created, changed or
+  dropped in any database, and core's migrations still create the module tables on a fresh install.
+
 ## 2.64.1 - 2026-10-24
 
 **No migration** (still V223). Ships PR #982's avatar crop editor fix.
