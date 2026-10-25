@@ -126,6 +126,22 @@ defmodule PhoenixKit.Integration.StorageModuleFileReferencesTest do
       assert orphan?(file, supplied)
     end
 
+    test "a table core never assigned an owner is taken over by the module that names it" do
+      file = make_file()
+      reference_in_entity_data!(file)
+
+      # `phoenix_kit_entity_data` is entities'. Supplied by an unrelated app,
+      # core's entry for it still steps aside because the pair names the table:
+      # the supplier's (here: empty-condition) answer is what counts.
+      supplied = %{
+        phoenix_kit_projects:
+          {:ok,
+           [{"phoenix_kit_entity_data", dynamic([f], fragment("true AND ? IS NOT NULL", f.uuid))}]}
+      }
+
+      assert orphan?(file, supplied)
+    end
+
     test "leaves other modules' tables to core" do
       file = make_file()
       reference_in_entity_data!(file)

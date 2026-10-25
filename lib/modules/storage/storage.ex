@@ -4183,7 +4183,59 @@ defmodule PhoenixKit.Modules.Storage do
       end
 
     # Optional module tables — only included if the table exists
-    optional_checks = [
+    optional_checks = builtin_file_references()
+
+    # A module that supplies its own references (`file_references/0`) takes
+    # over the tables it owns; core's built-in check for those is left out.
+    # Every other module keeps core's, so a module version that predates the
+    # callback is still protected. A duplicate would only repeat a NOT EXISTS,
+    # a gap would hand a used file to the delete job, so a core entry is
+    # dropped for exactly two reasons: its table's owner per
+    # `ModuleOwnedTables` supplies a list, or a supplier names that very table
+    # (a table core never created, like the projects portal submissions, has
+    # no owner there).
+    supplied_tables =
+      for {_app, {:ok, pairs}} <- supplied,
+          {table, _condition} <- pairs,
+          into: MapSet.new(),
+          do: table
+
+    optional_checks =
+      Enum.reject(optional_checks, fn {table, _condition} ->
+        Map.has_key?(supplied, ModuleOwnedTables.owner(table)) or
+          MapSet.member?(supplied_tables, table)
+      end)
+
+    query =
+      Enum.reduce(optional_checks, base, fn {table, condition}, query ->
+        if table in existing do
+          where(query, ^condition)
+        else
+          query
+        end
+      end)
+
+    query = Enum.reduce(supplied, query, &apply_module_references(&2, &1, existing))
+
+    Enum.reduce(file_reference_sources(), query, &apply_reference_source(&2, &1))
+  end
+
+  defp apply_module_references(query, {_app, {:ok, pairs}}, existing) do
+    Enum.reduce(pairs, query, fn {table, condition}, acc ->
+      if table in existing, do: where(acc, ^condition), else: acc
+    end)
+  end
+
+  defp apply_module_references(query, {app, {:error, reason}}, _existing),
+    do: reference_source_failed(query, "of module #{app}: #{reason}")
+
+  # Core's own copy of what each module's tables reference, kept until 3.0 for
+  # modules whose version predates `file_references/0` (a module that supplies
+  # its own list takes its tables over, see `orphaned_files_query/1`). Public
+  # so a module's test can prove its list renders the same SQL as this one.
+  @doc false
+  def builtin_file_references do
+    [
       # Portal submissions hold their attachments in a JSONB array rather
       # than an FK column, so the reference is invisible to a plain join —
       # which would make every PUBLISHED issue image look like an orphan
@@ -4333,40 +4385,7 @@ defmodule PhoenixKit.Modules.Storage do
          )
        )}
     ]
-
-    # A module that supplies its own references (`file_references/0`) takes
-    # over the tables it owns; core's built-in check for those is left out.
-    # Every other module keeps core's, so a module version that predates the
-    # callback is still protected. A duplicate would only repeat a NOT EXISTS,
-    # a gap would hand a used file to the delete job, so ownership is decided
-    # by `ModuleOwnedTables` and nothing else.
-    optional_checks =
-      Enum.reject(optional_checks, fn {table, _condition} ->
-        Map.has_key?(supplied, ModuleOwnedTables.owner(table))
-      end)
-
-    query =
-      Enum.reduce(optional_checks, base, fn {table, condition}, query ->
-        if table in existing do
-          where(query, ^condition)
-        else
-          query
-        end
-      end)
-
-    query = Enum.reduce(supplied, query, &apply_module_references(&2, &1, existing))
-
-    Enum.reduce(file_reference_sources(), query, &apply_reference_source(&2, &1))
   end
-
-  defp apply_module_references(query, {_app, {:ok, pairs}}, existing) do
-    Enum.reduce(pairs, query, fn {table, condition}, acc ->
-      if table in existing, do: where(acc, ^condition), else: acc
-    end)
-  end
-
-  defp apply_module_references(query, {app, {:error, reason}}, _existing),
-    do: reference_source_failed(query, "of module #{app}: #{reason}")
 
   defp existing_optional_tables do
     repo = repo()

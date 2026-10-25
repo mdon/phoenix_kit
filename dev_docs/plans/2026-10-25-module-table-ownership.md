@@ -312,7 +312,13 @@ NULL-uuid check) to module callbacks.
   entry for a table is dropped only when the module that `ModuleOwnedTables` says owns the table supplies a list;
   every other module keeps core's, so an older module version stays protected. A broken callback fails closed.
   Tests: `test/integration/storage_module_file_references_test.exs`. **Core half done and additive; nothing changes
-  until a module implements it.**
+  until a module implements it.** Two details: core's built-in list is public as `Storage.builtin_file_references/0`
+  (`@doc false`), so a module's test can prove its pairs render the same SQL as core's; and a core entry also steps
+  aside when a supplier names its table, because `phoenix_kit_project_portal_submissions` has no owner in
+  `ModuleOwnedTables` (projects creates it itself, core never did). A module defines the callback **without
+  `@impl`**, so it compiles against today's Hex core and does nothing there; no core floor is needed, because core
+  falls back whenever the callback is absent. Each module's test is gated like the chain check
+  (`:requires_core_file_references`, excluded while `Storage.builtin_file_references/0` is not exported).
 - **Still to do, per module** (each in its next release, floor raised to the core release that carries the callback,
   the SQL moved verbatim from `storage.ex` so the existing behavior is the test): projects
   (`project_portal_submissions`), posts (`post_media`, `post_groups`, `posts`), customer_support
