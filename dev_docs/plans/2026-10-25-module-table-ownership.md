@@ -301,6 +301,27 @@ doctor runs, with a test that fails when it is stale. Also move core's
 hard-coded module-table lists (storage's orphaned-file check, doctor's
 NULL-uuid check) to module callbacks.
 
+*Step 7 so far (2026-10-25).* Two decisions and one built part.
+
+- **Doctor's NULL-uuid list stays in core.** It guards the V56 backfill, which core's own chain still runs against
+  those tables, so it is core history, not a module concern. It only reads, and skips a table that is missing,
+  so it is harmless once core stops creating module tables. Not moved.
+- **Storage's orphan-file list moves by callback.** `PhoenixKit.Module.file_references/0` (optional, no default;
+  a default `[]` would switch off core's protection for every module) returns `{table, dynamic}` pairs, collected
+  from all modules by `ModuleRegistry.all_file_references/0`. In `Storage.orphaned_files_query/1`, core's built-in
+  entry for a table is dropped only when the module that `ModuleOwnedTables` says owns the table supplies a list;
+  every other module keeps core's, so an older module version stays protected. A broken callback fails closed.
+  Tests: `test/integration/storage_module_file_references_test.exs`. **Core half done and additive; nothing changes
+  until a module implements it.**
+- **Still to do, per module** (each in its next release, floor raised to the core release that carries the callback,
+  the SQL moved verbatim from `storage.ex` so the existing behavior is the test): projects
+  (`project_portal_submissions`), posts (`post_media`, `post_groups`, `posts`), customer_support
+  (`ticket_attachments`), ecommerce (`shop_products`, `shop_categories`), catalogue (`cat_items`,
+  `cat_categories`, `cat_catalogues`, `cat_pdfs`), publishing (`publishing_contents`, `publishing_versions`),
+  entities (`entity_data`). Core deletes its copy at 3.0.
+- **Not started: the manifest split (a frozen part plus a generated part in `priv/`).** Needs a decision, see the
+  progress log.
+
 ### Step 8 — core stops creating module tables (fresh installs only)
 
 Remove the module DDL from V135 and from the later versions that touch module
@@ -355,6 +376,8 @@ owning module's chain, never core's.
 - **2026-10-25** — Step 5: ecommerce V6 (`54061bd`) adds core V186's three columns (`ADD COLUMN IF NOT EXISTS`, no backfill) plus the builds-alone test; checker OK, 4771 tests (3 position-pinned migration tests adjusted), quality.ci clean. Unreleased.
 - **2026-10-25** — Step 5: emails (`a081f13`) checked. Core's chain seeds nothing into `phoenix_kit_email_templates` (the package seeds system templates at runtime) and its one `__PK_NAME_EXEMPT__` index is already carried, so no chain change; builds-alone test added. 2028 tests green against a local core (emails pins core on Hex with no `PHOENIX_KIT_PATH` switch, so a temporary uncommitted path dep). Unreleased.
 - **2026-10-25** — Step 5 finished: the builds-alone test added to catalogue `131c998`, crm `a16a608`, customer_support `80be167`, dashboards `e755a88`, entities `b24d02b`, legal `465f889`, locations `c6ef9ce`, manufacturing `b0c8ec5`, newsletters `740a0c3`, open_graph `1342c66`, posts `922793a`, projects `d587883`, publishing `ce4952c`, warehouse `4bede57`. Every one passes against local core; full suites and credo green against Hex core. legal's test points core's `:repo` env at its test repo for its own duration (its config never set it). Two failures are already there without the change and are not part of this plan: legal `DataCollectionTest` (registry) and open_graph `EditorLiveTest` (3, locale-prefixed URLs). Unreleased.
+- **2026-10-25** — Step 7 started: `file_references/0` callback, registry aggregator and storage hand-over (core half);
+  doctor's NULL-uuid list left in core. Unreleased.
 - **2026-10-25** — Step 6 done: `ExpectedSchema` filters by `ModuleOwnedTables` (see step 6). Tests:
   `ModuleOwnedTablesTest` gains "lists core's tables only" and "lists every table of core's own", and
   reads the created tables through `ExpectedSchema.created_table_names/0` (unfiltered, goes in step 7);

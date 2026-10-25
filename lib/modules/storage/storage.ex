@@ -96,6 +96,8 @@ defmodule PhoenixKit.Modules.Storage do
   require Logger
 
   alias PhoenixKit.Integrations.Probe
+  alias PhoenixKit.Migrations.ModuleOwnedTables
+  alias PhoenixKit.ModuleRegistry
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
   alias PhoenixKit.Modules.Storage.Audit
@@ -4144,7 +4146,13 @@ defmodule PhoenixKit.Modules.Storage do
     end)
   end
 
-  defp orphaned_files_query do
+  defp orphaned_files_query,
+    do: orphaned_files_query(ModuleRegistry.all_file_references())
+
+  # `supplied` is `ModuleRegistry.all_file_references/0`; a parameter so a test
+  # can name an owner without a real module package behind it.
+  @doc false
+  def orphaned_files_query(supplied) do
     existing = existing_optional_tables()
     protected_uuids = protected_file_uuids()
 
@@ -4326,6 +4334,17 @@ defmodule PhoenixKit.Modules.Storage do
        )}
     ]
 
+    # A module that supplies its own references (`file_references/0`) takes
+    # over the tables it owns; core's built-in check for those is left out.
+    # Every other module keeps core's, so a module version that predates the
+    # callback is still protected. A duplicate would only repeat a NOT EXISTS,
+    # a gap would hand a used file to the delete job, so ownership is decided
+    # by `ModuleOwnedTables` and nothing else.
+    optional_checks =
+      Enum.reject(optional_checks, fn {table, _condition} ->
+        Map.has_key?(supplied, ModuleOwnedTables.owner(table))
+      end)
+
     query =
       Enum.reduce(optional_checks, base, fn {table, condition}, query ->
         if table in existing do
@@ -4335,8 +4354,19 @@ defmodule PhoenixKit.Modules.Storage do
         end
       end)
 
+    query = Enum.reduce(supplied, query, &apply_module_references(&2, &1, existing))
+
     Enum.reduce(file_reference_sources(), query, &apply_reference_source(&2, &1))
   end
+
+  defp apply_module_references(query, {_app, {:ok, pairs}}, existing) do
+    Enum.reduce(pairs, query, fn {table, condition}, acc ->
+      if table in existing, do: where(acc, ^condition), else: acc
+    end)
+  end
+
+  defp apply_module_references(query, {app, {:error, reason}}, _existing),
+    do: reference_source_failed(query, "of module #{app}: #{reason}")
 
   defp existing_optional_tables do
     repo = repo()

@@ -647,6 +647,53 @@ defmodule PhoenixKit.Module do
   @callback media_reorganizer() :: module() | nil
 
   @doc """
+  The places in this module's own tables that point at a stored file, so the
+  orphan check of `PhoenixKit.Modules.Storage` does not take a file the module
+  uses for an orphan.
+
+  Returns `{table, condition}` pairs. `condition` is an `Ecto.Query.dynamic/2`
+  over the file (`f`) that is true when **this table does not reference the
+  file**, normally a `NOT EXISTS` — the same shape as an entry of the host's
+  `:file_reference_sources` config, and ANDed onto the orphan query the same way. The
+  table name is what core checks first: a pair whose table does not exist in
+  the database is left out, so a module whose tables are not migrated yet
+  cannot break the check.
+
+  Collected from **all** modules, enabled or not
+  (`PhoenixKit.ModuleRegistry.all_file_references/0`): a disabled
+  module's data still holds its files. Fails closed: if this function raises,
+  or returns anything but a list of such pairs, no file is treated as orphaned
+  until it is fixed.
+
+  ## Example
+
+      import Ecto.Query, only: [dynamic: 2]
+
+      @impl PhoenixKit.Module
+      def file_references do
+        [
+          {"phoenix_kit_post_media",
+           dynamic(
+             [f],
+             fragment(
+               "NOT EXISTS (SELECT 1 FROM phoenix_kit_post_media pm WHERE pm.file_uuid = ?)",
+               f.uuid
+             )
+           )}
+        ]
+      end
+
+  **Replaces core's list for this module's tables.** Until core 3.0 core keeps
+  its own built-in checks for the tables it created for modules, and skips one
+  only when the module that owns the table implements this callback, so a
+  module must return *every* table of its own that holds a file reference, not
+  only the new ones. A module whose tables hold no file reference skips the
+  callback; one that must compile against an older core defines it without
+  `@impl`.
+  """
+  @callback file_references() :: [{String.t(), Ecto.Query.dynamic_expr()}]
+
+  @doc """
   The kinds of job run this module contributes — modules implementing
   `PhoenixKit.Jobs.Kind`.
 
@@ -916,6 +963,7 @@ defmodule PhoenixKit.Module do
     email_settings_sections: 0,
     email_templates: 0,
     media_reorganizer: 0,
+    file_references: 0,
     job_kinds: 0,
     api_tools: 0,
     api_problems: 0,

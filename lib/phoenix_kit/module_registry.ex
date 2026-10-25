@@ -321,6 +321,49 @@ defmodule PhoenixKit.ModuleRegistry do
   end
 
   @doc """
+  The orphan-check file references every module supplies, by owning OTP app.
+
+  Returns `%{app => {:ok, [{table, dynamic}]} | {:error, reason}}` for each
+  registered module that implements `c:PhoenixKit.Module.file_references/0`.
+  Iterates `all_modules/0`, **not** `enabled_modules/0`: a disabled module's
+  data still holds its files, and dropping its references would make them
+  look orphaned. A module whose callback raises, or returns something that is
+  not a list of `{table, dynamic}` pairs, is reported as `{:error, reason}`
+  rather than skipped; the caller fails closed.
+  """
+  @spec all_file_references() :: %{
+          atom() => {:ok, [{String.t(), Ecto.Query.dynamic_expr()}]} | {:error, String.t()}
+        }
+  def all_file_references do
+    for mod <- all_modules(),
+        Code.ensure_loaded?(mod),
+        function_exported?(mod, :file_references, 0),
+        app = Application.get_application(mod),
+        into: %{} do
+      {app, file_reference_pairs(mod)}
+    end
+  end
+
+  @doc false
+  def file_reference_pairs(mod) do
+    case mod.file_references() do
+      pairs when is_list(pairs) ->
+        if Enum.all?(pairs, &match?({table, _} when is_binary(table), &1)),
+          do: {:ok, pairs},
+          else: {:error, "#{inspect(mod)}.file_references/0 returned a malformed entry"}
+
+      other ->
+        {:error, "#{inspect(mod)}.file_references/0 returned #{inspect(other)}"}
+    end
+  rescue
+    error ->
+      {:error, "#{inspect(mod)}.file_references/0 raised: #{Exception.message(error)}"}
+  catch
+    kind, reason ->
+      {:error, "#{inspect(mod)}.file_references/0 #{kind}: #{inspect(reason)}"}
+  end
+
+  @doc """
   Collect top-level route path segments reserved by all installed modules.
 
   Each entry is a literal path segment (no slashes, e.g. `"legal"`) a module

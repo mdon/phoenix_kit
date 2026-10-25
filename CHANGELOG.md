@@ -2,6 +2,17 @@
 
 **No migration** (still V223).
 
+### Added
+
+- **`PhoenixKit.Module.file_references/0`: a module names the places in its own tables that point at a stored file.**
+  It returns `{table, condition}` pairs, the same `NOT EXISTS` shape core's orphan-file check has always used
+  for module tables; `PhoenixKit.ModuleRegistry.all_file_references/0` collects them from every module, enabled or
+  not. A module that implements it takes over its own tables: core's built-in check for them steps aside, decided
+  by `PhoenixKit.Migrations.ModuleOwnedTables`. A module that does not implement it keeps core's built-in check, so
+  nothing changes for a module version that predates the callback. A callback that raises or returns a malformed
+  entry fails closed: no file is treated as orphaned until it is fixed. No default implementation exists on purpose,
+  since an empty default would switch core's protection off for every module.
+
 ### Changed
 
 - **`mix phoenix_kit.doctor` and `mix phoenix_kit.repair` check core's tables only.** The manifest no longer lists
