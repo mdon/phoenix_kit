@@ -1,6 +1,6 @@
 # Module tables: every module owns its own
 
-**Status:** in progress — steps 1–3 done (unreleased), step 4 next. See the
+**Status:** in progress — steps 1–3 done, step 4 half done (document_creator; ai waits for its owner's OK), all unreleased. See the
 [progress log](#progress-log).
 **Started:** 2026-10-25. **Tracks:** this file is the shared record of where
 the work stands; update it in the same commit as each step.
@@ -49,7 +49,7 @@ unedited.
   unless core's V223 `ai_requests.cost` exists; once ai creates that table
   itself, that guard has to accept ai's own copy. Floor is already `~> 2.64`.
   Fails alone today at `phoenix_kit_ai_endpoints` missing.
-- **document_creator** (step 4): `PhoenixKitDocumentCreator.Migrations.Schema`
+- **document_creator** (step 4) — **DONE**, `f67f163`: V3 adopts the 7 tables, emitted first in `up/1` (ahead of V1/V2) rather than appended; marker `dcr_schema:3`; builds-alone test added; 1109 tests, 0 failures against local core. Its `mix precommit` shows an undefined-`ModuleChainCheck` warning in the new test until the module resolves the new core — same as the step-3 modules, clears on release day. Original note: `PhoenixKitDocumentCreator.Migrations.Schema`
   is Ecto-DSL (`execute/1`, no `up_statements/2`), V2, marker on
   `phoenix_kit_doc_documents` — itself core-created. Adopt its 7 V135 tables
   (`phoenix_kit_doc_{categories,document_sections,documents,headers_footers,template_presets,templates,types}`);
@@ -126,7 +126,7 @@ new protocol.
 | 1 | Ownership map + guard test + rule in the docs | core, hello_world | **Done** 2026-10-25 (unreleased) |
 | 2 | "Builds from scratch" test helper + a true fresh-install test | core | **Done** 2026-10-25 (unreleased) |
 | 3 | First migration chain for comments, staff, user_connections, sync, calendar, referrals | 6 modules | **Done** 2026-10-25 (unreleased) |
-| 4 | Complete the chains of ai (3 tables) and document_creator (7 tables) | 2 modules | Not started — ai needs its owner's agreement |
+| 4 | Complete the chains of ai (3 tables) and document_creator (7 tables) | 2 modules | document_creator **done** 2026-10-25 (`f67f163`, unreleased); ai not started — needs its owner's agreement |
 | 5 | The step-2 test in every adopted module; fix what it finds | 17 modules | Not started — only billing and ecommerce fail (preview below) |
 | 6 | Core's manifest hands every module-owned entry over | core | Not started |
 | 7 | Manifest generator (frozen pre-squash part + generated rest, compact, in `priv/`); move core's hard-coded module-table lists to module callbacks | core | Not started |
@@ -247,6 +247,11 @@ exclusion then stops excluding anything; it can go when a module next raises
 its core floor.
 
 ### Step 4 — ai and document_creator
+
+**document_creator: done 2026-10-25** (`f67f163`). The chain is Ecto-DSL, so the
+adoption is private functions called first in `up/1` (V3), not a generator
+output; hosts at V2 run it once as a no-op. The pattern for ai/billing is the
+same: adoption DDL ahead of the first statement that touches a core-only table.
 
 ai's chain says endpoints, prompts and requests "stay in core's chain"; agree a
 move with ai's owner first (core still changed `ai_requests` in V223, which ai's
