@@ -1,6 +1,6 @@
 # Module tables: every module owns its own
 
-**Status:** in progress — steps 1–3 done, step 4 half done (document_creator; ai waits for its owner's OK), all unreleased. See the
+**Status:** in progress — steps 1–3 done, step 4 done (document_creator, ai), all unreleased; step 5 next. See the
 [progress log](#progress-log).
 **Started:** 2026-10-25. **Tracks:** this file is the shared record of where
 the work stands; update it in the same commit as each step.
@@ -33,7 +33,7 @@ builds it), `dev_docs/squash/adoption/` (`gen_chain.py` + templates + README:
 chain and tests from that DDL; `check_module_chains.exs`: `ModuleChainCheck`
 over every module chain from core's VM — 27 of 31 pass today).
 
-**Next: step 4, then step 5.** All four failing chains share one shape:
+**Next: step 5** (step 4 is done; the shape below still governs billing and ecommerce). The failing chains shared one shape:
 *an earlier version of the chain touches a table only core creates*, so on a
 database without core's copy that version fails before anything adopts the
 table. ai and billing build `up_statements/2` by replaying every version up to
@@ -43,8 +43,7 @@ statement that touches them** — not appended as the last version — while the
 version number still goes up by one. Shipped versions' own statements stay
 unedited.
 
-- **ai** (step 4, needs its owner's OK — ai's moduledoc says the three tables
-  "stay in core's chain"): adopt `phoenix_kit_ai_endpoints`, `_prompts`,
+- **ai** (step 4) — **DONE**, `c118542`, owner's OK given 2026-10-25 (ai's moduledoc and AGENTS.md said the three tables "stay in core's chain"; both rewritten). V5 adopts them, emitted ahead of V2's statements via `version_up/3` (a target below 5 builds the old chain); V4's `cost` guard is satisfied by ai's own copy and still stops on a core older than V223, so no guard change was needed. 1987 tests, 0 failures against local core. Original note: adopt `phoenix_kit_ai_endpoints`, `_prompts`,
   `_requests` (core changed them in V164, V169, V193, V223). ai's V4 raises
   unless core's V223 `ai_requests.cost` exists; once ai creates that table
   itself, that guard has to accept ai's own copy. Floor is already `~> 2.64`.
@@ -126,7 +125,7 @@ new protocol.
 | 1 | Ownership map + guard test + rule in the docs | core, hello_world | **Done** 2026-10-25 (unreleased) |
 | 2 | "Builds from scratch" test helper + a true fresh-install test | core | **Done** 2026-10-25 (unreleased) |
 | 3 | First migration chain for comments, staff, user_connections, sync, calendar, referrals | 6 modules | **Done** 2026-10-25 (unreleased) |
-| 4 | Complete the chains of ai (3 tables) and document_creator (7 tables) | 2 modules | document_creator **done** 2026-10-25 (`f67f163`, unreleased); ai not started — needs its owner's agreement |
+| 4 | Complete the chains of ai (3 tables) and document_creator (7 tables) | 2 modules **Done** 2026-10-25 — document_creator `f67f163`, ai `c118542` (unreleased) |
 | 5 | The step-2 test in every adopted module; fix what it finds | 17 modules | Not started — only billing and ecommerce fail (preview below) |
 | 6 | Core's manifest hands every module-owned entry over | core | Not started |
 | 7 | Manifest generator (frozen pre-squash part + generated rest, compact, in `priv/`); move core's hard-coded module-table lists to module callbacks | core | Not started |
@@ -253,9 +252,10 @@ adoption is private functions called first in `up/1` (V3), not a generator
 output; hosts at V2 run it once as a no-op. The pattern for ai/billing is the
 same: adoption DDL ahead of the first statement that touches a core-only table.
 
-ai's chain says endpoints, prompts and requests "stay in core's chain"; agree a
-move with ai's owner first (core still changed `ai_requests` in V223, which ai's
-V4 requires). document_creator's chain creates only its taxonomy table; its
+**ai: done 2026-10-25** (`c118542`), after the owner agreed to the move. V5
+adopts the three tables; the SQL is `version_up/3`-ordered so it precedes V2.
+ai's docs (moduledoc, `migration_module/0`, AGENTS.md, CHANGELOG) were updated
+in the same commit. document_creator's chain creates only its taxonomy table; its
 other 7 come from V135.
 
 ### Step 5 — the 17 adopted modules
@@ -316,7 +316,7 @@ owning module's chain, never core's.
 | Follow the extraction guide; no new protocol | Made 2026-10-25 |
 | Ownership authority is `ModuleOwnedTables`, not the manifest's `owner:` labels | Made 2026-10-25 |
 | `phoenix_kit_consent_logs` is legal's (legal's chain owns its shape; core still creates it) | Made 2026-10-25 |
-| ai's endpoints/prompts/requests move to ai (step 4) | Open — ai's owner |
+| ai's endpoints/prompts/requests move to ai (step 4) | Made 2026-10-25 — owner agreed; done in ai `c118542` |
 | Step 8: (a) at 3.0 or (b) in 2.x | Open |
 | Step 9: drop or keep each dead table | Open |
 
@@ -338,6 +338,7 @@ owning module's chain, never core's.
   their own chains (pushed, unreleased; each ships after the core release that
   carries `ModuleChainCheck`). `dev_docs/squash/adoption_ddl.exs` added to core
   for the DDL. user_connections' floor raised to 2.22.3.
+- **2026-10-25** — Step 4 done: document_creator V3 (`f67f163`) and ai V5 (`c118542`); the checker passes both. Unreleased; both ship after the core release.
 - **2026-10-25** — Step 3 done: sync, calendar and referrals too. sync's floor
   raised to 2.63.0; user_connections and referrals gained a test database.
   `adoption_ddl.exs` fixed for core's schema-name index convention. Builds-alone
@@ -361,8 +362,8 @@ versions whose code names the module's tables.
 | calendar | 2 | V141 |
 | referrals | 2 | — |
 
-**Partly on core (step 4):** ai — 3 of its 8 tables (V169, V193, V223);
-document_creator — 7 of 8 (none after V135).
+**Partly on core (step 4, done):** ai — 3 of its 8 tables (V169, V193, V223);
+document_creator — 7 of 8 (none after V135). Both now adopted by their chains.
 
 **Adopted, but core still creates them first (step 5):** billing 11,
 catalogue 18, posts 13, crm 10, ecommerce 10, warehouse 8, publishing 7,
