@@ -136,18 +136,16 @@ defmodule PhoenixKitWeb.Components.MediaBrowserCoverPickerTest do
   end
 
   describe "a viewer who sees everything" do
-    for {label, permissions} <- [{"media.view_all", ["media", "media.view_all"]}] do
-      test "a holder of #{label} sees and can pick any file of the folder", ctx do
-        viewer = user!(unquote(permissions))
-        folder = folder!(viewer)
-        theirs = file!(user!(["media"]), folder, "all-#{System.unique_integer([:positive])}.jpg")
+    test "a holder of media.view_all sees and can pick any file of the folder", ctx do
+      viewer = user!(["media", "media.view_all"])
+      folder = folder!(viewer)
+      theirs = file!(user!(["media"]), folder, "all-#{System.unique_integer([:positive])}.jpg")
 
-        {view, html} = open_picker(ctx.conn, viewer, folder)
-        assert html =~ theirs.original_file_name
+      {view, html} = open_picker(ctx.conn, viewer, folder)
+      assert html =~ theirs.original_file_name
 
-        pick(view, theirs.uuid)
-        assert to_string(cover(folder)) == to_string(theirs.uuid)
-      end
+      pick(view, theirs.uuid)
+      assert to_string(cover(folder)) == to_string(theirs.uuid)
     end
 
     test "an Admin sees and can pick any file of the folder", ctx do
@@ -163,5 +161,59 @@ defmodule PhoenixKitWeb.Components.MediaBrowserCoverPickerTest do
     end
   end
 
+  # A browser scoped to `scope`, as a host embeds it; the picker is for `folder`.
+  defp open_scoped_picker(conn, user, scope, folder) do
+    {:ok, view, _html} =
+      live(log_in_user(conn, user), Routes.path("/admin/media") <> "?folder=#{folder.uuid}")
+
+    browser = with_target(view, "##{@id}")
+    Phoenix.LiveView.send_update(view.pid, MediaBrowser, id: @id, scope_folder_id: scope.uuid)
+    _ = render(view)
+    render_hook(browser, "start_edit_folder_header", %{"folder-uuid" => folder.uuid})
+    render_hook(browser, "open_cover_picker", %{})
+    view
+  end
+
+  defp link!(file, folder) do
+    {:ok, _} =
+      Repo.insert(%Storage.FolderLink{folder_uuid: folder.uuid, file_uuid: file.uuid})
+  end
+
   defp from_file(uuid), do: Ecto.Query.from(f in StorageFile, where: f.uuid == ^uuid)
+
+  describe "a file the picker lists although it lives outside the browser's scope" do
+    test "a file linked into the folder is set as the cover (Admin, and a viewer's own)", ctx do
+      {admin, _token} = create_admin_user()
+      viewer = user!(["media"])
+
+      for user <- [admin, viewer] do
+        scope = folder!(user)
+        folder = folder!(user)
+        {:ok, folder} = Storage.update_folder(folder, %{parent_uuid: scope.uuid})
+        elsewhere = folder!(user)
+        file = file!(user, elsewhere, "linked-#{System.unique_integer([:positive])}.jpg")
+        link!(file, folder)
+
+        view = open_scoped_picker(ctx.conn, user, scope, folder)
+        pick(view, file.uuid)
+
+        assert to_string(cover(folder)) == to_string(file.uuid)
+      end
+    end
+  end
+
+  describe "a browser locked to another file type" do
+    test "an image is still set as the cover", ctx do
+      {admin, _token} = create_admin_user()
+      folder = folder!(admin)
+      file = file!(admin, folder, "typed-#{System.unique_integer([:positive])}.jpg")
+
+      {view, _} = open_picker(ctx.conn, admin, folder)
+      Phoenix.LiveView.send_update(view.pid, MediaBrowser, id: @id, only_file_type: "video")
+      _ = render(view)
+
+      pick(view, file.uuid)
+      assert to_string(cover(folder)) == to_string(file.uuid)
+    end
+  end
 end

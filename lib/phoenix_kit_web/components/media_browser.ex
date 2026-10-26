@@ -996,26 +996,41 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         socket
 
       # `media_selected` arrives by `update/2`, past the `handle_event` gates:
-      # the file gets the viewer's here.
-      is_nil(fetch_viewable_file(socket, file_uuid)) ->
+      # the file gets the viewer's here. Not `fetch_viewable_file/2` — the
+      # picker also lists files linked into the folder from elsewhere, and a
+      # cover is an image whatever type the browser is locked to.
+      not pickable_file?(socket, file_uuid) ->
+        Logger.warning(
+          "MediaBrowser id=#{socket.assigns.id}: cover/logo pick refused — " <>
+            "#{file_uuid} is not a file this viewer may see in this library"
+        )
+
         parent_flash(socket, :error, gettext("Failed to set the image"))
 
       true ->
-        apply_image(socket, folder, folder_uuid, attr, file_uuid)
+        apply_image(socket, folder, attr, file_uuid)
     end
   end
 
-  defp apply_image(socket, folder, folder_uuid, attr, file_uuid) do
-    scope = scope_folder_id(socket)
+  defp pickable_file?(socket, file_uuid) do
+    with true <- UUIDUtils.valid?(file_uuid),
+         %Storage.File{system_managed: false} = file <- Storage.get_file(file_uuid),
+         true <- in_browser_library?(socket, file) do
+      Storage.viewer_can_see_file?(socket.assigns[:viewer_uuid], file)
+    else
+      _ -> false
+    end
+  end
 
-    case Storage.update_folder(folder, %{attr => file_uuid}, scope) do
+  defp apply_image(socket, folder, attr, file_uuid) do
+    case Storage.update_folder(folder, %{attr => file_uuid}, scope_folder_id(socket)) do
       {:ok, updated} ->
         socket
-        |> maybe_refresh_current_folder(updated, folder_uuid)
+        |> maybe_refresh_current_folder(updated, folder.uuid)
         |> reload_current_page()
 
       _ ->
-        put_flash(socket, :error, gettext("Failed to set the image"))
+        parent_flash(socket, :error, gettext("Failed to set the image"))
     end
   end
 
