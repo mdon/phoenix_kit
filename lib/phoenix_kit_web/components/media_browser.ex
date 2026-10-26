@@ -2020,7 +2020,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
           "folder outside #{shown_library_label(socket.assigns[:library_uuid])}"
       )
 
-      {:noreply, put_flash(socket, :error, library_refusal(socket.assigns[:library_uuid]))}
+      {:noreply, put_flash(socket, :error, library_refusal(socket.assigns[:library_uuid], event))}
     else
       socket = %{socket | private: Map.put(socket.private, :library_checked, true)}
 
@@ -3300,8 +3300,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     # cover the folder's entire subtree (descendant folders + files).
     delete_selected_folders(socket, folders, scope)
 
-    file_count = MapSet.size(socket.assigns.selected_files)
-    folder_count = MapSet.size(socket.assigns.selected_folders)
+    file_count = length(files)
+    folder_count = length(folders)
 
     flash =
       if socket.assigns.filter_trash,
@@ -5363,8 +5363,13 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       )
   end
 
-  defp library_refusal(nil), do: gettext("File not found")
-  defp library_refusal(_library_uuid), do: gettext("That is not in this library")
+  defp library_refusal(nil, event) do
+    if String.contains?(event, "folder"),
+      do: gettext("Folder not found"),
+      else: gettext("File not found")
+  end
+
+  defp library_refusal(_library_uuid, _event), do: gettext("That is not in this library")
 
   defp shown_library_label(nil), do: "the site libraries"
   defp shown_library_label(library_uuid), do: "library #{library_uuid}"

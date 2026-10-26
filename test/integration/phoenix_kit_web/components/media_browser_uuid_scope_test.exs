@@ -172,8 +172,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowserUuidScopeTest do
     }
   end
 
-  defp refused?({:noreply, socket}),
-    do: socket.assigns.flash["error"] in ["That is not in this library", "File not found"]
+  defp refused?({:noreply, socket}, flash \\ "That is not in this library"),
+    do: socket.assigns.flash["error"] == flash
 
   # ── forged events through the real page ───────────────────────────────────
 
@@ -351,7 +351,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowserUuidScopeTest do
                    "toggle_select",
                    %{"file-uuid" => file.uuid},
                    bare_socket(nil)
-                 )
+                 ),
+                 "File not found"
                )
 
         assert refused?(
@@ -359,7 +360,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowserUuidScopeTest do
                    "trash_folder",
                    %{"folder_uuid" => folder.uuid},
                    bare_socket(nil)
-                 )
+                 ),
+                 "Folder not found"
                )
       end
     end
@@ -384,7 +386,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowserUuidScopeTest do
                  "toggle_select",
                  %{"file-uuid" => file.uuid},
                  bare_socket(nil, alice.uuid)
-               )
+               ),
+               "File not found"
              )
     end
   end
@@ -397,7 +400,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowserUuidScopeTest do
     defp run(event, socket, params \\ %{}) do
       MediaBrowser.handle_event(event, params, socket)
     rescue
-      KeyError -> :reloaded_nothing
+      # only the page reload at the end, which needs assigns a bare socket lacks
+      e in KeyError ->
+        if e.key in [:uploaded_files, :folders, :stacks, :file_view, :current_page],
+          do: :reloaded_nothing,
+          else: reraise(e, __STACKTRACE__)
     end
 
     defp full_socket(selected_files, selected_folders, viewer \\ nil, trash? \\ false) do
@@ -511,6 +518,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowserUuidScopeTest do
 
       assert %{status: "active"} = Storage.get_file(media_file.uuid)
       assert Storage.get_file(media_file.uuid).folder_uuid == media_folder.uuid
+      assert %{status: "trashed"} = Storage.get_file(own.uuid)
     end
   end
 
