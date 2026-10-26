@@ -557,6 +557,14 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   def user_or_hidden_among(library_uuids),
     do: among(library_uuids, dynamic([l], l.kind == "user" or l.visibility == "private"))
 
+  @doc """
+  Which of `library_uuids` a site listing leaves out (`exclude_user_libraries/1`):
+  user libraries and private ones (hidden, trashed, suspended), in one query.
+  """
+  @spec unlisted_among([term()]) :: [String.t()]
+  def unlisted_among(library_uuids),
+    do: among(library_uuids, dynamic([l], l.kind == "user" or ^private_condition()))
+
   defp among(library_uuids, condition) do
     uuids =
       library_uuids

@@ -1195,7 +1195,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # not opened by a hand-edited link any more than it is listed.
   defp in_browser_library?(socket, file) do
     case socket.assigns[:library_uuid] do
-      nil -> true
+      nil -> Libraries.unlisted_among([file.library_uuid]) == []
       library_uuid -> to_string(file.library_uuid) == to_string(library_uuid)
     end
   end
@@ -1305,14 +1305,14 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   # A folder (or file) of another library is not opened in, or shown by,
-  # this one. With no library named, the listing has already dropped
-  # private libraries (`Libraries.exclude_user_libraries/1`).
+  # this one. With no library named, what a site listing leaves out (user and
+  # private libraries, `Libraries.exclude_user_libraries/1`) is not shown.
   # A restricted viewer (`:viewer_uuid` among the options) also opens only a
   # folder they may see (`Storage.viewer_folder_uuids/2`).
   defp in_shown_library?(folder_or_file, opts) do
     in_library? =
       case opts[:library_uuid] do
-        nil -> true
+        nil -> Libraries.unlisted_among([folder_or_file.library_uuid]) == []
         library_uuid -> to_string(folder_or_file.library_uuid) == to_string(library_uuid)
       end
 
@@ -2005,19 +2005,20 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   # A browser that shows one library acts only on that library's files and
-  # folders. The listings are filtered already; this is the boundary for
-  # what an event NAMES, since any uuid can be sent from a console: a file
-  # or folder of another library in an event's params refuses the event,
+  # folders; one that names none acts only on what a site listing shows (not a
+  # user library, not a private one). The listings are filtered already; this
+  # is the boundary for what an event NAMES, since any uuid can be sent from a
+  # console: a file or folder of another library in an event's params refuses
+  # the event,
   # before any handler below sees it. Without it a member of a user library
   # could trash, rename or move a Media file by its uuid (`within_scope?/2`
   # is true for everything when there is no scope folder).
   def handle_event(event, params, socket)
-      when is_binary(socket.assigns.library_uuid) and
-             not is_map_key(socket.private, :library_checked) do
-    if foreign_reference?(params, socket.assigns.library_uuid) do
+      when not is_map_key(socket.private, :library_checked) do
+    if foreign_reference?(params, socket.assigns[:library_uuid]) do
       Logger.warning(
         "MediaBrowser id=#{socket.assigns.id}: #{event} refused — it names a file or " <>
-          "folder outside library #{socket.assigns.library_uuid}"
+          "folder outside #{shown_library_label(socket.assigns[:library_uuid])}"
       )
 
       {:noreply, put_flash(socket, :error, gettext("That is not in this library"))}
@@ -2187,9 +2188,13 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
     from = appearance_folder_of(socket, file_uuid)
 
-    case Storage.move_file_between_folders(file_uuid, from, target, scope) do
-      {:ok, _} ->
-        {:noreply, socket |> put_flash(:info, gettext("File moved")) |> reload_current_page()}
+    with true <-
+           move_target_shown?(socket, target) and shown?(socket, Storage.get_file(file_uuid)),
+         {:ok, _} <- Storage.move_file_between_folders(file_uuid, from, target, scope) do
+      {:noreply, socket |> put_flash(:info, gettext("File moved")) |> reload_current_page()}
+    else
+      false ->
+        {:noreply, put_flash(socket, :error, gettext("Failed to move file"))}
 
       {:error, :out_of_scope} ->
         {:noreply,
@@ -2223,24 +2228,28 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         {:noreply, put_flash(socket, :error, gettext("Folder not found"))}
 
       folder ->
-        case Storage.update_folder(folder, %{parent_uuid: target}, scope) do
-          {:ok, _} ->
-            {:noreply,
-             socket
-             |> put_flash(:info, gettext("Folder moved"))
-             |> reload_folder_lists()
-             |> reload_current_page()}
+        if shown?(socket, folder) and move_target_shown?(socket, target) do
+          case Storage.update_folder(folder, %{parent_uuid: target}, scope) do
+            {:ok, _} ->
+              {:noreply,
+               socket
+               |> put_flash(:info, gettext("Folder moved"))
+               |> reload_folder_lists()
+               |> reload_current_page()}
 
-          {:error, :out_of_scope} ->
-            {:noreply,
-             put_flash(socket, :error, gettext("Cannot move folder outside the allowed scope"))}
+            {:error, :out_of_scope} ->
+              {:noreply,
+               put_flash(socket, :error, gettext("Cannot move folder outside the allowed scope"))}
 
-          {:error, :cycle} ->
-            {:noreply,
-             put_flash(socket, :error, gettext("Cannot move a folder into its own descendant"))}
+            {:error, :cycle} ->
+              {:noreply,
+               put_flash(socket, :error, gettext("Cannot move a folder into its own descendant"))}
 
-          {:error, _} ->
-            {:noreply, put_flash(socket, :error, gettext("Failed to move folder"))}
+            {:error, _} ->
+              {:noreply, put_flash(socket, :error, gettext("Failed to move folder"))}
+          end
+        else
+          {:noreply, put_flash(socket, :error, gettext("Folder not found"))}
         end
     end
   end
@@ -3224,12 +3233,16 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     # new parent is nil).
     target = if folder_uuid == "", do: scope, else: folder_uuid
 
+    target_shown? = move_target_shown?(socket, target)
+
     file_count =
       Enum.count(socket.assigns.selected_files, fn file_uuid ->
         from = appearance_folder_of(socket, file_uuid)
 
-        case Storage.move_file_between_folders(file_uuid, from, target, scope) do
-          {:ok, _} -> true
+        with true <- target_shown? and shown?(socket, Storage.get_file(file_uuid)),
+             {:ok, _} <- Storage.move_file_between_folders(file_uuid, from, target, scope) do
+          true
+        else
           _ -> false
         end
       end)
@@ -3245,6 +3258,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         cond do
           sel_folder_uuid == target -> false
           is_nil(folder) -> false
+          not (target_shown? and shown?(socket, folder)) -> false
           not is_nil(folder.trashed_at) -> false
           true -> match?({:ok, _}, Storage.update_folder(folder, %{parent_uuid: target}, scope))
         end
@@ -3280,7 +3294,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       Enum.each(socket.assigns.selected_files, fn file_uuid ->
         file = repo.get(Storage.File, file_uuid)
 
-        if file && file.status == "trashed" && Storage.within_scope?(file.folder_uuid, scope) do
+        if file && file.status == "trashed" && Storage.within_scope?(file.folder_uuid, scope) &&
+             shown?(socket, file) do
           Storage.delete_file_completely(file)
         end
       end)
@@ -3291,7 +3306,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         file = repo.get(Storage.File, file_uuid)
         viewed = file && appearance_folder(socket, file)
 
-        if file && removable_here?(file, viewed, scope) do
+        if file && shown?(socket, file) && removable_here?(file, viewed, scope) do
           Storage.remove_file_from_folder(file, viewed)
         end
       end)
@@ -3300,17 +3315,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     # Folders now have trash support (V119) — recursive trash outside
     # the trash view, recursive permanent delete inside. Both operations
     # cover the folder's entire subtree (descendant folders + files).
-    Enum.each(socket.assigns.selected_folders, fn folder_uuid ->
-      folder = Storage.get_folder(folder_uuid)
-
-      if folder do
-        if socket.assigns.filter_trash do
-          Storage.delete_folder_completely(folder, scope)
-        else
-          Storage.trash_folder(folder, scope)
-        end
-      end
-    end)
+    delete_selected_folders(socket, scope)
 
     file_count = MapSet.size(socket.assigns.selected_files)
     folder_count = MapSet.size(socket.assigns.selected_folders)
@@ -3342,7 +3347,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     files =
       from(f in Storage.File, where: f.uuid in ^uuids)
       |> repo.all()
-      |> Enum.filter(&removable_here?(&1, appearance_folder(socket, &1), scope))
+      |> Enum.filter(fn file ->
+        shown?(socket, file) and removable_here?(file, appearance_folder(socket, file), scope)
+      end)
       |> enrich_files()
       |> Enum.map(fn f ->
         %{url: Map.get(f.urls, "original") || Map.get(f.urls, :original), name: f.filename}
@@ -3601,7 +3608,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       Enum.reduce(socket.assigns.selected_files, 0, fn file_uuid, acc ->
         file = repo.get(Storage.File, file_uuid)
 
-        if file && Storage.within_scope?(file.folder_uuid, scope) do
+        if file && Storage.within_scope?(file.folder_uuid, scope) && shown?(socket, file) do
           case Storage.restore_file(file) do
             {:ok, _} -> acc + 1
             _ -> acc
@@ -3615,7 +3622,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       Enum.reduce(socket.assigns.selected_folders, 0, fn folder_uuid, acc ->
         folder = Storage.get_folder(folder_uuid)
 
-        if folder && Storage.within_scope?(folder.uuid, scope) do
+        if folder && Storage.within_scope?(folder.uuid, scope) && shown?(socket, folder) do
           case Storage.restore_folder(folder, scope) do
             {:ok, _} -> acc + 1
             _ -> acc
@@ -5176,6 +5183,32 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # trashed siblings invisible to the unique constraint, so
   # `list_folders/2`'s active-only view matches what the DB will
   # accept.
+  # Whether a file or folder is one this browser shows: in the library it
+  # shows (or a site library, when it names none) and visible to its viewer.
+  # The event gate refuses what an event names; this is the same rule for what a
+  # handler takes from the selection or the database.
+  defp shown?(_socket, nil), do: false
+  defp shown?(socket, item), do: in_shown_library?(item, lib_opts(socket))
+
+  defp delete_selected_folders(socket, scope) do
+    Enum.each(socket.assigns.selected_folders, fn folder_uuid ->
+      folder = Storage.get_folder(folder_uuid)
+
+      cond do
+        not shown?(socket, folder) -> :ok
+        socket.assigns.filter_trash -> Storage.delete_folder_completely(folder, scope)
+        true -> Storage.trash_folder(folder, scope)
+      end
+    end)
+  end
+
+  # A move's target: the root (nil is the scope folder or the root itself), or a
+  # folder this browser shows.
+  defp move_target_shown?(_socket, nil), do: true
+
+  defp move_target_shown?(socket, target),
+    do: shown?(socket, Storage.get_folder(target))
+
   # A readonly browser hides every affordance that would trigger one of these
   # events, but the event is still reachable from a console — server, not
   # markup, is what a consumer can actually trust — so it's refused here too
@@ -5287,22 +5320,36 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   @doc false
   def foreign_reference?(params, library_uuid) do
     case param_uuids(params, []) |> Enum.uniq() do
-      [] ->
-        false
-
-      uuids ->
-        repo = PhoenixKit.Config.get_repo()
-
-        repo.exists?(
-          from(f in Storage.File, where: f.uuid in ^uuids and f.library_uuid != ^library_uuid)
-        ) or
-          repo.exists?(
-            from(f in Storage.Folder,
-              where: f.uuid in ^uuids and f.library_uuid != ^library_uuid
-            )
-          )
+      [] -> false
+      uuids -> named_outside_library?(uuids, library_uuid)
     end
   end
+
+  # With no library shown, "outside" is what the site listing leaves out
+  # (`Libraries.exclude_user_libraries/1`).
+  defp named_outside_library?(uuids, nil) do
+    repo = PhoenixKit.Config.get_repo()
+
+    libraries =
+      repo.all(from(f in Storage.File, where: f.uuid in ^uuids, select: f.library_uuid)) ++
+        repo.all(from(f in Storage.Folder, where: f.uuid in ^uuids, select: f.library_uuid))
+
+    Libraries.unlisted_among(libraries) != []
+  end
+
+  defp named_outside_library?(uuids, library_uuid) do
+    repo = PhoenixKit.Config.get_repo()
+
+    repo.exists?(
+      from(f in Storage.File, where: f.uuid in ^uuids and f.library_uuid != ^library_uuid)
+    ) or
+      repo.exists?(
+        from(f in Storage.Folder, where: f.uuid in ^uuids and f.library_uuid != ^library_uuid)
+      )
+  end
+
+  defp shown_library_label(nil), do: "the site libraries"
+  defp shown_library_label(library_uuid), do: "library #{library_uuid}"
 
   defp param_uuids(%{} = map, acc),
     do: Enum.reduce(map, acc, fn {_k, v}, acc -> param_uuids(v, acc) end)
