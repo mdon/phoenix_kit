@@ -3,7 +3,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   # What the toolbar's sort, type and shape accept: the events and the URL both
   # check against these.
-  @valid_sorts ~w(newest oldest name_asc name_desc largest smallest)
+  @valid_sorts ~w(newest oldest taken_oldest taken_newest name_asc name_desc largest smallest)
   @valid_file_types ~w(all image video document audio archive other)
   @valid_shapes ~w(all wide tall)
 

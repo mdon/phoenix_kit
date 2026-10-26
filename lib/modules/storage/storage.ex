@@ -2675,13 +2675,23 @@ defmodule PhoenixKit.Modules.Storage do
   defp maybe_filter_file_type(query, type) when type in [nil, "all", ""], do: query
   defp maybe_filter_file_type(query, type), do: where(query, [f], f.file_type == ^type)
 
-  # Sort whitelist for the media browser toolbar — defaults to newest first.
+  # Sort whitelist for the media browser toolbar — defaults to newest first
+  # (by upload time, `inserted_at`).
   # Every order carries `f.uuid` as a stable tiebreaker so equal values
   # (same size, same name, same insert time) can't shuffle across pages.
   # Name sorts compare case-insensitively (lower/?) so "apple" and "Zebra"
   # order naturally instead of uppercase-before-lowercase.
   defp apply_file_sort(query, "oldest"),
     do: order_by(query, [f], asc: f.inserted_at, asc: f.uuid)
+
+  # By capture date (the order the photo timeline shows), not upload time.
+  # A file with no capture date has nothing to place it by, so it goes last
+  # either way round.
+  defp apply_file_sort(query, "taken_oldest"),
+    do: order_by(query, [f], asc_nulls_last: f.taken_at, asc: f.uuid)
+
+  defp apply_file_sort(query, "taken_newest"),
+    do: order_by(query, [f], desc_nulls_last: f.taken_at, asc: f.uuid)
 
   defp apply_file_sort(query, "name_asc"),
     do: order_by(query, [f], asc: fragment("lower(?)", f.original_file_name), asc: f.uuid)
