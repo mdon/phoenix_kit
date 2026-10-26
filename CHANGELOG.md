@@ -4,6 +4,24 @@
 
 ### Added
 
+- **HDR renditions of HEIC and AVIF photos.** `HdrResize` kept a gain map for a JPEG source only, so an iPhone
+  photo (a HEIC) got ordinary thumbnails and previews. `HeifHdr` now makes the same Ultra HDR JPEG from a HEIC or
+  AVIF that has a `tmap` item (iPhone, Android): `HeifBoxes` reads the file's boxes and its ISO 21496-1
+  parameters, ImageMagick cuts the picture, `ffmpeg` decodes the gain map (a tile grid, or a single picture), and
+  `HdrResize`'s writer assembles the picture, the map and the Multi-Picture directory. `VariantGenerator` picks the
+  writer by container; a size that cannot be made this way (no `ffmpeg` 7.1+, a map with a value per colour
+  channel or running backwards, a map of other proportions, anything unexpected) is made the ordinary way, as
+  before. A photo's rotation (`irot`) is applied to both pictures, `strip_metadata` and the focus crop work as for
+  JPEG sources. Tested against a real iPhone HEIC (pixel-identical to the prototype that was checked in Safari on an
+  iPad) and a synthetic AVIF.
+- **`Hdr.read/1` of a HEIC or AVIF reads the file's boxes** instead of matching bytes: `"headroom"` and
+  `"gain_map_bytes"` are filled, and a new `"parameters"` map holds the gain map's numbers under the names of
+  Ultra HDR's `hdrgm` properties. A HEIC whose `meta` box is larger than 512 KB is now recognised too.
+- **`Storage.VariantSets.remake_hdr_renditions/1`** remakes only the HDR-eligible sizes (`keep_hdr`, JPEG, a shape
+  the map can follow) of files that have a gain map (HEIC and AVIF by default, `containers:` to choose), without
+  the cost of `remake_all/1`. Existing HEIC renditions are not seen as out of date otherwise, since `keep_hdr` is
+  not in the spec hash.
+
 - **`PhoenixKit.Module.file_references/0`: a module names the places in its own tables that point at a stored file.**
   It returns `{table, condition}` pairs, the same `NOT EXISTS` shape core's orphan-file check has always used
   for module tables; `PhoenixKit.ModuleRegistry.all_file_references/0` collects them from every module, enabled or
