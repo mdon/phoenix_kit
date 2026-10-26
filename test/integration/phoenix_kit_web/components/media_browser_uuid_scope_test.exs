@@ -16,8 +16,30 @@ defmodule PhoenixKitWeb.Components.MediaBrowserUuidScopeTest do
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Components.MediaBrowser
+  alias PhoenixKitWeb.Components.MediaBrowser.Embed
 
   @media_path Routes.path("/admin/media")
+
+  defmodule NoLibraryHost do
+    @moduledoc false
+    # A host that embeds the browser and names no library.
+    use Phoenix.LiveView
+    use PhoenixKitWeb.Components.MediaBrowser.Embed
+
+    def mount(_params, %{"nav" => nav}, socket),
+      do: {:ok, Phoenix.Component.assign(socket, :nav, nav)}
+
+    def render(assigns) do
+      ~H"""
+      <.live_component
+        module={PhoenixKitWeb.Components.MediaBrowser}
+        id="mb"
+        parent_uploads={@uploads}
+        initial_params={@nav}
+      />
+      """
+    end
+  end
 
   setup do
     {:ok, _} = Settings.update_boolean_setting("storage_user_libraries_enabled", true)
@@ -151,7 +173,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowserUuidScopeTest do
   end
 
   defp refused?({:noreply, socket}),
-    do: socket.assigns.flash["error"] == "That is not in this library"
+    do: socket.assigns.flash["error"] in ["That is not in this library", "File not found"]
 
   # ── forged events through the real page ───────────────────────────────────
 
@@ -364,6 +386,165 @@ defmodule PhoenixKitWeb.Components.MediaBrowserUuidScopeTest do
                  bare_socket(nil, alice.uuid)
                )
              )
+    end
+  end
+
+  # ── the selection: what a handler takes from it is checked too ────────────
+
+  describe "a selection holding another library's objects" do
+    # The handlers reload the page's lists when they are done, which a bare
+    # socket cannot do; what matters is what they did to the rows before.
+    defp run(event, socket, params \\ %{}) do
+      MediaBrowser.handle_event(event, params, socket)
+    rescue
+      KeyError -> :reloaded_nothing
+    end
+
+    defp full_socket(selected_files, selected_folders, viewer \\ nil, trash? \\ false) do
+      %{assigns: assigns} = socket = bare_socket(Libraries.media_uuid(), viewer, selected_files)
+
+      assigns =
+        Map.merge(assigns, %{
+          scope_folder_id: nil,
+          expanded_stacks: [],
+          filter_trash: trash?,
+          selected_folders: MapSet.new(selected_folders)
+        })
+
+      %{socket | assigns: assigns}
+    end
+
+    defp target(n, admin), do: folder!("TARGET-#{n}", nil, admin)
+
+    test "delete_selected trashes only what this library shows", ctx do
+      %{foreign: foreign, media_file: media_file, media_folder: media_folder} = ctx
+      hidden = foreign.hidden
+      user = foreign.user
+
+      socket =
+        full_socket(
+          [media_file.uuid, hidden.file.uuid, user.file.uuid],
+          [media_folder.uuid, hidden.folder.uuid, user.folder.uuid]
+        )
+
+      run("delete_selected", socket)
+
+      assert %{status: "active"} = Storage.get_file(hidden.file.uuid)
+      assert %{status: "active"} = Storage.get_file(user.file.uuid)
+      assert %{trashed_at: nil} = Storage.get_folder(hidden.folder.uuid)
+      assert %{trashed_at: nil} = Storage.get_folder(user.folder.uuid)
+      # the control: what is Media's was trashed
+      assert %{trashed_at: %DateTime{}} = Storage.get_folder(media_folder.uuid)
+    end
+
+    test "delete_selected in the trash deletes only what this library shows", ctx do
+      %{foreign: foreign, media_file: media_file, media_folder: media_folder} = ctx
+      hidden = foreign.hidden
+      {:ok, _} = Storage.trash_file(hidden.file)
+      {:ok, _} = Storage.trash_file(media_file)
+      {:ok, _} = Storage.trash_folder(hidden.folder, nil)
+      {:ok, _} = Storage.trash_folder(media_folder, nil)
+
+      socket =
+        full_socket(
+          [media_file.uuid, hidden.file.uuid],
+          [media_folder.uuid, hidden.folder.uuid],
+          nil,
+          true
+        )
+
+      run("delete_selected", socket)
+
+      assert Storage.get_file(hidden.file.uuid)
+      assert Storage.get_folder(hidden.folder.uuid)
+      assert is_nil(Storage.get_file(media_file.uuid))
+      assert is_nil(Storage.get_folder(media_folder.uuid))
+    end
+
+    test "restore_selected restores only what this library shows", ctx do
+      %{foreign: foreign, media_file: media_file, media_folder: media_folder} = ctx
+      hidden = foreign.hidden
+      {:ok, _} = Storage.trash_file(hidden.file)
+      {:ok, _} = Storage.trash_file(media_file)
+      {:ok, _} = Storage.trash_folder(hidden.folder, nil)
+      {:ok, _} = Storage.trash_folder(media_folder, nil)
+
+      socket =
+        full_socket(
+          [media_file.uuid, hidden.file.uuid],
+          [media_folder.uuid, hidden.folder.uuid],
+          nil,
+          true
+        )
+
+      run("restore_selected", socket)
+
+      assert %{status: "trashed"} = Storage.get_file(hidden.file.uuid)
+      assert %{trashed_at: %DateTime{}} = Storage.get_folder(hidden.folder.uuid)
+      assert %{status: "active"} = Storage.get_file(media_file.uuid)
+      assert %{trashed_at: nil} = Storage.get_folder(media_folder.uuid)
+    end
+
+    test "move_selected_to_folder moves only what this library shows", ctx do
+      %{foreign: foreign, media_file: media_file, admin: admin, n: n} = ctx
+      hidden = foreign.hidden
+      mover = folder!("MOVER-#{n}", nil, admin)
+      destination = target(n, admin)
+
+      socket = full_socket([media_file.uuid, hidden.file.uuid], [mover.uuid, hidden.folder.uuid])
+
+      run("move_selected_to_folder", socket, %{"folder-uuid" => destination.uuid})
+
+      assert Storage.get_file(hidden.file.uuid).folder_uuid == nil
+      assert Storage.get_folder(hidden.folder.uuid).parent_uuid == nil
+      # the control: Media's own were moved
+      assert Storage.get_file(media_file.uuid).folder_uuid == destination.uuid
+      assert Storage.get_folder(mover.uuid).parent_uuid == destination.uuid
+    end
+
+    test "a restricted viewer's delete_selected leaves what is not hers", ctx do
+      %{alice: alice, media_file: media_file, media_folder: media_folder, alice_file: own} = ctx
+
+      # (a selection holding a folder that is not hers is refused whole by the
+      # viewer gate; the files are what the handler has to filter itself)
+      run("delete_selected", full_socket([media_file.uuid, own.uuid], [], alice.uuid))
+
+      assert %{status: "active"} = Storage.get_file(media_file.uuid)
+      assert Storage.get_file(media_file.uuid).folder_uuid == media_folder.uuid
+    end
+  end
+
+  describe "a browser that names no library, in the selection and in the URL" do
+    test "download_selected gives no URL for a hidden or user library's file", ctx do
+      %{foreign: foreign, media_file: media_file} = ctx
+      selected = [media_file.uuid, foreign.hidden.file.uuid, foreign.user.file.uuid]
+
+      {:noreply, socket} =
+        MediaBrowser.handle_event("download_selected", %{}, bare_socket(nil, nil, selected))
+
+      assert [["download_files", %{files: [%{name: name}]}]] = pushed(socket)
+      assert name =~ "MEDIA-FILE"
+    end
+
+    test "a hand-edited ?file= and ?folder= open a site library's, not a hidden one's", ctx do
+      %{conn: conn, foreign: foreign, n: n} = ctx
+
+      open = fn params ->
+        {:ok, _view, html} =
+          live_isolated(conn, NoLibraryHost, session: %{"nav" => Embed.parse_nav_params(params)})
+
+        html
+      end
+
+      html = open.(%{"file" => foreign.hidden.file.uuid})
+      refute html =~ "hidden-file-#{n}"
+      html = open.(%{"file" => foreign.user.file.uuid})
+      refute html =~ "user-file-#{n}"
+      html = open.(%{"folder" => foreign.hidden.folder.uuid})
+      refute html =~ "hidden-folder-#{n}"
+
+      assert open.(%{"file" => foreign.site.file.uuid}) =~ "site-file-#{n}"
+      assert open.(%{"folder" => foreign.site.folder.uuid}) =~ "site-folder-#{n}"
     end
   end
 end
