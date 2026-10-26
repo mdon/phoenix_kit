@@ -13,7 +13,9 @@ defmodule PhoenixKit.Modules.Storage.SortByCaptureDateTest do
   alias PhoenixKit.Test.Repo
   alias PhoenixKit.Users.Auth
 
-  defp file!(name, owner, taken_at) do
+  # `inserted_at` is set by hand, a second apart in the order the files are made:
+  # the column has second precision, and four inserts in one second would tie.
+  defp file!(name, owner, taken_at, uploaded_at) do
     n = System.unique_integer([:positive])
 
     {:ok, file} =
@@ -32,7 +34,7 @@ defmodule PhoenixKit.Modules.Storage.SortByCaptureDateTest do
       })
 
     Repo.update_all(from(f in StorageFile, where: f.uuid == ^file.uuid),
-      set: [taken_at: taken_at]
+      set: [taken_at: taken_at, inserted_at: uploaded_at]
     )
 
     file
@@ -51,10 +53,10 @@ defmodule PhoenixKit.Modules.Storage.SortByCaptureDateTest do
       })
 
     # Uploaded in an order unlike the order they were taken in.
-    file!("taken-2020", owner, ~U[2020-05-01 10:00:00Z])
-    file!("undated", owner, nil)
-    file!("taken-2018", owner, ~U[2018-07-14 08:00:00Z])
-    file!("taken-2024", owner, ~U[2024-01-02 09:00:00Z])
+    file!("taken-2020", owner, ~U[2020-05-01 10:00:00Z], ~U[2026-10-26 12:00:00Z])
+    file!("undated", owner, nil, ~U[2026-10-26 12:00:01Z])
+    file!("taken-2018", owner, ~U[2018-07-14 08:00:00Z], ~U[2026-10-26 12:00:02Z])
+    file!("taken-2024", owner, ~U[2024-01-02 09:00:00Z], ~U[2026-10-26 12:00:03Z])
     :ok
   end
 
