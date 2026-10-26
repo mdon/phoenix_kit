@@ -196,6 +196,47 @@ defmodule PhoenixKitWeb.Live.Users.UserLibrariesUITest do
       assert entry.target_user_uuid == owner.uuid
       assert entry.metadata["library_uuid"] == library.uuid
     end
+
+    test "an Admin opening a user's library is told whose it is", %{conn: conn, role: role} do
+      owner = user!(role)
+      library = library!(owner, "Private")
+      {admin, _token} = create_admin_user()
+
+      {:ok, view, _html} =
+        live(log_in_user(conn, admin), Routes.path("/admin/libraries/#{library.uuid}"))
+
+      banner = view |> element("#library-admin-banner") |> render()
+      assert banner =~ owner.email
+      assert banner =~ "Private"
+      assert page_title(view) =~ owner.email
+    end
+
+    test "the top of a library has one name in the tree and in the content", %{
+      conn: conn,
+      role: role
+    } do
+      owner = user!(role)
+      library = library!(owner, "Names")
+
+      {:ok, _view, html} =
+        live(log_in_user(conn, owner), Routes.path("/admin/libraries/#{library.uuid}"))
+
+      # Named once (the sidebar button and the heading), not a third time as a crumb.
+      assert length(String.split(html, "Top level")) - 1 == 2
+      refute html =~ "All Media"
+      refute html =~ ~r/>\s*Root\s*</
+    end
+
+    test "an owner opening their own library gets no admin banner", %{conn: conn, role: role} do
+      owner = user!(role)
+      library = library!(owner, "Mine")
+
+      {:ok, view, html} =
+        live(log_in_user(conn, owner), Routes.path("/admin/libraries/#{library.uuid}"))
+
+      refute html =~ "library-admin-banner"
+      refute has_element?(view, "#library-admin-banner")
+    end
   end
 
   describe "the media browser inside a library" do
