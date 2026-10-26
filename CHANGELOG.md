@@ -1,6 +1,6 @@
 ## Unreleased
 
-**No migration** (still V223).
+**Migration V224** (PR #983: an index on `phoenix_kit_activities (resource_uuid, inserted_at)`). Nothing else here migrates.
 
 ### Added
 
@@ -30,6 +30,16 @@
   nothing changes for a module version that predates the callback. A callback that raises or returns a malformed
   entry fails closed: no file is treated as orphaned until it is fixed. No default implementation exists on purpose,
   since an empty default would switch core's protection off for every module.
+- **`PhoenixKit.Module.expected_schema/0`: a module supplies the manifest of its own tables.** It returns a module
+  implementing `PhoenixKit.Migrations.ExpectedSchema.Behaviour`, generated from the module's own chain by
+  `dev_docs/squash/generate_module_manifest.exs` (catalog queries only). `PhoenixKit.ModuleRegistry.all_expected_schemas/0`
+  collects them from every module, enabled or not, and `mix phoenix_kit.repair` / `doctor` run one more pass per
+  manifest after core's, through the same differ and the same additive-only executor. A module is checked only while
+  its recorded version equals its chain head: one that is behind gets an info finding (`:module_behind`), one that
+  was never migrated none. Findings carry `module:` (the OTP app) and their message starts with the app. No default
+  implementation: a module without a manifest is simply not checked, as since the manifest was narrowed to core's
+  tables. `PhoenixKit.TestSupport.ModuleChainCheck.build_alone/4` builds core's chain and then the module's alone in
+  a scratch schema, for generating and testing a manifest.
 
 ### Changed
 

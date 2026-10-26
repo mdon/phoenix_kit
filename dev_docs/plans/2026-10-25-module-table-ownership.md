@@ -331,8 +331,51 @@ NULL-uuid check) to module callbacks.
   projects, whose `ProjectCalendarLiveTest` "reloads on a projects PubSub broadcast" fails at `HEAD` with or without
   this change (not part of this plan). Whether core deletes its copy at 3.0 is undecided: keeping it as a permanent
   safety net costs nothing.
-- **Not started: the manifest split (a frozen part plus a generated part in `priv/`).** Needs a decision, see the
-  progress log.
+- **7b, per-module manifests: decided (a) on 2026-10-26; core half and the customer_support pilot built, other modules not started.** Core's `ExpectedSchema` keeps
+  core's own objects (step 6 already filters the rest); each module ships a manifest of its own tables, and
+  repair checks them again.
+  - *Shape.* A generated module `<App>.ExpectedSchema` implementing the existing
+    `PhoenixKit.Migrations.ExpectedSchema.Behaviour` (`objects/1`, `data_invariants/1`, `chain_hash/0`), so
+    `Repair.Differ`, `Executor` and the additive-only rules work unchanged. Core learns of it through a new
+    optional `PhoenixKit.Module` callback (`expected_schema/0`, no default, like `file_references/0`), so an older
+    module simply has none and is skipped.
+  - *Version scope, kept simple.* One revision per object, the module chain's end state. Repair checks a module's
+    tables only when the module's recorded version equals its current chain head; a module that is behind is
+    reported as "run update", not healed against a guessed older shape. No per-version history for modules.
+  - *Generator.* Reuses `ModuleChainCheck`'s "module alone" build in a scratch schema plus the generator's
+    `Catalog` snapshot (catalog queries only, no `pg_dump`, so it runs here, unlike the core generator). Lives in
+    core `lib/` so a module runs it from its own repo, like `ModuleChainCheck`. A module test rebuilds and fails
+    when its committed manifest is stale (the module's `chain_hash`).
+  - *Repair.* After the core pass, one pass per module that supplies a manifest; findings are labelled with the
+    module. `doctor` and `repair` print module findings separately.
+  - *Order.* Core half (callback, repair pass, generator, fixture tests) first and additive; then one pilot
+    module end to end; then the rest. Nothing changes for a host until a module ships a manifest.
+  - **Pilot built (2026-10-26, gate green, committed and pushed): core half plus customer_support.**
+    - *Core.* `PhoenixKit.Module.expected_schema/0` (optional, no default, not in `defoverridable`);
+      `ModuleRegistry.all_expected_schemas/0` (`%{app => %{manifest:, migrations:}}`; a raise, a nil manifest, a
+      manifest without the three exports or a module without a loaded migrations module is left out);
+      `Repair` runs one more pass per manifest after core's (`add_module_passes/3`, opt `:module_manifests` for
+      tests), gated on the module's `migrated_version_runtime/1` against `current_version/0`: equal = checked,
+      lower = an info `:module_behind` finding, 0 = silent, higher or unreadable = silent. Findings carry
+      `module:` and their message starts with the app. Reuses `apply_scope/7` unchanged with `since: 1` on every
+      object. The core-adopt branch is untouched. `ModuleChainCheck.build_alone/4` is the "core, then the module's
+      chain alone" build, public. Tests: `test/integration/repair_module_manifest_test.exs` (9).
+    - *Generator.* `dev_docs/squash/generate_module_manifest.exs`. It loads `generate_baseline.exs` as a library
+      (`PK_GEN_LIBRARY=1` stops its `Main.main` from running), takes `Catalog.snapshot/2` of the scratch schema,
+      keeps the module's tables, and renders through the core emitter (`render_manifest/3` gained `:header`,
+      `:invariants`, `:owner`; `build_objects/2` gained `:owner`). Catalog queries only: it ran here against the
+      PG18 server, which the core generator cannot. `generate_baseline.exs --check` still passes. The migrations
+      module must be compiled from `--source` files (schemas it reads included), since core does not depend on the
+      module. `chain_hash` of a module manifest is a fingerprint of its objects, not of the chain files.
+    - *customer_support.* `PhoenixKitCustomerSupport.ExpectedSchema` (77 objects, 4 tables), `expected_schema/0`
+      in the main module (no `@impl`), `test/integration/expected_schema_test.exs` (4: table set, a fresh chain has
+      no findings, every index and constraint is in the manifest, a dropped column is found and repaired),
+      excluded by `:requires_core_expected_schema` against a core without `build_alone/4`. Passes against local
+      core.
+    - *Staleness.* There is no file hash to compare. A stale manifest shows up in the module's test as a missing
+      or extra object; a chain change still needs the generator re-run.
+    - *When core releases:* each module's `file_references/0` and `expected_schema/0` get `@impl` once the core
+      floor is raised, otherwise core's compiler warns "@impl not set" on the module.
 
 ### Step 8 — core stops creating module tables (fresh installs only)
 
@@ -392,6 +435,10 @@ owning module's chain, never core's.
   customer_support `a667657`, ecommerce `e1fb780`, catalogue `0fd0aad`, publishing `c78f56a`, entities `a1e611c`.
   Core `dcd2416d6` exposes `Storage.builtin_file_references/0` and hands over a table a supplier names. Unreleased;
   the modules ship after the core release that reads the callback.
+- **2026-10-26** — Step 7b started, option (a) chosen: `Module.expected_schema/0`, `ModuleRegistry.all_expected_schemas/0`,
+  a repair pass per module manifest, `ModuleChainCheck.build_alone/4` and `generate_module_manifest.exs` in core;
+  customer_support is the pilot (`ExpectedSchema`, 77 objects, plus its test). See step 7. Unreleased; the other 24
+  modules are not started.
 - **2026-10-25** — Step 7 started: `file_references/0` callback, registry aggregator and storage hand-over (core half);
   doctor's NULL-uuid list left in core. Unreleased.
 - **2026-10-25** — Step 6 done: `ExpectedSchema` filters by `ModuleOwnedTables` (see step 6). Tests:

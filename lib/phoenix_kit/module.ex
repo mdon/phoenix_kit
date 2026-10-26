@@ -694,6 +694,33 @@ defmodule PhoenixKit.Module do
   @callback file_references() :: [{String.t(), Ecto.Query.dynamic_expr()}]
 
   @doc """
+  The manifest of this module's own tables, so `mix phoenix_kit.repair` and
+  `mix phoenix_kit.doctor` can check and repair them.
+
+  Returns a module implementing `PhoenixKit.Migrations.ExpectedSchema.Behaviour`
+  (the same contract as core's own manifest), or `nil`. It describes the
+  tables the module's own migration chain builds, **as that chain leaves them
+  at its current version**, and is generated from that chain, never written by
+  hand (`dev_docs/squash/generate_module_manifest.exs` in core).
+
+  Repair checks the module only while the database is at the chain's current
+  version (`migration_module/0`'s `migrated_version/1` equals
+  `current_version/0`): a module that is behind, or was never migrated, is
+  reported as such, not healed against a shape it is not supposed to have yet.
+  Like all of repair it is additive: it creates what is missing and reports the
+  rest, and never drops, alters or rewrites anything.
+
+  Collected from all modules, enabled or not
+  (`PhoenixKit.ModuleRegistry.all_expected_schemas/0`). A module that must
+  compile against a core that lacks this callback defines it without `@impl`.
+
+  ## Example
+
+      def expected_schema, do: PhoenixKitCustomerSupport.ExpectedSchema
+  """
+  @callback expected_schema() :: module() | nil
+
+  @doc """
   The kinds of job run this module contributes — modules implementing
   `PhoenixKit.Jobs.Kind`.
 
@@ -964,6 +991,7 @@ defmodule PhoenixKit.Module do
     email_templates: 0,
     media_reorganizer: 0,
     file_references: 0,
+    expected_schema: 0,
     job_kinds: 0,
     api_tools: 0,
     api_problems: 0,
