@@ -319,12 +319,18 @@ NULL-uuid check) to module callbacks.
   `@impl`**, so it compiles against today's Hex core and does nothing there; no core floor is needed, because core
   falls back whenever the callback is absent. Each module's test is gated like the chain check
   (`:requires_core_file_references`, excluded while `Storage.builtin_file_references/0` is not exported).
-- **Still to do, per module** (each in its next release, floor raised to the core release that carries the callback,
-  the SQL moved verbatim from `storage.ex` so the existing behavior is the test): projects
-  (`project_portal_submissions`), posts (`post_media`, `post_groups`, `posts`), customer_support
-  (`ticket_attachments`), ecommerce (`shop_products`, `shop_categories`), catalogue (`cat_items`,
-  `cat_categories`, `cat_catalogues`, `cat_pdfs`), publishing (`publishing_contents`, `publishing_versions`),
-  entities (`entity_data`). Core deletes its copy at 3.0.
+- **Done, per module** (2026-10-26, all pushed, unreleased): each has a `FileReferences` module holding its pairs
+  (moved verbatim from `storage.ex`), a one-line `file_references/0` in its main module (no `@impl`), a
+  `file_references_test.exs` and a CHANGELOG entry. No core floor was raised: core falls back whenever the callback
+  is absent, and the test is excluded until core exposes `Storage.builtin_file_references/0`. projects `e5bb40f`
+  (`project_portal_submissions`), posts `665847a` (`post_media`, `post_groups`, `posts`), customer_support `a667657`
+  (`ticket_attachments`), ecommerce `e1fb780` (`shop_products`, `shop_categories`), catalogue `0fd0aad` (`cat_items`,
+  `cat_categories`, `cat_catalogues`, `cat_pdfs`), publishing `c78f56a` (`publishing_contents`,
+  `publishing_versions`), entities `a1e611c` (`entity_data`). Each passes against local core, where the test proves
+  its SQL equals core's own copy. Gate: format and `quality.ci` clean in all seven; suites green on Hex core except
+  projects, whose `ProjectCalendarLiveTest` "reloads on a projects PubSub broadcast" fails at `HEAD` with or without
+  this change (not part of this plan). Whether core deletes its copy at 3.0 is undecided: keeping it as a permanent
+  safety net costs nothing.
 - **Not started: the manifest split (a frozen part plus a generated part in `priv/`).** Needs a decision, see the
   progress log.
 
@@ -382,6 +388,10 @@ owning module's chain, never core's.
 - **2026-10-25** — Step 5: ecommerce V6 (`54061bd`) adds core V186's three columns (`ADD COLUMN IF NOT EXISTS`, no backfill) plus the builds-alone test; checker OK, 4771 tests (3 position-pinned migration tests adjusted), quality.ci clean. Unreleased.
 - **2026-10-25** — Step 5: emails (`a081f13`) checked. Core's chain seeds nothing into `phoenix_kit_email_templates` (the package seeds system templates at runtime) and its one `__PK_NAME_EXEMPT__` index is already carried, so no chain change; builds-alone test added. 2028 tests green against a local core (emails pins core on Hex with no `PHOENIX_KIT_PATH` switch, so a temporary uncommitted path dep). Unreleased.
 - **2026-10-25** — Step 5 finished: the builds-alone test added to catalogue `131c998`, crm `a16a608`, customer_support `80be167`, dashboards `e755a88`, entities `b24d02b`, legal `465f889`, locations `c6ef9ce`, manufacturing `b0c8ec5`, newsletters `740a0c3`, open_graph `1342c66`, posts `922793a`, projects `d587883`, publishing `ce4952c`, warehouse `4bede57`. Every one passes against local core; full suites and credo green against Hex core. legal's test points core's `:repo` env at its test repo for its own duration (its config never set it). Two failures are already there without the change and are not part of this plan: legal `DataCollectionTest` (registry) and open_graph `EditorLiveTest` (3, locale-prefixed URLs). Unreleased.
+- **2026-10-26** — Step 7a done in the seven modules (see step 7): projects `e5bb40f`, posts `665847a`,
+  customer_support `a667657`, ecommerce `e1fb780`, catalogue `0fd0aad`, publishing `c78f56a`, entities `a1e611c`.
+  Core `dcd2416d6` exposes `Storage.builtin_file_references/0` and hands over a table a supplier names. Unreleased;
+  the modules ship after the core release that reads the callback.
 - **2026-10-25** — Step 7 started: `file_references/0` callback, registry aggregator and storage hand-over (core half);
   doctor's NULL-uuid list left in core. Unreleased.
 - **2026-10-25** — Step 6 done: `ExpectedSchema` filters by `ModuleOwnedTables` (see step 6). Tests:
