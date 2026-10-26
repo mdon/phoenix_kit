@@ -38,6 +38,8 @@
         library_uuid={@library.uuid}
         phoenix_kit_current_user={assigns[:phoenix_kit_current_user]}
         readonly={readonly?(@role)}
+        admin={true}
+        can_manage_storage={@can_manage_storage}
         own_files_only={own_files_only(@role, @phoenix_kit_current_user)}
         fill_height={true}
         on_navigate={:navigate}

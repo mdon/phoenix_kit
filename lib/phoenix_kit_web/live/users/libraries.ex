@@ -45,6 +45,11 @@ defmodule PhoenixKitWeb.Live.Users.Libraries do
      |> assign(:library, nil)
      |> assign(:role, nil)
      |> assign(:owner_email, nil)
+     # The viewer's "Storage" link: where a file and its renditions are kept.
+     |> assign(
+       :can_manage_storage,
+       Scope.can?(socket.assigns[:phoenix_kit_current_scope], "media.manage")
+     )
      |> assign(:header_section, nil)
      |> assign(:header_switcher, nil)
      # Read here: connect info is only available while mounting.
