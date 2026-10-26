@@ -39,6 +39,10 @@ defmodule PhoenixKit.Squash.RehearseModuleChains do
   alias PhoenixKit.Squash.RepoHelper
   alias PhoenixKit.TestSupport.ModuleChainCheck
 
+  # Objects a chain adds only where another package's table exists, so a run
+  # without that package differs from today's by design.
+  @guarded ["phoenix_kit_doc_documents_project_uuid_fkey"]
+
   def main(argv) do
     {opts, [], []} =
       OptionParser.parse(argv, strict: [workspace: :string, edge: [:string, :keep]])
@@ -67,7 +71,7 @@ defmodule PhoenixKit.Squash.RehearseModuleChains do
   end
 
   defp run(repo, label, chains) do
-    case ModuleChainCheck.check_all(repo, Enum.map(chains, & &1.migrations)) do
+    case ModuleChainCheck.check_all(repo, Enum.map(chains, & &1.migrations), allow: @guarded) do
       :ok ->
         IO.puts("#{label}: all chains build the same tables as today")
         :ok

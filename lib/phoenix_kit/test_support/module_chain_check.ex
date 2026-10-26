@@ -184,7 +184,8 @@ defmodule PhoenixKit.TestSupport.ModuleChainCheck do
 
   `chains` is a list of migration modules, in the order to run them. Options:
   `:tables` (the module-owned tables; default every table `ModuleOwnedTables`
-  lists), `:schema`, `:keep_schema`. Returns `:ok` or `{:error, report}`.
+  lists), `:schema`, `:keep_schema`, `:allow` (substrings of difference lines to accept:
+  an object a chain deliberately adds only where another package's table exists). Returns `:ok` or `{:error, report}`.
   """
   @spec check_all(Ecto.Repo.t(), [module()], keyword()) :: :ok | {:error, String.t()}
   def check_all(repo, chains, opts \\ []) when is_list(chains) do
@@ -194,14 +195,14 @@ defmodule PhoenixKit.TestSupport.ModuleChainCheck do
 
     with_auto_sandbox(repo, fn ->
       try do
-        compare_all(repo, chains, schema, tables)
+        compare_all(repo, chains, schema, tables, opts)
       after
         unless opts[:keep_schema], do: query!(repo, ~s(DROP SCHEMA IF EXISTS "#{schema}" CASCADE))
       end
     end)
   end
 
-  defp compare_all(repo, chains, schema, tables) do
+  defp compare_all(repo, chains, schema, tables, opts) do
     query!(repo, ~s(DROP SCHEMA IF EXISTS "#{schema}" CASCADE))
     query!(repo, ~s(CREATE SCHEMA "#{schema}"))
     quietly(fn -> PhoenixKit.Migration.ensure_current(repo, prefix: schema, log: false) end)
@@ -217,8 +218,11 @@ defmodule PhoenixKit.TestSupport.ModuleChainCheck do
       with :ok <- run_chains(repo, chains, schema, "alone, in order") do
         alone = snapshot(repo, schema, tables)
 
+        allowed = Keyword.get(opts, :allow, [])
+
         tables
         |> Enum.flat_map(&table_diff(&1, today[&1], alone[&1]))
+        |> Enum.reject(fn line -> Enum.any?(allowed, &String.contains?(line, &1)) end)
         |> report_all()
       end
     end

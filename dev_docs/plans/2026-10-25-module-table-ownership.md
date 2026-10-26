@@ -422,14 +422,20 @@ Decision: **(a) at core 3.0** (made 2026-10-26). First part, shippable on its ow
   module-owned table, runs the chains again alone in order, and diffs tables, columns, indexes, constraints and
   triggers. Name order is run as a control. **Result: with one added edge, all 25 chains rebuild the identical
   schema in dependency order; name order fails.** `--edge a:b` adds an undeclared dependency.
-- *Two findings from it, both open:*
-  1. **`document_creator` → `projects` is undeclared.** Its V1 adds `doc_documents.project_uuid REFERENCES
-     phoenix_kit_projects` unguarded ("the FK target is core-created"), but its mix.exs has no sibling deps and
-     projects does not depend on it either (duck-typed hub). Alone, its chain fails when projects' table is absent.
-  2. **`projects` declares `staff` and `entities` as `optional: true`** yet its chain carries unguarded
-     `REFERENCES` to both (9 + 1 FKs). A host with projects but no staff works today only because core creates
-     staff's tables. Optional deps do count for ordering (`optional_applications`).
-  Either FK set is guarded (`to_regclass`; the link is added when the target exists) or the dependency is made hard.
+- *Two findings from it, both fixed (2026-10-26):*
+  1. **`document_creator` → `projects` was undeclared.** Its V1 added `doc_documents.project_uuid REFERENCES
+     phoenix_kit_projects` unguarded, but its mix.exs has no sibling deps and projects does not depend on it
+     either (duck-typed hub). Decision: **guard the FK.** The chain adds the column plain and the constraint only
+     where `phoenix_kit_projects` exists (`to_regclass`); a host without projects keeps the plain column, and
+     re-running the chain after projects is installed adds it. Its manifest leaves the constraint out
+     (`generate_module_manifest.exs --exclude constraint:...`), and its test lists it in `@known_gaps`. The
+     rehearsal accepts that one difference (`allow:`).
+  2. **`projects` declared `staff` and `entities` as `optional: true`** yet its chain carries unguarded
+     `REFERENCES` to both (9 + 1 FKs). Decision: **make both hard deps** (mix.exs, AGENTS/README/CHANGELOG),
+     which also puts the edge in the application graph that `order_by_dependencies/1` reads. The People seam in
+     the code and its `WITHOUT_STAFF` compile gate stay as they are.
+  Result: `rehearse_module_chains.exs` with no extra edge: **name order fails (projects before staff),
+  dependency order rebuilds the identical schema.**
 - *Core to module FKs:* none. No core table references a module-owned table.
 
 ### Step 9 — dead tables
