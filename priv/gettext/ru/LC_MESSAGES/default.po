@@ -21672,3 +21672,48 @@ msgstr "Реакции"
 #, elixir-autogen, elixir-format
 msgid "Likes and reactions to your comments"
 msgstr "Отметки «нравится» и реакции на ваши комментарии"
+
+#: lib/phoenix_kit/users/permissions.ex
+#, elixir-autogen, elixir-format
+msgid "Security settings"
+msgstr "Настройки безопасности"
+
+#: lib/phoenix_kit/users/permissions.ex
+#, elixir-autogen, elixir-format
+msgid "Sign-in methods and OAuth secrets, website access (password gate, site close, allowed addresses), registration and the new-user default role"
+msgstr "Способы входа и секреты OAuth, доступ к сайту (парольный шлюз, закрытие сайта, разрешённые адреса), регистрация и роль нового пользователя по умолчанию"
+
+#: lib/phoenix_kit_web/live/settings/security_gate.ex
+#, elixir-autogen, elixir-format
+msgid "You do not have permission to change security settings"
+msgstr "У вас нет прав на изменение настроек безопасности"
+
+#: lib/phoenix_kit_web/live/settings/users.html.heex
+#, elixir-autogen, elixir-format
+msgid "Changing who can register needs the Security settings permission."
+msgstr "Чтобы изменить, кто может регистрироваться, нужно право «Настройки безопасности»."
+
+#: lib/phoenix_kit_web/live/settings/users.html.heex
+#, elixir-autogen, elixir-format
+msgid "Changing the new-user defaults needs the Security settings permission."
+msgstr "Чтобы изменить настройки новых пользователей по умолчанию, нужно право «Настройки безопасности»."
+
+#: lib/phoenix_kit_web/live/users/users.html.heex
+#, elixir-autogen, elixir-format
+msgid "You can only give roles whose permissions you hold"
+msgstr "Вы можете назначать только роли, права которых есть у вас самих"
+
+#: lib/phoenix_kit_web/live/users/users.ex
+#, elixir-autogen, elixir-format
+msgid "Not changed — you can only give or take away roles whose permissions you hold: %{roles}"
+msgstr "Не изменено — вы можете назначать и снимать только роли, права которых есть у вас самих: %{roles}"
+
+#: lib/phoenix_kit_web/live/users/roles.ex
+#, elixir-autogen, elixir-format
+msgid "You can only delete a role whose permissions you hold yourself"
+msgstr "Вы можете удалить только роль, все права которой есть у вас самих"
+
+#: lib/phoenix_kit_web/live/users/sessions.ex
+#, elixir-autogen, elixir-format
+msgid "You are not allowed to end this person's sessions"
+msgstr "Вам не разрешено завершать сеансы этого человека"
