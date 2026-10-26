@@ -1436,7 +1436,7 @@ defmodule PhoenixKit.Squash.Generate.Emitter do
 
     objects
     |> Enum.reject(&skip_seed_row?/1)
-    |> Enum.reject(&module_owned?/1)
+    |> Enum.reject(&(is_nil(opts[:owner]) and module_owned?(&1)))
     |> Enum.sort_by(
       &{&1.since, Differ.class_rank(&1.class),
        Differ.constraint_fk_rank(&1.class, newest_shape(&1)), &1.id}

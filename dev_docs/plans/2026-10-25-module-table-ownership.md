@@ -350,6 +350,14 @@ NULL-uuid check) to module callbacks.
     module. `doctor` and `repair` print module findings separately.
   - *Order.* Core half (callback, repair pass, generator, fixture tests) first and additive; then one pilot
     module end to end; then the rest. Nothing changes for a host until a module ships a manifest.
+  - **Rolled out to the other 24 owner modules (2026-10-26, gate green, committed and pushed).** One generated `<Module>.ExpectedSchema`, an `expected_schema/0` callback (no `@impl`), a `:requires_core_expected_schema` test and a CHANGELOG bullet each. Not touched: `phoenix_kit_bookings` (Max's rework). Findings along the way:
+    * The generator runs best against an empty database (`PGDATABASE=pk_modgen_empty`): several chains look a constraint up by name alone, not by schema, so a `public` copy hides it in the scratch schema.
+    * Core's generator excludes `fk_newsletters_broadcasts_template` from *core's* manifest (newsletters repoints it). Module mode now keeps it (`build_objects` skips `module_owned?` when `owner:` is given).
+    * `phoenix_kit_projects` has two such name-only lookups in its own chain (`phoenix_kit_project_assignments_dates_check`, `phoenix_kit_project_portals_access_mode_check`, `migrations/schema.ex`). Harmless in `public`; its test lists them as known gaps.
+    * A fresh non-public schema names some indexes with the schema in them; the test compares the unprefixed name.
+    * `phoenix_kit_og` is OTP app `:phoenix_kit_og`; the ownership map keys on it. `phoenix_kit_legal`'s test repo has no sandbox and needs `:phoenix_kit, :repo` set while core's chain builds.
+    * `phoenix_kit_billing` declares `Helpers.validate_prefix!/1` in its `CoreCompat` (the generated file calls it).
+    * Generator output is not byte-stable between runs for some modules (property order in a few objects); regenerate rarely and review the diff.
   - **Pilot built (2026-10-26, gate green, committed and pushed): core half plus customer_support.**
     - *Core.* `PhoenixKit.Module.expected_schema/0` (optional, no default, not in `defoverridable`);
       `ModuleRegistry.all_expected_schemas/0` (`%{app => %{manifest:, migrations:}}`; a raise, a nil manifest, a
