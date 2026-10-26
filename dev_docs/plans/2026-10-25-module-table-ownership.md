@@ -417,8 +417,20 @@ Decision: **(a) at core 3.0** (made 2026-10-26). First part, shippable on its ow
   A migration file reused from an interrupted run keeps its old timestamp, so it can sort before a newer file.
 - Tests: `modules_test.exs` (sorter with a dependency map, a chain, a cycle, the real application graph,
   `pending/1`). Gate: `mix precommit` exit 0; `test/phoenix_kit/migrations` and `test/mix` 0 failures.
-- *Still to do before step 8 proper:* a rehearsal that drops all 141 module tables, runs all 25 chains in this
-  order, and compares with today's schema.
+- *Rehearsal built (2026-10-26):* `ModuleChainCheck.check_all/3` + `dev_docs/squash/rehearse_module_chains.exs`
+  (empty database, `PGDATABASE=pk_modgen_empty`). It builds core, runs all 25 chains on top (today), drops every
+  module-owned table, runs the chains again alone in order, and diffs tables, columns, indexes, constraints and
+  triggers. Name order is run as a control. **Result: with one added edge, all 25 chains rebuild the identical
+  schema in dependency order; name order fails.** `--edge a:b` adds an undeclared dependency.
+- *Two findings from it, both open:*
+  1. **`document_creator` → `projects` is undeclared.** Its V1 adds `doc_documents.project_uuid REFERENCES
+     phoenix_kit_projects` unguarded ("the FK target is core-created"), but its mix.exs has no sibling deps and
+     projects does not depend on it either (duck-typed hub). Alone, its chain fails when projects' table is absent.
+  2. **`projects` declares `staff` and `entities` as `optional: true`** yet its chain carries unguarded
+     `REFERENCES` to both (9 + 1 FKs). A host with projects but no staff works today only because core creates
+     staff's tables. Optional deps do count for ordering (`optional_applications`).
+  Either FK set is guarded (`to_regclass`; the link is added when the target exists) or the dependency is made hard.
+- *Core to module FKs:* none. No core table references a module-owned table.
 
 ### Step 9 — dead tables
 
