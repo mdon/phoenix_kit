@@ -399,6 +399,27 @@ no chain. Options, decided when we get here:
 - **(b) in 2.x** — core still creates a module's tables when that module's
   loaded version does not claim them.
 
+#### Step 8, chain ordering (done 2026-10-26)
+
+Decision: **(a) at core 3.0** (made 2026-10-26). First part, shippable on its own in 2.x:
+
+- *The graph.* Foreign keys between owners, from a full core chain: `ecommerce → billing` (1),
+  `newsletters → emails` (1, guarded by `to_regclass`, and the FK is newsletters' own), `projects → entities` (1),
+  `projects → staff` (9). Everything else points at core tables (users, files, roles). The only unguarded
+  references are projects' (to staff and entities) and ecommerce's (to billing's `payment_options`); a
+  `manufacturing → entities` link has no FK by design.
+- *The order.* `mix phoenix_kit.update` wrote module migration files in display-name order. Now
+  `Migrations.Modules.pending/1` runs `order_by_dependencies/1`: a module comes after every pending module that its
+  OTP application reaches through `applications` / `optional_applications` (its `mix.exs` deps), transitively.
+  No callback, no module change; unrelated modules keep name order; a cycle keeps name order instead of failing.
+  All four real edges are mix deps (projects lists staff and entities, ecommerce lists billing).
+- *Not covered by it:* an edge that exists in SQL but not in `mix.exs` (none today; newsletters → emails is guarded).
+  A migration file reused from an interrupted run keeps its old timestamp, so it can sort before a newer file.
+- Tests: `modules_test.exs` (sorter with a dependency map, a chain, a cycle, the real application graph,
+  `pending/1`). Gate: `mix precommit` exit 0; `test/phoenix_kit/migrations` and `test/mix` 0 failures.
+- *Still to do before step 8 proper:* a rehearsal that drops all 141 module tables, runs all 25 chains in this
+  order, and compares with today's schema.
+
 ### Step 9 — dead tables
 
 `phoenix_kit_crm_user_role_view` (CRM copied it into core's view preferences,
@@ -414,7 +435,7 @@ owning module's chain, never core's.
 | Ownership authority is `ModuleOwnedTables`, not the manifest's `owner:` labels | Made 2026-10-25 |
 | `phoenix_kit_consent_logs` is legal's (legal's chain owns its shape; core still creates it) | Made 2026-10-25 |
 | ai's endpoints/prompts/requests move to ai (step 4) | Made 2026-10-25 — owner agreed; done in ai `c118542` |
-| Step 8: (a) at 3.0 or (b) in 2.x | Open |
+| Step 8: (a) at 3.0 or (b) in 2.x | Made 2026-10-26 — (a) at 3.0 |
 | Step 9: drop or keep each dead table | Open |
 
 ## Progress log

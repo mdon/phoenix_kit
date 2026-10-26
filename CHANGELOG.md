@@ -4,6 +4,12 @@
 
 ### Added
 
+- **`mix phoenix_kit.update` runs module migrations in dependency order.** `Migrations.Modules.pending/1` (and the new
+  `order_by_dependencies/1`) place a module after every pending module its OTP application depends on, so
+  `phoenix_kit_staff` and `phoenix_kit_entities` migrate before `phoenix_kit_projects`, and `phoenix_kit_billing`
+  before `phoenix_kit_ecommerce`. Until now the order was the display name, which only worked because core created
+  every module's tables first. No module change is needed; a cycle keeps name order instead of failing.
+
 - **HDR renditions of HEIC and AVIF photos.** `HdrResize` kept a gain map for a JPEG source only, so an iPhone
   photo (a HEIC) got ordinary thumbnails and previews. `HeifHdr` now makes the same Ultra HDR JPEG from a HEIC or
   AVIF that has a `tmap` item (iPhone, Android): `HeifBoxes` reads the file's boxes and its ISO 21496-1
