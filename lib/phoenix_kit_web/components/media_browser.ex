@@ -998,7 +998,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       # `media_selected` arrives by `update/2`, past the `handle_event` gates:
       # the file gets the viewer's here. Not `fetch_viewable_file/2` — the
       # picker also lists files linked into the folder from elsewhere, and a
-      # cover is an image whatever type the browser is locked to.
+      # cover is an image whatever type the browser is locked to. "Inside the
+      # folder" is held by the modal (`selectable?`/`scope_files_by_folder`).
       not pickable_file?(socket, file_uuid) ->
         Logger.warning(
           "MediaBrowser id=#{socket.assigns.id}: cover/logo pick refused — " <>
@@ -1015,6 +1016,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   defp pickable_file?(socket, file_uuid) do
     with true <- UUIDUtils.valid?(file_uuid),
          %Storage.File{system_managed: false} = file <- Storage.get_file(file_uuid),
+         true <- file.status != "trashed",
          true <- in_browser_library?(socket, file) do
       Storage.viewer_can_see_file?(socket.assigns[:viewer_uuid], file)
     else
@@ -1029,7 +1031,12 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         |> maybe_refresh_current_folder(updated, folder.uuid)
         |> reload_current_page()
 
-      _ ->
+      error ->
+        Logger.warning(
+          "MediaBrowser id=#{socket.assigns.id}: cover/logo not set for " <>
+            "#{file_uuid}: #{inspect(error)}"
+        )
+
         parent_flash(socket, :error, gettext("Failed to set the image"))
     end
   end
