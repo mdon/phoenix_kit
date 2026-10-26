@@ -96,6 +96,7 @@ defmodule PhoenixKit.Integration.Users.AdminGrantsTest do
   @key "languages"
   @flag "auto_granted_perm:languages"
   @media_flag "media_sub_permissions_backfilled"
+  @settings_flag "settings_security_backfilled"
 
   setup do
     admin_uuid = Roles.get_role_by_name("Admin").uuid
@@ -350,6 +351,30 @@ defmodule PhoenixKit.Integration.Users.AdminGrantsTest do
       end)
 
       assert Settings.get_setting(@media_flag) == "true"
+    end
+
+    test "a failed settings backfill is returned, retried and flagged only on success", %{
+      admin_uuid: admin_uuid
+    } do
+      Repo.query!("DELETE FROM phoenix_kit_settings WHERE key = $1", [@settings_flag])
+      {:ok, _} = Permissions.grant_permission(admin_uuid, "settings")
+      FaultyRepo.block(["settings"])
+
+      capture_log(fn ->
+        assert {:error, _} = Permissions.backfill_settings_sub_permissions()
+        assert Settings.get_setting(@settings_flag) != "true"
+
+        server = start_grants(retry_base_ms: 20, max_attempts: 50)
+        wait_initial(server)
+        assert {:error, :timeout} = AdminGrants.await(100, server)
+        assert :settings_subs in :sys.get_state(server).pending
+
+        FaultyRepo.block([])
+        assert :ok = AdminGrants.await(5_000, server)
+      end)
+
+      assert Settings.get_setting(@settings_flag) == "true"
+      assert held?(admin_uuid, "settings.security")
     end
 
     test "gives up after max_attempts, says which keys are missing, and logs each level once" do

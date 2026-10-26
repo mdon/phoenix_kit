@@ -78,6 +78,7 @@ defmodule PhoenixKit.Settings do
   alias PhoenixKit.Settings.Queries
   alias PhoenixKit.Settings.Setting
   alias PhoenixKit.Settings.Setting.SettingsForm
+  alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.Role
   alias PhoenixKit.Users.Roles
   alias PhoenixKit.Utils.Date, as: UtilsDate
@@ -1519,6 +1520,49 @@ defmodule PhoenixKit.Settings do
   @doc false
   def restricted_setting_keys, do: @restricted_setting_keys
 
+  # The settings behind the `settings.security` sub-permission: who may sign in
+  # and how (login methods, OAuth providers and secrets — the Authorization
+  # page), who sees the site (the password gate, the redirect, site close, the
+  # allow list — the Website access page) and how new accounts are made
+  # (registration and the new-user default role / status, on Settings → Users).
+  @security_setting_prefixes ~w(oauth_ website_access_ maintenance_)
+  @security_setting_keys ~w(
+    allow_registration
+    new_user_default_role
+    new_user_default_status
+    require_email_confirmation
+    magic_link_login_enabled
+    magic_link_registration_enabled
+    qr_login_enabled
+    multi_session_enabled
+    new_login_alert_enabled
+    failed_login_alert_enabled
+    failed_login_alert_threshold
+    login_attempt_logging_enabled
+    login_attempt_retention_days
+  )
+
+  # Required by `SettingsForm`; a form that may not change them still has to
+  # validate, so a locked key is filled from its stored value (and not written).
+  @required_form_keys ~w(new_user_default_role new_user_default_status)
+
+  @doc """
+  The setting keys only a holder of `settings.security` may change (the exact
+  keys; every `oauth_*`, `website_access_*` and `maintenance_*` key is one too —
+  `security_setting_key?/1` answers for both). `update_settings/2` with
+  `scope:` leaves them alone for anyone else.
+  """
+  @spec security_setting_keys() :: [String.t()]
+  def security_setting_keys, do: @security_setting_keys
+
+  @doc "Whether `key` is a `settings.security` setting (see `security_setting_keys/0`)."
+  @spec security_setting_key?(String.t() | atom()) :: boolean()
+  def security_setting_key?(key) when is_atom(key), do: security_setting_key?(Atom.to_string(key))
+
+  def security_setting_key?(key) when is_binary(key) do
+    key in @security_setting_keys or String.starts_with?(key, @security_setting_prefixes)
+  end
+
   @doc """
   Whether a settings row holds credential material whose value must never be
   copied anywhere else — into the settings history, or into a broadcast.
@@ -1651,22 +1695,20 @@ defmodule PhoenixKit.Settings do
   @doc """
   Gets the available role options for the new user default role setting.
 
-  Returns all roles from database except Owner, ordered by system roles first, then custom roles.
+  Returns every role except Owner and Admin, in role order.
 
   ## Examples
 
       iex> PhoenixKit.Settings.get_role_options()
-      [{"User", "User"}, {"Admin", "Admin"}, {"Manager", "Manager"}]
+      [{"User", "User"}, {"Manager", "Manager"}]
   """
   def get_role_options do
-    owner_role = Role.system_roles().owner
+    system = Role.system_roles()
 
-    # Get all roles from database except Owner role
-    all_roles = Roles.list_roles()
-
-    # Filter out Owner role and convert to {label, value} format
-    all_roles
-    |> Enum.reject(fn role -> role.name == owner_role end)
+    # Every role except Owner and Admin, the two the new-user default may never
+    # be (`SettingsForm` rejects them too).
+    Roles.list_roles()
+    |> Enum.reject(fn role -> role.name in [system.owner, system.admin] end)
     |> Enum.map(fn role -> {role.name, role.name} end)
   end
 
@@ -2304,6 +2346,16 @@ defmodule PhoenixKit.Settings do
 
   Returns `{:ok, updated_settings_map}` on success or `{:error, changeset}` on failure.
 
+  ## Options
+
+    * `:scope` — the person saving (a `%Scope{}`). When given, this is a save
+      on that person's behalf: without `settings.security` every
+      `security_setting_key?/1` key in the params is left as it is (not
+      written, not reported as updated), and a changed `new_user_default_role`
+      must be a role the person may manage (`Roles.can_manage_role?/2`). Omit
+      it only for system callers.
+    * `:actor_uuid`, `:source` — recorded in the settings history.
+
   ## Examples
 
       iex> params = %{"project_title" => "My App", "time_zone" => "+1"}
@@ -2314,10 +2366,12 @@ defmodule PhoenixKit.Settings do
       {:error, %Ecto.Changeset{}}
   """
   def update_settings(settings_params, opts \\ []) do
-    changeset = validate_settings(settings_params)
+    {scope, opts} = Keyword.pop(opts, :scope)
+    {settings_params, locked} = lock_security_settings(settings_params, scope)
+    changeset = settings_params |> validate_settings() |> check_default_role_choice(scope, locked)
 
     if changeset.valid? do
-      case update_all_settings_from_changeset(changeset, opts) do
+      case update_all_settings_from_changeset(changeset, Keyword.put(opts, :skip_keys, locked)) do
         {:ok, updated_settings} ->
           # Invalidate cache for all updated settings
           updated_keys = Map.keys(updated_settings)
@@ -2332,15 +2386,66 @@ defmodule PhoenixKit.Settings do
     end
   end
 
+  # Without `settings.security`, the security keys of a save are dropped; the
+  # required ones are refilled from their stored values so the form still
+  # validates, and returned so they are not written back.
+  defp lock_security_settings(params, nil), do: {params, []}
+
+  defp lock_security_settings(params, scope) do
+    if Scope.can?(scope, "settings.security") do
+      {params, []}
+    else
+      params = Map.new(params, fn {k, v} -> {to_string(k), v} end)
+      locked = params |> Map.keys() |> Enum.filter(&security_setting_key?/1)
+      defaults = get_defaults()
+
+      fills =
+        for key <- @required_form_keys, key in locked, into: %{} do
+          {key, get_setting(key, Map.get(defaults, key))}
+        end
+
+      {params |> Map.drop(locked) |> Map.merge(fills), Map.keys(fills)}
+    end
+  end
+
+  # The new-user default role is a role every self-registered account gets, so
+  # changing it is handing that role out: only to a role the person saving may
+  # manage. An unchanged value is not re-judged, so the page still saves.
+  defp check_default_role_choice(changeset, nil, _locked), do: changeset
+
+  defp check_default_role_choice(changeset, scope, locked) do
+    role = Ecto.Changeset.get_change(changeset, :new_user_default_role)
+
+    cond do
+      not is_binary(role) or "new_user_default_role" in locked ->
+        changeset
+
+      role == get_setting("new_user_default_role", Role.system_roles().user) ->
+        changeset
+
+      Roles.can_manage_role?(scope, role) ->
+        changeset
+
+      true ->
+        Ecto.Changeset.add_error(
+          changeset,
+          :new_user_default_role,
+          "must be a role whose permissions you hold yourself"
+        )
+    end
+  end
+
   # Private helper to update all settings from a valid changeset
   defp update_all_settings_from_changeset(changeset, opts) do
     defaults = get_defaults()
+    {skip_keys, opts} = Keyword.pop(opts, :skip_keys, [])
 
     # Only update settings that were actually submitted in the form
     # Use changeset.params (original form params) not the full struct
     # This prevents one settings page from overwriting settings managed by another page
     settings_to_update =
       (changeset.params || %{})
+      |> Map.drop(skip_keys)
       |> Enum.map(fn {k, v} ->
         key = to_string(k)
         # Country codes are canonicalized by SettingsForm. Persist that value,
