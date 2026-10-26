@@ -991,20 +991,31 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     socket = assign(socket, :selecting_cover, false)
     folder = is_binary(folder_uuid) && loaded_folder(socket, folder_uuid)
 
-    if is_binary(file_uuid) and folder do
-      scope = scope_folder_id(socket)
+    cond do
+      not is_binary(file_uuid) or !folder ->
+        socket
 
-      case Storage.update_folder(folder, %{attr => file_uuid}, scope) do
-        {:ok, updated} ->
-          socket
-          |> maybe_refresh_current_folder(updated, folder_uuid)
-          |> reload_current_page()
+      # `media_selected` arrives by `update/2`, past the `handle_event` gates:
+      # the file gets the viewer's here.
+      is_nil(fetch_viewable_file(socket, file_uuid)) ->
+        parent_flash(socket, :error, gettext("Failed to set the image"))
 
-        _ ->
-          put_flash(socket, :error, gettext("Failed to set the image"))
-      end
-    else
-      socket
+      true ->
+        apply_image(socket, folder, folder_uuid, attr, file_uuid)
+    end
+  end
+
+  defp apply_image(socket, folder, folder_uuid, attr, file_uuid) do
+    scope = scope_folder_id(socket)
+
+    case Storage.update_folder(folder, %{attr => file_uuid}, scope) do
+      {:ok, updated} ->
+        socket
+        |> maybe_refresh_current_folder(updated, folder_uuid)
+        |> reload_current_page()
+
+      _ ->
+        put_flash(socket, :error, gettext("Failed to set the image"))
     end
   end
 
