@@ -83,6 +83,35 @@ defmodule PhoenixKit.Integration.Users.SessionRevokeAuthorityTest do
   end
 
   describe "the Sessions page" do
+    # The dialog opens for an ordinary user; the target is then made an Admin
+    # (outranking a non-Owner actor), so only the check at confirm time — the
+    # context's `actor:` — stops the revoke.
+    test "re-checks at confirm: a target who now outranks the actor keeps their sessions", %{
+      conn: conn
+    } do
+      admin = user!(["Admin"])
+      target = user!([])
+      token = token_uuid(target)
+
+      {:ok, view, _} = live(log_in_user(conn, admin), Routes.path("/admin/users/sessions"))
+
+      render_click(view, "show_revoke_user_sessions", %{"user_uuid" => target.uuid})
+      {:ok, _} = Roles.assign_role(target, "Admin")
+      html = render_click(view, "confirm_revoke_session", %{})
+
+      assert html =~ "You are not allowed to end this person"
+      assert Enum.any?(Sessions.list_user_sessions(target), &(&1.token_uuid == token))
+
+      other = user!([])
+      other_token = token_uuid(other)
+      render_click(view, "show_revoke_session", %{"token_uuid" => other_token})
+      {:ok, _} = Roles.assign_role(other, "Admin")
+      html = render_click(view, "confirm_revoke_session", %{})
+
+      assert html =~ "You are not allowed to end this person"
+      assert Enum.any?(Sessions.list_user_sessions(other), &(&1.token_uuid == other_token))
+    end
+
     test "refuses to open or confirm a revoke of an Owner's sessions", %{conn: conn} do
       admin = user!(["Admin"])
       target = owner()

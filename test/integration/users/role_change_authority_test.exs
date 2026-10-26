@@ -133,6 +133,39 @@ defmodule PhoenixKit.Integration.Users.RoleChangeAuthorityTest do
     end
   end
 
+  describe "promote_to_admin/3, demote_to_user/2, safely_remove_role/3 with an actor" do
+    test "only an Owner actor gives or takes Admin" do
+      editor = user!([role!(["users"])])
+      target = user!()
+
+      assert {:error, :not_permitted} = Roles.promote_to_admin(target, editor, actor: editor)
+      refute Roles.user_has_role?(target, "Admin")
+
+      assert {:ok, _} = Roles.promote_to_admin(target, nil, actor: seed_owner())
+      assert {:error, :not_permitted} = Roles.demote_to_user(target, actor: editor)
+      assert {:error, :not_permitted} = Roles.safely_remove_role(target, "Admin", actor: editor)
+      assert Roles.user_has_role?(target, "Admin")
+
+      assert {:ok, _} = Roles.demote_to_user(target, actor: seed_owner())
+      refute Roles.user_has_role?(target, "Admin")
+    end
+  end
+
+  describe "a failed read of a role's keys refuses" do
+    test "a role whose keys cannot be read is not manageable" do
+      editor = user!([role!(["users"])])
+
+      # A uuid the database rejects: the old reader answered [] for it (an
+      # empty role, so any actor passed the subset check).
+      broken = %PhoenixKit.Users.Role{uuid: "not-a-uuid", name: "Broken", is_system_role: false}
+
+      assert Permissions.get_permissions_for_role("not-a-uuid") == []
+      assert {:error, _} = Permissions.fetch_permissions_for_role("not-a-uuid")
+      refute Roles.can_manage_role?(editor, broken)
+      assert Roles.can_manage_role?(seed_owner(), broken)
+    end
+  end
+
   describe "delete_role/2" do
     test "needs every key of the role; an Owner always may" do
       editor = user!([role!(["users"])])

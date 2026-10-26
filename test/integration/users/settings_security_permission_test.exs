@@ -10,11 +10,12 @@ defmodule PhoenixKit.Integration.Users.SettingsSecurityPermissionTest do
 
   import PhoenixKit.DataCase, only: [errors_on: 1]
 
+  alias PhoenixKit.Modules.Crawlers
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.{Auth, Permissions}
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
-  alias PhoenixKit.WebsiteAccess.Gate
+  alias PhoenixKit.WebsiteAccess.{AllowedAddresses, Gate}
 
   @flag "settings_security_backfilled"
 
@@ -123,6 +124,36 @@ defmodule PhoenixKit.Integration.Users.SettingsSecurityPermissionTest do
                live(log_in_user(conn, user_with(plain)), Routes.path("/admin/settings"))
     end
 
+    test "a write event is refused to a scope without settings.security, on both pages", %{
+      conn: conn
+    } do
+      security = role!(["settings", "settings.security"])
+      plain_scope = Scope.for_user(user_with(role!(["settings"])))
+      conn = log_in_user(conn, user_with(security))
+
+      # Mounted with the key; the scope then becomes one without it (as after a
+      # revoke). Only the per-event gate stands between the event and a write.
+      {:ok, view, _} = live(conn, Routes.path("/admin/settings/website-access"))
+      swap_scope(view, plain_scope)
+
+      html =
+        render_submit(view, "save_allowed", %{"allowed" => %{"addresses" => "203.0.113.9"}})
+
+      assert html =~ "You do not have permission to change security settings"
+      refute "203.0.113.9" in AllowedAddresses.list()
+
+      {:ok, view, _} = live(conn, Routes.path("/admin/settings/authorization"))
+      swap_scope(view, plain_scope)
+
+      html =
+        render_submit(view, "save_settings", %{
+          "settings" => form_params(%{"magic_link_login_enabled" => "false"})
+        })
+
+      assert html =~ "You do not have permission to change security settings"
+      refute html =~ "Authorization settings updated successfully"
+    end
+
     test "the gate password is never rendered", %{conn: conn} do
       {:ok, _} = Gate.set_password("Secret42-#{System.unique_integer([:positive])}")
       password = Gate.password()
@@ -139,6 +170,27 @@ defmodule PhoenixKit.Integration.Users.SettingsSecurityPermissionTest do
       assert render(view) =~ "••••••••"
     after
       Settings.update_setting(Gate.password_key(), "")
+    end
+  end
+
+  describe "update_settings/2 writes only what a form owns" do
+    test "an internal flag or an unknown key in a save is ignored", %{conn: conn} do
+      {:ok, _} = Settings.update_setting(@flag, "true")
+      user = user_with(role!(["settings"]))
+      {:ok, view, _} = live(log_in_user(conn, user), Routes.path("/admin/settings"))
+
+      render_submit(view, "save_settings", %{
+        "settings" =>
+          form_params(%{
+            "project_title" => "Flag probe",
+            @flag => "false",
+            "pk_probe_unknown_key" => "x"
+          })
+      })
+
+      assert Settings.get_setting("project_title") == "Flag probe"
+      assert Settings.get_setting(@flag) == "true"
+      assert Settings.get_setting("pk_probe_unknown_key") == nil
     end
   end
 
@@ -167,6 +219,19 @@ defmodule PhoenixKit.Integration.Users.SettingsSecurityPermissionTest do
       assert Settings.get_setting("allow_registration") == "true"
       refute Settings.get_setting("oauth_google_client_secret") == "stolen"
       refute Gate.password() == "x"
+    end
+
+    test "crawlers_no_index is a security key (Website access writes it)" do
+      assert Settings.security_setting_key?("crawlers_no_index")
+      {:ok, _} = Crawlers.update_no_index(false)
+      scope = Scope.for_user(user_with(role!(["settings"])))
+
+      assert {:ok, _} =
+               Settings.update_settings(form_params(%{"crawlers_no_index" => "true"}),
+                 scope: scope
+               )
+
+      refute Settings.get_setting("crawlers_no_index") == "true"
     end
 
     test "with settings.security they are written" do
@@ -258,6 +323,22 @@ defmodule PhoenixKit.Integration.Users.SettingsSecurityPermissionTest do
       refute {"Admin", "Admin"} in Settings.get_role_options()
     end
 
+    test "a stored Admin reads as User, so the forms still save" do
+      {:ok, _} = Settings.update_setting("new_user_default_role", "Admin")
+      shown = Settings.list_public_settings()["new_user_default_role"]
+      assert shown == "User"
+
+      for keys <- [["settings"], ["settings", "settings.security"]] do
+        scope = Scope.for_user(user_with(role!(keys)))
+
+        assert {:ok, _} =
+                 Settings.update_settings(form_params(%{"new_user_default_role" => shown}),
+                   scope: scope
+                 ),
+               inspect(keys)
+      end
+    end
+
     test "a stored Admin is never used for a new registration" do
       # Written around the changeset, as a corrupted or hand-edited row would be.
       {:ok, _} = Settings.update_setting("new_user_default_role", "Admin")
@@ -271,5 +352,12 @@ defmodule PhoenixKit.Integration.Users.SettingsSecurityPermissionTest do
       refute Roles.user_has_role?(user, "Admin")
       assert Roles.user_has_role?(user, "User")
     end
+  end
+
+  # Replaces the scope a mounted LiveView holds, as a mid-session refresh would.
+  defp swap_scope(view, scope) do
+    :sys.replace_state(view.pid, fn state ->
+      put_in(state.socket.assigns.phoenix_kit_current_scope, scope)
+    end)
   end
 end

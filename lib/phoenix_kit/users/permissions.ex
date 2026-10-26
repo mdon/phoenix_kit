@@ -1041,6 +1041,61 @@ defmodule PhoenixKit.Users.Permissions do
   end
 
   @doc """
+  `get_permissions_for_role/1` for an authorization decision: a failed read is
+  `{:error, reason}`, never `[]` — an empty list would read as "this role holds
+  nothing" and pass every subset check. Callers must fail closed on an error.
+  """
+  @spec fetch_permissions_for_role(String.t()) :: {:ok, [String.t()]} | {:error, term()}
+  def fetch_permissions_for_role(role_uuid) when is_binary(role_uuid) do
+    fetch(fn ->
+      from(rp in RolePermission,
+        where: rp.role_uuid == ^role_uuid,
+        select: rp.module_key,
+        order_by: [asc: rp.module_key]
+      )
+    end)
+  end
+
+  @doc """
+  `get_permissions_matrix/0` for an authorization decision: `{:error, reason}`
+  on a failed read instead of `%{}` (which would make every role look empty).
+  """
+  @spec fetch_permissions_matrix() :: {:ok, %{String.t() => MapSet.t()}} | {:error, term()}
+  def fetch_permissions_matrix do
+    with {:ok, rows} <-
+           fetch(fn -> from(rp in RolePermission, select: {rp.role_uuid, rp.module_key}) end) do
+      {:ok,
+       rows
+       |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+       |> Map.new(fn {role_uuid, keys} -> {role_uuid, MapSet.new(keys)} end)}
+    end
+  end
+
+  @doc """
+  `roles_with_permission/1` for a grant pass (a backfill): `{:error, reason}` on
+  a failed read instead of `[]`, which would let the pass record itself as done
+  having granted nothing.
+  """
+  @spec fetch_roles_with_permission(String.t()) :: {:ok, [String.t()]} | {:error, term()}
+  def fetch_roles_with_permission(module_key) when is_binary(module_key) do
+    fetch(fn ->
+      from(rp in RolePermission,
+        where: rp.module_key == ^module_key,
+        select: rp.role_uuid,
+        order_by: [asc: rp.role_uuid]
+      )
+    end)
+  end
+
+  defp fetch(query_fun) do
+    {:ok, RepoHelper.repo().all(query_fun.())}
+  rescue
+    e -> {:error, e}
+  catch
+    :exit, reason -> {:error, {:exit, reason}}
+  end
+
+  @doc """
   Returns a matrix of role_uuid → MapSet of granted keys for all roles.
   """
   @spec get_permissions_matrix() :: %{String.t() => MapSet.t()}
@@ -1866,11 +1921,17 @@ defmodule PhoenixKit.Users.Permissions do
       :ok
     else
       subs = Enum.map(@core_sub_permissions[base], & &1.key)
-      roles = roles_with_permission(base)
 
+      # A failed read of who holds the base is a failure, not "nobody": the
+      # flag must not be set on a pass that granted nothing for that reason.
       results =
-        for role <- roles, key <- subs do
-          grant_permission(role, key)
+        case fetch_roles_with_permission(base) do
+          {:ok, roles} ->
+            for role <- roles, key <- subs, do: grant_permission(role, key)
+
+          # Before the permissions table exists: nothing to do, and not done.
+          {:error, error} ->
+            if table_missing_error?(error), do: raise(error), else: [{:error, error}]
         end
 
       # Flagged only when every grant went through; a failure is retried by

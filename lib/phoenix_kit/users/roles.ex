@@ -681,16 +681,21 @@ defmodule PhoenixKit.Users.Roles do
 
   - `user`: The user to promote
   - `assigned_by` (optional): The user who is doing the promotion
+  - `opts`: `:actor` — as for `assign_role/4`. Admin is a system role, so only
+    an Owner actor may promote (`{:error, :not_permitted}` otherwise). Omitted =
+    a system caller (seeding, fixtures), unchecked — no web page calls this.
 
   ## Examples
 
       iex> promote_to_admin(user)
       {:ok, %RoleAssignment{}}
   """
-  def promote_to_admin(%User{} = user, assigned_by \\ nil) do
-    # Admin role can be assigned through normal process
+  def promote_to_admin(%User{} = user, assigned_by \\ nil, opts \\ []) do
     roles = Role.system_roles()
-    assign_role_internal(user, roles.admin, assigned_by)
+
+    with :ok <- actor_refusal(Keyword.get(opts, :actor, :system), user, roles.admin) do
+      assign_role_internal(user, roles.admin, assigned_by)
+    end
   end
 
   @doc """
@@ -701,6 +706,8 @@ defmodule PhoenixKit.Users.Roles do
   ## Parameters
 
   - `user`: The user to demote
+  - `opts`: `:actor` — as for `remove_role/3`: only an Owner actor may take
+    Owner or Admin away. Omitted = a system caller, unchecked.
 
   ## Examples
 
@@ -710,17 +717,17 @@ defmodule PhoenixKit.Users.Roles do
       iex> demote_to_user(last_owner)
       {:error, :cannot_demote_last_owner}
   """
-  def demote_to_user(%User{} = user) do
+  def demote_to_user(%User{} = user, opts \\ []) do
     roles = Role.system_roles()
 
     cond do
       user_has_role?(user, roles.owner) ->
         # Use safe removal for Owner role
-        safely_remove_role(user, roles.owner)
+        safely_remove_role(user, roles.owner, opts)
 
       user_has_role?(user, roles.admin) ->
         # Admin can be demoted safely
-        remove_role(user, roles.admin)
+        remove_role(user, roles.admin, opts)
 
       true ->
         # User has no roles to demote from
@@ -882,7 +889,7 @@ defmodule PhoenixKit.Users.Roles do
 
         count when is_integer(count) and count > 0 ->
           # Active owners exist, assign default role
-          default_role_name = get_safe_default_role()
+          default_role_name = default_role_for_new_users()
 
           case assign_role_internal(user, default_role_name) do
             {:ok, _assignment} ->
@@ -971,6 +978,7 @@ defmodule PhoenixKit.Users.Roles do
 
   - `user`: User to remove role from
   - `role_name`: Name of role to remove
+  - `opts`: `:actor` — as for `remove_role/3`. Omitted = a system caller.
 
   ## Examples
 
@@ -980,9 +988,22 @@ defmodule PhoenixKit.Users.Roles do
       iex> safely_remove_role(admin_user, "Admin")
       {:ok, %RoleAssignment{}}
   """
-  def safely_remove_role(%User{} = user, role_name) when role_name == "Owner" do
+  def safely_remove_role(user, role_name, opts \\ [])
+
+  def safely_remove_role(%User{} = user, "Owner" = role_name, opts) do
     repo = RepoHelper.repo()
 
+    with :ok <- actor_refusal(Keyword.get(opts, :actor, :system), user, role_name) do
+      remove_last_safe_owner(repo, user, role_name)
+    end
+  end
+
+  def safely_remove_role(%User{} = user, role_name, opts) do
+    # Non-Owner roles can be removed safely
+    remove_role(user, role_name, opts)
+  end
+
+  defp remove_last_safe_owner(repo, user, role_name) do
     repo.transaction(fn ->
       remaining_owners = count_remaining_owners(repo, user.uuid)
 
@@ -992,11 +1013,6 @@ defmodule PhoenixKit.Users.Roles do
         execute_role_removal(user, role_name, repo)
       end
     end)
-  end
-
-  def safely_remove_role(%User{} = user, role_name) do
-    # Non-Owner roles can be removed safely
-    remove_role(user, role_name)
   end
 
   @doc """
@@ -1292,11 +1308,20 @@ defmodule PhoenixKit.Users.Roles do
         Enum.map(roles, & &1.name)
 
       ctx ->
-        matrix = Permissions.get_permissions_matrix()
+        case Permissions.fetch_permissions_matrix() do
+          {:ok, matrix} ->
+            for role <- roles,
+                role_manageable?(
+                  ctx,
+                  role,
+                  matrix |> Map.get(to_string(role.uuid)) |> keys_list()
+                ),
+                do: role.name
 
-        for role <- roles,
-            role_manageable?(ctx, role, matrix |> Map.get(to_string(role.uuid)) |> keys_list()),
-            do: role.name
+          # Unknown keys: offer nothing rather than everything.
+          {:error, _} ->
+            []
+        end
     end
   end
 
@@ -1320,10 +1345,16 @@ defmodule PhoenixKit.Users.Roles do
   # (Only an omitted `:actor` or an explicit `:system` is unrestricted.)
   defp actor_context(_other), do: %{user: nil, owner?: false, scope: nil}
 
-  defp role_manageable?(ctx, role),
-    do: role_manageable?(ctx, role, Permissions.get_permissions_for_role(role.uuid))
+  # The role's keys are read without the `[]`-on-error fallback: a failed read
+  # refuses, it never passes the subset check as an empty role.
+  defp role_manageable?(%{owner?: true}, _role), do: true
 
-  defp role_manageable?(%{owner?: true}, _role, _keys), do: true
+  defp role_manageable?(ctx, role) do
+    case Permissions.fetch_permissions_for_role(to_string(role.uuid)) do
+      {:ok, keys} -> role_manageable?(ctx, role, keys)
+      {:error, _} -> false
+    end
+  end
 
   defp role_manageable?(%{scope: scope}, %Role{name: name}, keys) do
     system = Role.system_roles()
@@ -1507,11 +1538,15 @@ defmodule PhoenixKit.Users.Roles do
     repo.one(query)
   end
 
-  # Gets the safe default role for new users from settings
-  # Always falls back to "User" role if setting is invalid or missing
-  # Never a privileged system role: Owner is reserved for the first user, and
-  # Admin would hand every self-registered account the admin panel.
-  defp get_safe_default_role do
+  @doc """
+  The role a new self-registered account gets: the `new_user_default_role`
+  setting when it names an existing role other than Owner and Admin, else
+  "User". Owner is reserved for the first user, and Admin would hand every
+  self-registered account the admin panel, so a stored value naming either is
+  never used.
+  """
+  @spec default_role_for_new_users() :: String.t()
+  def default_role_for_new_users do
     roles = Role.system_roles()
 
     # Get configured role with fallback to "User"

@@ -15,7 +15,9 @@ defmodule PhoenixKit.Integration.Users.AdminGrantsTest.FaultyRepo do
     get_by: 2,
     get_by: 3,
     insert: 1,
-    insert: 2
+    insert: 2,
+    all: 1,
+    all: 2
   ]
 
   for {name, arity} <- @real.__info__(:functions), {name, arity} not in @overridden do
@@ -27,9 +29,10 @@ defmodule PhoenixKit.Integration.Users.AdminGrantsTest.FaultyRepo do
   def race(flag_key, skip), do: :persistent_term.put({__MODULE__, :race}, {flag_key, skip})
   def fail_flag(flag_key), do: :persistent_term.put({__MODULE__, :fail_flag}, flag_key)
   def undefined_table(on?), do: :persistent_term.put({__MODULE__, :undefined_table}, on?)
+  def fail_role_reads(on?), do: :persistent_term.put({__MODULE__, :fail_role_reads}, on?)
 
   def reset do
-    for fault <- [:blocked, :race, :fail_flag, :undefined_table],
+    for fault <- [:blocked, :race, :fail_flag, :undefined_table, :fail_role_reads],
         do: :persistent_term.erase({__MODULE__, fault})
   end
 
@@ -44,6 +47,20 @@ defmodule PhoenixKit.Integration.Users.AdminGrantsTest.FaultyRepo do
 
     @real.query!(sql, params, opts)
   end
+
+  # `:fail_role_reads` — every read of `phoenix_kit_role_permissions` raises.
+  def all(queryable, opts \\ []) do
+    if :persistent_term.get({__MODULE__, :fail_role_reads}, false) and
+         role_permissions?(queryable),
+       do: raise(DBConnection.ConnectionError, "simulated read failure")
+
+    @real.all(queryable, opts)
+  end
+
+  defp role_permissions?(%Ecto.Query{from: %{source: {"phoenix_kit_role_permissions", _}}}),
+    do: true
+
+  defp role_permissions?(_), do: false
 
   def get_by(queryable, clauses, opts \\ []) do
     if :persistent_term.get({__MODULE__, :undefined_table}, false) do
@@ -89,6 +106,7 @@ defmodule PhoenixKit.Integration.Users.AdminGrantsTest do
   alias PhoenixKit.Dashboard.Registry
   alias PhoenixKit.Integration.Users.AdminGrantsTest.FaultyRepo
   alias PhoenixKit.Settings
+  alias PhoenixKit.Settings.Queries, as: SettingsQueries
   alias PhoenixKit.Users.Permissions
   alias PhoenixKit.Users.Permissions.AdminGrants
   alias PhoenixKit.Users.Roles
@@ -375,6 +393,32 @@ defmodule PhoenixKit.Integration.Users.AdminGrantsTest do
 
       assert Settings.get_setting(@settings_flag) == "true"
       assert held?(admin_uuid, "settings.security")
+    end
+
+    test "a failed read of who holds settings leaves the backfill flag unset", %{
+      admin_uuid: admin_uuid
+    } do
+      Repo.query!("DELETE FROM phoenix_kit_settings WHERE key = $1", [@settings_flag])
+
+      Repo.query!(
+        "DELETE FROM phoenix_kit_role_permissions WHERE role_uuid = $1::text::uuid AND module_key = 'settings.security'",
+        [admin_uuid]
+      )
+
+      FaultyRepo.fail_role_reads(true)
+
+      capture_log(fn ->
+        assert {:error, _} = Permissions.backfill_settings_subs(report: false)
+      end)
+
+      FaultyRepo.fail_role_reads(false)
+
+      refute match?(
+               %{value: "true"},
+               SettingsQueries.get_setting_by_key(@settings_flag)
+             )
+
+      refute held?(admin_uuid, "settings.security")
     end
 
     test "gives up after max_attempts, says which keys are missing, and logs each level once" do

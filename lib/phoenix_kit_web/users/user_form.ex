@@ -47,7 +47,7 @@ defmodule PhoenixKitWeb.Users.UserForm do
     all_roles = Roles.list_roles()
 
     # Load default role for new user creation
-    default_role = Settings.get_setting("new_user_default_role", "User")
+    default_role = Settings.effective_new_user_default_role()
 
     # Load timezone options — timezone_options/0 directly, not
     # get_setting_options/0: this form already loads all_roles above for
