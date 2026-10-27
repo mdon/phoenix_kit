@@ -65,6 +65,15 @@ Nothing in 2.65.0 changes behaviour for a host that does not use them.
 
 **Migrations V224 and V225** (V224, PR #983: an index on `phoenix_kit_activities (resource_uuid, inserted_at)`; V225: `phoenix_kit_files.short_code`, below). Nothing else here migrates.
 
+### Fixed
+
+- **Objects copied between S3 buckets, or stored without options, are served with the right `Content-Type` (#951).**
+  `Providers.S3` set the type only when the caller passed `:content_type`, and `Manager.copy_object/3` (the reconcile after a
+  profile change) and `Storage.store_new_file/8` pass none, so S3 served the object as `binary/octet-stream` and a browser
+  downloaded it instead of showing it. The provider now falls back to the type of the key's extension. Objects already
+  stored without a type keep it until their metadata is rewritten (for example `put_object_copy` with
+  `metadata_directive: :REPLACE`).
+
 ### Added
 
 - **`mix phoenix_kit.update` runs module migrations in dependency order.** `Migrations.Modules.pending/1` (and the new
