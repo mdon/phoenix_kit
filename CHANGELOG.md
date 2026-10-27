@@ -1,5 +1,15 @@
 ## Unreleased
 
+### Breaking (3.0): email templates no longer come from the database
+
+`PhoenixKit.Email.Content` resolves a message from a host override file, then core's (or a module's) shipped default.
+The database layer is gone: the `Email.Provider` callbacks `get_active_template_by_name/1`, `render_template/2,3`,
+`track_usage/1` and `get_source_module/1` are removed (so is `Mailer.track_usage_after_delivery/2`), `Content.resolved()`
+has no `db_template` key, the `:db` source and the email preview's "database template" notice are removed, and V135 no
+longer seeds templates. A host that edited templates in the admin UI must export them to files with
+`mix phoenix_kit_emails.templates.export` **before** upgrading; the old `phoenix_kit_email_templates` table is left in
+place, untouched.
+
 ### Breaking (3.0): core no longer creates any module's table
 
 Core's chain used to create 140 tables that belong to 25 modules (`PhoenixKit.Migrations.ModuleOwnedTables`). It no

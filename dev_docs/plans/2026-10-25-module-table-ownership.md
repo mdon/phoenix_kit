@@ -694,3 +694,12 @@ Status in the module working trees (all uncommitted), full suite against core 3.
   dependencies or already guarded (ecommerce→ai, inbox→emails, projects→staff).
 - Not 3.0: db, staff and projects live-view failures and inbox `short_code` reproduce on `origin/main`.
 - Nothing is committed in the module repos; every change is in the working trees.
+
+#### Email templates leave the database, core half (2026-10-27, done on `core-3.0`)
+
+Removed: the DB branch of `Email.Content.resolve_with_sources/5` (and `db_sources`, the `:db` source, `db_template` in
+`resolved()`), the template callbacks of `Email.Provider` and `DefaultProvider`, `Mailer.track_usage_after_delivery/2` and its
+callers (`Mailer`, `UserNotifier`, the notification email channel), `Catalog`'s DB special case, the preview's DB notice
+and badge. Tests that stubbed a DB provider were removed or rewritten (welcome-email build failures are now injected with a
+non-path template root; the exit/throw variants of that test went with the provider). Core tests: 1796 in the email,
+mailer, users, notifications and settings areas, 0 failures. The Emails half and the editor follow.
