@@ -642,3 +642,19 @@ shipped defaults from core and modules (`PhoenixKit.Email.Catalog`). The databas
 - upgrade path: `mix phoenix_kit_emails.templates.export` writes existing rows to files first; the table itself is a
   step 9 per-table decision, never dropped by a chain;
 - core's V135 no longer seeds templates (done on `core-3.0`).
+
+**Sizing (2026-10-27).**
+- *Core, small:* the row layer is one branch in `Email.Content.resolve_with_sources/5` plus the `Provider` callbacks
+  `get_active_template_by_name/1`, `render_template/3`, `track_usage/1`, `get_source_module/1` (`provider.ex`,
+  `default_provider.ex`), the `db_template` field read by `Mailer` (usage tracking, send options) and `Email.Catalog`
+  (`missing/6`). About 6 files, mostly deletions; `DefaultProvider` already answers `nil`.
+- *Emails, the bulk:* `templates.ex` (2132 lines; row CRUD, `seed_system_templates`, usage stats), `template.ex` (896),
+  `provider.ex`, `template_sources.ex`, `template_export.ex` (kept, it is the upgrade path), the editor and list pages
+  (`web/templates*`, `web/template_editor*`, about 3000 lines with heex) and their routes/tabs, plus 18 test files.
+  `Templates.send_email/4` is NOT a row API: it delegates to `Mailer.send_from_template/4` and billing calls it, so the
+  facade stays (moved to a small module) or billing is repointed first.
+- *Other modules:* billing only uses `send_email/4`; newsletters' chain reads `phoenix_kit_email_templates` once to carry rows
+  over and already tolerates the table being absent; `phoenix_kit_templates_editor` calls `get_active_template_by_name`
+  in `overriding.ex` (to warn that a row hides a file) and loses that check.
+- *Order:* Emails 3.x drops the pages and schema first while core still accepts a provider returning rows; then core drops
+  the layer at 3.0. Behavioural break: a host that edited templates in the admin UI must run the export before upgrading.
