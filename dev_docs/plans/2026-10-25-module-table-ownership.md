@@ -504,6 +504,26 @@ release whose core pin admits 3.0.
 - **Core 3.0's own release notes** say: be at V224 (the last 2.x) first; then upgrade core and every module together.
 - Release day is the weekly one; nothing here ships before the user asks.
 
+#### Step 10, discovery (2026-10-27)
+
+Every package's full suite was run against core 3.0 (`core-3.0`, via `PHOENIX_KIT_PATH`) on a fresh database per
+package, four at a time. Results by class (no package was changed):
+
+- **Obsolete "core audits the tables" tests** (module chain vs core's `ExpectedSchema`; the objects are gone from core's
+  manifest): customer_support 3, warehouse 2, manufacturing 2, newsletters 2, open_graph 3, projects 3, and the same
+  shape in the other owners. They go, replaced by each module's own `ExpectedSchema` test (already in place).
+- **A sibling's tables are no longer there** (the test setup must run the sibling's chain): warehouse, catalogue and
+  publishing need ai (`phoenix_kit_ai_endpoints`, `_prompts`; ai is a dependency, so its chain is on hand); agent needs
+  `phoenix_kit_ai_requests`; ecommerce needs billing's `payment_options`; manufacturing needs entities. **Undeclared
+  dependencies** the tests exposed: calendar → staff (`staff_people`) and locations; sync → staff (`staff_skills`);
+  inbox → emails (`email_logs`).
+- **Not caused by 3.0** (to confirm against a 2.x baseline): catalogue's `Categories.create_category/N is undefined`
+  (221 tests), staff's LiveView redirect tests (known locale-prefix failures), db (16), publishing (a handful).
+- **Harness limits, not findings:** legal and entities insist on their own database names, photos needs an
+  already-migrated database, and `No version requirement found for :phoenix_kit` appears where the harness replaced
+  the dependency with a path.
+- Passing outright: ai (2,296), boards, hello_world, stats, templates_editor, ecommerce unit suite, crm (2 left).
+
 ## Decisions
 
 | Decision | Status |
