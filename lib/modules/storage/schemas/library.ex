@@ -23,6 +23,8 @@ defmodule PhoenixKit.Modules.Storage.Library do
   use PhoenixKit.SchemaPrefix
   import Ecto.Changeset
 
+  alias PhoenixKit.Modules.Storage.Libraries
+
   @primary_key {:uuid, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
 
@@ -158,7 +160,7 @@ defmodule PhoenixKit.Modules.Storage.Library do
     |> validate_format(:slug, ~r/\A[a-z0-9]+(?:-[a-z0-9]+)*\z/)
     |> validate_length(:slug, max: 64)
     |> validate_change(:slug, fn :slug, slug ->
-      if PhoenixKit.Modules.Storage.Libraries.reserved_slug?(slug),
+      if Libraries.reserved_slug?(slug),
         do: [slug: "is reserved"],
         else: []
     end)

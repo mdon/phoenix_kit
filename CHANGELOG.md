@@ -1,4 +1,12 @@
-## Unreleased
+## 2.65.0 - 2026-10-30
+
+**The last 2.x release.** Core 3.0 stops creating the tables of the optional modules (each module's own migration chain creates
+its tables) and strips that DDL from its migration modules, so it can only upgrade a database that is already at **V225**.
+Upgrade to 2.65.0, run `mix phoenix_kit.update` until it reports V225, and only then move to 3.0; 3.0 refuses a lower
+database with a message that names this release. This release also carries what 3.0 needs from the modules: the
+`file_references/0` and `expected_schema/0` callbacks, the per-module manifests, and dependency-ordered module migrations.
+Nothing in 2.65.0 changes behaviour for a host that does not use them.
+
 
 **Migrations V224 and V225** (V224, PR #983: an index on `phoenix_kit_activities (resource_uuid, inserted_at)`; V225: `phoenix_kit_files.short_code`, below). Nothing else here migrates.
 
