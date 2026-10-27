@@ -285,9 +285,7 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3 do
 
     case File.read(source_path) do
       {:ok, file_content} ->
-        put_opts =
-          [{:acl, Keyword.get(opts, :acl, "private")}] ++
-            if(content_type, do: [{:content_type, content_type}], else: [])
+        put_opts = [acl: Keyword.get(opts, :acl, "private"), content_type: content_type]
 
         case ExAws.S3.put_object(bucket.bucket_name, destination_path, file_content, put_opts)
              |> ExAws.request(aws_config(bucket)) do
@@ -310,9 +308,12 @@ defmodule PhoenixKit.Modules.Storage.Providers.S3 do
   defp multipart_upload(bucket, source_path, destination_path, opts) do
     content_type = upload_content_type(opts, destination_path)
 
-    upload_opts =
-      [acl: Keyword.get(opts, :acl, "private"), max_concurrency: 4, timeout: 60_000] ++
-        if(content_type, do: [content_type: content_type], else: [])
+    upload_opts = [
+      acl: Keyword.get(opts, :acl, "private"),
+      max_concurrency: 4,
+      timeout: 60_000,
+      content_type: content_type
+    ]
 
     case source_path
          |> Upload.stream_file()
