@@ -25,7 +25,10 @@ defmodule PhoenixKit.TestSupport.LinkCopyHelpers do
     n = System.unique_integer([:positive])
     Repo.update_all(Bucket, set: [enabled: false])
 
-    root = Path.join(tmp, "bucket")
+    # Short and outside `tmp`: ExUnit's tmp_dir carries the whole test name,
+    # and the endpoint column is varchar(255).
+    root = Path.join(System.tmp_dir!(), "pk-lc-#{n}")
+    ExUnit.Callbacks.on_exit(fn -> File.rm_rf(root) end)
 
     {:ok, bucket} =
       Storage.create_bucket(%{
