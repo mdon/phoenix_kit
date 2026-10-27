@@ -1,4 +1,4 @@
-## 3.0.0 - 2026-11-06
+## 3.0.0 - 2026-10-27
 
 **Core no longer creates the tables of the optional modules, and the database layer for email templates is gone.** An
 existing install must be at **V225** (the last 2.x release, 2.65.0) before it upgrades: below that,
