@@ -678,3 +678,19 @@ Status in the module working trees (all uncommitted), full suite against core 3.
   `schema_owner_guard_wiring_test` (own-database harness limit) are unverified.
 - **Not yet looked at beyond discovery:** agent, photos, ecommerce (3493 excluded), crm, newsletters/emails integration
   exclusions.
+
+#### Step 10, pins and `@impl` (2026-10-27)
+
+- Every module (bookings and the stub `phoenix_kit_templates` left alone) now pins core as `>= <floor> and < 4.0.0`. The 25
+  owners plus the modules that implement the callbacks take floor `2.65.0` (assumed: the first minor after 2.64.1 that
+  carries `file_references/0`, `expected_schema/0` and V225; adjust if the release is numbered differently); the rest keep
+  their floor and only raise the ceiling. `file_references/0` and `expected_schema/0` carry `@impl PhoenixKit.Module`.
+  Each `core_pin_conformance_test` admits 3.x and rejects 4.0.0, verified against the requirement strings
+  (the tests themselves cannot run until 2.65.0 is on Hex).
+- Found by the hidden-dependency audit (modules reading another module's table by name): `calendar` listed events with a
+  query naming staff and CRM tables, and `crm` read `phoenix_kit_staff_people`, so on core 3.0 both failed on a host without
+  those modules (crm swallowed it and answered empty). Both now check the table first; calendar has a regression test.
+  `document_creator`'s tests build Projects' chain (test-only dep). Remaining cross-module reads are declared
+  dependencies or already guarded (ecommerce→ai, inbox→emails, projects→staff).
+- Not 3.0: db, staff and projects live-view failures and inbox `short_code` reproduce on `origin/main`.
+- Nothing is committed in the module repos; every change is in the working trees.
