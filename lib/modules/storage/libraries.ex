@@ -660,6 +660,14 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   defp insert_with_free_slug(attrs, base, n, insert) do
     slug = if n == 1, do: base, else: "#{base}-#{n}"
 
+    if reserved_slug?(slug) and n < 100 do
+      insert_with_free_slug(attrs, base, n + 1, insert)
+    else
+      insert_with_free_slug_attempt(attrs, base, n, slug, insert)
+    end
+  end
+
+  defp insert_with_free_slug_attempt(attrs, base, n, slug, insert) do
     case insert.(Map.put(attrs, "slug", slug)) do
       {:error, %Ecto.Changeset{errors: errors} = changeset} ->
         if Keyword.has_key?(errors, :slug) and not name_error?(changeset) and n < 100,
@@ -1500,6 +1508,53 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   def url_id(%Library{uuid: uuid}, _user_uuid), do: to_string(uuid)
 
   @doc """
+  Whether `slug` is one the host keeps for its own pages: `config :phoenix_kit,
+  :reserved_library_slugs, ["admin", "photos"]`. A library's slug is a segment of a URL the
+  host may route (`/<username>/<slug>`), and a library called "Admin" would then be reached
+  at an address another page owns. A name that slugs to a reserved word is given the next
+  free slug (`photos-2`), and `change_library_slug/2` refuses it. Case does not matter.
+  """
+  @spec reserved_slug?(term()) :: boolean()
+  def reserved_slug?(slug) when is_binary(slug) do
+    slug = String.downcase(slug)
+
+    Enum.any?(
+      Application.get_env(:phoenix_kit, :reserved_library_slugs, []),
+      &(String.downcase(to_string(&1)) == slug)
+    )
+  end
+
+  def reserved_slug?(_slug), do: false
+
+  @doc """
+  Changes the URL slug of a user library, for a host that names its pages by it. Unscoped like
+  `rename_library/3` (the host decides who may call it), and written to the history. Returns
+  `{:ok, library}` or `{:error, changeset}`: the slug is badly shaped, reserved, or the owner
+  has a library with it already (a trashed one holds none).
+  """
+  @spec change_library_slug(Library.t(), String.t(), keyword()) ::
+          {:ok, Library.t()} | {:error, Ecto.Changeset.t()}
+  def change_library_slug(%Library{kind: "user"} = library, slug, opts \\ []) do
+    Audit.change(library, fn library ->
+      library
+      |> Library.slug_changeset(%{slug: slug})
+      |> repo().update()
+      |> tap(fn
+        {:ok, changed} when changed.slug != library.slug ->
+          audit_library("storage.library.slug_changed", changed, opts, %{
+            "name" => changed.name,
+            PhoenixKit.Activity.changes_key() => %{
+              "slug" => %{"from" => library.slug, "to" => changed.slug}
+            }
+          })
+
+        _result ->
+          :ok
+      end)
+    end)
+  end
+
+  @doc """
   Creates a user library owned by `scope`'s user. `attrs` takes a `"name"` and
   optionally a `"storage"` (below). The first live library a user has becomes
   their default. Refused with `:not_allowed` without `may_create_library?/1`,
@@ -2097,6 +2152,8 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
 
   @personal_key "personal"
   @personal_name_default "My library"
+  @public_key "personal_public"
+  @public_name_default "Public"
 
   @doc """
   Gives `user_uuid` a private library of their own, once, on behalf of the host.
@@ -2127,23 +2184,69 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
           {:ok, Library.t() | :exists} | {:error, :user_libraries_off | term()}
   def ensure_personal_library(user_uuid, opts \\ []) when is_binary(user_uuid) do
     if user_libraries_enabled?(),
-      do: do_ensure_personal_library(user_uuid, personal_name(Keyword.get(opts, :name))),
+      do: do_ensure_marked(user_uuid, @personal_key, "private", personal_name(opts[:name])),
       else: {:error, :user_libraries_off}
   end
 
-  defp do_ensure_personal_library(user_uuid, base) do
+  @doc """
+  Gives `user_uuid` a **public** library of their own, once, on behalf of the host: the
+  counterpart of `ensure_personal_library/2`, with the same rules (the host's decision, the
+  `user_libraries_enabled?/0` switch, no permission and no room under the limit, never a second
+  one, not even after the user trashed theirs), except:
+
+    * it is public (`visibility: "site"`, `public?/1`): everything put in it is for anyone to
+      see. The host that makes one for every account accepts that, and says so where the user
+      uploads (the Photos uploader does);
+    * it is never the user's default library. Make the personal one first, so that the user
+      has a default that is private.
+
+  `:name` is its name (default "Public"). Returns `{:ok, %Library{}}`, `{:ok, :exists}` or
+  `{:error, reason}`. Making one is written to the history (`storage.library_published`), the
+  same entry as a user publishing a library, with `"by" => "system"`.
+  """
+  @spec ensure_public_library(String.t(), keyword()) ::
+          {:ok, Library.t() | :exists} | {:error, :user_libraries_off | term()}
+  def ensure_public_library(user_uuid, opts \\ []) when is_binary(user_uuid) do
+    if user_libraries_enabled?(),
+      do:
+        user_uuid
+        |> do_ensure_marked(@public_key, "site", public_name(opts[:name]))
+        |> tap(&log_published_by_system/1),
+      else: {:error, :user_libraries_off}
+  end
+
+  defp log_published_by_system({:ok, %Library{} = library}) do
+    Audit.log("storage.library_published", "library", library.uuid, [], %{
+      "name" => library.name,
+      "by" => "system"
+    })
+
+    :ok
+  end
+
+  defp log_published_by_system(_result), do: :ok
+
+  # `key` marks the library in its settings; `visibility` is "private" or "site". The
+  # personal one is the user's default when they have no library yet, the public one never.
+  defp do_ensure_marked(user_uuid, key, visibility, base) do
     repo().transaction(fn ->
       lock_user(user_uuid)
 
-      if personal_library?(user_uuid) do
+      if marked_library?(user_uuid, key) do
         :exists
       else
         owned = count_owned(user_uuid)
         name = free_library_name(user_uuid, base)
-        library = insert_owned(%{"name" => name}, user_uuid, owned == 0)
+
+        library =
+          insert_owned(
+            %{"name" => name, "visibility" => visibility},
+            user_uuid,
+            owned == 0 and key == @personal_key
+          )
 
         library
-        |> Ecto.Changeset.change(settings: Map.put(library.settings || %{}, @personal_key, true))
+        |> Ecto.Changeset.change(settings: Map.put(library.settings || %{}, key, true))
         |> repo().update!()
       end
     end)
@@ -2155,12 +2258,18 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
 
   defp personal_name(_name), do: @personal_name_default
 
-  defp personal_library?(user_uuid) do
+  defp public_name(name) when is_binary(name) do
+    if String.trim(name) == "", do: @public_name_default, else: String.trim(name)
+  end
+
+  defp public_name(_name), do: @public_name_default
+
+  defp marked_library?(user_uuid, key) do
     repo().exists?(
       from(l in Library,
         where:
           l.kind == "user" and l.owner_uuid == ^user_uuid and
-            fragment("(?->>'personal') = 'true'", l.settings)
+            fragment("(?->>?) = 'true'", l.settings, ^key)
       )
     )
   end
@@ -2192,11 +2301,24 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
           | {:error, :user_libraries_off}
   def backfill_personal_libraries(opts \\ []) do
     if user_libraries_enabled?(),
-      do: do_backfill_personal_libraries(opts),
+      do: do_backfill(&ensure_personal_library/2, opts),
       else: {:error, :user_libraries_off}
   end
 
-  defp do_backfill_personal_libraries(opts) do
+  @doc """
+  `ensure_public_library/2` for every active, non-guest, non-API account: the counterpart of
+  `backfill_personal_libraries/1`, with the same counts and the same `:name` option. Safe to repeat.
+  """
+  @spec backfill_public_libraries(keyword()) ::
+          %{created: non_neg_integer(), existing: non_neg_integer(), failed: non_neg_integer()}
+          | {:error, :user_libraries_off}
+  def backfill_public_libraries(opts \\ []) do
+    if user_libraries_enabled?(),
+      do: do_backfill(&ensure_public_library/2, opts),
+      else: {:error, :user_libraries_off}
+  end
+
+  defp do_backfill(ensure, opts) do
     from(u in User,
       where:
         u.is_active and not u.api_only and
@@ -2205,7 +2327,7 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
     )
     |> repo().all()
     |> Enum.reduce(%{created: 0, existing: 0, failed: 0}, fn uuid, counts ->
-      case ensure_personal_library(uuid, opts) do
+      case ensure.(uuid, opts) do
         {:ok, :exists} -> Map.update!(counts, :existing, &(&1 + 1))
         {:ok, %Library{}} -> Map.update!(counts, :created, &(&1 + 1))
         {:error, _reason} -> Map.update!(counts, :failed, &(&1 + 1))
@@ -2330,6 +2452,12 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   defp restore_with_free_slug(library, base, n, default?) do
     slug = if n == 1, do: base, else: "#{base}-#{n}"
 
+    if reserved_slug?(slug) and n < 100,
+      do: restore_with_free_slug(library, base, n + 1, default?),
+      else: restore_with_slug(library, base, n, slug, default?)
+  end
+
+  defp restore_with_slug(library, base, n, slug, default?) do
     result =
       repo().transaction(fn ->
         library

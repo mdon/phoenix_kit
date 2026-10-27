@@ -1,6 +1,6 @@
 ## Unreleased
 
-**Migration V224** (PR #983: an index on `phoenix_kit_activities (resource_uuid, inserted_at)`). Nothing else here migrates.
+**Migrations V224 and V225** (V224, PR #983: an index on `phoenix_kit_activities (resource_uuid, inserted_at)`; V225: `phoenix_kit_files.short_code`, below). Nothing else here migrates.
 
 ### Added
 
@@ -9,6 +9,25 @@
   `phoenix_kit_staff` and `phoenix_kit_entities` migrate before `phoenix_kit_projects`, and `phoenix_kit_billing`
   before `phoenix_kit_ecommerce`. Until now the order was the display name, which only worked because core created
   every module's tables first. No module change is needed; a cycle keeps name order instead of failing.
+- **A short code on every file (V225).** `phoenix_kit_files.short_code` is a random 8-character base58 code (`k3Fq9xA2`: no
+  `0`, `O`, `I` or `l`) that names a file in a URL instead of its UUID, with a unique partial index.
+  `Storage.ShortCode` makes and checks them; the `File` changeset gives one to every new file (never cast from attrs, never
+  changed), and `Storage.get_file_by_short_code/1` finds the file. The migration gives every existing file a code in SQL
+  (duplicates redrawn until none repeat, then the index is built); the backfill is one `UPDATE` of the table and the index
+  build takes a SHARE lock on it, so run it in a quiet window on a very large site. A code is not a secret and grants
+  nothing: the file's library decides who may read it.
+- **`Libraries.ensure_public_library/2` and `backfill_public_libraries/1`: a host may give its accounts a public library.** The
+  counterpart of `ensure_personal_library/2`, with the same rules (the host's decision, no permission and no room under the limit,
+  never a second one, not even after the user trashed theirs), except that it is public (`visibility: "site"`) and never the
+  user's default; make the personal one first. Named "Public" unless `:name` says otherwise. Making one is written to the history
+  as `storage.library_published` with `"by" => "system"`.
+- **`Libraries.change_library_slug/3`**, for a host that names its pages by a library's slug (the admin libraries page and any
+  `/<username>/<slug>` address): unscoped like `rename_library/3`, written to the history, refuses a badly shaped, reserved or
+  already used slug.
+- **Names a host keeps for its own pages.** `config :phoenix_kit, :reserved_library_slugs` and `:reserved_usernames` (both empty by
+  default). A name that slugs to a reserved word is given the next free slug (`photos-2`), `change_library_slug/3` and a username
+  that is reserved are refused (`"is reserved"`), and a username generated from an email address that is reserved gets a number
+  (`admin_1`). Case does not matter; names already taken are not changed. `Libraries.reserved_slug?/1`, `User.reserved_username?/1`.
 
 - **HDR renditions of HEIC and AVIF photos.** `HdrResize` kept a gain map for a JPEG source only, so an iPhone
   photo (a HEIC) got ordinary thumbnails and previews. `HeifHdr` now makes the same Ultra HDR JPEG from a HEIC or

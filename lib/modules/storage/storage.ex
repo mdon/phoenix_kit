@@ -3502,6 +3502,19 @@ defmodule PhoenixKit.Modules.Storage do
     do: repo().get(PhoenixKit.Modules.Storage.File, id)
 
   @doc """
+  The file whose short code (`Storage.ShortCode`, V225) is `code`, or nil. Nil too
+  for a string that is not shaped like a code, without asking the database.
+
+  This finds the row and decides nothing about who may see it: check the viewer's
+  right to the file's library, as for any file.
+  """
+  @spec get_file_by_short_code(term()) :: PhoenixKit.Modules.Storage.File.t() | nil
+  def get_file_by_short_code(code) do
+    if PhoenixKit.Modules.Storage.ShortCode.valid?(code),
+      do: repo().get_by(PhoenixKit.Modules.Storage.File, short_code: code)
+  end
+
+  @doc """
   Fetches multiple files by UUID in a single query and returns them ordered to
   match `uuids`. Missing UUIDs are silently omitted from the result.
   """
