@@ -68,6 +68,7 @@ defmodule PhoenixKit.Migrations.BelowFloorError do
     do: "this release's chain no longer carries the migration modules below the floor"
 
   defp bridge_name(nil), do: "the last PhoenixKit 1.7.x release (the migration bridge)"
+  defp bridge_name("2.x"), do: "the last PhoenixKit 2.x release (the migration bridge)"
   defp bridge_name(version), do: "PhoenixKit #{version} (the migration bridge)"
 
   defp maybe_append_test_db_hint(message, :ensure_current) do

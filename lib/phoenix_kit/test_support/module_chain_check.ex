@@ -202,6 +202,27 @@ defmodule PhoenixKit.TestSupport.ModuleChainCheck do
     end)
   end
 
+  @doc """
+  Builds core's chain and then every chain in `chains`, in the order given, in
+  `schema` (created fresh), and leaves it there for the caller to inspect and
+  drop. Returns `:ok` or `{:error, message}` naming the chain that failed.
+
+  This is a fresh install once core no longer creates module tables: the input
+  for comparing the whole schema with a recorded one
+  (`dev_docs/squash/rehearse_module_chains.exs --compare-full`).
+  """
+  @spec build_all(Ecto.Repo.t(), [module()], String.t()) :: :ok | {:error, String.t()}
+  def build_all(repo, chains, schema) when is_list(chains) do
+    Enum.each(chains, &Code.ensure_loaded!/1)
+
+    with_auto_sandbox(repo, fn ->
+      query!(repo, ~s(DROP SCHEMA IF EXISTS "#{schema}" CASCADE))
+      query!(repo, ~s(CREATE SCHEMA "#{schema}"))
+      quietly(fn -> PhoenixKit.Migration.ensure_current(repo, prefix: schema, log: false) end)
+      run_chains(repo, chains, schema, "after core's chain")
+    end)
+  end
+
   defp compare_all(repo, chains, schema, tables, opts) do
     query!(repo, ~s(DROP SCHEMA IF EXISTS "#{schema}" CASCADE))
     query!(repo, ~s(CREATE SCHEMA "#{schema}"))

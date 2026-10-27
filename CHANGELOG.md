@@ -1,5 +1,23 @@
 ## Unreleased
 
+### Breaking (3.0): core no longer creates any module's table
+
+Core's chain used to create 140 tables that belong to 25 modules (`PhoenixKit.Migrations.ModuleOwnedTables`). It no
+longer does: V135 and V136–V223 had that DDL removed, and each module's own migration chain creates its tables (every
+module has had that chain since the plan `dev_docs/plans/2026-10-25-module-table-ownership.md`). A fresh install gets
+core's tables from `mix phoenix_kit.update`, then each installed module's from the same run, in dependency order
+(`Migrations.Modules.order_by_dependencies/1`: staff before projects, billing before ecommerce).
+
+- **An existing install must be at V224 (the last 2.x) before it upgrades.** Below that, `mix phoenix_kit.update` and
+  `PhoenixKit.Migrations.up/1` raise `BelowFloorError` naming the last 2.x release as the bridge
+  (`Postgres.minimum_version/0`). Fresh installs and installs at V224 are unaffected: no schema change.
+- Legacy tables core created and later dropped (`phoenix_kit_ai_accounts`, `phoenix_kit_newsletters_lists`,
+  `phoenix_kit_newsletters_list_members`) are no longer created at all.
+- `phoenix_kit_doc_documents.project_uuid` gets its foreign key to `phoenix_kit_projects` only where that table
+  existed when the document creator's chain ran (it does not depend on projects).
+- Tooling: `ModuleChainCheck.check_all/3` and `build_all/3`, and `dev_docs/squash/rehearse_module_chains.exs`
+  (`--record-full` / `--compare-full`), prove that core plus the 25 chains rebuild the same schema.
+
 **Migration V224** (PR #983: an index on `phoenix_kit_activities (resource_uuid, inserted_at)`). Nothing else here migrates.
 
 ### Added
