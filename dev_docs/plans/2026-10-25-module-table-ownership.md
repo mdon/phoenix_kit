@@ -128,9 +128,10 @@ new protocol.
 | 4 | Complete the chains of ai (3 tables) and document_creator (7 tables) | 2 modules **Done** 2026-10-25 — document_creator `f67f163`, ai `c118542` (unreleased) |
 | 5 | The step-2 test in every adopted module; fix what it finds | 17 modules | In progress — billing (`3fa1164`) and ecommerce (`54061bd`) done 2026-10-25; **Done 2026-10-25**: billing, ecommerce, emails, and the builds-alone test in the other 14 |
 | 6 | Core's manifest hands every module-owned entry over | core | Not started |
-| 7 | Manifest generator (frozen pre-squash part + generated rest, compact, in `priv/`); move core's hard-coded module-table lists to module callbacks | core | Not started |
-| 8 | Core stops creating module tables on fresh installs | core | Not started — approach to decide |
+| 7 | Manifest generator (frozen pre-squash part + generated rest, compact, in `priv/`); move core's hard-coded module-table lists to module callbacks | core | **Done** 2026-10-26 (7a `file_references/0`, 7b per-module manifests; unreleased) |
+| 8 | Core stops creating module tables on fresh installs | core | **In progress** 2026-10-27 — decided: core 3.0, strip the DDL in place, installs must be at V224 first; on branch `core-3.0` |
 | 9 | Dead tables (`crm_user_role_view`, `email_metrics`, `email_orphaned_events`) | crm, emails | Not started — per-table decision |
+| 10 | Ecosystem sweep for core 3.0: widen every package's core pin, release in order | core + all modules | Not started — after step 8 |
 
 ### Step 1 — ownership map and guard (done)
 
@@ -444,6 +445,28 @@ Decision: **(a) at core 3.0** (made 2026-10-26). First part, shippable on its ow
 V7), `phoenix_kit_email_metrics` and `phoenix_kit_email_orphaned_events` (no
 reader). Dropping deletes data: an explicit decision per table, done in the
 owning module's chain, never core's.
+
+### Step 10 — ecosystem sweep for core 3.0
+
+Core is the only package that goes to 3.0. Modules keep their own version lines (most are 0.x): a module's version
+describes its own API, and nothing in a module breaks. What every package that depends on core needs is a minor
+release whose core pin admits 3.0.
+
+- **The pin.** A compound floor (`>= 2.64.0 and < 3.0.0`) becomes `< 4.0.0`; a `~> 2.0` becomes `>= 2.0 and < 4.0`
+  (a two-segment `~> 2.0` cannot resolve 3.0). The range keeps admitting 2.x wherever the module works on both, and
+  the 25 owner modules do (their chains adopt tables core already made). Never a three-segment pin.
+- **Why the ceiling is the safety net.** A host cannot resolve core 3.0 with a module release that predates its own
+  chain or `file_references/0`, because that release is pinned `< 3.0.0`. So the pin guarantees a chain exists
+  wherever 3.0 runs, which is also what lets core drop `builtin_file_references` (open decision, step 7b).
+- **Who.** All 25 owner modules, and the packages that depend on core but own no core-created table (boards,
+  inbox, stats, web_analytics, db, hello_world, agent, bookings once Max's rework lands). `@impl` is added to every
+  module's `file_references/0` and `expected_schema/0` in the same release, since the core floor now has the
+  callbacks.
+- **Order**, as in `dev_docs/2026-08-10-phoenix-kit-2.0-ecosystem-sweep.md` (workspace): core 3.0 first, then
+  `phoenix_kit_ai`, then by sibling dependency (staff and entities before projects, billing before ecommerce,
+  comments before its dependents), then the rest in any order. Raise sibling pins in the same commits as the core pin.
+- **Core 3.0's own release notes** say: be at V224 (the last 2.x) first; then upgrade core and every module together.
+- Release day is the weekly one; nothing here ships before the user asks.
 
 ## Decisions
 
