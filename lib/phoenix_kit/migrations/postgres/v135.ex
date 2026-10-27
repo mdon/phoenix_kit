@@ -2514,9 +2514,9 @@ defmodule PhoenixKit.Migrations.Postgres.V135 do
     ON CONFLICT ("key") DO NOTHING
     """)
 
-    # Best-effort email-template seeding (v15/v31 lineage) needs flushed tables.
+    # Later steps of the same run read these tables directly (V161 queries
+    # users), so the queued DDL has to be on the wire before they start.
     flush()
-    seed_best_effort_helpers()
 
     # -- version stamp (single-step runs get no auto-stamp; a multi-step
     #    range-end stamp overwrites afterwards — correct either way, S15)
@@ -2593,32 +2593,6 @@ defmodule PhoenixKit.Migrations.Postgres.V135 do
                 inspect(prefix) <>
                 " does not exist and create_schema: false was given; " <>
                 "create the schema or pass create_schema: true"
-    end
-
-    :ok
-  end
-
-  # Best-effort (v15/v31 lineage): the seeder modules are OPTIONAL — absent in
-  # production releases and in installs without the emails module; failures
-  # must never abort the baseline.
-  defp seed_best_effort_helpers do
-    for {mod, fun, args} <- [
-          {Mix.Tasks.PhoenixKit.SeedTemplates, :run, [["--quiet"]]},
-          {PhoenixKit.Modules.Emails.Templates, :seed_system_templates, []}
-        ] do
-      case Code.ensure_loaded(mod) do
-        {:module, _} ->
-          try do
-            # credo:disable-for-next-line Credo.Check.Refactor.Apply
-            apply(mod, fun, args)
-          rescue
-            error ->
-              IO.puts("Warning: email-template seeding skipped: " <> inspect(error))
-          end
-
-        {:error, _} ->
-          :ok
-      end
     end
 
     :ok

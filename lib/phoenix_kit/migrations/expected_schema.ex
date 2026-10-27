@@ -660,7 +660,7 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "98d528e8793422be5c4bf3c227279628dd4e8c8daa7ec50f61b974da0561d8ca"
+  @chain_hash "b7af0c54300f13e6e7b55a00c7375cdf0fa77930f0001bb52f1314c99e2cf3d7"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -14451,17 +14451,6 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
              key_column: "code"
            }}
         ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "seed:phoenix_kit_email_templates:billing_seeder",
-        owner: :core,
-        check: "SELECT EXISTS (SELECT 1 FROM __SCHEMA__.phoenix_kit_email_templates)",
-        create: {:helper, {PhoenixKit.Modules.Emails.Templates, :seed_system_templates, []}},
-        since: 31,
-        class: :seed,
-        revisions: [{31, %{source: "v31.ex:523-525", best_effort: true}}],
         presence: :required,
         backfill: nil
       },
