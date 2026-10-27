@@ -623,10 +623,22 @@ Done in the working trees (uncommitted in the module repos):
   because the real CRM source is now discovered; obsolete core-manifest test removed.
 - **inbox** (844; 4 failures that are also on `origin/main`'s V225 `short_code` unique index, not 3.0): the emails chain runs in
   `test_helper`.
-- **emails**: `migrate_legacy/0` seeds the system templates into an empty table (core's V135 used to).
+- **emails**: no seeding. An earlier attempt to seed the system templates from `migrate_legacy/0` was reverted: the
+  database layer is being retired (see "Email templates leave the database" below).
 - **core-3.0 fix**: V135 seeded email templates through the Emails module whenever it was on the code path; with the table gone the
   query aborted the migration transaction. The seeders and their manifest seed entry are removed.
 
 Still obsolete "core audits the tables" tests to remove (same cut as sync/calendar): catalogue, comments, locations,
 referrals, staff, user_connections (and the ones found in discovery: customer_support, warehouse, manufacturing, newsletters,
 open_graph, projects).
+
+#### Email templates leave the database (decided 2026-10-27, not started)
+
+Email templates now live in files (`phoenix_kit_templates` overrides, edited with `phoenix_kit_templates_editor`) with
+shipped defaults from core and modules (`PhoenixKit.Email.Catalog`). The database layer is retired in 3.0:
+- core's `Email.Content` resolves file override, then default; no `Provider.get_active_template_by_name` row lookup;
+- Emails drops the `Template` schema, the row-editing admin pages and `TemplateSources`' "hides" badges; its chain
+  stops creating `phoenix_kit_email_templates`;
+- upgrade path: `mix phoenix_kit_emails.templates.export` writes existing rows to files first; the table itself is a
+  step 9 per-table decision, never dropped by a chain;
+- core's V135 no longer seeds templates (done on `core-3.0`).
