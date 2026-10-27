@@ -1,12 +1,10 @@
-## 2.65.0 - 2026-10-30
+## 3.0.0 - 2026-11-06
 
-**The last 2.x release.** Core 3.0 stops creating the tables of the optional modules (each module's own migration chain creates
-its tables) and strips that DDL from its migration modules, so it can only upgrade a database that is already at **V225**.
-Upgrade to 2.65.0, run `mix phoenix_kit.update` until it reports V225, and only then move to 3.0; 3.0 refuses a lower
-database with a message that names this release. This release also carries what 3.0 needs from the modules: the
-`file_references/0` and `expected_schema/0` callbacks, the per-module manifests, and dependency-ordered module migrations.
-Nothing in 2.65.0 changes behaviour for a host that does not use them.
-
+**Core no longer creates the tables of the optional modules, and the database layer for email templates is gone.** An
+existing install must be at **V225** (the last 2.x release, 2.65.0) before it upgrades: below that,
+`mix phoenix_kit.update` raises `BelowFloorError` naming 2.65.0. Hosts that edited email templates in the admin UI export them
+to files first (`mix phoenix_kit_emails.templates.export`). Modules need their own releases that accept core 3.x (the
+pin `>= <floor> and < 4.0.0`); release core's 2.65.0, then 3.0.0, then the modules.
 
 ### Breaking (3.0): email templates no longer come from the database
 
@@ -35,6 +33,17 @@ core's tables from `mix phoenix_kit.update`, then each installed module's from t
   existed when the document creator's chain ran (it does not depend on projects).
 - Tooling: `ModuleChainCheck.check_all/3` and `build_all/3`, and `dev_docs/squash/rehearse_module_chains.exs`
   (`--record-full` / `--compare-full`), prove that core plus the 25 chains rebuild the same schema.
+
+
+## 2.65.0 - 2026-10-30
+
+**The last 2.x release.** Core 3.0 stops creating the tables of the optional modules (each module's own migration chain creates
+its tables) and strips that DDL from its migration modules, so it can only upgrade a database that is already at **V225**.
+Upgrade to 2.65.0, run `mix phoenix_kit.update` until it reports V225, and only then move to 3.0; 3.0 refuses a lower
+database with a message that names this release. This release also carries what 3.0 needs from the modules: the
+`file_references/0` and `expected_schema/0` callbacks, the per-module manifests, and dependency-ordered module migrations.
+Nothing in 2.65.0 changes behaviour for a host that does not use them.
+
 
 **Migrations V224 and V225** (V224, PR #983: an index on `phoenix_kit_activities (resource_uuid, inserted_at)`; V225: `phoenix_kit_files.short_code`, below). Nothing else here migrates.
 

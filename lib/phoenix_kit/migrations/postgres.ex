@@ -1050,15 +1050,12 @@ defmodule PhoenixKit.Migrations.Postgres do
   @minimum_upgrade_version 225
   @default_prefix "public"
 
-  # The frozen pre-squash bridge: the last 1.7.x release, which still carries
-  # V01..V134 and is the only supported way back onto the floor from below it.
-  # `BelowFloorError` leaves this `nil` by design ("nil until that release is
-  # tagged"); it is tagged now (v1.7.236), so the two raise sites below name it
-  # instead of making the operator go and look up which release "the last
-  # 1.7.x" was. Bump this only if another 1.7.x ships after the 2.0 cut —
-  # naming an earlier 1.7.x stays correct advice either way, since every 1.7.x
-  # carries the whole pre-squash chain.
-  @bridge_version "2.x"
+  # The bridge a below-floor host must install first: 2.65.0, the last 2.x
+  # release, which is at V225 and still carries the module DDL that core 3.0
+  # removed. (2.65.0 in turn sends a host below V135 to 1.7.236, the last 1.7.x,
+  # so an old install walks 1.7.236 -> 2.65.0 -> 3.0.) A later 2.x patch stays
+  # correct advice, since every 2.x from 2.65.0 on is at V225.
+  @bridge_version "2.65.0"
 
   @doc """
   The release an below-floor host must install before this one.

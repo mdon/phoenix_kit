@@ -123,12 +123,7 @@ defmodule PhoenixKit.MailerTest do
   alias PhoenixKit.Mailer
   alias PhoenixKit.MailerTest.FakeBrevoApiClient
   alias PhoenixKit.MailerTest.TrackingProvider
-  alias PhoenixKit.Notifications.Channels.Email, as: EmailChannel
   alias PhoenixKit.Settings
-  alias PhoenixKit.Users.Auth
-  alias PhoenixKit.Users.Auth.User
-  alias PhoenixKit.Users.Auth.UserNotifier
-  alias Swoosh.Adapters.Local.Storage.Memory
 
   describe "swoosh_config_for/1" do
     test "aws_ses credentials build an AmazonSES adapter config" do

@@ -705,7 +705,6 @@ if Code.ensure_loaded?(Igniter.Mix.Task) do
       Igniter.add_warning(igniter, notice)
     end
 
-    defp bridge_name("2.x"), do: "the last PhoenixKit 2.x release"
     defp bridge_name(version), do: "PhoenixKit #{version}"
 
     defp add_already_up_to_date_notice(igniter, current_version) do
