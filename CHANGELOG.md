@@ -59,7 +59,7 @@ core's tables from `mix phoenix_kit.update`, then each installed module's from t
   (`--record-full` / `--compare-full`), prove that core plus the 25 chains rebuild the same schema.
 
 
-## 2.65.0 - 2026-10-30
+## 2.65.0 - 2026-10-27
 
 **The last 2.x release.** Core 3.0 stops creating the tables of the optional modules (each module's own migration chain creates
 its tables) and strips that DDL from its migration modules, so it can only upgrade a database that is already at **V225**.
