@@ -1,3 +1,14 @@
+## 3.0.1 - 2026-10-27
+
+### Changed
+
+- Update WebSock adapter to 0.7.0 after upgrading to core 3.0.
+
+### Fixed
+
+- Preserve the personal-storage variant publication fix on core 3.0: new variants are checked in
+  the buckets that accepted the write, including owned buckets outside the shared pool.
+
 ## 3.0.0 - 2026-10-27
 
 **Core no longer creates the tables of the optional modules, and the database layer for email templates is gone.** An
