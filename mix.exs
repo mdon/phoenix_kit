@@ -485,6 +485,7 @@ defmodule PhoenixKit.MixProject do
       main: "PhoenixKit",
       extras: [
         "README.md",
+        "guides/upgrading-to-3.0.md",
         "guides/integration.md",
         "guides/oauth-and-magic-link-setup.md",
         "guides/aws-email-setup.md",

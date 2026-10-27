@@ -50,10 +50,20 @@ defmodule PhoenixKit.Test.ModuleFixtureTables do
     """
   }
 
-  @doc "Creates the named tables in the current (sandbox) transaction."
+  @doc """
+  Creates the named tables in the current (sandbox) transaction.
+
+  A database upgraded from 2.x already has the real table; it is dropped here
+  and the minimal one made in its place. All of it is DDL inside the sandbox
+  transaction, so the rollback puts the real table back.
+  """
   @spec create!([atom()]) :: :ok
   def create!(names) do
-    for name <- names, do: Repo.query!(Map.fetch!(@ddl, name))
+    for name <- names do
+      Repo.query!("DROP TABLE IF EXISTS phoenix_kit_#{name} CASCADE")
+      Repo.query!(Map.fetch!(@ddl, name))
+    end
+
     :ok
   end
 end

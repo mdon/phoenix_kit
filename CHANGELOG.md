@@ -45,6 +45,12 @@ core's tables from `mix phoenix_kit.update`, then each installed module's from t
 - **An existing install must be at V225 (the last 2.x) before it upgrades.** Below that, `mix phoenix_kit.update` and
   `PhoenixKit.Migrations.up/1` raise `BelowFloorError` naming the last 2.x release as the bridge
   (`Postgres.minimum_version/0`). Fresh installs and installs at V225 are unaffected: no schema change.
+- **V163 and V176 touch core's own tables only.** They used to repair every broken `phoenix_kit_*` table and validate a
+  shared list of constraints that included module tables, so installing core 3.0 over module tables that already existed
+  could rewrite a column, delete duplicate rows (V163) or validate a constraint (V176) in a module's table. Both are
+  filtered to `ModuleOwnedTables.owner/1 == :core`; `mix phoenix_kit.repair_uuid` stays the explicit tool for the rest.
+  A database at V225 (every real 2.x upgrade) never ran either again.
+- New [Upgrading to PhoenixKit 3.0](guides/upgrading-to-3.0.md) guide; the README install and upgrade sections now start at 3.0.
 - Legacy tables core created and later dropped (`phoenix_kit_ai_accounts`, `phoenix_kit_newsletters_lists`,
   `phoenix_kit_newsletters_list_members`) are no longer created at all.
 - `phoenix_kit_doc_documents.project_uuid` gets its foreign key to `phoenix_kit_projects` only where that table

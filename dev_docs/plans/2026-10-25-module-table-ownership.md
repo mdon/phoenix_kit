@@ -501,7 +501,7 @@ release whose core pin admits 3.0.
 - **Order**, as in `dev_docs/2026-08-10-phoenix-kit-2.0-ecosystem-sweep.md` (workspace): core 3.0 first, then
   `phoenix_kit_ai`, then by sibling dependency (staff and entities before projects, billing before ecommerce,
   comments before its dependents), then the rest in any order. Raise sibling pins in the same commits as the core pin.
-- **Core 3.0's own release notes** say: be at V224 (the last 2.x) first; then upgrade core and every module together.
+- **Core 3.0's own release notes** say: be at V225 (the last 2.x, 2.65.0) first; then upgrade core and every module together.
 - Release day is the weekly one; nothing here ships before the user asks.
 
 #### Step 10, discovery (2026-10-27)
