@@ -703,3 +703,7 @@ callers (`Mailer`, `UserNotifier`, the notification email channel), `Catalog`'s 
 and badge. Tests that stubbed a DB provider were removed or rewritten (welcome-email build failures are now injected with a
 non-path template root; the exit/throw variants of that test went with the provider). Core tests: 1796 in the email,
 mailer, users, notifications and settings areas, 0 failures. The Emails half and the editor follow.
+
+`phoenix_kit_email_templates` is no longer in `ModuleOwnedTables`: no chain creates it any more (core's V135 does not,
+Emails' V1 does not adopt it). Hosts that have it keep it untouched; dropping it is a step 9 per-table decision after the
+export has been run.

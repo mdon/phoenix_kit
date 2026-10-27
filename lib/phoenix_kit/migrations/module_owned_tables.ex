@@ -129,7 +129,6 @@ defmodule PhoenixKit.Migrations.ModuleOwnedTables do
       phoenix_kit_email_logs
       phoenix_kit_email_metrics
       phoenix_kit_email_orphaned_events
-      phoenix_kit_email_templates
     ),
     phoenix_kit_entities: ~w(
       phoenix_kit_entities
