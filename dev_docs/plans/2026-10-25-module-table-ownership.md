@@ -719,3 +719,24 @@ export has been run.
 - **Open at release prep:** Emails now works only on core 3.0, so its core floor must become `>= 3.0.0` (it is still 2.65.0 in
   mix.exs, which would let a 2.x host resolve a combination that breaks); old log rows keep a "Database template" badge; the
   test email can no longer be overridden by a file.
+
+#### Release order and version bumps (prepared 2026-10-27, committed in each module repo, not pushed)
+
+Every module except `phoenix_kit_bookings` (Max's rework), the `phoenix_kit_templates` stub and `phoenix_kit_photos` (never
+released; stays 0.1.0) has a "Bump version to X" commit: the next minor, `## Unreleased` renamed to `## X - 2026-11-13`
+(a placeholder date; change it to the real release day), `version/0` and version tests updated, and the sibling pins moved to
+the first release that carries that sibling's own chain (`~> 0.27` for ai, `~> 0.24` billing, `~> 0.5` comments, `~> 0.7`
+entities, `~> 0.8` locations, `~> 0.11` staff, `~> 0.50` catalogue, `~> 0.15` publishing, `~> 0.18` crm, `~> 0.7` emails,
+`~> 0.32` projects, `~> 0.7` warehouse). Until a sibling is on Hex, `mix deps.get` in a module that pins it fails; locally set
+`PHOENIX_KIT_<APP>_PATH`. A module whose sibling dependency is a plain tuple (publishing and posts → comments, legal →
+publishing, newsletters → crm) cannot resolve locally at all until that sibling is published.
+
+Release order (each tier after the previous one is on Hex):
+0. **core 2.65.0**, then **core 3.0.0**.
+1. no module dependencies: comments, ai, billing, entities, locations, emails (needs core 3.0), db, boards, stats, hello_world,
+   web_analytics, customer_support, dashboards, referrals, open_graph, user_connections, sync, templates_editor.
+2. staff, crm, posts (comments); publishing, agent (ai); catalogue (ai, entities); manufacturing (comments, entities, locations).
+3. projects (ai, staff, comments, entities); legal (publishing); warehouse (billing, ai, catalogue, comments, locations);
+   then ecommerce (billing; warehouse optional) and the modules whose test-only siblings are now published: calendar,
+   inbox, newsletters, document_creator.
+Tags: `v`-prefixed for the repos AGENTS.md lists (and boards, agent, projects...), bare otherwise; check `git tag --sort=-creatordate`.
