@@ -6,6 +6,24 @@ existing install must be at **V225** (the last 2.x release, 2.65.0) before it up
 to files first (`mix phoenix_kit_emails.templates.export`). Modules need their own releases that accept core 3.x (the
 pin `>= <floor> and < 4.0.0`); release core's 2.65.0, then 3.0.0, then the modules.
 
+### Breaking (3.0): the deprecated shop names of the machine API are gone
+
+The deprecation window of the module-neutral machine API closes: `PhoenixKit.API.Legacy` and everything that read it are removed.
+
+- **Paths.** `/api/shop/v1` and `/mcp/shop` are no longer served (use `/api/public/v1` and `/mcp/public`). With them go the
+  `Deprecation` / `Link: rel="successor-version"` headers and the `:deprecated` option of the API plugs; `Paths.entries/0` is now
+  `{segments, audience, cors?}`.
+- **Settings.** The old rate-limit keys `api_public_cart_rate_per_min`, `api_public_cart_rows_per_ip_hour` and
+  `api_public_cart_rows_global_hour` are no longer read as a fallback; only `api_public_token_rate_per_min`,
+  `api_public_new_rows_per_ip_hour` and `api_public_new_rows_global_hour` count. The old rows are left in place, not migrated; the
+  first Settings -> API save writes the new keys. `Config.int/3` and `Config.rate_limits_without_fallback/0` are removed.
+- **Client token.** A public tool must declare `client_token:`; a `cart_token` input property is no longer read as one.
+- **Error codes.** `cart_not_found`, `cart_locked`, `unsupported_source` and `insufficient_stock` are no longer answered by core;
+  they exist only where an enabled module declares them in `api_problems/0` (otherwise they are an unknown code: a 500).
+- **Credentials.** `claim_url`, `checkout_url` and the `/checkout/claim/` marker are no longer treated as credentials by the
+  idempotency store or the approvals; a tool declares its secret outputs with `credentials:` (names ending in `_token` stay core's rule).
+- **`PhoenixKit.API.RateLimit.check_cart_rows/1`** is removed; call `check_new_rows/1`.
+
 ### Breaking (3.0): email templates no longer come from the database
 
 `PhoenixKit.Email.Content` resolves a message from a host override file, then core's (or a module's) shipped default.
