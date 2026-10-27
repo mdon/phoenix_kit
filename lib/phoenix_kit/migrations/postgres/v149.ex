@@ -32,7 +32,7 @@ defmodule PhoenixKit.Migrations.Postgres.V149 do
   that module's own migration chain (`PhoenixKit.Migrations.ModuleOwnedTables`,
   plan `dev_docs/plans/2026-10-25-module-table-ownership.md`, step 8): core no
   longer creates or changes them. The version is kept so the chain stays
-  numbered; it only moves the marker. Hosts below V224 cannot upgrade to this
+  numbered; it only moves the marker. Hosts below V225 cannot upgrade to this
   release (`BelowFloorError`), so nobody replays what the text above describes.
   """
 
