@@ -468,7 +468,7 @@ squashed baseline. V225 is the last 2.x migration (the short-code column); the g
   test, the v167/V171/user-connections integration tests, the module halves of V135/V152/V164 tests); the storage
   orphan tests build the few module tables they read inside the test transaction
   (`test/support/module_fixture_tables.ex`). Full suite on a rebuilt database: 12,933 tests, 29 failures, of which
-  27 also fail on `origin/main` (the bucket-create `varchar(255)` truncation in `ManagedLibraryTest`/`LinkCopyTest`,
+  23 of them also fail on `origin/main` (30 do there) (the bucket-create `varchar(255)` truncation in `ManagedLibraryTest`/`LinkCopyTest`, 26 + 4 there,
   from c5bef85bf, not this branch) and one is a flaky LiveView test that passes alone; the other five were rewritten
   and pass. `mix dialyzer` clean; `mix credo --strict` has two suggestions, both in c5bef85bf's storage code.
 - *Left for the merge into `main` / the 3.0 release:* bump to 3.0.0, replace `@bridge_version "2.x"` with the real
