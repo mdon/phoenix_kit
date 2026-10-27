@@ -127,6 +127,7 @@ defmodule PhoenixKit.Modules.Storage do
   alias PhoenixKit.Modules.Storage.Reconciler
   alias PhoenixKit.Modules.Storage.RemoteFetch
   alias PhoenixKit.Modules.Storage.Shape
+  alias PhoenixKit.Modules.Storage.ShortCode
   alias PhoenixKit.Modules.Storage.Sniff
   alias PhoenixKit.Modules.Storage.StorageProfile
   # NOTE: Temporary helper for Publishing component system.
@@ -3510,7 +3511,7 @@ defmodule PhoenixKit.Modules.Storage do
   """
   @spec get_file_by_short_code(term()) :: PhoenixKit.Modules.Storage.File.t() | nil
   def get_file_by_short_code(code) do
-    if PhoenixKit.Modules.Storage.ShortCode.valid?(code),
+    if ShortCode.valid?(code),
       do: repo().get_by(PhoenixKit.Modules.Storage.File, short_code: code)
   end
 
