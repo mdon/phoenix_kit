@@ -74,6 +74,15 @@
   repaired by core; the module's own chain puts it back on `mix phoenix_kit.update`. Nothing is created, changed or
   dropped in any database, and core's migrations still create the module tables on a fresh install.
 
+## 2.64.2 - 2026-10-27
+
+### Fixed
+
+- **Thumbnails in personal storage buckets.** Variant publication checks the buckets that accepted the
+  write before location rows exist, including user-owned buckets outside the site's shared pool.
+  Explicit bucket reads resolve enabled buckets by UUID, so newly generated previews are no longer
+  rejected as `object_missing`.
+
 ## 2.64.1 - 2026-10-24
 
 **No migration** (still V223). Ships PR #982's avatar crop editor fix.
