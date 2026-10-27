@@ -707,3 +707,15 @@ mailer, users, notifications and settings areas, 0 failures. The Emails half and
 `phoenix_kit_email_templates` is no longer in `ModuleOwnedTables`: no chain creates it any more (core's V135 does not,
 Emails' V1 does not adopt it). Hosts that have it keep it untouched; dropping it is a step 9 per-table decision after the
 export has been run.
+
+#### Email templates leave the database, Emails and editor halves (2026-10-27, committed locally, not pushed)
+
+- **Emails:** admin pages and tabs, row CRUD, seeding, the Provider template callbacks and the "db" layer of
+  `TemplateSources` are gone; `Templates` keeps `send_email/4` (billing calls it) and a few helpers; `Template` is a read-only
+  struct for the export. `TemplateExport` and the mix task stay as the upgrade path and tolerate an absent table;
+  `TemplateExport.active_template/1` serves the editor. Chain: V1 no longer adopts the table, V3's html rewrite is guarded by
+  `to_regclass`; manifest regenerated (11 tables). Suite against core-3.0: 1682 tests, 0 failures besides the pin test.
+- **templates_editor:** reads the legacy row through `active_template/1`; the "a database template is what is sent" notice is gone.
+- **Open at release prep:** Emails now works only on core 3.0, so its core floor must become `>= 3.0.0` (it is still 2.65.0 in
+  mix.exs, which would let a 2.x host resolve a combination that breaks); old log rows keep a "Database template" badge; the
+  test email can no longer be overridden by a file.
