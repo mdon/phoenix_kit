@@ -1035,6 +1035,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   use Ecto.Migration
 
   alias PhoenixKit.Migrations.BelowFloorError
+  alias PhoenixKit.Migrations.ModuleOwnedTables
   alias PhoenixKit.Migrations.Postgres.Helpers
   alias PhoenixKit.Migrations.Repair.Environment
 
@@ -1106,7 +1107,7 @@ defmodule PhoenixKit.Migrations.Postgres do
           WHERE schemaname = $1 AND tablename = ANY($2)
         )
         """,
-        [opts.prefix, PhoenixKit.Migrations.ModuleOwnedTables.module_tables()],
+        [opts.prefix, ModuleOwnedTables.module_tables()],
         log: false
       )
 
@@ -1251,7 +1252,7 @@ defmodule PhoenixKit.Migrations.Postgres do
           initial :: non_neg_integer(),
           target :: integer(),
           initial_version :: pos_integer(),
-          minimum :: pos_integer()
+          minimum :: pos_integer() | nil
         ) :: up_plan()
   def plan_up(initial, target, initial_version, minimum \\ nil) do
     minimum = minimum || initial_version

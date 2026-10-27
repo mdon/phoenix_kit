@@ -128,9 +128,10 @@ new protocol.
 | 4 | Complete the chains of ai (3 tables) and document_creator (7 tables) | 2 modules **Done** 2026-10-25 — document_creator `f67f163`, ai `c118542` (unreleased) |
 | 5 | The step-2 test in every adopted module; fix what it finds | 17 modules | In progress — billing (`3fa1164`) and ecommerce (`54061bd`) done 2026-10-25; **Done 2026-10-25**: billing, ecommerce, emails, and the builds-alone test in the other 14 |
 | 6 | Core's manifest hands every module-owned entry over | core | Not started |
-| 7 | Manifest generator (frozen pre-squash part + generated rest, compact, in `priv/`); move core's hard-coded module-table lists to module callbacks | core | Not started |
-| 8 | Core stops creating module tables on fresh installs | core | Not started — approach to decide |
+| 7 | Manifest generator (frozen pre-squash part + generated rest, compact, in `priv/`); move core's hard-coded module-table lists to module callbacks | core | **Done** 2026-10-26 (7a `file_references/0`, 7b per-module manifests; unreleased) |
+| 8 | Core stops creating module tables on fresh installs | core | **In progress** 2026-10-27 — decided: core 3.0, strip the DDL in place, installs must be at V225 first; on branch `core-3.0` (not yet merged or pushed) |
 | 9 | Dead tables (`crm_user_role_view`, `email_metrics`, `email_orphaned_events`) | crm, emails | Not started — per-table decision |
+| 10 | Ecosystem sweep for core 3.0: widen every package's core pin, release in order | core + all modules | Not started — after step 8 |
 
 ### Step 1 — ownership map and guard (done)
 
@@ -438,12 +439,70 @@ Decision: **(a) at core 3.0** (made 2026-10-26). First part, shippable on its ow
   dependency order rebuilds the identical schema.**
 - *Core to module FKs:* none. No core table references a module-owned table.
 
+#### Step 8, done on branch `core-3.0` (2026-10-27)
+
+Decision (2026-10-27): **strip the module DDL in place and require V225 first**, over guarding the deltas or a new
+squashed baseline. V225 is the last 2.x migration (the short-code column); the gate follows whatever the last 2.x is.
+
+- *Why in place is safe.* V135 only ever runs on a fresh install, and V136..V225 run on a fresh install or on an
+  install that stepped up one version at a time. With the gate, no install replays them on module tables that
+  already exist, so nothing has to be preserved for a mid-chain host.
+- *What changed.* V135: 792 module statements removed from `up/1`, 106 module `DROP TABLE`s from `down/1`, plus three
+  legacy tables core created and later dropped (`phoenix_kit_ai_accounts`, `phoenix_kit_newsletters_lists`,
+  `phoenix_kit_newsletters_list_members`), which are no longer created at all. 34 deltas that only did module DDL
+  (V136–V141, V144–V146, V148, V149, V151, V154–V156, V158, V159, V162, V164, V166–V169, V171, V173, V177–V180, V186,
+  V188, V193, V218, V223) are stubs: their moduledoc stays as history, `up/1`/`down/1` only move the version marker.
+  V152 and V185 keep their core parts (send profiles; `activities.permanent`). V164 was a repair pass over drift on
+  existing hosts, so it is a stub too.
+- *The gate.* `Postgres.minimum_version/0` (225) next to `initial_version/0` (135, the fresh-install baseline).
+  `plan_up/4` raises `BelowFloorError` below it, naming "the last 2.x release" as the bridge; `phoenix_kit.update`
+  refuses at generation time. A fresh 3.0 install that stopped part-way resumes (the check only raises when the
+  database holds a module table, which only a 2.x chain creates).
+- *Proof.* `rehearse_module_chains.exs --record-full` on `main`, `--compare-full` on the branch: core's new chain
+  plus the 25 chains in dependency order gives the **same whole schema** (tables, columns, indexes, constraints,
+  functions, seeds, triggers; CHECK spellings and clock-stamped seeds normalised). The one difference is the
+  guarded `doc_documents.project_uuid` foreign key (the document creator does not depend on projects).
+  `check_all/3` also passes; name order fails (control). `ModuleOwnedTables.last_core_version_touching_module_tables/0`
+  is 0: the guard test fails any core migration that names a module table in code.
+- *Tests.* Tests of module DDL went (V145, V155, V156, V158, V162, V186, V193, V218, V223 and the V164 relaxed-columns
+  test, the v167/V171/user-connections integration tests, the module halves of V135/V152/V164 tests); the storage
+  orphan tests build the few module tables they read inside the test transaction
+  (`test/support/module_fixture_tables.ex`). Full suite on a rebuilt database: 12,933 tests, 29 failures, of which
+  27 also fail on `origin/main` (the bucket-create `varchar(255)` truncation in `ManagedLibraryTest`/`LinkCopyTest`,
+  from c5bef85bf, not this branch) and one is a flaky LiveView test that passes alone; the other five were rewritten
+  and pass. `mix dialyzer` clean; `mix credo --strict` has two suggestions, both in c5bef85bf's storage code.
+- *Left for the merge into `main` / the 3.0 release:* bump to 3.0.0, replace `@bridge_version "2.x"` with the real
+  last 2.x, the `builtin_file_references` decision (kept for now: it is guarded by table existence), and the
+  `main` copy of this plan (step 10 was added there, uncommitted).
+
 ### Step 9 — dead tables
 
 `phoenix_kit_crm_user_role_view` (CRM copied it into core's view preferences,
 V7), `phoenix_kit_email_metrics` and `phoenix_kit_email_orphaned_events` (no
 reader). Dropping deletes data: an explicit decision per table, done in the
 owning module's chain, never core's.
+
+### Step 10 — ecosystem sweep for core 3.0
+
+Core is the only package that goes to 3.0. Modules keep their own version lines (most are 0.x): a module's version
+describes its own API, and nothing in a module breaks. What every package that depends on core needs is a minor
+release whose core pin admits 3.0.
+
+- **The pin.** A compound floor (`>= 2.64.0 and < 3.0.0`) becomes `< 4.0.0`; a `~> 2.0` becomes `>= 2.0 and < 4.0`
+  (a two-segment `~> 2.0` cannot resolve 3.0). The range keeps admitting 2.x wherever the module works on both, and
+  the 25 owner modules do (their chains adopt tables core already made). Never a three-segment pin.
+- **Why the ceiling is the safety net.** A host cannot resolve core 3.0 with a module release that predates its own
+  chain or `file_references/0`, because that release is pinned `< 3.0.0`. So the pin guarantees a chain exists
+  wherever 3.0 runs, which is also what lets core drop `builtin_file_references` (open decision, step 7b).
+- **Who.** All 25 owner modules, and the packages that depend on core but own no core-created table (boards,
+  inbox, stats, web_analytics, db, hello_world, agent, bookings once Max's rework lands). `@impl` is added to every
+  module's `file_references/0` and `expected_schema/0` in the same release, since the core floor now has the
+  callbacks.
+- **Order**, as in `dev_docs/2026-08-10-phoenix-kit-2.0-ecosystem-sweep.md` (workspace): core 3.0 first, then
+  `phoenix_kit_ai`, then by sibling dependency (staff and entities before projects, billing before ecommerce,
+  comments before its dependents), then the rest in any order. Raise sibling pins in the same commits as the core pin.
+- **Core 3.0's own release notes** say: be at V224 (the last 2.x) first; then upgrade core and every module together.
+- Release day is the weekly one; nothing here ships before the user asks.
 
 ## Decisions
 

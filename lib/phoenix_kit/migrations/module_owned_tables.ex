@@ -301,6 +301,6 @@ defmodule PhoenixKit.Migrations.ModuleOwnedTables do
   def tables_for(app) when is_atom(app), do: Keyword.get(@owners, app, [])
 
   @doc "The last core migration version allowed to create or change a module's table."
-  @spec last_core_version_touching_module_tables() :: pos_integer()
+  @spec last_core_version_touching_module_tables() :: non_neg_integer()
   def last_core_version_touching_module_tables, do: @last_core_version_touching_module_tables
 end
