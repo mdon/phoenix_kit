@@ -658,3 +658,23 @@ shipped defaults from core and modules (`PhoenixKit.Email.Catalog`). The databas
   in `overriding.ex` (to warn that a row hides a file) and loses that check.
 - *Order:* Emails 3.x drops the pages and schema first while core still accepts a provider returning rows; then core drops
   the layer at 3.0. Behavioural break: a host that edited templates in the admin UI must run the export before upgrading.
+
+#### Step 10, test cleanup (2026-10-27)
+
+Status in the module working trees (all uncommitted), full suite against core 3.0 on a fresh database:
+- **Green:** sync, calendar, billing, customer_support, dashboards, manufacturing, open_graph, posts, publishing,
+  warehouse, catalogue, comments, locations, referrals. Not yet re-run after the manifest-test removal: staff,
+  user_connections, entities, legal (their remaining failures below).
+- **Obsolete "core audits the tables" tests removed** (the module's own manifest and builds-alone tests cover them) in
+  billing, calendar, catalogue, comments, customer_support, dashboards, emails, entities, legal, locations,
+  manufacturing, newsletters, open_graph, posts (its shape-identity file is deleted), publishing, referrals,
+  staff, sync, user_connections, warehouse; the helpers and attributes only they used went with them.
+- **Sibling chains** run in `test_helper.exs` (real chains, dependency order) in catalogue, publishing, warehouse,
+  manufacturing, newsletters, projects, calendar, inbox; projects' two builds-alone tests pass the new
+  `ModuleChainCheck.check/3` and `build_alone/4` option `after: [chains]` (core `core-3.0`).
+- **Remaining, not 3.0:** `core_pin_conformance_test` fails in every module until its pin is widened (the next sub-step) and
+  under the harness' path swap; staff `header_trail_test` (6), projects `portal_live_test`/`project_calendar_live_test`
+  (2) and inbox `short_code` (4) fail identically on `origin/main`; legal `data_collection_test` and entities
+  `schema_owner_guard_wiring_test` (own-database harness limit) are unverified.
+- **Not yet looked at beyond discovery:** agent, photos, ecommerce (3493 excluded), crm, newsletters/emails integration
+  exclusions.
