@@ -609,3 +609,24 @@ entities 2, newsletters 2, open_graph 2, dashboards 1, legal 1.
 (and ai's five newer tables).
 
 The full table-by-table list is `PhoenixKit.Migrations.ModuleOwnedTables`.
+
+#### Step 10, progress (2026-10-27)
+
+Decision: tests get a sibling's tables by running the sibling's real chain in `test_helper.exs`, with the sibling as a
+`only: :test` dependency (`pk_dep/3` honours `<APP>_PATH`). Pins on unpublished sibling versions resolve only once those
+minors are on Hex (`staff ~> 0.11`, `locations ~> 0.8`, `emails ~> 0.7`, `crm ~> 0.18`); until then use the `_PATH` variables.
+
+Done in the working trees (uncommitted in the module repos):
+- **sync** (2201 tests, 0 failures): the sample table is core's `phoenix_kit_media_folders`; the array-column test builds its own table;
+  the obsolete core-manifest test is removed.
+- **calendar** (160, 0): staff, locations and crm chains run in `test_helper`; its external-items test uses its own source key
+  because the real CRM source is now discovered; obsolete core-manifest test removed.
+- **inbox** (844; 4 failures that are also on `origin/main`'s V225 `short_code` unique index, not 3.0): the emails chain runs in
+  `test_helper`.
+- **emails**: `migrate_legacy/0` seeds the system templates into an empty table (core's V135 used to).
+- **core-3.0 fix**: V135 seeded email templates through the Emails module whenever it was on the code path; with the table gone the
+  query aborted the migration transaction. The seeders and their manifest seed entry are removed.
+
+Still obsolete "core audits the tables" tests to remove (same cut as sync/calendar): catalogue, comments, locations,
+referrals, staff, user_connections (and the ones found in discovery: customer_support, warehouse, manufacturing, newsletters,
+open_graph, projects).
