@@ -793,7 +793,9 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   defp private_condition do
     dynamic(
       [l],
-      l.visibility == "private" or not is_nil(l.trashed_at) or
+      l.visibility == "private" or
+        fragment("(?->>'public_audience') = 'authenticated'", l.settings) or
+        not is_nil(l.trashed_at) or
         fragment("(?->>'suspended') = 'true'", l.settings)
     )
   end
@@ -1248,7 +1250,9 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
     end
   end
 
-  def can?(nil, %{} = file, :read), do: public?(Map.get(file, :library_uuid))
+  def can?(nil, %{} = file, :read),
+    do: audience_allows?(nil, get_library(Map.get(file, :library_uuid)))
+
   def can?(_scope, _file, _action), do: false
 
   defp library_grants?(scope, library_uuid, action) do
@@ -1270,7 +1274,10 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
 
   defp grants?(scope, %Library{kind: "user", trashed_at: nil} = library, action) do
     role = role(library, Scope.user_uuid(scope))
-    if action == :read, do: role != nil or public?(library), else: role in [:owner, :manager]
+
+    if action == :read,
+      do: role != nil or audience_allows?(scope, library),
+      else: role in [:owner, :manager]
   end
 
   defp grants?(_scope, _library, _action), do: false
@@ -2045,8 +2052,7 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   # ===== Public user libraries =====
 
   @doc """
-  Whether a library is **public**: a user library whose owner made it so when they
-  created it (`visibility: "site"`), not in the trash and not suspended. Anyone,
+  Whether a library is **public without sign-in**: a user library published for anonymous readers (`visibility: "site"`), not in the trash and not suspended. Anyone,
   signed in or not, may read what is in it (`can?/3` with `:read`,
   `can_read_library?/2`). Media is the site's own library, not a public one in this
   sense: its files have ordinary links but only their uploader and the admins may
@@ -2055,15 +2061,33 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   Takes a library or a uuid.
   """
   @spec public?(Library.t() | term()) :: boolean()
-  def public?(%Library{kind: "user", visibility: "site", trashed_at: nil} = library),
+  def public?(%Library{} = library),
+    do: published?(library) and library.settings["public_audience"] != "authenticated"
+
+  def public?(nil), do: false
+  def public?(uuid), do: public?(get_library(uuid))
+
+  @doc "Whether a user library is published, for anonymous or signed-in readers."
+  def published?(%Library{kind: "user", visibility: "site", trashed_at: nil} = library),
     do: not suspended?(library)
 
-  def public?(%Library{}), do: false
-  def public?(nil), do: false
+  def published?(%Library{}), do: false
+  def published?(nil), do: false
+  def published?(uuid), do: published?(get_library(uuid))
 
-  def public?(uuid) do
-    if media?(uuid), do: false, else: public?(get_library(uuid))
+  @doc "Whether a published library admits this visitor, including its signed-in-only audience."
+  def audience_allows?(scope, %Library{} = library) do
+    published?(library) and
+      (library.settings["public_audience"] != "authenticated" or authenticated_reader?(scope))
   end
+
+  def audience_allows?(_scope, _library), do: false
+
+  @doc false
+  def authenticated_reader?(%Scope{user: %{uuid: uuid, is_active: true}}) when is_binary(uuid),
+    do: true
+
+  def authenticated_reader?(_scope), do: false
 
   @doc "Whether an admin has suspended a (public) library: it then answers as private."
   @spec suspended?(Library.t() | nil) :: boolean()
@@ -2091,8 +2115,8 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   def can_read_library?(_scope, nil), do: false
 
   def can_read_library?(scope, %Library{} = library) do
-    public?(library) or
-      (match?(%Scope{}, scope) and
+    (is_nil(library.trashed_at) and audience_allows?(scope, library)) or
+      (is_nil(library.trashed_at) and match?(%Scope{}, scope) and
          (Scope.system_role?(scope) or role(library, Scope.user_uuid(scope)) != nil))
   end
 

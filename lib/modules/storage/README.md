@@ -1062,7 +1062,16 @@ owner makes it **public** when creating it (below), and its members are `manager
 - **Public libraries:** a holder of `"storage.public_library"` (nobody, until the site
   grants it) may create a library with `"visibility" => "public"`
   (`Libraries.create_user_library/3`; stored as `visibility: "site"`). It is chosen once,
-  at creation, and cannot be changed; writing it to the history (`storage.library_published`).
+  at creation. Its owner or a site administrator can subsequently change access through
+  `Libraries.Preferences.update/3`: private (owner and invited members), authenticated
+  (any active signed-in account), or anonymous (anyone). Changing access or the slug requires
+  explicit confirmation. Access changes rotate time-window file/tile tokens; direct bucket
+  links and copies already cached or downloaded cannot be recalled. Authenticated-only
+  files require the session on every request, are proxied, and are never cached.
+  The profile and admin library lists share `LibraryPreferences`; hosts contribute module
+  sections through `config :phoenix_kit, :library_settings_components`.
+  Creation is written to the history (`storage.library_published`); updates use
+  `storage.library.settings_changed`.
   **Anyone, signed in or not, may read what is in it**: `Libraries.can?(scope_or_nil, file,
   :read)` and `Libraries.can_read_library?/2` say yes, and every feature built on a library
   asks them, never its own check. Editing stays with the owner and managers. Its files get

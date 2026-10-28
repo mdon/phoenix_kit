@@ -25,7 +25,6 @@ defmodule PhoenixKitWeb.Live.Users.ProfileSettings do
   """
   use PhoenixKitWeb, :live_view
 
-  alias PhoenixKit.Modules.Storage.Libraries
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Utils.Routes

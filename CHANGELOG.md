@@ -1,3 +1,15 @@
+## 3.1.0 - 2026-10-27
+
+### Added
+
+- Library access can switch between invited members, all signed-in accounts, and anonymous
+  visitors. Owner/admin updates require explicit confirmation and are recorded in the activity
+  history. Access transitions invalidate existing app time-window links; sign-in-only files
+  require a session, stay on the same origin and use no-store responses.
+- Shared library settings workspace in profile and admin lists: editable names and slugs,
+  audience warnings, members, storage/renditions and host-registered module settings sections.
+  Previous slugs are kept for hosts that support address redirects.
+
 ## 3.0.1 - 2026-10-27
 
 ### Changed

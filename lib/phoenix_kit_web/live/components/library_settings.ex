@@ -37,8 +37,11 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
   alias PhoenixKit.Modules.Storage.{Libraries, Library, LibraryMember, Profiles, VariantSets}
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKitWeb.Live.Components.LibraryPreferences
 
   @impl true
+  def update(%{reload_preferences: true}, socket), do: {:ok, load(socket)}
+
   def update(assigns, socket) do
     socket =
       socket
@@ -119,6 +122,7 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
     do: Enum.find(socket.assigns.owned ++ socket.assigns.shared, &(&1.library.uuid == uuid))
 
   # Who may open which dialog: the owner all of them, a manager rename and members.
+  defp dialog_allowed?("settings", role), do: role in [:owner, :manager]
   defp dialog_allowed?("rename", role), do: Libraries.allows?(role, :rename)
   defp dialog_allowed?("members", role), do: Libraries.allows?(role, :members)
   defp dialog_allowed?("sizes", role), do: role == :owner
@@ -866,6 +870,10 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
                     {gettext("Default")}
                   </span>
                 </div>
+                <.link
+                  href={LibraryPreferences.library_url(library, @scope)}
+                  class="relative z-10 mt-1 block max-w-sm break-all text-xs text-base-content/60 hover:underline"
+                >{LibraryPreferences.library_url(library, @scope)}</.link>
               </.table_default_cell>
               <.table_default_cell>
                 <span
@@ -891,6 +899,14 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
                     navigate={open_href(@scope, library)}
                     icon="hero-photo"
                     label={gettext("Open")}
+                  />
+                  <.table_row_menu_button
+                    phx-click="open_dialog"
+                    phx-target={@myself}
+                    phx-value-kind="settings"
+                    phx-value-uuid={library.uuid}
+                    icon="hero-cog-6-tooth"
+                    label={gettext("Settings")}
                   />
                   <.table_row_menu_button
                     phx-click="open_dialog"
@@ -951,6 +967,10 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
                   <span class="font-medium">{library.name}</span>
                   <span class="badge badge-ghost badge-sm">{role_label(role)}</span>
                 </div>
+                <.link
+                  href={LibraryPreferences.library_url(library, @scope)}
+                  class="relative z-10 mt-1 block max-w-sm break-all text-xs text-base-content/60 hover:underline"
+                >{LibraryPreferences.library_url(library, @scope)}</.link>
               </.table_default_cell>
               <.table_default_cell>
                 <span class="text-sm text-base-content/60">{gettext("Shared with me")}</span>
@@ -964,6 +984,15 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
                     navigate={open_href(@scope, library)}
                     icon="hero-photo"
                     label={gettext("Open")}
+                  />
+                  <.table_row_menu_button
+                    :if={library.uuid in @managed_uuids}
+                    phx-click="open_dialog"
+                    phx-target={@myself}
+                    phx-value-kind="settings"
+                    phx-value-uuid={library.uuid}
+                    icon="hero-cog-6-tooth"
+                    label={gettext("Settings")}
                   />
                   <.table_row_menu_button
                     :if={library.uuid in @managed_uuids}
@@ -1068,6 +1097,30 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
           </.table_default_body>
         </.table_default>
       </div>
+
+      <.modal
+        :if={match?({:settings, _}, @dialog) and @dialog_library}
+        id={"#{@id}-preferences"}
+        show
+        on_close="close_dialog"
+        phx-target={@myself}
+        max_width="3xl"
+      >
+        <:title>{gettext("Library settings")} · {@dialog_library.name}</:title>
+        <.live_component
+          module={PhoenixKitWeb.Live.Components.LibraryPreferences}
+          id={"#{@id}-preferences-#{@dialog_library.uuid}"}
+          library_uuid={@dialog_library.uuid}
+          scope={@scope}
+          management_target={@myself}
+          notify={%{module: __MODULE__, id: @id}}
+        />
+        <:actions>
+          <button type="button" class="btn btn-ghost" phx-click="close_dialog" phx-target={@myself}>{gettext(
+            "Close"
+          )}</button>
+        </:actions>
+      </.modal>
 
       <.create_dialog :if={@dialog == :create} {assigns} />
 
@@ -1199,6 +1252,15 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
     >
       <.icon name="hero-no-symbol" class="w-3 h-3" /> {gettext("Suspended")}
     </span>
+    """
+  end
+
+  defp visibility_badge(
+         %{library: %{visibility: "site", settings: %{"public_audience" => "authenticated"}}} =
+           assigns
+       ) do
+    ~H"""
+    <span class="badge badge-info badge-sm">{gettext("Signed-in users")}</span>
     """
   end
 
