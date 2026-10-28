@@ -8792,6 +8792,62 @@ if (typeof window.Chart === "undefined") {
         return same ? origin || null : null;
       }
 
+      // A selection picked up shows as one: a small pile of its pictures
+      // (the grabbed one on top) and a badge with how many are moving, in
+      // place of the browser's snapshot of the single card under the mouse.
+      function selectionGhost(e, grabbed) {
+        var count = parseInt(self.el.dataset.selectionCount || "0", 10) ||
+          document.querySelectorAll('[data-selected="true"]').length;
+        if (count < 2 || !e.dataTransfer.setDragImage) return;
+        var others = Array.prototype.slice.call(document.querySelectorAll('[data-selected="true"]'))
+          .filter(function(el) { return el !== grabbed; });
+        // Pictures before folders: a pile reads as what is being carried.
+        var pictured = function(el) { return el.querySelector("img") ? 0 : 1; };
+        others.sort(function(a, b) { return pictured(a) - pictured(b); });
+        var pile = [grabbed].concat(others).slice(0, 3);
+        var SIZE = 84;
+        var ghost = document.createElement("div");
+        ghost.style.cssText = "position:fixed;top:-1000px;left:-1000px;width:" + (SIZE + 40) + "px;height:" +
+          (SIZE + 40) + "px;pointer-events:none;z-index:9999;";
+        var tilt = [0, -9, 8];
+        var shift = [[0, 0], [-7, 3], [8, 5]];
+        for (var i = pile.length - 1; i >= 0; i--) {
+          var card = document.createElement("div");
+          card.style.cssText = "position:absolute;left:16px;top:20px;width:" + SIZE + "px;height:" + SIZE + "px;" +
+            "border-radius:12px;overflow:hidden;background:var(--color-base-300, #ddd);" +
+            "border:2px solid var(--color-base-100, #fff);box-shadow:0 6px 16px rgba(0,0,0,0.25);" +
+            "display:flex;align-items:center;justify-content:center;" +
+            "transform:translate(" + shift[i][0] + "px," + shift[i][1] + "px) rotate(" + tilt[i] + "deg);";
+          var src = pile[i].querySelector("img");
+          if (src && (src.currentSrc || src.src)) {
+            var img = document.createElement("img");
+            img.src = src.currentSrc || src.src;
+            img.style.cssText = "width:100%;height:100%;object-fit:cover;";
+            card.appendChild(img);
+          } else {
+            var icon = pile[i].querySelector("svg, [class*='hero-']");
+            if (icon) {
+              var c = icon.cloneNode(true);
+              c.style.width = "48px";
+              c.style.height = "48px";
+              card.appendChild(c);
+            }
+          }
+          ghost.appendChild(card);
+        }
+        var badge = document.createElement("div");
+        badge.textContent = String(count);
+        badge.style.cssText = "position:absolute;right:6px;top:6px;min-width:28px;height:28px;padding:0 8px;" +
+          "box-sizing:border-box;border-radius:14px;background:var(--color-primary, #3b82f6);" +
+          "color:var(--color-primary-content, #fff);font:700 14px/28px system-ui,sans-serif;text-align:center;" +
+          "box-shadow:0 2px 6px rgba(0,0,0,0.3);border:2px solid var(--color-base-100, #fff);";
+        ghost.appendChild(badge);
+        document.body.appendChild(ghost);
+        e.dataTransfer.setDragImage(ghost, 16 + SIZE / 2, 20 + SIZE / 2);
+        // The snapshot is taken now; the element is not needed after.
+        setTimeout(function() { ghost.remove(); }, 0);
+      }
+
       // Make file items draggable
       var files = container.querySelectorAll("[data-draggable-file]");
       files.forEach(function(el) {
@@ -8812,6 +8868,7 @@ if (typeof window.Chart === "undefined") {
           if (el.dataset.selected === "true") {
             e.dataTransfer.setData("application/x-pk-batch", "1");
             self._draggedBatch = true;
+            selectionGhost(e, el);
             setBatchVisuals(true);
           } else {
             el.classList.add("opacity-50");
@@ -8866,6 +8923,7 @@ if (typeof window.Chart === "undefined") {
           if (el.dataset.selected === "true") {
             e.dataTransfer.setData("application/x-pk-batch", "1");
             self._draggedBatch = true;
+            selectionGhost(e, el);
             setBatchVisuals(true);
           } else {
             el.classList.add("opacity-50");

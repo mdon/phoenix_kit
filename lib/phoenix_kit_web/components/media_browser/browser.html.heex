@@ -6,6 +6,9 @@
   id={@id}
   phx-target={@myself}
   phx-hook="MediaDragDrop"
+  data-selection-count={
+    if @select_mode, do: MapSet.size(@selected_files) + MapSet.size(@selected_folders)
+  }
   phx-window-keydown={@select_mode && "exit_select_mode"}
   phx-key="Escape"
   class={@fill_height && "flex flex-col flex-1 min-h-0 w-full"}
