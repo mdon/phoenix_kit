@@ -172,8 +172,11 @@
                  header, toolbar, grid — jumps 15px sideways. Same narrow case
                  as `.drawer-side` in layout_wrapper: an inner scroller, not
                  the root gutter daisyUI owns. --%>
+            <%!-- data-box-area: a press on empty space here draws a box
+                 that selects the cards it touches (MediaDragDrop). --%>
             <div
               class="px-2 pb-2 min-h-0 flex-1 flex flex-col overflow-auto [scrollbar-gutter:stable]"
+              data-box-area={not @readonly}
               id={if @has_buckets, do: "folder-drop-upload"}
               phx-hook={if @has_buckets and not @readonly, do: "FolderDropUpload"}
               phx-target={if @has_buckets, do: @myself}
