@@ -8612,6 +8612,28 @@ if (typeof window.Chart === "undefined") {
       var self = this;
       var container = this.el;
 
+      // The folder a dragged card already sits in: the drop zone around it
+      // (the main area of the folder being shown, or a stack's section).
+      // That zone is not a destination — dropping there leaves everything
+      // where it is — so it neither lights up nor takes the drop, and the
+      // same goes for every other zone naming that folder (its sidebar
+      // node). A batch counts only when all of it shares one home.
+      function originOf(el) {
+        var zone = el.parentElement && el.parentElement.closest("[data-drop-folder]");
+        return zone ? zone.dataset.dropFolder : null;
+      }
+      function dragOrigin(el) {
+        if (el.dataset.selected !== "true") return originOf(el);
+        var origin;
+        var same = true;
+        document.querySelectorAll('[data-selected="true"]').forEach(function(s) {
+          var o = originOf(s);
+          if (origin === undefined) origin = o;
+          else if (o !== origin) same = false;
+        });
+        return same ? origin || null : null;
+      }
+
       // Make file items draggable
       var files = container.querySelectorAll("[data-draggable-file]");
       files.forEach(function(el) {
@@ -8621,6 +8643,7 @@ if (typeof window.Chart === "undefined") {
         el._dragstart = function(e) {
           e.dataTransfer.setData("text/plain", el.dataset.draggableFile);
           e.dataTransfer.effectAllowed = "move";
+          self._dragOrigin = dragOrigin(el);
           // Batch mode: if the dragged item is part of the current
           // selection, the drag moves the WHOLE selection. Marker type
           // `application/x-pk-batch` tells the drop handler to fire the
@@ -8640,6 +8663,7 @@ if (typeof window.Chart === "undefined") {
 
         el.removeEventListener("dragend", el._dragend);
         el._dragend = function() {
+          self._dragOrigin = null;
           if (self._draggedBatch) {
             setBatchVisuals(false);
             self._draggedBatch = false;
@@ -8674,6 +8698,7 @@ if (typeof window.Chart === "undefined") {
           e.dataTransfer.setData("application/x-pk-folder", "1");
           e.dataTransfer.effectAllowed = "move";
           self._draggedFolderUuid = el.dataset.draggableFolder;
+          self._dragOrigin = dragOrigin(el);
           // Batch mode (same logic as the file dragstart above): if
           // the folder is part of the current selection, the drag
           // represents the whole selection. The folder-marker stays
@@ -8694,6 +8719,7 @@ if (typeof window.Chart === "undefined") {
         el.removeEventListener("dragend", el._folderDragend);
         el._folderDragend = function() {
           self._draggedFolderUuid = null;
+          self._dragOrigin = null;
           if (self._draggedBatch) {
             setBatchVisuals(false);
             self._draggedBatch = false;
@@ -8761,6 +8787,15 @@ if (typeof window.Chart === "undefined") {
             // accept indicator. Drop-on-descendant still slips through
             // (we can't detect descendancy in JS without the tree); the
             // server rejects it with `{:error, :cycle}`.
+            return;
+          }
+          // The folder the dragged card is already in (see `originOf`):
+          // no accept indicator, no drop.
+          if (self._dragOrigin && target.dataset.dropFolder === self._dragOrigin) {
+            if (self._activeDropTarget === target) {
+              clearHighlight(target);
+              self._activeDropTarget = null;
+            }
             return;
           }
           e.preventDefault();
@@ -8831,6 +8866,10 @@ if (typeof window.Chart === "undefined") {
           var draggedUuid = e.dataTransfer.getData("text/plain");
           var dropFolderUuid = target.dataset.dropFolder;
           if (!draggedUuid || !dropFolderUuid) return;
+          // Let go over the folder it came from: nothing moves, so nothing
+          // is asked of the server (LiveView's page-wide dragover lets the
+          // drop happen even though this zone declined it).
+          if (self._dragOrigin && dropFolderUuid === self._dragOrigin) return;
 
           var isFolder = e.dataTransfer.types.indexOf("application/x-pk-folder") !== -1;
           var isBatch = e.dataTransfer.types.indexOf("application/x-pk-batch") !== -1;
