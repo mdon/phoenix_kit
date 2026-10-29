@@ -46,7 +46,8 @@ defmodule PhoenixKitWeb.Components.MediaGallery do
     viewport, more files a page); default `:default`
   - `phoenix_kit_current_user` — required for upload in the picker
   - `readonly` — when `true`, hides the pick button, remove buttons, and DnD;
-    preview (lightbox) still works; default `false`
+    preview (lightbox) still works; the server refuses pick, remove and
+    reorder events too; default `false`
   - `external_picker` — when `true`, the "Add" tile asks the host to pick
     instead of opening the built-in `MediaSelectorModal` (which is then never
     rendered); see "External picker" below. Default `false`
@@ -182,8 +183,10 @@ defmodule PhoenixKitWeb.Components.MediaGallery do
   end
 
   @impl true
-  # The Add tile is not rendered when readonly; refuse a forged event too.
-  def handle_event("open_picker", _params, %{assigns: %{readonly: true}} = socket) do
+  # A readonly gallery renders no Add tile, remove buttons or drag handle;
+  # refuse a forged event too. Preview stays available.
+  def handle_event(event, _params, %{assigns: %{readonly: true}} = socket)
+      when event in ["open_picker", "remove_image", "reorder_images"] do
     {:noreply, socket}
   end
 

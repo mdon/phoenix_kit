@@ -756,6 +756,42 @@ defmodule PhoenixKitWeb.Components.MediaGalleryTest do
     end
   end
 
+  # ── readonly refuses changes on the server ───────────────────────────────────
+
+  describe "remove and reorder when readonly" do
+    test "a forged remove_image keeps the selection and tells the host nothing" do
+      uuid1 = "01900000-0000-7000-8000-000000000001"
+      uuid2 = "01900000-0000-7000-8000-000000000002"
+      assigns = gallery_assigns(selected: [uuid1, uuid2], readonly: true)
+
+      {:noreply, socket} = call_handle_event("remove_image", %{"uuid" => uuid1}, assigns)
+
+      assert socket.assigns.selected == [uuid1, uuid2]
+      refute_received {MediaGallery, _, _}
+    end
+
+    test "a forged reorder_images keeps the order and tells the host nothing" do
+      uuid1 = "01900000-0000-7000-8000-000000000001"
+      uuid2 = "01900000-0000-7000-8000-000000000002"
+      assigns = gallery_assigns(selected: [uuid1, uuid2], readonly: true)
+
+      {:noreply, socket} =
+        call_handle_event("reorder_images", %{"ordered_ids" => [uuid2, uuid1]}, assigns)
+
+      assert socket.assigns.selected == [uuid1, uuid2]
+      refute_received {MediaGallery, _, _}
+    end
+
+    test "preview stays available" do
+      uuid = "01900000-0000-7000-8000-000000000001"
+      assigns = gallery_assigns(selected: [uuid], readonly: true)
+
+      {:noreply, socket} = call_handle_event("preview_image", %{"uuid" => uuid}, assigns)
+
+      assert socket.assigns.preview_uuid == uuid
+    end
+  end
+
   # ── single mode ───────────────────────────────────────────────────────────────
 
   describe "single mode" do
