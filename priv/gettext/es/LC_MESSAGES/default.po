@@ -21641,3 +21641,17 @@ msgid_plural "Delete %{count} files for good?"
 msgstr[0] "¿Eliminar definitivamente %{count} archivo?"
 msgstr[1] "¿Eliminar definitivamente %{count} archivos?"
 
+
+#: lib/phoenix_kit_web/components/media_browser.ex
+#, elixir-autogen, elixir-format
+msgid "%{count} item permanently deleted"
+msgid_plural "%{count} items permanently deleted"
+msgstr[0] "%{count} elemento eliminado definitivamente"
+msgstr[1] "%{count} elementos eliminados definitivamente"
+
+#: lib/phoenix_kit_web/components/media_browser.ex
+#, elixir-autogen, elixir-format
+msgid "%{count} item moved to trash"
+msgid_plural "%{count} items moved to trash"
+msgstr[0] "%{count} elemento movido a la papelera"
+msgstr[1] "%{count} elementos movidos a la papelera"

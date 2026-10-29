@@ -26,7 +26,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowserRemovalTranslationsTest do
      "Move %{count} folders and their contents to trash?"},
     {"Delete %{count} folder and its contents for good?",
      "Delete %{count} folders and their contents for good?"},
-    {"Delete %{count} file for good?", "Delete %{count} files for good?"}
+    {"Delete %{count} file for good?", "Delete %{count} files for good?"},
+    {"%{count} item permanently deleted", "%{count} items permanently deleted"},
+    {"%{count} item moved to trash", "%{count} items moved to trash"}
   ]
 
   test "every message is translated in every language" do

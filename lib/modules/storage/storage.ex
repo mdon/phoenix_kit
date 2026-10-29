@@ -3229,7 +3229,17 @@ defmodule PhoenixKit.Modules.Storage do
           %{@empty_removal_plan | trash: trash, rehome: rehome}
 
         :delete_folder ->
-          %{@empty_removal_plan | delete: Enum.map(rest, & &1.uuid), rehome: rehome}
+          # A promotion with nowhere live to go lands in a trashed folder and
+          # takes its trash stamp (`promote_out_of_subtree/3`): a live file
+          # that way is trashed, so it counts as trashed.
+          trashed = promoted_into_trash(promote, folder_subtree_uuids(folder.uuid))
+
+          %{
+            @empty_removal_plan
+            | delete: Enum.map(rest, & &1.uuid),
+              trash: trashed,
+              rehome: rehome -- trashed
+          }
       end
     else
       @empty_removal_plan
@@ -3247,6 +3257,31 @@ defmodule PhoenixKit.Modules.Storage do
       {:rehome, _} -> %{@empty_removal_plan | rehome: [file.uuid]}
       {:unlink, _} -> %{@empty_removal_plan | unlink: [file.uuid]}
       :not_in_folder -> @empty_removal_plan
+    end
+  end
+
+  # Of the files a permanent delete re-homes, the live ones whose first
+  # folder outside the subtree (live folders first, as `promote_out_of_subtree/3`
+  # picks) is in the trash. One query for the lot.
+  defp promoted_into_trash([], _subtree_uuids), do: []
+
+  defp promoted_into_trash(promote, subtree_uuids) do
+    live = for f <- promote, is_nil(f.trashed_at), do: f.uuid
+
+    if live == [] do
+      []
+    else
+      from(fl in FolderLink,
+        join: fo in Folder,
+        on: fo.uuid == fl.folder_uuid,
+        where: fl.file_uuid in ^live and fl.folder_uuid not in ^subtree_uuids,
+        order_by: [asc: not is_nil(fo.trashed_at), asc: fl.inserted_at],
+        select: {fl.file_uuid, fo.trashed_at}
+      )
+      |> repo().all()
+      |> Enum.uniq_by(fn {file_uuid, _} -> file_uuid end)
+      |> Enum.filter(fn {_file_uuid, trashed_at} -> not is_nil(trashed_at) end)
+      |> Enum.map(fn {file_uuid, _} -> to_string(file_uuid) end)
     end
   end
 

@@ -60,6 +60,12 @@ defmodule PhoenixKit.Modules.Storage.RemovalGuard do
   An answer that names a file the browser did not ask about is a contract
   break and fails closed too (uuids are compared in lower case).
 
+  The page waits for the answer: every call holds the person's page for as
+  long as it takes, up to the timeout (a confirmation asks twice, a release
+  three times). Keep `places/2` fast — an indexed lookup, not a scan. The
+  process is not linked to the page: if the page goes away mid-call, the
+  callback still runs to its end (a `release/2` may still commit).
+
   ## The window that remains
 
   The browser asks, then removes. What the dialog showed is what is removed

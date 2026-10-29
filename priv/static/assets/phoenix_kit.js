@@ -2796,7 +2796,37 @@ if (typeof window.Chart === "undefined") {
         }
       };
       self._showPopover();
+      // Focusable things inside the dialog: Tab goes round them and never
+      // reaches the page (or the viewer) underneath.
+      function focusables() {
+        const all = (self.el.querySelectorAll && self.el.querySelectorAll("a[href], button")) || [];
+        return Array.prototype.filter.call(all, function(n) { return !n.disabled; });
+      }
       self._onKey = function(e) {
+        if (e.key === "Tab") {
+          const list = focusables();
+          e.preventDefault();
+          if (!list.length) return;
+          const first = list[0];
+          const last = list[list.length - 1];
+          const active = document.activeElement;
+          const inside = !!(active && self.el.contains && self.el.contains(active));
+          if (!inside || (e.shiftKey && active === first)) {
+            (e.shiftKey && inside ? last : first).focus();
+          } else if (!e.shiftKey && active === last) {
+            first.focus();
+          } else {
+            const i = list.indexOf(active);
+            list[e.shiftKey ? i - 1 : i + 1].focus();
+          }
+          return;
+        }
+        // The viewer under the dialog must not step while it asks about a file.
+        if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
         if (e.key !== "Escape") return;
         e.preventDefault();
         e.stopPropagation();
@@ -2966,6 +2996,10 @@ if (typeof window.Chart === "undefined") {
       }
       self._handler = function(e) {
         if (e.key !== "Escape" && e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+        // The media browser's removal dialog is open over this viewer: the
+        // arrows are not for the viewer underneath, which stays on the file
+        // the dialog is asking about.
+        if (e.key !== "Escape" && (document.querySelector && document.querySelector("[data-removal-state]"))) return;
         if (e.key === "Escape" && self.el.hasAttribute && self.el.hasAttribute("popover")) {
           if (dialogAbove(self.el)) return;
           // A picker's viewer is the top layer, so Escape closes the viewer
@@ -3080,6 +3114,7 @@ if (typeof window.Chart === "undefined") {
       // Arrow-key navigation; suppressed while focus is in a text field.
       self._onKey = function(e) {
         if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+        if ((document.querySelector && document.querySelector("[data-removal-state]"))) return;
         const t = document.activeElement;
         if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" ||
                   t.isContentEditable)) return;
@@ -5943,7 +5978,8 @@ if (typeof window.Chart === "undefined") {
         var typing = t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" ||
                            t.isContentEditable === true);
         var stepping = !typing && (
-          (e.type === "keydown" && (e.key === "ArrowLeft" || e.key === "ArrowRight")) ||
+          (e.type === "keydown" && (e.key === "ArrowLeft" || e.key === "ArrowRight") &&
+            !(document.querySelector && document.querySelector("[data-removal-state]"))) ||
           (e.type === "pointerdown" && t && t.closest && t.closest('[phx-click="step_viewer"]'))
         );
         var closing =
@@ -9746,6 +9782,7 @@ if (typeof window.Chart === "undefined") {
       // also run; when the strip cannot slide they pass through untouched.
       self._onKey = function(e) {
         if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+        if ((document.querySelector && document.querySelector("[data-removal-state]"))) return;
         if (e.metaKey || e.ctrlKey || e.altKey) return;
         var t = document.activeElement;
         if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable === true)) return;

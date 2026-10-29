@@ -21701,3 +21701,19 @@ msgstr[0] "Видалити %{count} файл назавжди?"
 msgstr[1] "Видалити %{count} файли назавжди?"
 msgstr[2] "Видалити %{count} файлів назавжди?"
 
+
+#: lib/phoenix_kit_web/components/media_browser.ex
+#, elixir-autogen, elixir-format
+msgid "%{count} item permanently deleted"
+msgid_plural "%{count} items permanently deleted"
+msgstr[0] "%{count} об’єкт видалено назавжди"
+msgstr[1] "%{count} об’єкти видалено назавжди"
+msgstr[2] "%{count} об’єктів видалено назавжди"
+
+#: lib/phoenix_kit_web/components/media_browser.ex
+#, elixir-autogen, elixir-format
+msgid "%{count} item moved to trash"
+msgid_plural "%{count} items moved to trash"
+msgstr[0] "%{count} об’єкт переміщено в кошик"
+msgstr[1] "%{count} об’єкти переміщено в кошик"
+msgstr[2] "%{count} об’єктів переміщено в кошик"

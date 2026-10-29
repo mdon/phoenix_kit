@@ -30,15 +30,21 @@ function load() {
       if (i >= 0) listeners.splice(i, 1);
     },
   };
+  const doc = { activeElement: null };
   const hook = new Function(
-    "window",
+    "window", "document",
     "window.PhoenixKitHooks = {};" + src.slice(start, end) + "; return window.PhoenixKitHooks.RemovalModal;"
-  )(win);
-  return { hook, listeners };
+  )(win, doc);
+  return { hook, listeners, doc };
 }
 
-function el({ popover = true } = {}) {
+function el({ popover = true, buttons = 3 } = {}) {
+  const kids = Array.from({ length: buttons }, (_, i) => ({ id: "b" + i, focused: 0, disabled: false,
+    focus() { kids.active = this; } }));
   const e = {
+    kids,
+    contains: (n) => kids.includes(n),
+    querySelectorAll: () => kids,
     dataset: { token: "tok" },
     shown: 0,
     open: false,
@@ -59,8 +65,8 @@ function mount(opts) {
   return { ...env, ctx, pushed };
 }
 
-function key(k) {
-  return { key: k, prevented: false, stopped: false,
+function key(k, extra) {
+  return { key: k, shiftKey: false, prevented: false, stopped: false, ...extra,
     preventDefault() { this.prevented = true; }, stopPropagation() { this.stopped = true; } };
 }
 
@@ -96,7 +102,7 @@ test("Escape cancels the dialog and is taken before the page's listeners", () =>
 test("other keys are left alone", () => {
   const m = mount();
   const l = m.listeners.find((x) => x.n === "keydown");
-  const e = key("ArrowLeft");
+  const e = key("a");
   l.fn(e);
   assert.equal(e.prevented, false);
   assert.equal(e.stopped, false);
@@ -115,4 +121,42 @@ test("a browser without the Popover API keeps the dialog where it is", () => {
   e.showPopover = undefined;
   env.hook.mounted.call({ el: e, pushEventTo() {} });
   assert.equal(e.shown, 0);
+});
+
+test("Tab goes round the dialog's buttons and never leaves it", () => {
+  const m = mount();
+  const l = m.listeners.find((x) => x.n === "keydown");
+  const [a, b, c] = m.ctx.el.kids;
+
+  m.doc.activeElement = document_outside();
+  let e = key("Tab");
+  l.fn(e);
+  assert.equal(e.prevented, true);
+  assert.equal(m.ctx.el.kids.active, a, "from outside: back to the first");
+
+  m.doc.activeElement = c;
+  l.fn(key("Tab"));
+  assert.equal(m.ctx.el.kids.active, a, "past the last: round to the first");
+
+  m.doc.activeElement = a;
+  l.fn(key("Tab", { shiftKey: true }));
+  assert.equal(m.ctx.el.kids.active, c, "Shift+Tab before the first: round to the last");
+
+  m.doc.activeElement = a;
+  l.fn(key("Tab"));
+  assert.equal(m.ctx.el.kids.active, b);
+});
+
+function document_outside() { return { id: "outside" }; }
+
+test("the arrows are swallowed, so the viewer under the dialog does not step", () => {
+  const m = mount();
+  const l = m.listeners.find((x) => x.n === "keydown");
+  for (const k of ["ArrowLeft", "ArrowRight"]) {
+    const e = key(k);
+    l.fn(e);
+    assert.equal(e.prevented, true, k);
+    assert.equal(e.stopped, true, k);
+  }
+  assert.deepEqual(m.pushed, []);
 });

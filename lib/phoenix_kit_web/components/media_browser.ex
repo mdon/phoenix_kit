@@ -4261,10 +4261,17 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     file_count = length(files)
     folder_count = length(folders)
 
+    count = file_count + folder_count
+
     flash =
       if socket.assigns.filter_trash,
-        do: "#{file_count + folder_count} item(s) permanently deleted",
-        else: "#{file_count + folder_count} item(s) moved to trash"
+        do:
+          ngettext(
+            "%{count} item permanently deleted",
+            "%{count} items permanently deleted",
+            count
+          ),
+        else: ngettext("%{count} item moved to trash", "%{count} items moved to trash", count)
 
     {:noreply,
      socket
@@ -5528,8 +5535,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   # What an event would remove, from the same readings its handler acts on
-  # (`Storage.removal_plan/2`). `:pass` when no file disappears — or the
-  # handler is going to refuse the event, which it must say itself.
+  # (`Storage.removal_plan/2`). `:pass` when no file disappears, or when the
+  # event names nothing this browser can act on (no such file or folder, out
+  # of scope, a picker's delete for good). It does not judge everything the
+  # handler might still refuse (a managed folder, say): the dialog may be
+  # drawn first, and the replay refuses.
   defp removal_analysis("trash_file", %{"file_uuid" => file_uuid}, socket)
        when is_binary(file_uuid) do
     scope = scope_folder_id(socket)

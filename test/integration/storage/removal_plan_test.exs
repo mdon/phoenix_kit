@@ -202,6 +202,32 @@ defmodule PhoenixKit.Modules.Storage.RemovalPlanTest do
       assert Repo.get(File, shared.uuid)
     end
 
+    test "a live file whose only other folder is in the trash is trashed, not re-homed", %{
+      user: user
+    } do
+      a = folder!(user, "a")
+      gone = folder!(user, "gone")
+      x = home!(file!(user), a)
+      {:ok, _} = Storage.create_folder_link(gone.uuid, x.uuid)
+      {:ok, _} = Storage.trash_folder(gone)
+
+      assert Storage.removal_plan(:delete_folder, a) == %{empty() | delete: [], trash: [x.uuid]}
+
+      assert {:ok, _} = Storage.delete_folder_completely(a)
+      assert Repo.get(File, x.uuid).status == "trashed"
+    end
+
+    test "a file already in the trash moves on quietly: re-homed", %{user: user} do
+      a = folder!(user, "a")
+      gone = folder!(user, "gone")
+      x = home!(file!(user), a)
+      {:ok, _} = Storage.create_folder_link(gone.uuid, x.uuid)
+      {:ok, _} = Storage.trash_folder(gone)
+      {:ok, _} = Storage.trash_file(Repo.get(File, x.uuid))
+
+      assert Storage.removal_plan(:delete_folder, a) == %{empty() | rehome: [x.uuid]}
+    end
+
     test "a managed library's files and folders plan nothing: the operation refuses them", %{
       user: user
     } do

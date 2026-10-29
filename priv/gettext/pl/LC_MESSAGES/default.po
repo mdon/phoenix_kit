@@ -21707,3 +21707,19 @@ msgstr[0] "Trwale usunąć %{count} plik?"
 msgstr[1] "Trwale usunąć %{count} pliki?"
 msgstr[2] "Trwale usunąć %{count} plików?"
 
+
+#: lib/phoenix_kit_web/components/media_browser.ex
+#, elixir-autogen, elixir-format
+msgid "%{count} item permanently deleted"
+msgid_plural "%{count} items permanently deleted"
+msgstr[0] "%{count} element trwale usunięty"
+msgstr[1] "%{count} elementy trwale usunięte"
+msgstr[2] "%{count} elementów trwale usuniętych"
+
+#: lib/phoenix_kit_web/components/media_browser.ex
+#, elixir-autogen, elixir-format
+msgid "%{count} item moved to trash"
+msgid_plural "%{count} items moved to trash"
+msgstr[0] "%{count} element przeniesiony do kosza"
+msgstr[1] "%{count} elementy przeniesione do kosza"
+msgstr[2] "%{count} elementów przeniesionych do kosza"
