@@ -74,31 +74,64 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Removal do
 
   @default_timeout 5_000
 
-  # The host's module runs in a task, so one that hangs cannot hold the page:
-  # after the timeout (`config :phoenix_kit, :file_removal_guard_timeout`, ms)
-  # it is killed and the call fails closed. The task catches everything, so a
-  # crash cannot take the browser with it through the link.
+  # The host's module runs in a process of its own, so one that hangs cannot
+  # hold the page, and one that is killed cannot take it down: after the
+  # timeout (`config :phoenix_kit, :file_removal_guard_timeout`, ms) it is
+  # killed and the call fails closed, as it does when the process dies. Not
+  # linked, so nothing it does reaches the page's process. It inherits what a
+  # callback needs from the page: the Gettext locale, the logger metadata and
+  # `$callers` (the Ecto sandbox in tests).
   defp call(module, what, fun) do
-    task =
-      Task.async(fn ->
-        try do
-          {:ok, fun.()}
-        rescue
-          exception -> {:failed, exception.__struct__}
-        catch
-          kind, _reason -> {:failed, kind}
-        end
+    parent = self()
+    ref = make_ref()
+    callers = [parent | Process.get(:"$callers", [])]
+    locale = Gettext.get_locale(PhoenixKitWeb.Gettext)
+    default_locale = Gettext.get_locale()
+    metadata = Logger.metadata()
+
+    {pid, monitor} =
+      spawn_monitor(fn ->
+        Process.put(:"$callers", callers)
+        Gettext.put_locale(PhoenixKitWeb.Gettext, locale)
+        Gettext.put_locale(default_locale)
+        Logger.metadata(metadata)
+
+        result =
+          try do
+            {:ok, fun.()}
+          rescue
+            exception -> {:failed, exception.__struct__}
+          catch
+            kind, _reason -> {:failed, kind}
+          end
+
+        send(parent, {ref, result})
       end)
 
-    case Task.yield(task, timeout()) || Task.shutdown(task, :brutal_kill) do
-      {:ok, {:ok, _answer} = ok} ->
+    receive do
+      {^ref, {:ok, _answer} = ok} ->
+        Process.demonitor(monitor, [:flush])
         ok
 
-      {:ok, {:failed, why}} ->
+      {^ref, {:failed, why}} ->
+        Process.demonitor(monitor, [:flush])
         log_failure(module, what, why)
         :error
 
-      _ ->
+      {:DOWN, ^monitor, :process, ^pid, _reason} ->
+        log_failure(module, what, :killed)
+        :error
+    after
+      timeout() ->
+        Process.exit(pid, :kill)
+        Process.demonitor(monitor, [:flush])
+
+        receive do
+          {^ref, _} -> :ok
+        after
+          0 -> :ok
+        end
+
         log_failure(module, what, :timed_out)
         :error
     end

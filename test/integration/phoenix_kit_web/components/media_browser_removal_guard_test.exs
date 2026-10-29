@@ -34,6 +34,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowserRemovalGuardTest do
       send(state.pid, {:places, uuids, ctx})
       if state[:raise], do: raise("sentinel-#{inspect(uuids)}")
       if state[:sleep], do: Process.sleep(state[:sleep])
+      if state[:kill], do: Process.exit(self(), :kill)
+
+      if state[:report_locale] do
+        send(
+          state.pid,
+          {:locale, Gettext.get_locale(PhoenixKitWeb.Gettext), Gettext.get_locale()}
+        )
+      end
+
       if hook = state[:on_places], do: hook.()
 
       if fun = state[:answer] do
@@ -94,6 +103,12 @@ defmodule PhoenixKitWeb.Components.MediaBrowserRemovalGuardTest do
        socket
        |> assign(:phoenix_kit_current_user, session["user"])
        |> MediaBrowser.setup_uploads()
+       |> tap(fn _ ->
+         if locale = (session["opts"] || %{})[:locale] do
+           Gettext.put_locale(PhoenixKitWeb.Gettext, locale)
+           Gettext.put_locale(locale)
+         end
+       end)
        |> assign(scope: session["scope"], opts: session["opts"] || %{})}
     end
 
@@ -1009,6 +1024,29 @@ defmodule PhoenixKitWeb.Components.MediaBrowserRemovalGuardTest do
       assert render(view) =~ "The files could not be checked, so nothing was removed."
       refute has_element?(view, "#mb-removal-confirm")
       assert status(file) == "active"
+    end
+
+    test "a guard killed from outside fails closed and the page lives", %{conn: conn} = ctx do
+      file = file!(ctx.scope)
+      guard_state(%{kill: true})
+      view = open(conn, ctx)
+
+      log = capture_log(fn -> hook(view, "trash_file", %{"file_uuid" => file.uuid}) end)
+
+      assert Process.alive?(view.pid)
+      assert render(view) =~ "The files could not be checked, so nothing was removed."
+      assert status(file) == "active"
+      assert log =~ "TestRemovalGuard.places failed"
+    end
+
+    test "the guard runs with the page's locale", %{conn: conn} = ctx do
+      file = file!(ctx.scope)
+      guard_state(%{report_locale: true})
+      view = open(conn, ctx, %{locale: "ru"})
+
+      hook(view, "trash_file", %{"file_uuid" => file.uuid})
+
+      assert_received {:locale, "ru", "ru"}
     end
   end
 end

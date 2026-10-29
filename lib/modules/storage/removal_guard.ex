@@ -51,9 +51,11 @@ defmodule PhoenixKit.Modules.Storage.RemovalGuard do
 
   A call that takes longer than `config :phoenix_kit,
   :file_removal_guard_timeout` (milliseconds, default 5000) is stopped and
-  fails closed the same way. The calls run in a task, outside the page's
-  process; a module that needs the database sandbox in tests gets it through
-  `$callers`.
+  fails closed the same way, and so does a call whose process dies. The
+  calls run in a process of their own, not linked to the page's: it has the
+  page's Gettext locale and logger metadata, and the database sandbox of a
+  test reaches it through `$callers`. Process-dictionary state of the page
+  (anything else a callback might read from it) is not there.
 
   An answer that names a file the browser did not ask about is a contract
   break and fails closed too (uuids are compared in lower case).
