@@ -238,6 +238,38 @@
     </div>
   </div>
 
+  <%!-- Personal keys --%>
+  <div id="guide-personal-keys" class="card bg-base-100 shadow-lg border border-base-200">
+    <div class="card-body space-y-3">
+      <h2 class="card-title text-lg">
+        <.icon name="hero-user" class="w-5 h-5" /> {gettext("Personal keys")}
+      </h2>
+      <ul class="list-disc pl-5 space-y-1 text-sm">
+        <li>
+          {gettext(
+            "A personal key is a person's key for themselves: it acts with that person's own rights, always has an expiry, and never needs approval."
+          )}
+        </li>
+        <li>
+          {gettext(
+            "To allow it, give a role the api_personal_keys permission (Users, Roles, or the permissions matrix). An Admin does not get it by itself. The person makes the keys at %{path}.",
+            path: @guide.personal_keys_path
+          )}
+        </li>
+        <li>
+          {gettext(
+            "The Owner sees personal keys in the keys list. The Owner can revoke one or remove scopes from it, but cannot rotate it or add scopes."
+          )}
+        </li>
+        <li>
+          {gettext(
+            "A person who signs in to another account with that account's own password, for example after an administrator reset it, can make a key there, as they can do anything else in that account."
+          )}
+        </li>
+      </ul>
+    </div>
+  </div>
+
   <%!-- Dangerous operations --%>
   <div id="guide-danger" class="card bg-base-100 shadow-lg border border-base-200">
     <div class="card-body space-y-3">

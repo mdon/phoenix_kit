@@ -21687,3 +21687,98 @@ msgstr "Sie haben keinen Zugriff auf API-Schlüssel."
 #, elixir-autogen, elixir-format
 msgid "Keys that let programs and AI agents act with your rights"
 msgstr "Schlüssel, mit denen Programme und KI-Agenten mit Ihren Rechten handeln"
+
+#: lib/phoenix_kit_web/live/settings/api.ex
+#, elixir-autogen, elixir-format
+msgid "Personal keys cannot be rotated while you act in another account."
+msgstr "Persönliche Schlüssel können nicht rotiert werden, solange Sie in einem anderen Konto handeln."
+
+#: lib/phoenix_kit_web/live/settings/api.ex
+#, elixir-autogen, elixir-format
+msgid "You can only remove scopes from a personal key, not add any."
+msgstr "Bei einem persönlichen Schlüssel können Sie Scopes nur entfernen, nicht hinzufügen."
+
+#: lib/phoenix_kit_web/live/settings/api.ex
+#, elixir-autogen, elixir-format
+msgid "This session cannot tell whether you act in another account."
+msgstr "Diese Sitzung kann nicht feststellen, ob Sie in einem anderen Konto handeln."
+
+#: lib/phoenix_kit_web/live/settings/api.ex
+#, elixir-autogen, elixir-format
+msgid "This person already has the most personal keys allowed."
+msgstr "Diese Person hat bereits die höchste zulässige Anzahl persönlicher Schlüssel."
+
+#: lib/phoenix_kit_web/live/settings/api.ex
+#, elixir-autogen, elixir-format
+msgid "This person may not have personal keys."
+msgstr "Diese Person darf keine persönlichen Schlüssel haben."
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex
+#, elixir-autogen, elixir-format
+msgid "Expires on %{date}"
+msgstr "Läuft am %{date} ab"
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex
+#, elixir-autogen, elixir-format
+msgid "Remove scopes"
+msgstr "Scopes entfernen"
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex
+#, elixir-autogen, elixir-format
+msgid "Remove scopes from this key"
+msgstr "Scopes von diesem Schlüssel entfernen"
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex
+#, elixir-autogen, elixir-format
+msgid "This is a personal key of another person. You can take scopes off it, but not add any. Untick what it should lose."
+msgstr "Dies ist der persönliche Schlüssel einer anderen Person. Sie können Scopes entfernen, aber keine hinzufügen. Entfernen Sie das Häkchen bei dem, was er verlieren soll."
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex
+#, elixir-autogen, elixir-format
+msgid "Remove the unticked scopes"
+msgstr "Nicht angehakte Scopes entfernen"
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex
+#, elixir-autogen, elixir-format
+msgid "A person makes these keys for themselves on My API keys. The right api_personal_keys is given to roles (Users, Roles, or the permissions matrix); an Admin does not get it by itself."
+msgstr "Eine Person erstellt diese Schlüssel für sich selbst unter „Meine API-Schlüssel“. Das Recht api_personal_keys wird Rollen zugewiesen (Benutzer, Rollen oder die Rechtematrix); ein Admin erhält es nicht automatisch."
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex
+#, elixir-autogen, elixir-format
+msgid "Longest lifetime of a personal key, in days (1 to 365)"
+msgstr "Längste Lebensdauer eines persönlichen Schlüssels in Tagen (1 bis 365)"
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex
+#, elixir-autogen, elixir-format
+msgid "Personal keys one person may have (1 to 50)"
+msgstr "Persönliche Schlüssel pro Person (1 bis 50)"
+
+#: lib/phoenix_kit_web/live/settings/api_guide_panel.html.heex
+#, elixir-autogen, elixir-format
+msgid "Personal keys"
+msgstr "Persönliche Schlüssel"
+
+#: lib/phoenix_kit_web/live/settings/api_guide_panel.html.heex
+#, elixir-autogen, elixir-format
+msgid "A personal key is a person's key for themselves: it acts with that person's own rights, always has an expiry, and never needs approval."
+msgstr "Ein persönlicher Schlüssel ist der Schlüssel einer Person für sich selbst: Er handelt mit deren eigenen Rechten, läuft immer ab und braucht nie eine Freigabe."
+
+#: lib/phoenix_kit_web/live/settings/api_guide_panel.html.heex
+#, elixir-autogen, elixir-format
+msgid "To allow it, give a role the api_personal_keys permission (Users, Roles, or the permissions matrix). An Admin does not get it by itself. The person makes the keys at %{path}."
+msgstr "Um das zu erlauben, geben Sie einer Rolle das Recht api_personal_keys (Benutzer, Rollen oder die Rechtematrix). Ein Admin erhält es nicht automatisch. Die Person erstellt die Schlüssel unter %{path}."
+
+#: lib/phoenix_kit_web/live/settings/api_guide_panel.html.heex
+#, elixir-autogen, elixir-format
+msgid "The Owner sees personal keys in the keys list. The Owner can revoke one or remove scopes from it, but cannot rotate it or add scopes."
+msgstr "Der Owner sieht persönliche Schlüssel in der Schlüsselliste. Er kann einen widerrufen oder Scopes entfernen, ihn aber weder rotieren noch Scopes hinzufügen."
+
+#: lib/phoenix_kit_web/live/settings/api_guide_panel.html.heex
+#, elixir-autogen, elixir-format
+msgid "A person who signs in to another account with that account's own password, for example after an administrator reset it, can make a key there, as they can do anything else in that account."
+msgstr "Wer sich mit dem eigenen Passwort eines anderen Kontos in diesem Konto anmeldet, etwa nachdem ein Administrator es zurückgesetzt hat, kann dort einen Schlüssel erstellen, wie alles andere in diesem Konto."
+
+#: lib/phoenix_kit_web/live/settings/api.html.heex
+#, elixir-autogen, elixir-format
+msgid "Personal key"
+msgstr "Persönlicher Schlüssel"

@@ -58,6 +58,7 @@ defmodule PhoenixKitWeb.Live.Settings.ApiGuidePanel do
     assign(socket, :guide, %{
       settings_path: Routes.path("/admin/settings/api"),
       approvals_path: Routes.path("/admin/approvals"),
+      personal_keys_path: Routes.path("/profile/settings/api-keys"),
       admin_enabled: Config.admin_enabled?(),
       public_enabled: Config.public_enabled?(),
       base_url: base,
