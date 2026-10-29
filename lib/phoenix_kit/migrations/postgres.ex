@@ -10,7 +10,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   ### V226 - Personal API keys ⚡ LATEST
 
   `phoenix_kit_api_keys.personal` (`boolean NOT NULL DEFAULT false`): a person's own key, made through
-  `PhoenixKit.API.Keys.create_personal_key/3` by a holder of the `api_personal_keys` permission. It
+  `PhoenixKit.API.Keys.create_personal_key/3` by a holder of the `api_personal_keys` or `api` permission. It
   works only while its owner holds `api_personal_keys` or `api`, must expire, cannot need approval, and
   only its owner rotates it. Existing keys read `false` and behave as before. Additive, no rewrite.
 

@@ -54,6 +54,19 @@ defmodule PhoenixKit.API.PersonalKeysTest do
     {key, token}
   end
 
+  defp live_personal_count(owner_uuid) do
+    now = DateTime.utc_now()
+
+    Repo.aggregate(
+      from(k in Key,
+        where:
+          k.user_uuid == ^owner_uuid and k.personal and
+            (is_nil(k.revoked_at) or k.revoked_at > ^now)
+      ),
+      :count
+    )
+  end
+
   defp entries(action, key) do
     Repo.all(from(e in Entry, where: e.action == ^action and e.resource_uuid == ^key.uuid))
   end
@@ -86,7 +99,6 @@ defmodule PhoenixKit.API.PersonalKeysTest do
       {_user, _role, scope} = holder()
 
       assert {:error, :impersonation_unknown} = Keys.create_personal_key(scope, attrs(), [])
-      assert {:error, :impersonation_unknown} = Keys.create_personal_key(scope, attrs())
 
       assert {:error, :impersonation_unknown} =
                Keys.create_personal_key(scope, attrs(), impersonated: "false")
@@ -385,6 +397,36 @@ defmodule PhoenixKit.API.PersonalKeysTest do
       assert %Actor{personal: true, scopes: []} = Keys.actor(key, user, nil)
     end
 
+    test "verify/2 and active_owner/1 give the same answer in every state, in the same shapes" do
+      {user, role, scope} = holder()
+      {key, token} = personal!(scope)
+
+      assert {:ok, %User{uuid: uuid}} = Keys.active_owner(key)
+      assert {:ok, %Actor{user_uuid: ^uuid, personal: true}} = Keys.verify(token, nil)
+
+      :ok = Permissions.revoke_permission(role.uuid, @right)
+      assert {:error, :personal_keys_not_allowed} = Keys.active_owner(key)
+      assert {:error, :personal_keys_not_allowed} = Keys.verify(token, nil)
+
+      {:ok, _} = Permissions.grant_permission(role.uuid, @right)
+      {:ok, _} = Auth.update_user_status(user, %{is_active: false})
+      assert {:error, :owner_inactive} = Keys.active_owner(key)
+      assert {:error, :owner_inactive} = Keys.verify(token, nil)
+    end
+
+    test "for a key that is not personal they answer as before, with or without api" do
+      {user, role, _scope} = api_holder(["media"])
+      {key, token} = issue_key!(user, [read_scope()])
+      :ok = Permissions.revoke_permission(role.uuid, "api")
+
+      assert {:ok, %User{}} = Keys.active_owner(key)
+      assert {:ok, %Actor{personal: false}} = Keys.verify(token, nil)
+
+      {:ok, _} = Auth.update_user_status(user, %{is_active: false})
+      assert {:error, :owner_inactive} = Keys.active_owner(key)
+      assert {:error, :owner_inactive} = Keys.verify(token, nil)
+    end
+
     test "for a key that is not personal they answer as before", ctx do
       {key, _token} = issue_key!(ctx.owner, [read_scope()])
 
@@ -528,6 +570,57 @@ defmodule PhoenixKit.API.PersonalKeysTest do
       {key, _} = personal!(scope)
 
       assert {:ok, _new, _token} = Keys.rotate(key, 0, scope, impersonated: false)
+    end
+
+    test "with a grace period it needs room under the limit; the new key counts too" do
+      {_user, _role, scope} = holder()
+      put_setting("api_personal_key_max_count", 2)
+      {key, _} = personal!(scope)
+
+      assert {:ok, new_key, _token} = Keys.rotate(key, 5, scope, impersonated: false)
+
+      # Two live keys now (the old one in its grace period): the limit is reached.
+      assert {:error, :personal_key_limit} = Keys.rotate(new_key, 5, scope, impersonated: false)
+      assert Repo.get!(Key, new_key.uuid).revoked_at == nil
+      assert live_personal_count(new_key.user_uuid) == 2
+    end
+
+    test "a chain of rotations with a grace period cannot exceed the limit" do
+      {_user, _role, scope} = holder()
+      put_setting("api_personal_key_max_count", 3)
+      {key, _} = personal!(scope)
+
+      final =
+        Enum.reduce(1..6, key, fn _step, current ->
+          case Keys.rotate(current, 24, scope, impersonated: false) do
+            {:ok, new_key, _token} -> new_key
+            {:error, :personal_key_limit} -> current
+          end
+        end)
+
+      assert live_personal_count(final.user_uuid) == 3
+      assert {:error, :personal_key_limit} = Keys.rotate(final, 1, scope, impersonated: false)
+    end
+
+    test "at the limit a rotation without a grace period still works, any number of times" do
+      {_user, _role, scope} = holder()
+      put_setting("api_personal_key_max_count", 2)
+      {first, _} = personal!(scope)
+      {_second, _} = personal!(scope)
+
+      assert {:error, :personal_key_limit} = Keys.rotate(first, 3, scope, impersonated: false)
+      assert {:ok, again, _token} = Keys.rotate(first, 0, scope, impersonated: false)
+      assert {:ok, _third, _token} = Keys.rotate(again, 0, scope, impersonated: false)
+      assert live_personal_count(first.user_uuid) == 2
+    end
+
+    test "a key that is not personal ignores the limit when rotated with a grace period",
+         ctx do
+      put_setting("api_personal_key_max_count", 1)
+      {key, _} = issue_key!(ctx.owner, [read_scope()])
+
+      assert {:ok, new_key, _token} = Keys.rotate(key, 5, ctx.owner_scope)
+      assert {:ok, _newer, _token} = Keys.rotate(new_key, 5, ctx.owner_scope)
     end
 
     test "a key that is not personal rotates as before through rotate/3", ctx do
