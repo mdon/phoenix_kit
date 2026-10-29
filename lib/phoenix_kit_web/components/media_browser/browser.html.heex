@@ -25,6 +25,8 @@
     phx-hook="UploadResume"
     phx-target={@myself}
     data-user={upload_stash_user(assigns)}
+    data-browser={@picker && @id}
+    data-picker={@picker && "true"}
     class="hidden"
   >
   </div>

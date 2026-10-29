@@ -89,7 +89,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         max_select={4}
         selected={@slot_file_uuids}
         scope_folder_id={@order_folder_uuid}
-        folder_labels={%{@kitchen_folder_uuid => "60-1 — Kitchen"}}
+        folder_labels={%{@kitchen_folder_uuid => "Kitchen"}}
         folder_actions={false}
         only_file_type="image"
         parent_uploads={@uploads}
@@ -102,6 +102,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     folder-tree preferences. Bulk select (Select, box select, Shift-click,
     long press) is off: the pick is its own ordered list. The toolbar shows
     the count with Confirm and Cancel.
+    Set it when the browser is mounted: the view, the tree and the upload
+    registration are made then, so turning it on or off on a mounted browser
+    leaves it half one and half the other. Mount another browser instead.
   - `pick_mode` — `:multiple` (default) keeps the files in the order they were
     picked, a second click takes one out; `:single` replaces the pick on every
     click, and a double click picks and confirms.
@@ -694,9 +697,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         add_pick(socket, file_uuid)
 
       true ->
+        # The value is the client's: only the fact is logged.
         Logger.warning(
-          "MediaBrowser id=#{socket.assigns.id}: pick refused — " <>
-            "#{inspect(file_uuid, limit: 3, printable_limit: 40)} is not a file this picker lists"
+          "MediaBrowser id=#{socket.assigns.id}: pick refused — not a file this picker lists"
         )
 
         socket
@@ -1059,9 +1062,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       if browser == [] do
         socket
       else
-        push_event(socket, "phoenix_kit:upload-resume", %{
-          keys: Enum.map(browser, & &1.client_key)
-        })
+        push_event(
+          socket,
+          "phoenix_kit:upload-resume",
+          Map.merge(resume_target(socket), %{keys: Enum.map(browser, & &1.client_key)})
+        )
       end
 
     set_upload_problems(socket, keep)
@@ -1107,8 +1112,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
     socket =
       case for(%{kind: :browser, client_key: key} <- gone, do: key) do
-        [] -> socket
-        keys -> push_event(socket, "phoenix_kit:upload-discard", %{keys: keys})
+        [] ->
+          socket
+
+        keys ->
+          push_event(
+            socket,
+            "phoenix_kit:upload-discard",
+            Map.merge(resume_target(socket), %{keys: keys})
+          )
       end
 
     set_upload_problems(socket, keep)
@@ -2284,10 +2296,18 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # received by the server, or rejected with a reason the panel shows. The
   # key is what the browser itself knows about a picked file.
   defp ack_received(socket, entries) do
-    push_event(socket, "phoenix_kit:upload-received", %{
-      keys: Enum.map(entries, &client_key/1)
-    })
+    push_event(
+      socket,
+      "phoenix_kit:upload-received",
+      Map.merge(resume_target(socket), %{keys: Enum.map(entries, &client_key/1)})
+    )
   end
+
+  # These events reach every UploadResume hook on the page. A picker names
+  # itself so that the hook of the browser beside it ignores them (and it
+  # ignores that browser's); any other browser sends them as it always did.
+  defp resume_target(socket),
+    do: if(socket.assigns[:picker] == true, do: %{browser: socket.assigns.id}, else: %{})
 
   @doc false
   def client_key(entry),
@@ -2335,7 +2355,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   LiveView's process), so nothing is routed to a browser that is gone. It
   sends `{MediaBrowser, :unregister, id}` to the calling process, which
   `handle_parent_info/2` handles. Rendering the browser again registers it
-  again.
+  again — a new mount; a browser kept mounted (hidden) and unregistered is
+  not registered again, and its uploads go to the inbox. Unregister only a
+  browser you stop rendering.
   """
   @spec unregister_browser(String.t()) :: :ok
   def unregister_browser(id) do

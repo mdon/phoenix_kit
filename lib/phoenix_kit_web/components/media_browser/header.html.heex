@@ -493,7 +493,7 @@
         <% end %>
       </span>
       <span :if={@pick_limit_hit} class="badge badge-warning">
-        {gettext("Maximum %{count} files", count: @max_select)}
+        {ngettext("Maximum %{count} file", "Maximum %{count} files", @max_select)}
       </span>
       <span
         :if={@picker_uploading}

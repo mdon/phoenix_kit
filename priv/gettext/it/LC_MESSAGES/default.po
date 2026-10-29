@@ -21532,3 +21532,10 @@ msgstr "Attendi il termine dei caricamenti"
 #, elixir-autogen, elixir-format
 msgid "No open media browser could receive this upload."
 msgstr "Nessun browser multimediale aperto ha potuto ricevere questo caricamento."
+
+#: lib/phoenix_kit_web/components/media_browser/header.html.heex
+#, elixir-autogen, elixir-format
+msgid "Maximum %{count} file"
+msgid_plural "Maximum %{count} files"
+msgstr[0] "Massimo %{count} file"
+msgstr[1] "Massimo %{count} file"

@@ -441,6 +441,39 @@ defmodule PhoenixKitWeb.Components.MediaBrowserPickerTest do
       assert uuids == [a.uuid, b.uuid]
     end
 
+    test "max_select 1 says it in the singular", %{conn: conn} = ctx do
+      [a, b] = for _ <- 1..2, do: file!(ctx.scope)
+      view = open(conn, ctx, %{"opts" => %{max_select: 1}})
+
+      click_file(view, a)
+      html = click_file(view, b)
+
+      assert html =~ "Maximum 1 file"
+      refute html =~ "Maximum 1 files"
+    end
+
+    test "a refused pick logs the fact, not what the client sent", %{conn: conn} = ctx do
+      view = open(conn, ctx)
+      sentinel = "client-sent-#{System.unique_integer([:positive])}"
+
+      log = capture_log(fn -> hook(view, "click_file", %{"file-uuid" => sentinel}) end)
+
+      assert log =~ "pick refused"
+      refute log =~ sentinel
+    end
+
+    test "the upload-resume hook of a picker names its browser; a plain one does not",
+         %{
+           conn: conn
+         } = ctx do
+      view = open(conn, ctx, %{"browsers" => ["pick", "files"]})
+
+      assert has_element?(view, ~s(#pick-upload-resume[data-browser="pick"][data-picker="true"]))
+      assert has_element?(view, "#files-upload-resume")
+      refute has_element?(view, "#files-upload-resume[data-browser]")
+      refute has_element?(view, "#files-upload-resume[data-picker]")
+    end
+
     test "folders are browsed, never picked", %{conn: conn} = ctx do
       sub = folder!("Kitchen", ctx.scope)
       view = open(conn, ctx)

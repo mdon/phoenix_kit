@@ -21661,3 +21661,10 @@ msgstr "Oodake, kuni üleslaadimised lõpevad"
 #, elixir-autogen, elixir-format
 msgid "No open media browser could receive this upload."
 msgstr "Ükski avatud meediabrauser ei saanud seda üleslaadimist vastu võtta."
+
+#: lib/phoenix_kit_web/components/media_browser/header.html.heex
+#, elixir-autogen, elixir-format
+msgid "Maximum %{count} file"
+msgid_plural "Maximum %{count} files"
+msgstr[0] "Maksimaalselt %{count} fail"
+msgstr[1] "Maksimaalselt %{count} faili"

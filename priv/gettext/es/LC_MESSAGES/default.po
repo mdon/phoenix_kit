@@ -21541,3 +21541,10 @@ msgstr "Espera a que terminen las subidas"
 #, elixir-autogen, elixir-format
 msgid "No open media browser could receive this upload."
 msgstr "Ningún explorador de medios abierto pudo recibir esta subida."
+
+#: lib/phoenix_kit_web/components/media_browser/header.html.heex
+#, elixir-autogen, elixir-format
+msgid "Maximum %{count} file"
+msgid_plural "Maximum %{count} files"
+msgstr[0] "Máximo %{count} archivo"
+msgstr[1] "Máximo %{count} archivos"
