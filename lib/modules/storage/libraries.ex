@@ -1601,7 +1601,9 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   default): a library that could not store anything is not created, and the
   reason is `{:error, {:storage, message}}`. A bucket, profile or library that
   cannot be created undoes the rest. Problems with the bucket fields are
-  `{:error, {:storage, %Ecto.Changeset{}}}`.
+  `{:error, {:storage, %Ecto.Changeset{}}}`. A connection that changes between
+  the probe and its row lock is `{:error, :storage_changed}`, and nothing is
+  left behind.
   """
   @spec create_user_library(Scope.t() | nil, map(), keyword()) ::
           {:ok, Library.t()}
@@ -1609,6 +1611,9 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
              :not_allowed
              | :limit_reached
              | :no_site_storage
+             | :storage_changed
+             | :foreign_bucket
+             | :too_many_buckets
              | {:storage, String.t() | Ecto.Changeset.t()}
              | Ecto.Changeset.t()}
   def create_user_library(scope, attrs, opts \\ []) do
@@ -1654,9 +1659,9 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
     with true <- may_use_own_storage?(scope) || {:error, :not_allowed},
          %Library{kind: "user", owner_uuid: ^user_uuid, trashed_at: nil} = listed <-
            get_library(uuid),
-         %{} = storage <- Profiles.user_storage_for([listed])[to_string(uuid)],
+         %{} <- Profiles.user_storage_for([listed])[to_string(uuid)],
          {:ok, targets} <- storage_targets(stringify(params), user_uuid),
-         :ok <- additional_targets_allowed(storage, targets),
+         :ok <- additional_targets_allowed(listed, targets),
          :ok <- probe_targets(targets, user_uuid, Keyword.get(opts, :probe)) do
       repo().transaction(fn ->
         library =
@@ -1664,8 +1669,8 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
 
         with true <- may_use_own_storage?(fresh_storage_scope(scope)),
              %Library{kind: "user", owner_uuid: ^user_uuid, trashed_at: nil} <- library,
-             %{} = storage <- Profiles.user_storage_for([library])[to_string(uuid)],
-             :ok <- additional_targets_allowed(storage, targets),
+             %{} <- Profiles.user_storage_for([library])[to_string(uuid)],
+             :ok <- additional_targets_allowed(library, targets),
              {:ok, buckets} <- create_owned_buckets(library, user_uuid, targets),
              {:ok, _profile} <-
                Profiles.add_user_backups(library.storage_profile_uuid, user_uuid, buckets) do
@@ -1683,34 +1688,48 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
 
   defp fresh_storage_scope(%Scope{} = scope) do
     case Auth.get_user(Scope.user_uuid(scope)) do
-      %{is_active: true, api_only: false} = user -> Scope.for_user(user)
-      _ -> nil
+      %{is_active: true, api_only: false} = user ->
+        # `get_user/1` never fills the virtual session role. Copy it from the
+        # scope, or a switched role is checked as the default role instead.
+        Scope.for_user(%{user | active_role_uuid: session_role_uuid(scope)})
+
+      _ ->
+        nil
     end
   end
 
   defp fresh_storage_scope(_scope), do: nil
 
-  defp additional_targets_allowed(storage, targets) do
-    existing =
-      Enum.map(storage.buckets, fn %{bucket: bucket} ->
-        %{
-          "integration_uuid" => bucket.integration_uuid,
-          "bucket_name" => bucket.bucket_name,
-          "endpoint" => bucket.endpoint
-        }
-      end)
+  defp session_role_uuid(%Scope{user: %User{active_role_uuid: uuid}}), do: uuid
+  defp session_role_uuid(_scope), do: nil
 
-    cond do
-      length(existing) + length(targets) > Profiles.max_user_buckets() ->
-        {:error, :too_many_buckets}
+  # The cap counts the user's own buckets. The duplicate check counts every
+  # bucket already on the profile, including a site primary that backup mode
+  # keeps: two rows for one physical bucket would both pass a copy check.
+  defp additional_targets_allowed(%Library{storage_profile_uuid: uuid}, targets)
+       when is_binary(uuid) do
+    case Profiles.get_profile(uuid) do
+      %{buckets: rows} ->
+        user_buckets = Enum.count(rows, &(not is_nil(&1.bucket.owner_uuid)))
+        occupied = Enum.map(rows, &destination_target(&1.bucket))
 
-      duplicate_targets?(existing ++ targets) ->
-        {:error, :duplicate_bucket}
+        cond do
+          user_buckets + length(targets) > Profiles.max_user_buckets() ->
+            {:error, :too_many_buckets}
 
-      true ->
-        :ok
+          duplicate_targets?(occupied ++ targets) ->
+            {:error, :duplicate_bucket}
+
+          true ->
+            :ok
+        end
+
+      _ ->
+        {:error, :not_allowed}
     end
   end
+
+  defp additional_targets_allowed(_library, _targets), do: {:error, :not_allowed}
 
   # What the user asked for. Private is the default and needs nothing; public
   # needs the `storage.public_library` permission, and anything else is refused.
@@ -1753,6 +1772,7 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
 
       true ->
         with {:ok, targets} <- storage_targets(storage, user_uuid),
+             :ok <- distinct_from_site_backup(mode, targets),
              :ok <- probe_targets(targets, user_uuid, Keyword.get(opts, :probe)) do
           {:ok, %{mode: String.to_existing_atom(mode), targets: targets}}
         else
@@ -1828,8 +1848,36 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
 
   defp blank?(value), do: value in [nil, ""]
 
+  # Backup mode copies site buckets onto the new profile. A target that is
+  # the same place as one of those rows would count twice.
+  defp distinct_from_site_backup("backup", targets) do
+    site =
+      Profiles.site_rows_for_backup(length(targets))
+      |> Enum.map(&destination_target(&1.bucket))
+
+    if duplicate_targets?(site ++ targets),
+      do: {:error, "The same bucket is chosen twice"},
+      else: :ok
+  end
+
+  defp distinct_from_site_backup(_mode, _targets), do: :ok
+
+  defp destination_target(bucket) do
+    %{
+      "integration_uuid" => bucket.integration_uuid,
+      "bucket_name" => bucket.bucket_name,
+      "endpoint" => bucket.endpoint
+    }
+  end
+
   defp duplicate_targets?(targets) do
-    connections = Enum.map(targets, &{&1["integration_uuid"], &1["bucket_name"]})
+    # A missing integration is not a connection. Site buckets often have none,
+    # and several of those must not look like the same choice.
+    connections =
+      targets
+      |> Enum.filter(&(not blank?(&1["integration_uuid"])))
+      |> Enum.map(&{&1["integration_uuid"], &1["bucket_name"]})
+
     destinations = Enum.map(targets, &storage_destination/1)
 
     length(Enum.uniq(connections)) != length(connections) or
@@ -1837,16 +1885,39 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   end
 
   # Different credential rows pointing at the same bucket are one physical
-  # destination, so they cannot count as independent backup copies.
-  defp storage_destination(target) do
-    endpoint =
-      case Endpoint.parse(target["endpoint"]) do
-        %{host: host, port: port} -> {String.downcase(host), port}
-        nil -> :amazon_s3
-        _ -> target["endpoint"]
-      end
+  # destination, so they cannot count as independent backup copies. A blank
+  # endpoint is plain AWS, and bucket names there are global, so any
+  # `amazonaws.com` host on the standard port is that same destination.
+  # China (`.amazonaws.com.cn`) is another partition and stays distinct.
+  @doc "Whether two bucket descriptions point at the same physical storage destination."
+  def same_storage_destination?(left, right) do
+    storage_destination(stringify(Map.take(left, [:endpoint, :bucket_name]))) ==
+      storage_destination(stringify(Map.take(right, [:endpoint, :bucket_name])))
+  end
 
-    {endpoint, target["bucket_name"]}
+  defp storage_destination(target) do
+    {physical_endpoint(target["endpoint"]), target["bucket_name"]}
+  end
+
+  defp physical_endpoint(endpoint) do
+    case Endpoint.parse(endpoint) do
+      nil ->
+        :amazon_s3
+
+      %{host: host, port: port} ->
+        host = String.downcase(host)
+
+        if port == 443 and aws_commercial_host?(host),
+          do: :amazon_s3,
+          else: {host, port}
+
+      _ ->
+        endpoint
+    end
+  end
+
+  defp aws_commercial_host?(host) do
+    host == "amazonaws.com" or String.ends_with?(host, ".amazonaws.com")
   end
 
   # What the user's integration says about itself, for the fields the target

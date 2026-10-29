@@ -44,9 +44,22 @@ defmodule PhoenixKitWeb.Live.Components.LibraryPreferences do
        extensions: Application.get_env(:phoenix_kit, :library_settings_components, [])
      )
      |> assign_new(:active_tab, fn -> "general" end)
+     |> select_url_tab(assigns[:selected_tab])
      |> assign_new(:form, fn -> preferences_form(library) end)
      |> assign_new(:message, fn -> nil end)
      |> assign_new(:error, fn -> nil end)}
+  end
+
+  defp select_url_tab(socket, tab) do
+    if socket.assigns[:url_path] do
+      assign(
+        socket,
+        :active_tab,
+        if(Enum.any?(tabs(socket.assigns.extensions), &(&1.id == tab)), do: tab, else: "general")
+      )
+    else
+      socket
+    end
   end
 
   defp tabs(extensions) do
@@ -107,7 +120,18 @@ defmodule PhoenixKitWeb.Live.Components.LibraryPreferences do
   @impl true
   def handle_event("switch_tab", %{"tab" => tab}, socket) do
     if Enum.any?(tabs(socket.assigns.extensions), &(&1.id == tab)) do
-      {:noreply, assign(socket, :active_tab, tab)}
+      socket = assign(socket, :active_tab, tab)
+
+      socket =
+        if path = socket.assigns[:url_path] do
+          uri = URI.parse(path)
+          params = URI.decode_query(uri.query || "") |> Map.put("settings_tab", tab)
+          push_patch(socket, to: uri.path <> "?" <> URI.encode_query(params), replace: true)
+        else
+          socket
+        end
+
+      {:noreply, socket}
     else
       {:noreply, socket}
     end

@@ -949,13 +949,8 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
   # a backup the write missed is made by the reconciler.
   defp user_profile_plan(:backup, buckets) do
     case default_profile() do
-      %StorageProfile{buckets: [_ | _] = rows} = default ->
-        site_rows =
-          rows
-          |> Enum.filter(&(&1.status in ["active", "read_only"] and &1.bucket.owner_uuid == nil))
-          |> Enum.sort_by(&{&1.status != "active", &1.serve_order})
-          |> Enum.take(@max_copies - length(buckets))
-
+      %StorageProfile{} = default ->
+        site_rows = select_site_rows(default, length(buckets))
         writable = Enum.filter(site_rows, &(&1.status == "active"))
 
         # Without a bucket a file can be WRITTEN to, the backup alone would
@@ -984,6 +979,24 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
       _ ->
         {:error, :no_site_storage}
     end
+  end
+
+  @doc false
+  # Site rows backup mode copies onto a new user profile: active and read-only
+  # site buckets, active first, limited to the copies the user's buckets leave.
+  def site_rows_for_backup(user_bucket_count)
+      when is_integer(user_bucket_count) and user_bucket_count >= 0 do
+    case default_profile() do
+      %StorageProfile{} = profile -> select_site_rows(profile, user_bucket_count)
+      _ -> []
+    end
+  end
+
+  defp select_site_rows(%StorageProfile{buckets: rows}, user_bucket_count) do
+    rows
+    |> Enum.filter(&(&1.status in ["active", "read_only"] and &1.bucket.owner_uuid == nil))
+    |> Enum.sort_by(&{&1.status != "active", &1.serve_order})
+    |> Enum.take(max(@max_copies - user_bucket_count, 0))
   end
 
   defp user_backup_row(bucket, serve_order) do

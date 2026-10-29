@@ -1,3 +1,24 @@
+## 3.2.1 - 2026-10-29
+
+### Added
+
+- Library storage shows live file progress, pending work, retry and job states, and per-bucket
+  stored copies, bytes and verification counts. The Media settings page refreshes automatically,
+  and adding backup storage keeps the dialog open to show progress.
+- Connected storage cards identify the integration, provider, bucket and primary or backup role.
+  Bucket pickers hide destinations already attached to the library and label use by other libraries.
+
+### Fixed
+
+- Library dialogs and their settings tabs restore from the URL after reload, reconnect and browser
+  navigation, while ordinary progress refreshes preserve unsaved form values.
+- Storage errors appear inside the backup dialog. R2 upload denials explain the required object
+  write permissions instead of relying on successful bucket listing as proof of upload access.
+- Integration key rotation accepts equivalent endpoint spellings while preserving destination
+  immutability. Backup checks include retained site storage and equivalent AWS endpoints.
+- Personal-storage operations preserve the session's switched role when refreshing permissions.
+  Connection changes during library creation produce an actionable error and roll back creation.
+
 ## 3.2.0 - 2026-10-29
 
 ### Added

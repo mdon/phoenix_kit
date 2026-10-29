@@ -396,6 +396,15 @@ defmodule PhoenixKit.Modules.Storage.UserStorageReviewTest do
       assert Agent.get(store, & &1) == before
     end
 
+    test "R2 upload denial explains the token permissions needed", %{store: store} do
+      bucket = %{owned_bucket!(UUIDv7.generate()) | provider: "r2"}
+      memory_s3(store, deny: ["PUT"])
+      assert {:error, message} = S3.test_connection(bucket)
+      assert message =~ "R2 refused the test upload (HTTP 403)"
+      assert message =~ "Object Read & Write"
+      assert message =~ "Permission to list buckets alone does not allow uploads"
+    end
+
     test "uses a fresh key each time" do
       bucket = owned_bucket!(UUIDv7.generate())
       test_pid = self()

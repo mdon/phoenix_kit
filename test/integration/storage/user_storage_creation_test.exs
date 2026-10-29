@@ -195,6 +195,38 @@ defmodule PhoenixKit.Modules.Storage.UserStorageCreationTest do
       assert roles[to_string(site.uuid)] == "primary"
       assert "backup" in Map.values(roles)
     end
+
+    test "refuses a backup of the site's AWS bucket, including a blank endpoint and an amazonaws host",
+         %{role: role} do
+      user = user!(role)
+
+      site_aws!(%{
+        bucket_name: "shared-photos",
+        endpoint: "https://s3.eu-west-1.amazonaws.com"
+      })
+
+      assert {:error, {:storage, message}} =
+               create(
+                 user,
+                 storage(user, %{"mode" => "backup", "bucket_name" => "shared-photos"})
+               )
+
+      assert message =~ "same bucket"
+      assert Storage.list_owned_buckets(user.uuid) == []
+      assert Libraries.list_user_libraries(user.uuid) == []
+    end
+
+    test "a different AWS bucket is not the site bucket", %{role: role} do
+      user = user!(role)
+
+      site_aws!(%{bucket_name: "site-photos", endpoint: "https://s3.amazonaws.com"})
+
+      assert {:ok, _library} =
+               create(
+                 user,
+                 storage(user, %{"mode" => "backup", "bucket_name" => "my-photos"})
+               )
+    end
   end
 
   describe "a failure leaves nothing behind" do
@@ -512,5 +544,162 @@ defmodule PhoenixKit.Modules.Storage.UserStorageCreationTest do
       assert Enum.any?(profile.buckets, &(&1.bucket_uuid == site.uuid and &1.role == "primary"))
       assert Enum.count(profile.buckets, &(&1.role == "backup")) == 2
     end
+
+    test "a blank AWS endpoint and an amazonaws host are one bucket", %{role: role} do
+      user = user!(role)
+      {:ok, library} = create(user, storage(user, %{"bucket_name" => "my-photos"}))
+      [bucket] = Storage.list_owned_buckets(user.uuid)
+
+      {:ok, _} =
+        bucket
+        |> Ecto.Changeset.change(endpoint: "https://s3.eu-west-1.amazonaws.com")
+        |> Repo.update()
+
+      assert {:error, :duplicate_bucket} =
+               Libraries.add_user_storage(
+                 scope(user),
+                 library,
+                 storage(user, %{"bucket_name" => "my-photos"}),
+                 probe: probe_ok()
+               )
+
+      assert length(Storage.list_owned_buckets(user.uuid)) == 1
+    end
+
+    test "adding a backup cannot repeat the site bucket kept on the profile", %{role: role} do
+      user = user!(role)
+
+      site_aws = site_aws!(%{bucket_name: "shared-photos"})
+
+      {:ok, library} =
+        create(user, storage(user, %{"mode" => "backup", "bucket_name" => "my-photos"}))
+
+      assert {:error, :duplicate_bucket} =
+               Libraries.add_user_storage(
+                 scope(user),
+                 library,
+                 storage(user, %{
+                   "bucket_name" => "shared-photos",
+                   "endpoint" => "https://s3.eu-west-1.amazonaws.com"
+                 }),
+                 probe: probe_ok()
+               )
+
+      profile = Profiles.for_library(library)
+      assert Enum.any?(profile.buckets, &(&1.bucket_uuid == site_aws.uuid))
+      assert Enum.count(profile.buckets, &(&1.bucket.owner_uuid == user.uuid)) == 1
+    end
+  end
+
+  describe "the session role, with the switcher on" do
+    setup do
+      {:ok, _} = Settings.update_boolean_setting("role_switcher_enabled", true)
+
+      on_exit(fn ->
+        Settings.update_boolean_setting("role_switcher_enabled", false)
+      end)
+
+      :ok
+    end
+
+    test "create and adding a backup follow the switched role, not the default" do
+      blocked = storage_role(false)
+      allowed = storage_role(true)
+      user = user_with([blocked, allowed])
+      scope = acting_as(user, allowed)
+      assert Scope.active_role(scope).uuid == allowed.uuid
+
+      assert {:ok, library} =
+               Libraries.create_user_library(
+                 scope,
+                 %{"name" => "Photos", "storage" => storage(user)},
+                 probe: probe_ok()
+               )
+
+      assert {:ok, _} =
+               Libraries.add_user_storage(
+                 scope,
+                 library,
+                 storage(user, %{"bucket_name" => "second-photos"}),
+                 probe: probe_ok()
+               )
+    end
+
+    test "a switched role without own storage is refused when the default role has it" do
+      allowed = storage_role(true)
+      blocked = storage_role(false)
+      user = user_with([allowed, blocked])
+      assert Scope.active_role(acting_as(user, blocked)).uuid == blocked.uuid
+
+      assert Libraries.may_use_own_storage?(scope(user))
+
+      assert {:error, :not_allowed} =
+               Libraries.create_user_library(
+                 acting_as(user, blocked),
+                 %{"name" => "Photos", "storage" => storage(user)},
+                 probe: probe_ok()
+               )
+
+      {:ok, library} = create(user, storage(user))
+
+      assert {:error, :not_allowed} =
+               Libraries.add_user_storage(
+                 acting_as(user, blocked),
+                 library,
+                 storage(user, %{"bucket_name" => "second-photos"}),
+                 probe: probe_ok()
+               )
+
+      assert length(Storage.list_owned_buckets(user.uuid)) == 1
+    end
+  end
+
+  defp storage_role(own_storage?) do
+    {:ok, role} = Roles.create_role(%{name: "Session #{System.unique_integer([:positive])}"})
+
+    keys =
+      if own_storage?,
+        do: ~w(storage storage.create_library storage.own_storage integrations),
+        else: ~w(storage storage.create_library integrations)
+
+    for key <- keys, do: {:ok, _} = Permissions.grant_permission(role.uuid, key)
+    role
+  end
+
+  defp user_with(roles) do
+    {:ok, user} =
+      Auth.register_user(%{
+        "email" => "session-role-#{System.unique_integer([:positive])}@example.com",
+        "password" => "ValidPassword123!"
+      })
+
+    for role <- roles, do: {:ok, _} = Roles.assign_role(user, role.name)
+    user
+  end
+
+  defp acting_as(user, role) do
+    user = Repo.get!(Auth.User, user.uuid)
+    Scope.for_user(%{user | active_role_uuid: role.uuid})
+  end
+
+  defp site_aws!(attrs) do
+    bucket =
+      Repo.insert!(
+        struct!(
+          Storage.Bucket,
+          Map.merge(
+            %{
+              name: "site-aws-#{System.unique_integer([:positive])}",
+              provider: "s3",
+              region: "eu-west-1",
+              enabled: true
+            },
+            attrs
+          )
+        )
+      )
+
+    :ok = Profiles.add_to_default(bucket)
+    bucket
   end
 end
