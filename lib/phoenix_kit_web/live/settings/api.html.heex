@@ -234,13 +234,13 @@
       <.form_section
         id="api-personal-keys-card"
         title={gettext("Personal API keys")}
-        icon="hero-user"
+        icon="hero-finger-print"
         class="border border-base-200"
         body_class="space-y-4"
       >
         <:subtitle>
           {gettext(
-            "A person makes these keys for themselves on My API keys. The right api_personal_keys is given to roles (Users, Roles, or the permissions matrix); an Admin does not get it by itself."
+            "A person makes these keys for themselves on My API keys. The “Personal API keys” permission is given to roles (Users, Roles, or the permissions matrix); an Admin does not get it by itself."
           )}
         </:subtitle>
 
@@ -356,12 +356,13 @@
                 </.table_default_cell>
                 <.table_default_cell>
                   <%= if key.personal do %>
+                    <% pstatus = @personal_statuses[key.uuid] %>
                     <.status_badge
-                      status={personal_status_name(personal_status(key))}
-                      label={personal_status_label(personal_status(key))}
+                      status={PersonalKeyDisplay.badge_name(pstatus)}
+                      label={PersonalKeyDisplay.label(pstatus)}
                     />
                     <div
-                      :if={personal_status(key) == :rotating}
+                      :if={pstatus == :rotating}
                       class="text-xs text-base-content/60 mt-0.5"
                     >
                       {gettext("until %{time}",
@@ -369,11 +370,14 @@
                       )}
                     </div>
                     <div
-                      :if={key.expires_at && personal_status(key) != :rotating}
+                      :if={
+                        key.expires_at && PersonalKeyDisplay.live?(pstatus) &&
+                          pstatus != :rotating
+                      }
                       class="text-xs text-base-content/60 mt-0.5"
                     >
                       {gettext("Expires on %{date}",
-                        date: expiry_date(key.expires_at, @api_scope)
+                        date: PersonalKeyDisplay.expiry_date(key.expires_at, @api_scope.user)
                       )}
                     </div>
                   <% else %>
@@ -400,12 +404,12 @@
                 </.table_default_cell>
                 <.table_default_cell class="relative z-10">
                   <.table_row_menu
-                    :if={live?(key) and Keys.can_revoke?(@api_scope, key)}
+                    :if={live?(key) and @key_access[key.uuid] != :none}
                     id={"api-key-menu-#{key.uuid}"}
                     mode="dropdown"
                     label={gettext("Actions")}
                   >
-                    <%= if Keys.can_manage?(@api_scope, key) do %>
+                    <%= if @key_access[key.uuid] == :manage do %>
                       <.table_row_menu_button
                         phx-click="request_edit_scopes"
                         phx-value-uuid={key.uuid}
@@ -420,7 +424,6 @@
                       />
                     <% else %>
                       <.table_row_menu_button
-                        :if={key.personal and Keys.can_revoke?(@api_scope, key)}
                         phx-click="request_edit_scopes"
                         phx-value-uuid={key.uuid}
                         icon="hero-adjustments-horizontal"
@@ -428,7 +431,6 @@
                       />
                     <% end %>
                     <.table_row_menu_button
-                      :if={Keys.can_revoke?(@api_scope, key)}
                       phx-click="request_revoke"
                       phx-value-uuid={key.uuid}
                       icon="hero-no-symbol"

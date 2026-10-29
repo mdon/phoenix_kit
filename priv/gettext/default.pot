@@ -21860,7 +21860,7 @@ msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/api.html.heex
 #, elixir-autogen, elixir-format
-msgid "A person makes these keys for themselves on My API keys. The right api_personal_keys is given to roles (Users, Roles, or the permissions matrix); an Admin does not get it by itself."
+msgid "A person makes these keys for themselves on My API keys. The “Personal API keys” permission is given to roles (Users, Roles, or the permissions matrix); an Admin does not get it by itself."
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/api.html.heex
@@ -21885,7 +21885,7 @@ msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/api_guide_panel.html.heex
 #, elixir-autogen, elixir-format
-msgid "To allow it, give a role the api_personal_keys permission (Users, Roles, or the permissions matrix). An Admin does not get it by itself. The person makes the keys at %{path}."
+msgid "To allow it, give a role the “Personal API keys” permission (Users, Roles, or the permissions matrix). An Admin does not get it by itself. The person makes the keys at %{path}."
 msgstr ""
 
 #: lib/phoenix_kit_web/live/settings/api_guide_panel.html.heex
@@ -21911,4 +21911,9 @@ msgstr ""
 #: lib/phoenix_kit_web/live/components/personal_api_keys.ex
 #, elixir-autogen, elixir-format
 msgid "Your other keys are on Settings → API"
+msgstr ""
+
+#: lib/phoenix_kit_web/components/personal_key_display.ex
+#, elixir-autogen, elixir-format
+msgid "Owner inactive"
 msgstr ""

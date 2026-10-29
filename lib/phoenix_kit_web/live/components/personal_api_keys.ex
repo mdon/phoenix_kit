@@ -63,9 +63,9 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
   alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKitWeb.Components.PersonalKeyDisplay
 
   @permissions ["api_personal_keys", "api"]
-  @soon_days 7
 
   @impl true
   def update(assigns, socket) do
@@ -122,11 +122,10 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
 
   defp assign_state(%{assigns: %{mode: :ok, scope: scope}} = socket) do
     keys = Keys.list_personal_keys(scope)
-    owner_ok? = owner_ok?(keys)
 
     socket
     |> assign(:keys, keys)
-    |> assign(:key_statuses, Map.new(keys, &{&1.uuid, key_status(&1, owner_ok?)}))
+    |> assign(:key_statuses, PersonalKeyDisplay.statuses(keys))
     |> assign(:max_expiry, max_expiry_date())
     |> assign(:admin_enabled, Config.admin_enabled?())
     |> assign(:holds_api, Scope.can?(scope, "api"))
@@ -144,10 +143,6 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
     |> assign(:live_count, 0)
     |> assign(:max_expiry, nil)
   end
-
-  # The keys of the list are all the person's own, so one owner check serves them all.
-  defp owner_ok?([]), do: true
-  defp owner_ok?([key | _rest]), do: match?({:ok, _owner}, Keys.active_owner(key))
 
   # ── Events ─────────────────────────────────────────────────────────
 
@@ -638,45 +633,7 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
 
   # ── Template helpers ───────────────────────────────────────────────
 
-  # One of :revoked, :expired, :no_permission, :rotating, :expiring_soon, :active.
-  defp key_status(key, owner_ok?) do
-    now = DateTime.utc_now()
-
-    cond do
-      Keys.dead_reason(key) == :revoked -> :revoked
-      Keys.dead_reason(key) == :expired -> :expired
-      not owner_ok? -> :no_permission
-      key.revoked_at != nil -> :rotating
-      soon?(key.expires_at, now) -> :expiring_soon
-      true -> :active
-    end
-  end
-
-  defp soon?(nil, _now), do: false
-
-  defp soon?(%DateTime{} = expires_at, now),
-    do: DateTime.diff(expires_at, now, :second) <= @soon_days * 86_400
-
-  defp status_name(:active), do: "active"
-  defp status_name(:expiring_soon), do: "ending"
-  defp status_name(:rotating), do: "ending"
-  defp status_name(:expired), do: "expired"
-  defp status_name(:revoked), do: "revoked"
-  defp status_name(:no_permission), do: "suspended"
-
-  defp status_label(:active), do: gettext("Active")
-  defp status_label(:expiring_soon), do: gettext("Expires soon")
-  defp status_label(:rotating), do: gettext("Being replaced")
-  defp status_label(:expired), do: gettext("Expired")
-  defp status_label(:revoked), do: gettext("Revoked")
-  defp status_label(:no_permission), do: gettext("No permission")
-
   defp date(datetime, user), do: UtilsDate.format_date_with_user_timezone(datetime, user)
-
-  # `expires_at` is the end of the UTC day the form named: shown as that date, not moved
-  # into the person's time zone (east of UTC it would read one day later).
-  defp expiry_date(expires_at, user),
-    do: expires_at |> DateTime.to_date() |> UtilsDate.format_date_with_user_timezone(user)
 
   defp message_role(:error), do: "alert"
   defp message_role(:info), do: "status"
@@ -809,8 +766,8 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
                 </.table_default_cell>
                 <.table_default_cell>
                   <.status_badge
-                    status={status_name(@key_statuses[key.uuid])}
-                    label={status_label(@key_statuses[key.uuid])}
+                    status={PersonalKeyDisplay.badge_name(@key_statuses[key.uuid])}
+                    label={PersonalKeyDisplay.label(@key_statuses[key.uuid])}
                   />
                   <div
                     :if={@key_statuses[key.uuid] == :rotating}
@@ -832,7 +789,7 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
                   <% end %>
                 </.table_default_cell>
                 <.table_default_cell class="text-sm">
-                  {key.expires_at && expiry_date(key.expires_at, @scope.user)}
+                  {key.expires_at && PersonalKeyDisplay.expiry_date(key.expires_at, @scope.user)}
                 </.table_default_cell>
                 <.table_default_cell class="relative z-10">
                   <.table_row_menu
@@ -850,7 +807,8 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
                     />
                     <.table_row_menu_button
                       :if={
-                        @admin_enabled and @key_statuses[key.uuid] not in [:rotating, :no_permission]
+                        @admin_enabled and
+                          @key_statuses[key.uuid] not in [:rotating, :no_permission, :owner_inactive]
                       }
                       phx-click="request_rotate"
                       phx-value-uuid={key.uuid}

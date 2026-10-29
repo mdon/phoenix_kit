@@ -21696,7 +21696,7 @@ msgstr "Les clés personnelles ne peuvent pas être renouvelées pendant que vou
 #: lib/phoenix_kit_web/live/settings/api.ex
 #, elixir-autogen, elixir-format
 msgid "You can only remove scopes from a personal key, not add any."
-msgstr "Sur une clé personnelle, vous pouvez seulement retirer des scopes, pas en ajouter."
+msgstr "Sur une clé personnelle, vous pouvez seulement retirer des portées, pas en ajouter."
 
 #: lib/phoenix_kit_web/live/settings/api.ex
 #, elixir-autogen, elixir-format
@@ -21721,27 +21721,27 @@ msgstr "Expire le %{date}"
 #: lib/phoenix_kit_web/live/settings/api.html.heex
 #, elixir-autogen, elixir-format
 msgid "Remove scopes"
-msgstr "Retirer des scopes"
+msgstr "Retirer des portées"
 
 #: lib/phoenix_kit_web/live/settings/api.html.heex
 #, elixir-autogen, elixir-format
 msgid "Remove scopes from this key"
-msgstr "Retirer des scopes de cette clé"
+msgstr "Retirer des portées de cette clé"
 
 #: lib/phoenix_kit_web/live/settings/api.html.heex
 #, elixir-autogen, elixir-format
 msgid "This is a personal key of another person. You can take scopes off it, but not add any. Untick what it should lose."
-msgstr "Ceci est la clé personnelle d'une autre personne. Vous pouvez lui retirer des scopes, mais pas en ajouter. Décochez ce qu'elle doit perdre."
+msgstr "Ceci est la clé personnelle d'une autre personne. Vous pouvez lui retirer des portées, mais pas en ajouter. Décochez ce qu'elle doit perdre."
 
 #: lib/phoenix_kit_web/live/settings/api.html.heex
 #, elixir-autogen, elixir-format
 msgid "Remove the unticked scopes"
-msgstr "Retirer les scopes décochés"
+msgstr "Retirer les portées décochées"
 
 #: lib/phoenix_kit_web/live/settings/api.html.heex
 #, elixir-autogen, elixir-format
-msgid "A person makes these keys for themselves on My API keys. The right api_personal_keys is given to roles (Users, Roles, or the permissions matrix); an Admin does not get it by itself."
-msgstr "Chacun crée ces clés pour soi-même dans « Mes clés API ». Le droit api_personal_keys est accordé aux rôles (Utilisateurs, Rôles ou la matrice des permissions) ; un Admin ne l'obtient pas automatiquement."
+msgid "A person makes these keys for themselves on My API keys. The “Personal API keys” permission is given to roles (Users, Roles, or the permissions matrix); an Admin does not get it by itself."
+msgstr "Chacun crée ces clés pour soi-même dans « Mes clés API ». Le droit “Clés d'API personnelles” est accordé aux rôles (Utilisateurs, Rôles ou la matrice des permissions) ; un Admin ne l'obtient pas automatiquement."
 
 #: lib/phoenix_kit_web/live/settings/api.html.heex
 #, elixir-autogen, elixir-format
@@ -21765,13 +21765,13 @@ msgstr "Une clé personnelle est la clé d'une personne pour elle-même : elle a
 
 #: lib/phoenix_kit_web/live/settings/api_guide_panel.html.heex
 #, elixir-autogen, elixir-format
-msgid "To allow it, give a role the api_personal_keys permission (Users, Roles, or the permissions matrix). An Admin does not get it by itself. The person makes the keys at %{path}."
-msgstr "Pour l'autoriser, donnez à un rôle le droit api_personal_keys (Utilisateurs, Rôles ou la matrice des permissions). Un Admin ne l'obtient pas automatiquement. La personne crée ses clés à l'adresse %{path}."
+msgid "To allow it, give a role the “Personal API keys” permission (Users, Roles, or the permissions matrix). An Admin does not get it by itself. The person makes the keys at %{path}."
+msgstr "Pour l'autoriser, donnez à un rôle le droit “Clés d'API personnelles” (Utilisateurs, Rôles ou la matrice des permissions). Un Admin ne l'obtient pas automatiquement. La personne crée ses clés à l'adresse %{path}."
 
 #: lib/phoenix_kit_web/live/settings/api_guide_panel.html.heex
 #, elixir-autogen, elixir-format
 msgid "The Owner sees personal keys in the keys list. The Owner can revoke one or remove scopes from it, but cannot rotate it or add scopes."
-msgstr "L'Owner voit les clés personnelles dans la liste des clés. Il peut en révoquer une ou lui retirer des scopes, mais pas la renouveler ni lui ajouter de scopes."
+msgstr "L'Owner voit les clés personnelles dans la liste des clés. Il peut en révoquer une ou lui retirer des portées, mais pas la renouveler ni lui ajouter de portées."
 
 #: lib/phoenix_kit_web/live/settings/api_guide_panel.html.heex
 #, elixir-autogen, elixir-format
@@ -21792,3 +21792,8 @@ msgstr "Clés : %{count} sur %{max}"
 #, elixir-autogen, elixir-format
 msgid "Your other keys are on Settings → API"
 msgstr "Vos autres clés se trouvent dans Paramètres → API"
+
+#: lib/phoenix_kit_web/components/personal_key_display.ex
+#, elixir-autogen, elixir-format
+msgid "Owner inactive"
+msgstr "Propriétaire inactif"

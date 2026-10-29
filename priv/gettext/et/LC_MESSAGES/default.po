@@ -21825,7 +21825,7 @@ msgstr "Isiklikke võtmeid ei saa vahetada, kui tegutsed teises kontos."
 #: lib/phoenix_kit_web/live/settings/api.ex
 #, elixir-autogen, elixir-format
 msgid "You can only remove scopes from a personal key, not add any."
-msgstr "Isiklikult võtmelt saab scope'e ainult eemaldada, mitte lisada."
+msgstr "Isiklikult võtmelt saab ulatusi ainult eemaldada, mitte lisada."
 
 #: lib/phoenix_kit_web/live/settings/api.ex
 #, elixir-autogen, elixir-format
@@ -21850,27 +21850,27 @@ msgstr "Aegub %{date}"
 #: lib/phoenix_kit_web/live/settings/api.html.heex
 #, elixir-autogen, elixir-format
 msgid "Remove scopes"
-msgstr "Eemalda scope'id"
+msgstr "Eemalda ulatused"
 
 #: lib/phoenix_kit_web/live/settings/api.html.heex
 #, elixir-autogen, elixir-format
 msgid "Remove scopes from this key"
-msgstr "Eemalda sellelt võtmelt scope'id"
+msgstr "Eemalda sellelt võtmelt ulatused"
 
 #: lib/phoenix_kit_web/live/settings/api.html.heex
 #, elixir-autogen, elixir-format
 msgid "This is a personal key of another person. You can take scopes off it, but not add any. Untick what it should lose."
-msgstr "See on teise inimese isiklik võti. Saad sellelt scope'e eemaldada, kuid mitte lisada. Eemalda linnuke sellelt, mille võti peab kaotama."
+msgstr "See on teise inimese isiklik võti. Saad sellelt ulatusi eemaldada, kuid mitte lisada. Eemalda linnuke sellelt, mille võti peab kaotama."
 
 #: lib/phoenix_kit_web/live/settings/api.html.heex
 #, elixir-autogen, elixir-format
 msgid "Remove the unticked scopes"
-msgstr "Eemalda märkimata scope'id"
+msgstr "Eemalda märkimata ulatused"
 
 #: lib/phoenix_kit_web/live/settings/api.html.heex
 #, elixir-autogen, elixir-format
-msgid "A person makes these keys for themselves on My API keys. The right api_personal_keys is given to roles (Users, Roles, or the permissions matrix); an Admin does not get it by itself."
-msgstr "Inimene loob need võtmed ise enda jaoks lehel „Minu API võtmed“. Õigus api_personal_keys antakse rollidele (Kasutajad, Rollid või õiguste maatriks); Admin ei saa seda ise."
+msgid "A person makes these keys for themselves on My API keys. The “Personal API keys” permission is given to roles (Users, Roles, or the permissions matrix); an Admin does not get it by itself."
+msgstr "Inimene loob need võtmed ise enda jaoks lehel „Minu API võtmed“. Õigus “Isiklikud API-võtmed” antakse rollidele (Kasutajad, Rollid või õiguste maatriks); Admin ei saa seda ise."
 
 #: lib/phoenix_kit_web/live/settings/api.html.heex
 #, elixir-autogen, elixir-format
@@ -21894,13 +21894,13 @@ msgstr "Isiklik võti on inimese võti iseenda jaoks: see toimib tema enda õigu
 
 #: lib/phoenix_kit_web/live/settings/api_guide_panel.html.heex
 #, elixir-autogen, elixir-format
-msgid "To allow it, give a role the api_personal_keys permission (Users, Roles, or the permissions matrix). An Admin does not get it by itself. The person makes the keys at %{path}."
-msgstr "Selleks anna rollile õigus api_personal_keys (Kasutajad, Rollid või õiguste maatriks). Admin ei saa seda ise. Inimene loob võtmed aadressil %{path}."
+msgid "To allow it, give a role the “Personal API keys” permission (Users, Roles, or the permissions matrix). An Admin does not get it by itself. The person makes the keys at %{path}."
+msgstr "Selleks anna rollile õigus “Isiklikud API-võtmed” (Kasutajad, Rollid või õiguste maatriks). Admin ei saa seda ise. Inimene loob võtmed aadressil %{path}."
 
 #: lib/phoenix_kit_web/live/settings/api_guide_panel.html.heex
 #, elixir-autogen, elixir-format
 msgid "The Owner sees personal keys in the keys list. The Owner can revoke one or remove scopes from it, but cannot rotate it or add scopes."
-msgstr "Owner näeb isiklikke võtmeid võtmete loendis. Ta saab võtme tühistada või sellelt scope'e eemaldada, kuid ei saa seda vahetada ega scope'e lisada."
+msgstr "Owner näeb isiklikke võtmeid võtmete loendis. Ta saab võtme tühistada või sellelt ulatusi eemaldada, kuid ei saa seda vahetada ega ulatusi lisada."
 
 #: lib/phoenix_kit_web/live/settings/api_guide_panel.html.heex
 #, elixir-autogen, elixir-format
@@ -21921,3 +21921,8 @@ msgstr "Võtmed: %{count} / %{max}"
 #, elixir-autogen, elixir-format
 msgid "Your other keys are on Settings → API"
 msgstr "Sinu muud võtmed on jaotises Seaded → API"
+
+#: lib/phoenix_kit_web/components/personal_key_display.ex
+#, elixir-autogen, elixir-format
+msgid "Owner inactive"
+msgstr "Omanik pole aktiivne"

@@ -242,7 +242,7 @@
   <div id="guide-personal-keys" class="card bg-base-100 shadow-lg border border-base-200">
     <div class="card-body space-y-3">
       <h2 class="card-title text-lg">
-        <.icon name="hero-user" class="w-5 h-5" /> {gettext("Personal keys")}
+        <.icon name="hero-finger-print" class="w-5 h-5" /> {gettext("Personal keys")}
       </h2>
       <ul class="list-disc pl-5 space-y-1 text-sm">
         <li>
@@ -252,7 +252,7 @@
         </li>
         <li>
           {gettext(
-            "To allow it, give a role the api_personal_keys permission (Users, Roles, or the permissions matrix). An Admin does not get it by itself. The person makes the keys at %{path}.",
+            "To allow it, give a role the “Personal API keys” permission (Users, Roles, or the permissions matrix). An Admin does not get it by itself. The person makes the keys at %{path}.",
             path: @guide.personal_keys_path
           )}
         </li>

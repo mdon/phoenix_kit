@@ -21759,7 +21759,7 @@ msgstr "Klucze, dzięki którym programy i agenci AI działają z Twoimi uprawni
 #: lib/phoenix_kit_web/live/settings/api.ex
 #, elixir-autogen, elixir-format
 msgid "Personal keys cannot be rotated while you act in another account."
-msgstr "Kluczy osobistych nie można rotować, gdy działasz na innym koncie."
+msgstr "Kluczy osobistych nie można wymieniać, gdy działasz na innym koncie."
 
 #: lib/phoenix_kit_web/live/settings/api.ex
 #, elixir-autogen, elixir-format
@@ -21808,8 +21808,8 @@ msgstr "Usuń odznaczone zakresy"
 
 #: lib/phoenix_kit_web/live/settings/api.html.heex
 #, elixir-autogen, elixir-format
-msgid "A person makes these keys for themselves on My API keys. The right api_personal_keys is given to roles (Users, Roles, or the permissions matrix); an Admin does not get it by itself."
-msgstr "Każda osoba tworzy te klucze dla siebie w „Moje klucze API”. Uprawnienie api_personal_keys nadaje się rolom (Użytkownicy, Role lub macierz uprawnień); Admin nie dostaje go automatycznie."
+msgid "A person makes these keys for themselves on My API keys. The “Personal API keys” permission is given to roles (Users, Roles, or the permissions matrix); an Admin does not get it by itself."
+msgstr "Każda osoba tworzy te klucze dla siebie w „Moje klucze API”. Uprawnienie “Osobiste klucze API” nadaje się rolom (Użytkownicy, Role lub macierz uprawnień); Admin nie dostaje go automatycznie."
 
 #: lib/phoenix_kit_web/live/settings/api.html.heex
 #, elixir-autogen, elixir-format
@@ -21833,13 +21833,13 @@ msgstr "Klucz osobisty to klucz osoby dla niej samej: działa z jej własnymi up
 
 #: lib/phoenix_kit_web/live/settings/api_guide_panel.html.heex
 #, elixir-autogen, elixir-format
-msgid "To allow it, give a role the api_personal_keys permission (Users, Roles, or the permissions matrix). An Admin does not get it by itself. The person makes the keys at %{path}."
-msgstr "Aby to dopuścić, nadaj roli uprawnienie api_personal_keys (Użytkownicy, Role lub macierz uprawnień). Admin nie dostaje go automatycznie. Osoba tworzy klucze pod adresem %{path}."
+msgid "To allow it, give a role the “Personal API keys” permission (Users, Roles, or the permissions matrix). An Admin does not get it by itself. The person makes the keys at %{path}."
+msgstr "Aby to dopuścić, nadaj roli uprawnienie “Osobiste klucze API” (Użytkownicy, Role lub macierz uprawnień). Admin nie dostaje go automatycznie. Osoba tworzy klucze pod adresem %{path}."
 
 #: lib/phoenix_kit_web/live/settings/api_guide_panel.html.heex
 #, elixir-autogen, elixir-format
 msgid "The Owner sees personal keys in the keys list. The Owner can revoke one or remove scopes from it, but cannot rotate it or add scopes."
-msgstr "Owner widzi klucze osobiste na liście kluczy. Może unieważnić klucz lub odebrać mu zakresy, ale nie może go rotować ani dodawać zakresów."
+msgstr "Owner widzi klucze osobiste na liście kluczy. Może unieważnić klucz lub odebrać mu zakresy, ale nie może go wymieniać ani dodawać zakresów."
 
 #: lib/phoenix_kit_web/live/settings/api_guide_panel.html.heex
 #, elixir-autogen, elixir-format
@@ -21860,3 +21860,8 @@ msgstr "Klucze: %{count} z %{max}"
 #, elixir-autogen, elixir-format
 msgid "Your other keys are on Settings → API"
 msgstr "Twoje pozostałe klucze są w Ustawienia → API"
+
+#: lib/phoenix_kit_web/components/personal_key_display.ex
+#, elixir-autogen, elixir-format
+msgid "Owner inactive"
+msgstr "Właściciel nieaktywny"

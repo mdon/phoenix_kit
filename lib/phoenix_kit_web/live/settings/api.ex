@@ -78,9 +78,11 @@ defmodule PhoenixKitWeb.Live.Settings.Api do
   ## Personal keys
 
   A key with `personal == true` is one a person made for themselves on "My API keys"
-  (`PhoenixKit.API.Keys.create_personal_key/3`). The keys table marks it with a "Personal"
-  badge and shows when it expires ("Expires on", "Expires soon" only within seven days, the
-  grace period of a rotation as "until …", "No permission" while its owner may not use it).
+  (`PhoenixKit.API.Keys.create_personal_key/3`). The keys table marks it with a "Personal key"
+  badge and shows when it expires ("Expires on" for a live key, "Expires soon" only within
+  seven days, the grace period of a rotation as "until …", "Owner inactive" or "No
+  permission" while its owner may not use it; `PhoenixKitWeb.Components.PersonalKeyDisplay`,
+  shared with "My API keys", computes the statuses once in `assign_state/1`).
   The row menu follows `PhoenixKit.API.Keys.can_manage?/2`: the owner has Edit scopes,
   Rotate and Revoke; an Owner looking at someone else's personal key has only "Remove
   scopes" and "Revoke" (`Keys.can_revoke?/2`). Removing scopes opens the scopes dialog
@@ -120,9 +122,9 @@ defmodule PhoenixKitWeb.Live.Settings.Api do
   alias PhoenixKit.ModuleRegistry
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
-  alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Actor
+  alias PhoenixKitWeb.Components.PersonalKeyDisplay
   alias PhoenixKitWeb.Live.Settings.ApiGuidePanel
   alias PhoenixKitWeb.Live.Settings.UrlTabs
   alias PhoenixKitWeb.Users.MultiSession
@@ -417,7 +419,7 @@ defmodule PhoenixKitWeb.Live.Settings.Api do
       case uuid && find_key(socket, uuid) do
         %{} = key ->
           case Map.get(socket.assigns.scopes_form, :mode) do
-            :narrow -> narrow_scopes(socket, key, string_list(form["scopes"]))
+            :narrow -> narrow_scopes(socket, key, form["scopes"])
             _manage -> save_scopes(socket, key, string_list(form["scopes"]))
           end
 
@@ -523,6 +525,8 @@ defmodule PhoenixKitWeb.Live.Settings.Api do
     |> assign(:allowed_roles, ServiceUsers.allowed_roles(scope))
     |> assign(:owner_labels, owner_labels(keys, service_users, scope))
     |> assign(:key_counts, Enum.frequencies_by(keys, & &1.user_uuid))
+    |> assign(:personal_statuses, PersonalKeyDisplay.statuses(keys))
+    |> assign(:key_access, key_access(scope, keys))
   end
 
   # Only this module's key changes; keys of modules that are not installed stay listed. The
@@ -882,11 +886,13 @@ defmodule PhoenixKitWeb.Live.Settings.Api do
   defp check_manageable(socket, key),
     do: if(Keys.can_manage?(scope(socket), key), do: :ok, else: {:error, :forbidden})
 
-  defp rotate_error(:impersonated),
-    do: gettext("Personal keys cannot be rotated while you act in another account.")
-
   defp rotate_error(reason)
-       when reason in [:impersonation_unknown, :personal_key_limit, :personal_keys_not_allowed],
+       when reason in [
+              :impersonated,
+              :impersonation_unknown,
+              :personal_key_limit,
+              :personal_keys_not_allowed
+            ],
        do: reason |> error_messages() |> hd()
 
   defp rotate_error(_reason), do: gettext("The key could not be rotated.")
@@ -934,9 +940,11 @@ defmodule PhoenixKitWeb.Live.Settings.Api do
 
   defp open_narrow_form(socket, key) do
     usable =
-      case key_owner(key) do
-        {:ok, owner} -> Keys.allowed_scopes_for(owner)
-        {:error, _reason} -> []
+      with {:ok, _owner} <- Keys.active_owner(key),
+           {:ok, owner} <- key_owner(key) do
+        Keys.allowed_scopes_for(owner)
+      else
+        _unusable -> []
       end
 
     assign(socket, :scopes_form, %{
@@ -952,7 +960,25 @@ defmodule PhoenixKitWeb.Live.Settings.Api do
     })
   end
 
-  defp narrow_scopes(socket, key, scopes) do
+  # Nothing ticked sends no field; anything but a list of strings is forged and refused
+  # (it must not read as "remove every scope").
+  defp narrow_scopes(socket, key, raw) when is_nil(raw) or is_list(raw) do
+    if Enum.all?(raw || [], &is_binary/1),
+      do: narrow_scopes_checked(socket, key, raw || []),
+      else: narrow_refused(socket)
+  end
+
+  defp narrow_scopes(socket, _key, _raw), do: narrow_refused(socket)
+
+  defp narrow_refused(socket) do
+    assign(
+      socket,
+      :scopes_form,
+      Map.put(socket.assigns.scopes_form, :errors, error_messages(:invalid_scopes))
+    )
+  end
+
+  defp narrow_scopes_checked(socket, key, scopes) do
     with true <- narrowing_only?(socket, key) or {:error, :forbidden},
          true <- Enum.all?(scopes, &(&1 in key.scopes)) or {:error, :scopes_not_narrowing},
          {:ok, _key} <- Keys.update_scopes(key, scopes, scope(socket)) do
@@ -1303,42 +1329,18 @@ defmodule PhoenixKitWeb.Live.Settings.Api do
 
   defp live?(key), do: key_status(key) in [:active, :ending]
 
-  @soon_days 7
+  # What the keys table may offer for each key: `:manage` (edit scopes, rotate, revoke),
+  # `:narrow` (an Owner on someone else's personal key: remove scopes, revoke), or `:none`.
+  defp key_access(scope, keys) do
+    Map.new(keys, fn key ->
+      access =
+        cond do
+          Keys.can_manage?(scope, key) -> :manage
+          key.personal and Keys.can_revoke?(scope, key) -> :narrow
+          true -> :none
+        end
 
-  # What the Status cell shows for a personal key, whose planned expiry is not an "Ending":
-  # `:rotating` is the grace period of a rotation, `:expiring_soon` an end within a week,
-  # `:no_permission` a live key its owner cannot use now.
-  defp personal_status(key) do
-    case key_status(key) do
-      status when status in [:expired, :revoked] -> status
-      _live -> personal_live_status(key)
-    end
+      {key.uuid, access}
+    end)
   end
-
-  defp personal_live_status(key) do
-    cond do
-      not Keys.active?(key) -> :no_permission
-      key.revoked_at != nil -> :rotating
-      soon?(key.expires_at) -> :expiring_soon
-      true -> :active
-    end
-  end
-
-  defp soon?(%DateTime{} = expires_at),
-    do: DateTime.diff(expires_at, DateTime.utc_now(), :second) <= @soon_days * 86_400
-
-  defp soon?(_none), do: false
-
-  defp personal_status_name(:rotating), do: "ending"
-  defp personal_status_name(:expiring_soon), do: "ending"
-  defp personal_status_name(:no_permission), do: "suspended"
-  defp personal_status_name(status), do: Atom.to_string(status)
-
-  defp personal_status_label(:rotating), do: gettext("Ending")
-  defp personal_status_label(:expiring_soon), do: gettext("Expires soon")
-  defp personal_status_label(:no_permission), do: gettext("No permission")
-  defp personal_status_label(status), do: status_label(status)
-
-  defp expiry_date(datetime, scope),
-    do: UtilsDate.format_date_with_user_timezone(datetime, scope.user)
 end

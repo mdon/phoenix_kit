@@ -21941,8 +21941,8 @@ msgstr "Убрать снятые области доступа"
 
 #: lib/phoenix_kit_web/live/settings/api.html.heex
 #, elixir-autogen, elixir-format
-msgid "A person makes these keys for themselves on My API keys. The right api_personal_keys is given to roles (Users, Roles, or the permissions matrix); an Admin does not get it by itself."
-msgstr "Человек создаёт эти ключи для себя на странице «Мои API-ключи». Право api_personal_keys выдаётся ролям (Пользователи, Роли или матрица прав); Admin само по себе его не получает."
+msgid "A person makes these keys for themselves on My API keys. The “Personal API keys” permission is given to roles (Users, Roles, or the permissions matrix); an Admin does not get it by itself."
+msgstr "Человек создаёт эти ключи для себя на странице «Мои API-ключи». Право “Личные API-ключи” выдаётся ролям (Пользователи, Роли или матрица прав); Admin не получает его автоматически."
 
 #: lib/phoenix_kit_web/live/settings/api.html.heex
 #, elixir-autogen, elixir-format
@@ -21966,8 +21966,8 @@ msgstr "Личный ключ — это ключ человека для себ
 
 #: lib/phoenix_kit_web/live/settings/api_guide_panel.html.heex
 #, elixir-autogen, elixir-format
-msgid "To allow it, give a role the api_personal_keys permission (Users, Roles, or the permissions matrix). An Admin does not get it by itself. The person makes the keys at %{path}."
-msgstr "Чтобы разрешить, выдайте роли право api_personal_keys (Пользователи, Роли или матрица прав). Admin само по себе его не получает. Человек создаёт ключи на странице %{path}."
+msgid "To allow it, give a role the “Personal API keys” permission (Users, Roles, or the permissions matrix). An Admin does not get it by itself. The person makes the keys at %{path}."
+msgstr "Чтобы разрешить, выдайте роли право “Личные API-ключи” (Пользователи, Роли или матрица прав). Admin не получает его автоматически. Человек создаёт ключи на странице %{path}."
 
 #: lib/phoenix_kit_web/live/settings/api_guide_panel.html.heex
 #, elixir-autogen, elixir-format
@@ -21993,3 +21993,8 @@ msgstr "Ключи: %{count} из %{max}"
 #, elixir-autogen, elixir-format
 msgid "Your other keys are on Settings → API"
 msgstr "Ваши остальные ключи — в разделе Настройки → API"
+
+#: lib/phoenix_kit_web/components/personal_key_display.ex
+#, elixir-autogen, elixir-format
+msgid "Owner inactive"
+msgstr "Владелец неактивен"

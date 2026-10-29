@@ -15,7 +15,6 @@ defmodule PhoenixKitWeb.Live.Settings.ApiPersonalKeysTest do
   alias PhoenixKit.Users.Auth, as: AuthCtx
   alias PhoenixKit.Users.RolePermission
   alias PhoenixKit.Users.Roles
-  alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
 
   @path Routes.path("/admin/settings/api")
@@ -94,15 +93,62 @@ defmodule PhoenixKitWeb.Live.Settings.ApiPersonalKeysTest do
 
       {:ok, view, _html} = live(owner_conn(conn), @path)
 
-      assert has_element?(view, "#api-key-#{personal.uuid}", "Personal")
+      assert has_element?(view, "#api-key-#{personal.uuid} span.badge", "Personal key")
       assert has_element?(view, "#api-key-#{personal.uuid}", "Expires on")
 
-      date =
-        UtilsDate.format_date_with_user_timezone(personal.expires_at, KeyTestSupport.owner_user())
-
+      date = personal.expires_at |> DateTime.to_date() |> Date.to_iso8601()
       assert has_element?(view, "#api-key-#{personal.uuid}", date)
-      refute has_element?(view, "#api-key-#{ordinary.uuid}", "Personal")
+      refute has_element?(view, "#api-key-#{ordinary.uuid} span.badge", "Personal key")
       refute has_element?(view, "#api-key-#{ordinary.uuid}", "Expires on")
+    end
+
+    test "the expiry is the UTC day chosen, for a viewer east of UTC too", %{conn: conn} do
+      {_user, _role, scope} = personal_holder()
+      {key, _} = personal!(scope, %{expires_at: end_of_day(10)})
+
+      viewer =
+        KeyTestSupport.owner_user()
+        |> Ecto.Changeset.change(user_timezone: "+9")
+        |> Repo.update!()
+
+      {:ok, view, _html} = live(log_in_user(conn, viewer), @path)
+
+      day = key.expires_at |> DateTime.to_date() |> Date.to_iso8601()
+      assert has_element?(view, "#api-key-#{key.uuid}", "Expires on #{day}")
+    end
+
+    test "an expired or revoked personal key does not say when it expires", %{conn: conn} do
+      {_user, _role, scope} = personal_holder()
+      {expired, _} = personal!(scope)
+      {revoked, _} = personal!(scope)
+
+      expired
+      |> Ecto.Changeset.change(
+        expires_at:
+          DateTime.utc_now() |> DateTime.add(-3600, :second) |> DateTime.truncate(:second)
+      )
+      |> Repo.update!()
+
+      {:ok, _} = Keys.revoke(revoked, scope.user.uuid)
+
+      {:ok, view, _html} = live(owner_conn(conn), @path)
+
+      assert has_element?(view, "#api-key-#{expired.uuid}", "Expired")
+      assert has_element?(view, "#api-key-#{revoked.uuid}", "Revoked")
+      refute has_element?(view, "#api-key-#{expired.uuid}", "Expires on")
+      refute has_element?(view, "#api-key-#{revoked.uuid}", "Expires on")
+    end
+
+    test "'Owner inactive' for a blocked owner, apart from 'No permission'", %{conn: conn} do
+      {user, _role, scope} = personal_holder()
+      {key, _} = personal!(scope)
+
+      user |> Ecto.Changeset.change(is_active: false) |> Repo.update!()
+
+      {:ok, view, _html} = live(owner_conn(conn), @path)
+
+      assert has_element?(view, "#api-key-#{key.uuid}", "Owner inactive")
+      refute has_element?(view, "#api-key-#{key.uuid}", "No permission")
     end
 
     test "'Expires soon' only within seven days", %{conn: conn} do
@@ -167,9 +213,6 @@ defmodule PhoenixKitWeb.Live.Settings.ApiPersonalKeysTest do
                ~s(#api-key-menu-#{key.uuid} button[phx-click="request_edit_scopes"]),
                "Remove scopes"
              )
-
-      refute render(view) =~ "Edit scopes" and
-               has_element?(view, "#api-key-menu-#{key.uuid}", "Edit scopes")
 
       assert has_element?(menu_button(view, key, "request_revoke"))
       refute has_element?(menu_button(view, key, "request_rotate"))
@@ -243,6 +286,36 @@ defmodule PhoenixKitWeb.Live.Settings.ApiPersonalKeysTest do
       assert reloaded(key).scopes == [@read]
     end
 
+    test "a forged save with a malformed scope list changes nothing", %{conn: conn, key: key} do
+      {:ok, view, _html} = live(conn, @path)
+      menu_button(view, key, "request_edit_scopes") |> render_click()
+
+      for scopes <- ["x", %{"x" => "y"}, [@read, %{"a" => "b"}]] do
+        render_hook(view, "save_key_scopes", %{
+          "key_scopes" => %{"present" => "1", "scopes" => scopes}
+        })
+
+        assert reloaded(key).scopes == [@read, @write]
+      end
+    end
+
+    test "when its owner may not use it, every scope is marked inactive", %{conn: conn} do
+      {_user, role, scope} = personal_holder()
+      {key, _} = personal!(scope, %{scopes: [@read, @write]})
+
+      {1, _} =
+        Repo.delete_all(
+          from(rp in RolePermission,
+            where: rp.role_uuid == ^role.uuid and rp.module_key == @right
+          )
+        )
+
+      {:ok, view, _html} = live(conn, @path)
+      html = menu_button(view, key, "request_edit_scopes") |> render_click()
+
+      assert length(Regex.scan(~r/>\s*inactive\s*</, html)) == 2
+    end
+
     test "a forged request_rotate and confirm_rotate rotate nothing", %{conn: conn, key: key} do
       before = Repo.aggregate(Key, :count)
       {:ok, view, _html} = live(conn, @path)
@@ -283,7 +356,7 @@ defmodule PhoenixKitWeb.Live.Settings.ApiPersonalKeysTest do
 
       assert new_key.personal
       refute new_key.requires_approval
-      assert DateTime.compare(new_key.expires_at, PersonalKeysConfig.latest_expiry()) != :gt
+      assert new_key.expires_at == PersonalKeysConfig.latest_expiry()
       assert reloaded(key).revoked_at
     end
 
