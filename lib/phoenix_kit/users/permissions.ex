@@ -48,7 +48,7 @@ defmodule PhoenixKit.Users.Permissions do
   ## Constants & Metadata
 
       Permissions.all_module_keys()        # 26 built-in + any custom keys
-      Permissions.core_section_keys()      # 8 core keys
+      Permissions.core_section_keys()      # 9 core keys
       Permissions.feature_module_keys()    # 20 feature keys
       Permissions.enabled_module_keys()    # Core + enabled features + custom keys
       Permissions.valid_module_key?("ai")  # true

@@ -112,7 +112,8 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
 
   @doc """
   The section list rendered when a caller doesn't pass `sections` — does NOT
-  include `:integrations` (see the module attribute comment above). A caller
+  include `:integrations` or `:api_keys` (see the module attribute comment above
+  and the moduledoc). A caller
   that wants that section appended should build on this list rather than
   hardcoding a copy, so the two can't drift.
   """

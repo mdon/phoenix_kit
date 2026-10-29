@@ -16,6 +16,7 @@ defmodule PhoenixKitWeb.Live.Users.MyApiKeysTest do
   alias PhoenixKit.API.PersonalKeysConfig
   alias PhoenixKit.Users.RolePermission
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKitWeb.Components.PersonalKeyDisplay
 
   @path Routes.path("/profile/settings/api-keys")
   @component "#personal-api-keys"
@@ -267,7 +268,10 @@ defmodule PhoenixKitWeb.Live.Users.MyApiKeysTest do
 
       html = submit_create(view, %{"expires_on" => Date.to_iso8601(too_far)})
 
-      assert html =~ "Expires on: "
+      # Named in the person's own date format, not as a raw changeset error.
+      latest = PersonalKeyDisplay.expiry_date(PersonalKeysConfig.latest_expiry(), user)
+
+      assert html =~ "The expiry date can be #{latest} at the latest."
       assert keys_of(user) == []
       assert has_element?(view, "#personal-api-keys-create-errors")
     end

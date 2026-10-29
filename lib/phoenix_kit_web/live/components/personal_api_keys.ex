@@ -34,7 +34,7 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
   captured at mount can be stale. A key to rotate, edit or revoke is found only in
   `PhoenixKit.API.Keys.list_personal_keys/1` of that fresh scope; for the confirming events
   its uuid is the one the server stored when the dialog opened, never a param. The fresh
-  scope and `impersonated: false` go to `PhoenixKit.API.Keys`, which checks again.
+  scope and the session's `impersonated` go to `PhoenixKit.API.Keys`, which checks again.
 
   The create form has no "needs approval" field and the params are cut down to the fields
   of the form, so a forged `requires_approval` never reaches the key.
@@ -449,9 +449,10 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
 
     with :ok <- check_scopes(params["scopes"], allowed),
          {:ok, expires_at} <- parse_expiry(params["expires_on"]),
+         :ok <- check_ceiling(expires_at),
          {:ok, key, token} <-
            Keys.create_personal_key(scope(socket), key_attrs(params, expires_at),
-             impersonated: false
+             impersonated: socket.assigns.impersonated
            ) do
       socket
       |> assign(:create_form, closed_create_form())
@@ -459,8 +460,27 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
       |> assign(:new_token_name, key.name)
       |> assign(:message, nil)
     else
-      {:error, reason} -> assign_create_form(socket, params, error_messages(reason))
+      {:error, {:after_ceiling, latest}} ->
+        message =
+          gettext("The expiry date can be %{date} at the latest.",
+            date: PersonalKeyDisplay.expiry_date(latest, scope(socket).user)
+          )
+
+        assign_create_form(socket, params, [message])
+
+      {:error, reason} ->
+        assign_create_form(socket, params, error_messages(reason))
     end
+  end
+
+  # Core refuses a later expiry too; checked here so the message names the date in the
+  # person's own format.
+  defp check_ceiling(expires_at) do
+    latest = PersonalKeysConfig.latest_expiry()
+
+    if DateTime.compare(expires_at, latest) == :gt,
+      do: {:error, {:after_ceiling, latest}},
+      else: :ok
   end
 
   defp check_scopes(requested, allowed) do
@@ -511,7 +531,8 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
 
   defp rotate_key(socket, key, hours) do
     with {:ok, grace} <- parse_grace(hours),
-         {:ok, new_key, token} <- Keys.rotate(key, grace, scope(socket), impersonated: false) do
+         {:ok, new_key, token} <-
+           Keys.rotate(key, grace, scope(socket), impersonated: socket.assigns.impersonated) do
       socket
       |> assign(:rotate_form, %{show: false})
       |> assign(:new_token, %DisplayToken{value: token})

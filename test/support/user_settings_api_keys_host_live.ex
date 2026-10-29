@@ -3,9 +3,9 @@ defmodule PhoenixKitWeb.Test.UserSettingsApiKeysHostLive do
   Stand-in for a host page that embeds `UserSettings` with the `:api_keys` section, backing
   test/phoenix_kit_web/live/components/user_settings_api_keys_test.exs.
 
-  The session decides what the host passes: `"user_uuid"` (required), `"scope"` (`false`
-  leaves the `scope` assign out) and `"impersonated"` (absent leaves that assign out) and `"scope_of"` (the uuid of another
-  person whose scope is handed in).
+  The session decides what the host passes: `"user_uuid"` (required); `"scope"` (`false`
+  leaves the `scope` assign out); `"impersonated"` (absent leaves that assign out); and
+  `"scope_of"` (the uuid of another person whose scope is handed in).
   Not routed; rendered with `Phoenix.LiveViewTest.live_isolated/3`.
   """
   use Phoenix.LiveView

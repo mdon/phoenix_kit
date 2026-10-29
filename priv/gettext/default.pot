@@ -21917,3 +21917,8 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Owner inactive"
 msgstr ""
+
+#: lib/phoenix_kit_web/live/components/personal_api_keys.ex
+#, elixir-autogen, elixir-format
+msgid "The expiry date can be %{date} at the latest."
+msgstr ""

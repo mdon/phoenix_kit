@@ -21998,3 +21998,8 @@ msgstr "Ваши остальные ключи — в разделе Настр�
 #, elixir-autogen, elixir-format
 msgid "Owner inactive"
 msgstr "Владелец неактивен"
+
+#: lib/phoenix_kit_web/live/components/personal_api_keys.ex
+#, elixir-autogen, elixir-format
+msgid "The expiry date can be %{date} at the latest."
+msgstr "Срок действия — не позднее %{date}."
