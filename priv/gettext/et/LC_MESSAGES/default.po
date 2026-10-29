@@ -21911,3 +21911,13 @@ msgstr "Inimene, kes logib teise kontosse selle konto enda parooliga, näiteks p
 #, elixir-autogen, elixir-format
 msgid "Personal key"
 msgstr "Isiklik võti"
+
+#: lib/phoenix_kit_web/live/components/personal_api_keys.ex
+#, elixir-autogen, elixir-format
+msgid "Keys: %{count} of %{max}"
+msgstr "Võtmed: %{count} / %{max}"
+
+#: lib/phoenix_kit_web/live/components/personal_api_keys.ex
+#, elixir-autogen, elixir-format
+msgid "Your other keys are on Settings → API"
+msgstr "Sinu muud võtmed on jaotises Seaded → API"

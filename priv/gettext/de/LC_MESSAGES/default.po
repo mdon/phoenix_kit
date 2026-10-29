@@ -21782,3 +21782,13 @@ msgstr "Wer sich mit dem eigenen Passwort eines anderen Kontos in diesem Konto a
 #, elixir-autogen, elixir-format
 msgid "Personal key"
 msgstr "Persönlicher Schlüssel"
+
+#: lib/phoenix_kit_web/live/components/personal_api_keys.ex
+#, elixir-autogen, elixir-format
+msgid "Keys: %{count} of %{max}"
+msgstr "Schlüssel: %{count} von %{max}"
+
+#: lib/phoenix_kit_web/live/components/personal_api_keys.ex
+#, elixir-autogen, elixir-format
+msgid "Your other keys are on Settings → API"
+msgstr "Ihre weiteren Schlüssel finden Sie unter Einstellungen → API"

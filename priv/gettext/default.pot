@@ -21902,3 +21902,13 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Personal key"
 msgstr ""
+
+#: lib/phoenix_kit_web/live/components/personal_api_keys.ex
+#, elixir-autogen, elixir-format
+msgid "Keys: %{count} of %{max}"
+msgstr ""
+
+#: lib/phoenix_kit_web/live/components/personal_api_keys.ex
+#, elixir-autogen, elixir-format
+msgid "Your other keys are on Settings → API"
+msgstr ""

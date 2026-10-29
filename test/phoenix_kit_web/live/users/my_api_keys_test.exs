@@ -178,7 +178,7 @@ defmodule PhoenixKitWeb.Live.Users.MyApiKeysTest do
   describe "creating a key" do
     test "shows the token once and makes a personal key", %{conn: conn, user: user} do
       {:ok, view, html} = live(conn, @path)
-      assert html =~ "0 of 5 keys"
+      assert html =~ "Keys: 0 of 5"
 
       html = open_create(view)
       assert html =~ "Create the key"
@@ -267,7 +267,7 @@ defmodule PhoenixKitWeb.Live.Users.MyApiKeysTest do
 
       html = submit_create(view, %{"expires_on" => Date.to_iso8601(too_far)})
 
-      assert html =~ "expires_at"
+      assert html =~ "Expires on: "
       assert keys_of(user) == []
       assert has_element?(view, "#personal-api-keys-create-errors")
     end
@@ -308,7 +308,7 @@ defmodule PhoenixKitWeb.Live.Users.MyApiKeysTest do
       personal!(scope)
 
       {:ok, view, html} = live(conn, @path)
-      assert html =~ "1 of 1 keys"
+      assert html =~ "Keys: 1 of 1"
       open_create(view)
 
       assert submit_create(view) =~ "largest number of keys"
@@ -733,6 +733,202 @@ defmodule PhoenixKitWeb.Live.Users.MyApiKeysTest do
       assert has_element?(view, "#personal-api-keys-rest-url", "/api/admin/v1")
       assert has_element?(view, "#personal-api-keys-mcp-url", "/mcp/admin")
       assert html =~ "The key acts only with your rights; do not give it to other people."
+    end
+  end
+
+  # ── Review fixes (stage 2a) ────────────────────────────────────────
+
+  describe "dates and statuses" do
+    test "Created and Expires on: the expiry is the day the form named, east of UTC too", %{
+      conn: conn,
+      scope: scope,
+      user: user
+    } do
+      {1, _} =
+        Repo.update_all(from(u in PhoenixKit.Users.Auth.User, where: u.uuid == ^user.uuid),
+          set: [user_timezone: "+10"]
+        )
+
+      {key, _} = personal!(scope, %{expires_at: end_of_day(30)})
+      {:ok, view, _html} = live(conn, @path)
+
+      expires_on = Date.to_iso8601(Date.add(Date.utc_today(), 30))
+      next_day = Date.to_iso8601(Date.add(Date.utc_today(), 31))
+      created = DateTime.utc_now() |> DateTime.add(10 * 3600) |> DateTime.to_date()
+
+      row = "#personal-api-keys-key-#{key.uuid}"
+      assert has_element?(view, row, expires_on)
+      refute has_element?(view, row, next_day)
+      assert has_element?(view, row, Date.to_iso8601(created))
+    end
+
+    test "a key being replaced offers no Rotate and says so when asked", %{
+      conn: conn,
+      scope: scope
+    } do
+      {key, _} = personal!(scope)
+      {:ok, _new, _token} = Keys.rotate(key, 2, scope, impersonated: false)
+      {:ok, view, _html} = live(conn, @path)
+
+      assert has_element?(view, "#personal-api-keys-menu-#{key.uuid}")
+
+      refute has_element?(
+               view,
+               ~s(#personal-api-keys-menu-#{key.uuid} button[phx-click="request_rotate"])
+             )
+
+      html = fire(view, "request_rotate", %{"uuid" => key.uuid})
+      assert html =~ "This key is already being replaced."
+      refute html =~ "That key was not found."
+      refute has_element?(view, "#personal-api-keys-rotate-modal")
+    end
+
+    test "the counter has no number in the phrase's grammar", %{conn: conn, scope: scope} do
+      personal!(scope)
+      {:ok, view, _html} = live(conn, @path)
+      assert has_element?(view, "#personal-api-keys-counter", "Keys: 1 of")
+    end
+  end
+
+  describe "the create form" do
+    test "text fields are debounced, and the date has a floor and a ceiling", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path)
+      open_create(view)
+
+      for field <- ["name", "allowed-ips"] do
+        assert has_element?(view, ~s(#personal-api-keys-key-#{field}[phx-debounce="300"]))
+      end
+
+      html = render(view)
+      assert html =~ ~s(min="#{Date.to_iso8601(Date.utc_today())}")
+
+      assert html =~
+               ~s(max="#{Date.to_iso8601(Date.add(Date.utc_today(), PersonalKeysConfig.max_days()))}")
+    end
+
+    test "typing keeps the form open and its values", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path)
+      open_create(view)
+
+      html = fire(view, "create_form_changed", %{"key" => create_params(%{"name" => "Typed"})})
+
+      assert html =~ ~s(value="Typed")
+      assert has_element?(view, "#personal-api-keys-create-form")
+    end
+
+    test "a forged create_form_changed does not open a closed form", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path)
+
+      fire(view, "create_form_changed", %{"key" => create_params()})
+
+      refute has_element?(view, "#personal-api-keys-create-form")
+    end
+
+    test "a changeset error names the field with its label", %{conn: conn, user: user} do
+      {:ok, view, _html} = live(conn, @path)
+      open_create(view)
+
+      html = submit_create(view, %{"name" => String.duplicate("x", 5000)})
+
+      assert has_element?(view, "#personal-api-keys-create-errors")
+      assert html =~ "Name: "
+      refute html =~ "name: "
+      assert keys_of(user) == []
+    end
+  end
+
+  describe "refusals and messages" do
+    test "a refusal closes the open dialog so the message is seen", %{
+      conn: conn,
+      role: role
+    } do
+      {:ok, view, _html} = live(conn, @path)
+      open_create(view)
+      assert has_element?(view, "#personal-api-keys-create-form")
+
+      drop_right_silently!(role)
+      assert_message = submit_create(view)
+
+      assert assert_message =~ "You are not allowed to do that."
+      refute has_element?(view, "#personal-api-keys-create-form")
+      assert has_element?(view, "#personal-api-keys-message", "not allowed")
+    end
+
+    test "the message area is a live region, an error is an alert", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path)
+
+      fire(view, "make_me_admin", %{})
+
+      assert has_element?(view, ~s(#personal-api-keys-messages[aria-live="polite"]))
+      assert has_element?(view, ~s(#personal-api-keys-message[role="alert"]))
+    end
+
+    test "a success message is a status", %{conn: conn, scope: scope} do
+      {key, _} = personal!(scope)
+      {:ok, view, _html} = live(conn, @path)
+
+      view
+      |> element(~s(#personal-api-keys-menu-#{key.uuid} button[phx-click="request_revoke"]))
+      |> render_click()
+
+      view |> element("#personal-api-keys-revoke-confirm") |> render_click()
+
+      assert has_element?(view, ~s(#personal-api-keys-message[role="status"]))
+    end
+
+    test "opening a dialog clears the old message", %{conn: conn, scope: scope} do
+      {key, _} = personal!(scope)
+      {:ok, view, _html} = live(conn, @path)
+
+      fire(view, "make_me_admin", %{})
+      assert has_element?(view, "#personal-api-keys-message")
+
+      view
+      |> element(~s(#personal-api-keys-menu-#{key.uuid} button[phx-click="request_edit_scopes"]))
+      |> render_click()
+
+      refute has_element?(view, "#personal-api-keys-message")
+
+      fire(view, "make_me_admin", %{})
+      open_create(view)
+      refute has_element?(view, "#personal-api-keys-message")
+    end
+
+    test "the revoke confirmation is a core button", %{conn: conn, scope: scope} do
+      {key, _} = personal!(scope)
+      {:ok, view, _html} = live(conn, @path)
+
+      view
+      |> element(~s(#personal-api-keys-menu-#{key.uuid} button[phx-click="request_revoke"]))
+      |> render_click()
+
+      assert has_element?(view, "#personal-api-keys-revoke-confirm.btn.btn-error")
+    end
+  end
+
+  describe "an api holder's own non-personal key" do
+    test "is not on the page and cannot be reached by uuid" do
+      {holder, _role} = KeyTestSupport.user_with(["media"])
+      holder_scope = KeyTestSupport.scope_of(holder)
+      {plain, _token} = KeyTestSupport.issue_key!(holder, [@read], %{name: "Plain holder key"})
+      assert plain.personal == false
+
+      conn = log_in_user(Phoenix.ConnTest.build_conn(), holder)
+      {:ok, view, html} = live(conn, @path)
+
+      refute html =~ plain.name
+      refute has_element?(view, "#personal-api-keys-key-#{plain.uuid}")
+
+      for event <- ["request_revoke", "request_rotate", "request_edit_scopes"] do
+        assert fire(view, event, %{"uuid" => plain.uuid}) =~ "That key was not found."
+      end
+
+      fire(view, "confirm_revoke", %{"uuid" => plain.uuid})
+
+      after_events = Keys.get_key(plain.uuid)
+      assert after_events.revoked_at == nil
+      assert after_events.scopes == [@read]
+      assert holder_scope.user.uuid == after_events.user_uuid
     end
   end
 end

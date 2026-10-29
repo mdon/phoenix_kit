@@ -21983,3 +21983,13 @@ msgstr "Человек, вошедший в чужую учётную запис
 #, elixir-autogen, elixir-format
 msgid "Personal key"
 msgstr "Личный ключ"
+
+#: lib/phoenix_kit_web/live/components/personal_api_keys.ex
+#, elixir-autogen, elixir-format
+msgid "Keys: %{count} of %{max}"
+msgstr "Ключи: %{count} из %{max}"
+
+#: lib/phoenix_kit_web/live/components/personal_api_keys.ex
+#, elixir-autogen, elixir-format
+msgid "Your other keys are on Settings → API"
+msgstr "Ваши остальные ключи — в разделе Настройки → API"

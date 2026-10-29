@@ -81,9 +81,8 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
       |> assign_new(:rotate_form, fn -> %{show: false} end)
       |> assign_new(:scopes_form, fn -> %{show: false} end)
       |> assign_new(:revoke_confirmation, fn -> %{show: false} end)
-      |> assign_new(:connect, &connect_info/0)
 
-    {:ok, socket |> assign_mode() |> assign_state()}
+    {:ok, socket |> assign_mode() |> assign_connect() |> assign_state()}
   end
 
   # Computed once per component: the REST and MCP addresses of the admin API.
@@ -95,6 +94,12 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
       mcp: base <> Routes.path(Paths.mcp_path(:admin))
     }
   end
+
+  # Only the section that lists keys shows the addresses.
+  defp assign_connect(%{assigns: %{mode: :ok}} = socket),
+    do: assign_new(socket, :connect, &connect_info/0)
+
+  defp assign_connect(socket), do: socket
 
   # :no_context -> only an explanation; :no_right -> an explanation; :ok -> the section.
   defp assign_mode(socket) do
@@ -117,10 +122,12 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
 
   defp assign_state(%{assigns: %{mode: :ok, scope: scope}} = socket) do
     keys = Keys.list_personal_keys(scope)
+    owner_ok? = owner_ok?(keys)
 
     socket
     |> assign(:keys, keys)
-    |> assign(:key_statuses, Map.new(keys, &{&1.uuid, key_status(&1)}))
+    |> assign(:key_statuses, Map.new(keys, &{&1.uuid, key_status(&1, owner_ok?)}))
+    |> assign(:max_expiry, max_expiry_date())
     |> assign(:admin_enabled, Config.admin_enabled?())
     |> assign(:holds_api, Scope.can?(scope, "api"))
     |> assign(:max_count, PersonalKeysConfig.max_count())
@@ -135,24 +142,33 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
     |> assign(:holds_api, false)
     |> assign(:max_count, 0)
     |> assign(:live_count, 0)
+    |> assign(:max_expiry, nil)
   end
+
+  # The keys of the list are all the person's own, so one owner check serves them all.
+  defp owner_ok?([]), do: true
+  defp owner_ok?([key | _rest]), do: match?({:ok, _owner}, Keys.active_owner(key))
 
   # ── Events ─────────────────────────────────────────────────────────
 
   @impl true
   def handle_event("open_create", _params, socket) do
-    with_access(socket, fn socket ->
-      cond do
-        token_pending?(socket) ->
-          refuse(socket)
+    with_access(
+      socket,
+      fn socket ->
+        cond do
+          token_pending?(socket) ->
+            refuse(socket)
 
-        not socket.assigns.admin_enabled ->
-          error(socket, gettext("The API is switched off by an administrator."))
+          not socket.assigns.admin_enabled ->
+            deny(socket, gettext("The API is switched off by an administrator."))
 
-        true ->
-          socket |> assign(:message, nil) |> assign_create_form(default_key_params(), [])
-      end
-    end)
+          true ->
+            assign_create_form(socket, default_key_params(), [])
+        end
+      end,
+      clear_message: true
+    )
   end
 
   def handle_event("close_create", _params, socket) do
@@ -161,11 +177,15 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
 
   # Only from an open form: a forged change must not reopen a closed form.
   def handle_event("create_form_changed", %{"key" => params}, socket) when is_map(params) do
-    with_access(socket, fn socket ->
-      if socket.assigns.create_form.show,
-        do: assign_create_form(socket, normalize_key_params(params), []),
-        else: socket
-    end)
+    with_access(
+      socket,
+      fn socket ->
+        if socket.assigns.create_form.show,
+          do: update_create_params(socket, normalize_key_params(params)),
+          else: socket
+      end,
+      reload: false
+    )
   end
 
   # Only from an open form, with the API on and no token waiting to be dismissed.
@@ -184,18 +204,26 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
   end
 
   def handle_event("request_revoke", %{"uuid" => uuid}, socket) do
-    with_access(socket, fn socket ->
-      case find_key(socket, uuid) do
-        %{} = key ->
-          if Keys.can_revoke?(scope(socket), key) and live?(key),
-            do:
-              assign(socket, :revoke_confirmation, %{show: true, uuid: key.uuid, name: key.name}),
-            else: not_found(socket)
+    with_access(
+      socket,
+      fn socket ->
+        case find_key(socket, uuid) do
+          %{} = key ->
+            if Keys.can_revoke?(scope(socket), key) and live?(key),
+              do:
+                assign(socket, :revoke_confirmation, %{
+                  show: true,
+                  uuid: key.uuid,
+                  name: key.name
+                }),
+              else: not_found(socket)
 
-        nil ->
-          not_found(socket)
-      end
-    end)
+          nil ->
+            not_found(socket)
+        end
+      end,
+      clear_message: true
+    )
   end
 
   def handle_event("cancel_revoke", _params, socket) do
@@ -215,20 +243,34 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
   end
 
   def handle_event("request_rotate", %{"uuid" => uuid}, socket) do
-    with_access(socket, fn socket ->
-      case find_key(socket, uuid) do
-        %{} = key ->
-          cond do
-            token_pending?(socket) -> refuse(socket)
-            not socket.assigns.admin_enabled -> refuse(socket)
-            not rotatable?(scope(socket), key) -> not_found(socket)
-            true -> assign(socket, :rotate_form, %{show: true, uuid: key.uuid, name: key.name})
-          end
+    with_access(
+      socket,
+      fn socket ->
+        case find_key(socket, uuid) do
+          %{} = key ->
+            cond do
+              token_pending?(socket) ->
+                refuse(socket)
 
-        nil ->
-          not_found(socket)
-      end
-    end)
+              not socket.assigns.admin_enabled ->
+                refuse(socket)
+
+              being_replaced?(scope(socket), key) ->
+                error(socket, rotate_error(:rotation_pending))
+
+              not rotatable?(scope(socket), key) ->
+                not_found(socket)
+
+              true ->
+                assign(socket, :rotate_form, %{show: true, uuid: key.uuid, name: key.name})
+            end
+
+          nil ->
+            not_found(socket)
+        end
+      end,
+      clear_message: true
+    )
   end
 
   def handle_event("cancel_rotate", _params, socket) do
@@ -248,17 +290,21 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
   end
 
   def handle_event("request_edit_scopes", %{"uuid" => uuid}, socket) do
-    with_access(socket, fn socket ->
-      case find_key(socket, uuid) do
-        %{} = key ->
-          if Keys.can_manage?(scope(socket), key) and live?(key),
-            do: open_scopes_form(socket, key),
-            else: not_found(socket)
+    with_access(
+      socket,
+      fn socket ->
+        case find_key(socket, uuid) do
+          %{} = key ->
+            if Keys.can_manage?(scope(socket), key) and live?(key),
+              do: open_scopes_form(socket, key),
+              else: not_found(socket)
 
-        nil ->
-          not_found(socket)
-      end
-    end)
+          nil ->
+            not_found(socket)
+        end
+      end,
+      clear_message: true
+    )
   end
 
   def handle_event("cancel_edit_scopes", _params, socket) do
@@ -289,24 +335,31 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
   # must be complete, the session must not be borrowed, and the person's rights are read
   # again for THIS event. The fresh scope is kept in `:fresh_scope` and is the one the
   # context calls receive.
-  defp with_access(socket, fun) do
+  #
+  # A refusal closes the open dialogs, or the message would stay behind the backdrop.
+  # Options: `reload: false` keeps the list as it is (typing in the form), `clear_message:
+  # true` drops the old message before a dialog opens.
+  defp with_access(socket, fun, opts \\ []) do
     %{scope: scope, impersonated: impersonated} = socket.assigns
 
     cond do
       not context?(scope, impersonated) ->
-        {:noreply, error(socket, gettext("You are not allowed to do that."))}
+        {:noreply, deny(socket, gettext("You are not allowed to do that."))}
 
       impersonated ->
         {:noreply,
-         error(socket, gettext("Keys cannot be changed while you act in another account."))}
+         deny(socket, gettext("Keys cannot be changed while you act in another account."))}
 
       true ->
         case Access.fresh_scope(scope, @permissions) do
           {:ok, fresh} ->
-            {:noreply, socket |> assign(:fresh_scope, fresh) |> fun.() |> reload()}
+            socket = assign(socket, :fresh_scope, fresh)
+            socket = if opts[:clear_message], do: assign(socket, :message, nil), else: socket
+            socket = fun.(socket)
+            {:noreply, if(opts[:reload] == false, do: socket, else: reload(socket))}
 
           :error ->
-            {:noreply, error(socket, gettext("You are not allowed to do that."))}
+            {:noreply, deny(socket, gettext("You are not allowed to do that."))}
         end
     end
   end
@@ -318,7 +371,17 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
 
   defp token_pending?(socket), do: socket.assigns.new_token != nil
 
-  defp refuse(socket), do: error(socket, gettext("That action is not available."))
+  defp refuse(socket), do: deny(socket, gettext("That action is not available."))
+
+  defp deny(socket, text) do
+    socket
+    |> assign(:create_form, closed_create_form())
+    |> assign(:rotate_form, %{show: false})
+    |> assign(:scopes_form, %{show: false})
+    |> assign(:revoke_confirmation, %{show: false})
+    |> error(text)
+  end
+
   defp not_found(socket), do: error(socket, gettext("That key was not found."))
   defp error(socket, text), do: assign(socket, :message, {:error, text})
   defp info(socket, text), do: assign(socket, :message, {:info, text})
@@ -335,6 +398,9 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
   # A key being rotated away already has its end set; it is not rotated twice.
   defp rotatable?(scope, key),
     do: Keys.can_manage?(scope, key) and live?(key) and is_nil(key.revoked_at)
+
+  defp being_replaced?(scope, key),
+    do: Keys.can_manage?(scope, key) and live?(key) and not is_nil(key.revoked_at)
 
   # ── Create ─────────────────────────────────────────────────────────
 
@@ -378,6 +444,10 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
       tools: scope_tools(options)
     })
   end
+
+  # Typing keeps the options the form opened with: the rights are checked again on submit.
+  defp update_create_params(socket, params),
+    do: assign(socket, :create_form, %{socket.assigns.create_form | params: params, errors: []})
 
   defp create_key(socket, params) do
     allowed = Keys.allowed_scopes_for(scope(socket).user)
@@ -464,6 +534,10 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
   defp rotate_error(:rotation_pending),
     do: gettext("This key is already being replaced.")
 
+  defp rotate_error(reason)
+       when reason in [:forbidden, :owner_inactive, :impersonated, :impersonation_unknown],
+       do: hd(error_messages(reason))
+
   defp rotate_error(reason) when reason in [:revoked, :expired, :not_found],
     do: gettext("That key was not found.")
 
@@ -549,21 +623,29 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
   defp error_messages(%Ecto.Changeset{} = changeset) do
     changeset
     |> Ecto.Changeset.traverse_errors(&translate_error/1)
-    |> Enum.flat_map(fn {field, messages} -> Enum.map(messages, &"#{field}: #{&1}") end)
+    |> Enum.flat_map(fn {field, messages} ->
+      Enum.map(messages, &"#{field_label(field)}: #{&1}")
+    end)
   end
 
   defp error_messages(_other), do: [gettext("That could not be saved.")]
 
+  defp field_label(:name), do: gettext("Name")
+  defp field_label(:expires_at), do: gettext("Expires on")
+  defp field_label(:allowed_ips), do: gettext("Allowed addresses")
+  defp field_label(:scopes), do: gettext("Scopes")
+  defp field_label(other), do: to_string(other)
+
   # ── Template helpers ───────────────────────────────────────────────
 
   # One of :revoked, :expired, :no_permission, :rotating, :expiring_soon, :active.
-  defp key_status(key) do
+  defp key_status(key, owner_ok?) do
     now = DateTime.utc_now()
 
     cond do
       Keys.dead_reason(key) == :revoked -> :revoked
       Keys.dead_reason(key) == :expired -> :expired
-      not Keys.active?(key) -> :no_permission
+      not owner_ok? -> :no_permission
       key.revoked_at != nil -> :rotating
       soon?(key.expires_at, now) -> :expiring_soon
       true -> :active
@@ -591,6 +673,14 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
 
   defp date(datetime, user), do: UtilsDate.format_date_with_user_timezone(datetime, user)
 
+  # `expires_at` is the end of the UTC day the form named: shown as that date, not moved
+  # into the person's time zone (east of UTC it would read one day later).
+  defp expiry_date(expires_at, user),
+    do: expires_at |> DateTime.to_date() |> UtilsDate.format_date_with_user_timezone(user)
+
+  defp message_role(:error), do: "alert"
+  defp message_role(:info), do: "status"
+
   defp alert_class(:error), do: "alert alert-error text-sm"
   defp alert_class(:info), do: "alert alert-success text-sm"
 
@@ -598,6 +688,17 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
   def render(assigns) do
     ~H"""
     <div id={@id} class="space-y-4">
+      <div id={"#{@id}-messages"} aria-live="polite">
+        <div
+          :if={@message}
+          id={"#{@id}-message"}
+          role={message_role(elem(@message, 0))}
+          class={alert_class(elem(@message, 0))}
+        >
+          {elem(@message, 1)}
+        </div>
+      </div>
+
       <%= cond do %>
         <% @mode == :no_context -> %>
           <div id={"#{@id}-no-context"} class="alert alert-warning text-sm">
@@ -622,10 +723,6 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
   defp render_keys(assigns) do
     ~H"""
     <div class="space-y-4">
-      <div :if={@message} id={"#{@id}-message"} class={alert_class(elem(@message, 0))}>
-        {elem(@message, 1)}
-      </div>
-
       <div :if={@impersonated} id={"#{@id}-impersonated"} class="alert alert-warning text-sm">
         <.icon name="hero-exclamation-triangle" class="w-5 h-5 shrink-0" />
         <span>
@@ -671,7 +768,7 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
         </:actions>
 
         <p id={"#{@id}-counter"} class="text-sm text-base-content/70">
-          {gettext("%{count} of %{max} keys", count: @live_count, max: @max_count)}
+          {gettext("Keys: %{count} of %{max}", count: @live_count, max: @max_count)}
         </p>
 
         <div :if={@keys != []} id={"#{@id}-table"}>
@@ -735,7 +832,7 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
                   <% end %>
                 </.table_default_cell>
                 <.table_default_cell class="text-sm">
-                  {key.expires_at && date(key.expires_at, @scope.user)}
+                  {key.expires_at && expiry_date(key.expires_at, @scope.user)}
                 </.table_default_cell>
                 <.table_default_cell class="relative z-10">
                   <.table_row_menu
@@ -752,7 +849,9 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
                       label={gettext("Edit scopes")}
                     />
                     <.table_row_menu_button
-                      :if={@admin_enabled}
+                      :if={
+                        @admin_enabled and @key_statuses[key.uuid] not in [:rotating, :no_permission]
+                      }
                       phx-click="request_rotate"
                       phx-value-uuid={key.uuid}
                       phx-target={@myself}
@@ -810,9 +909,8 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
       </.form_section>
 
       <p :if={@holds_api} id={"#{@id}-other-keys"} class="text-sm text-base-content/70">
-        {gettext("Your other keys are on")}
         <.pk_link navigate="/admin/settings/api?tab=keys" class="link">
-          {gettext("Settings → API")}
+          {gettext("Your other keys are on Settings → API")}
         </.pk_link>
       </p>
 
@@ -852,6 +950,7 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
             type="text"
             label={gettext("Name")}
             value={@create_form.params["name"]}
+            phx-debounce="300"
             placeholder={gettext("What the key is for, for example Stock sync")}
             required
           />
@@ -890,6 +989,7 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
             type="text"
             label={gettext("Allowed addresses (optional)")}
             value={@create_form.params["allowed_ips"]}
+            phx-debounce="300"
             placeholder="203.0.113.5, 10.0.0.0/8"
           />
 
@@ -899,7 +999,8 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
             type="date"
             label={gettext("Expires on")}
             value={@create_form.params["expires_on"]}
-            max={Date.to_iso8601(max_expiry_date())}
+            min={Date.to_iso8601(Date.utc_today())}
+            max={@max_expiry && Date.to_iso8601(@max_expiry)}
             required
           />
         </form>
@@ -1149,15 +1250,15 @@ defmodule PhoenixKitWeb.Live.Components.PersonalApiKeys do
           <.button type="button" variant="ghost" phx-click="cancel_revoke" phx-target={@myself}>
             {gettext("Cancel")}
           </.button>
-          <button
+          <.button
             type="button"
+            variant="error"
             id={"#{@id}-revoke-confirm"}
-            class="btn btn-error"
             phx-click="confirm_revoke"
             phx-target={@myself}
           >
             {gettext("Revoke")}
-          </button>
+          </.button>
         </:actions>
       </.modal>
     </div>

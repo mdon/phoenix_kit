@@ -119,6 +119,11 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   @spec default_sections() :: [atom()]
   def default_sections, do: @default_sections
 
+  # The keys section shows the signed-in person's keys under their own profile only: the
+  # scope of someone else (an admin looking at a profile) is handed on as absent.
+  defp api_keys_scope(%{uuid: uuid}, %Scope{user: %{uuid: uuid}} = scope), do: scope
+  defp api_keys_scope(_user, _scope), do: nil
+
   # Picking a file no longer sets it on the spot: the crop editor opens on
   # the picked image first, so the person frames it once instead of
   # set-then-crop-then-set-again. Pressing Save without touching anything
@@ -171,8 +176,14 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
       )
       |> assign(:email_confirm_url_fn, email_confirm_url_fn)
       |> assign(:return_to, return_to)
-      |> assign(:api_keys_scope, Map.get(assigns, :scope))
-      |> assign(:api_keys_impersonated, Map.get(assigns, :impersonated))
+      |> assign(
+        :api_keys_scope,
+        api_keys_scope(user, assigns[:scope] || socket.assigns[:api_keys_scope])
+      )
+      |> assign(
+        :api_keys_impersonated,
+        Map.get(assigns, :impersonated, socket.assigns[:api_keys_impersonated])
+      )
       |> assign_new(:profile_success_message, fn -> nil end)
       |> assign_new(:email_success_message, fn -> assigns[:email_success_message] end)
       |> assign_new(:email_error_message, fn -> assigns[:email_error_message] end)

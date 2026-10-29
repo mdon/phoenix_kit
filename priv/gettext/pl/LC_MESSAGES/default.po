@@ -21850,3 +21850,13 @@ msgstr "Osoba, która loguje się na inne konto jego własnym hasłem, na przyk�
 #, elixir-autogen, elixir-format
 msgid "Personal key"
 msgstr "Klucz osobisty"
+
+#: lib/phoenix_kit_web/live/components/personal_api_keys.ex
+#, elixir-autogen, elixir-format
+msgid "Keys: %{count} of %{max}"
+msgstr "Klucze: %{count} z %{max}"
+
+#: lib/phoenix_kit_web/live/components/personal_api_keys.ex
+#, elixir-autogen, elixir-format
+msgid "Your other keys are on Settings → API"
+msgstr "Twoje pozostałe klucze są w Ustawienia → API"

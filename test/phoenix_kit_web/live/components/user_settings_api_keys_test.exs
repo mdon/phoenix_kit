@@ -87,10 +87,13 @@ defmodule PhoenixKitWeb.Live.Components.UserSettingsApiKeysTest do
             {"open_create", %{}},
             {"create_key", %{"key" => %{"name" => "x", "scopes" => [], "expires_on" => ""}}},
             {"request_revoke", %{"uuid" => key.uuid}},
+            {"confirm_revoke", %{}},
             {"request_rotate", %{"uuid" => key.uuid}},
-            {"request_edit_scopes", %{"uuid" => key.uuid}}
+            {"confirm_rotate", %{"rotate" => %{"grace_hours" => "1"}}},
+            {"request_edit_scopes", %{"uuid" => key.uuid}},
+            {"save_key_scopes", %{"key_scopes" => %{"present" => "1", "scopes" => []}}}
           ] do
-        fire(view, event, params)
+        assert fire(view, event, params) =~ "You are not allowed to do that.", event
       end
 
       assert [only] = keys_of(user)
@@ -117,6 +120,23 @@ defmodule PhoenixKitWeb.Live.Components.UserSettingsApiKeysTest do
 
       assert html =~ "Copy your new key now"
       assert length(keys_of(user)) == 2
+    end
+
+    test "a scope of someone else is handed on as absent", %{conn: conn, user: user, key: key} do
+      {stranger, _} = KeyTestSupport.user_without_api([@right, "media"])
+
+      {:ok, view, html} =
+        live_isolated(conn, Host,
+          session: %{
+            "user_uuid" => user.uuid,
+            "impersonated" => false,
+            "scope_of" => stranger.uuid
+          }
+        )
+
+      assert html =~ "added without the session&#39;s context"
+      refute has_element?(view, "#user-settings-api-keys-key-#{key.uuid}")
+      refute has_element?(view, "#user-settings-api-keys-new-key")
     end
 
     test "a borrowed session lists and refuses every event", %{conn: conn, user: user, key: key} do

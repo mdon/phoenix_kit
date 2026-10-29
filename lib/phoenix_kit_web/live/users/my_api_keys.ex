@@ -44,7 +44,7 @@ defmodule PhoenixKitWeb.Live.Users.MyApiKeys do
     <PhoenixKitWeb.Components.LayoutWrapper.app_layout
       socket={@socket}
       flash={@flash}
-      phoenix_kit_current_scope={assigns[:phoenix_kit_current_scope]}
+      phoenix_kit_current_scope={@phoenix_kit_current_scope}
       page_title={@page_title}
       page_subtitle={gettext("Keys that let programs and AI agents act with your rights")}
       page_section={@page_section}
@@ -56,12 +56,12 @@ defmodule PhoenixKitWeb.Live.Users.MyApiKeys do
       <div class="px-4 py-6">
         <PhoenixKitWeb.Components.ProfileSettingsTabs.profile_tabs
           active="api-keys"
-          scope={assigns[:phoenix_kit_current_scope]}
+          scope={@phoenix_kit_current_scope}
         />
         <.live_component
           module={PersonalApiKeys}
           id="personal-api-keys"
-          scope={assigns[:phoenix_kit_current_scope]}
+          scope={@phoenix_kit_current_scope}
           impersonated={@impersonated}
         />
       </div>
