@@ -8512,6 +8512,177 @@ if (typeof window.Chart === "undefined") {
   // MEDIA DRAG & DROP HOOK
   // ============================================================================
 
+  // Box select on the media browser: a press on empty space in the content
+  // column (`[data-box-area]`) and a drag draws a box; every card it touches
+  // is outlined as it goes, and on release becomes the selection
+  // (`box_select`, which turns select mode on). Shift or Cmd/Ctrl adds to the
+  // selection instead of replacing it. A press on a card is still that card's
+  // own drag; a touch screen keeps long-press. Near the column's top or
+  // bottom edge it scrolls, and the box keeps its far end where the content
+  // was. Escape lets go without selecting.
+  //
+  // Installed on the document when this script loads rather than by the
+  // MediaDragDrop hook: until LiveView connects (a second or two after a
+  // reload) there is no hook, and the first box used to become a text
+  // selection instead.
+  function startBoxSelect(e, root) {
+    var THRESHOLD = 5;
+    var EDGE = 48;
+    var NOT_EMPTY = "[data-draggable-file], [data-draggable-folder], button, a, input, textarea, " +
+      "select, label, summary, [contenteditable], [phx-click], [role='button'], dialog, .modal, .dropdown";
+
+    function selectables(area) {
+      return Array.prototype.slice.call(
+        area.querySelectorAll("[data-draggable-file], [data-draggable-folder]")
+      ).filter(function(el) { return el.offsetParent; });
+    }
+
+    if (e.button !== 0 || e.pointerType === "touch") return;
+    var area = e.target.closest && e.target.closest("[data-box-area]");
+    if (!area || !root.contains(area)) return;
+    if (e.target.closest(NOT_EMPTY)) return;
+
+    var additive = e.shiftKey || e.metaKey || e.ctrlKey;
+    // Content coordinates: the press point travels with the content
+    // when the column scrolls.
+    var start = { x: e.clientX, y: e.clientY, scroll: area.scrollTop };
+    var last = { x: e.clientX, y: e.clientY };
+    var box = null, cards = null, hits = [], raf = 0, scrollRaf = 0;
+
+    function rectNow() {
+      var dy = area.scrollTop - start.scroll;
+      var x1 = start.x, y1 = start.y - dy;
+      return {
+        left: Math.min(x1, last.x), top: Math.min(y1, last.y),
+        right: Math.max(x1, last.x), bottom: Math.max(y1, last.y)
+      };
+    }
+
+    function mark(el, on) {
+      el.style.outline = on ? "2px solid var(--color-primary)" : "";
+      el.style.outlineOffset = on ? "2px" : "";
+    }
+
+    function paint() {
+      raf = 0;
+      if (!box) return;
+      var r = rectNow();
+      var a = area.getBoundingClientRect();
+      // The drawn box stays inside the column; the hit test uses the
+      // whole of it, scrolled-away part included.
+      var left = Math.max(r.left, a.left), top = Math.max(r.top, a.top);
+      box.style.left = left + "px";
+      box.style.top = top + "px";
+      box.style.width = Math.max(0, Math.min(r.right, a.right) - left) + "px";
+      box.style.height = Math.max(0, Math.min(r.bottom, a.bottom) - top) + "px";
+      var next = cards.filter(function(el) {
+        var c = el.getBoundingClientRect();
+        return c.right > r.left && c.left < r.right && c.bottom > r.top && c.top < r.bottom;
+      });
+      hits.forEach(function(el) { if (next.indexOf(el) === -1) mark(el, false); });
+      next.forEach(function(el) { if (hits.indexOf(el) === -1) mark(el, true); });
+      hits = next;
+    }
+
+    function autoScroll() {
+      scrollRaf = 0;
+      if (!box) return;
+      var a = area.getBoundingClientRect();
+      var v = 0;
+      if (last.y < a.top + EDGE) v = -Math.ceil((a.top + EDGE - last.y) / 4);
+      else if (last.y > a.bottom - EDGE) v = Math.ceil((last.y - (a.bottom - EDGE)) / 4);
+      if (!v) return;
+      var before = area.scrollTop;
+      area.scrollTop += v;
+      if (area.scrollTop === before) return;
+      paint();
+      scrollRaf = requestAnimationFrame(autoScroll);
+    }
+
+    function begin() {
+      cards = selectables(area);
+      box = document.createElement("div");
+      box.setAttribute("data-box-select-rect", "");
+      box.style.cssText = "position:fixed;z-index:60;pointer-events:none;border-radius:4px;" +
+        "border:1px solid var(--color-primary);" +
+        "background:color-mix(in oklab, var(--color-primary) 12%, transparent);";
+      document.body.appendChild(box);
+      document.documentElement.style.userSelect = "none";
+      try { window.getSelection().removeAllRanges(); } catch (_e) {}
+    }
+
+    function finish(commit) {
+      window.removeEventListener("pointermove", onMove, true);
+      window.removeEventListener("pointerup", onUp, true);
+      window.removeEventListener("pointercancel", onCancel, true);
+      window.removeEventListener("keydown", onKey, true);
+      if (raf) cancelAnimationFrame(raf);
+      if (scrollRaf) cancelAnimationFrame(scrollRaf);
+      raf = scrollRaf = 0;
+      if (!box) return;
+      if (commit) paint();
+      hits.forEach(function(el) { mark(el, false); });
+      box.remove();
+      box = null;
+      document.documentElement.style.userSelect = "";
+      // The click this release makes belongs to the box, not the page.
+      var swallow = function(ev) { ev.stopPropagation(); ev.preventDefault(); };
+      window.addEventListener("click", swallow, true);
+      setTimeout(function() { window.removeEventListener("click", swallow, true); }, 0);
+      if (!commit) return;
+      var files = [], folders = [];
+      hits.forEach(function(el) {
+        if (el.dataset.draggableFile) files.push(el.dataset.draggableFile);
+        else if (el.dataset.draggableFolder) folders.push(el.dataset.draggableFolder);
+      });
+      var payload = { files: files, folders: folders, additive: additive };
+      var hook = root.__pkBoxHook;
+      if (hook && hook.el === root) {
+        hook.pushEventTo(root, "box_select", payload);
+      } else {
+        // Not connected yet: keep the cards outlined and hand the box to
+        // the hook when it mounts (`setupBoxSelect`).
+        var kept = hits.slice();
+        kept.forEach(function(el) { mark(el, true); });
+        window.__pkPendingBox = {
+          root: root.id,
+          payload: payload,
+          unmark: function() { kept.forEach(function(el) { mark(el, false); }); }
+        };
+      }
+    }
+
+    function onMove(ev) {
+      last = { x: ev.clientX, y: ev.clientY };
+      if (!box) {
+        if (Math.abs(last.x - start.x) < THRESHOLD && Math.abs(last.y - start.y) < THRESHOLD) return;
+        begin();
+      }
+      ev.preventDefault();
+      if (!raf) raf = requestAnimationFrame(paint);
+      if (!scrollRaf) scrollRaf = requestAnimationFrame(autoScroll);
+    }
+    function onUp() { finish(true); }
+    function onCancel() { finish(false); }
+    function onKey(ev) {
+      if (ev.key === "Escape" && box) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        finish(false);
+      }
+    }
+
+    window.addEventListener("pointermove", onMove, true);
+    window.addEventListener("pointerup", onUp, true);
+    window.addEventListener("pointercancel", onCancel, true);
+    window.addEventListener("keydown", onKey, true);
+  }
+
+  document.addEventListener("pointerdown", function(e) {
+    var root = e.target && e.target.closest && e.target.closest('[phx-hook="MediaDragDrop"]');
+    if (root) startBoxSelect(e, root);
+  });
+
   window.PhoenixKitHooks.MediaDragDrop = {
     mounted: function() {
       // View mode (grid/list) AND the sidebar folder-tree state (expanded
@@ -8543,7 +8714,7 @@ if (typeof window.Chart === "undefined") {
     },
 
     destroyed: function() {
-      if (this._boxCancel) this._boxCancel();
+      if (this.el.__pkBoxHook === this) this.el.__pkBoxHook = null;
     },
 
     updated: function() {
@@ -8551,157 +8722,18 @@ if (typeof window.Chart === "undefined") {
       this.setupLongPress();
     },
 
-    // Box select: a press on empty space in the content column
-    // (`[data-box-area]`) and a drag draws a box; every card it touches is
-    // outlined as it goes, and on release becomes the selection
-    // (`box_select`, which turns select mode on). Shift or Cmd/Ctrl adds to
-    // the selection instead of replacing it. A press on a card is still that
-    // card's own drag; a touch screen keeps long-press. Near the column's top
-    // or bottom edge it scrolls, and the box keeps its far end where the
-    // content was. Escape lets go without selecting.
+    // Box select (see `startBoxSelect`, outside the hook): the listener is
+    // installed when the script loads, not when the hook mounts, so a box
+    // drawn in the second or two before LiveView connects is not lost to a
+    // text selection. A box finished before the hook exists waits here.
     setupBoxSelect: function() {
-      var self = this;
-      var root = this.el;
-      var THRESHOLD = 5;
-      var EDGE = 48;
-      var NOT_EMPTY = "[data-draggable-file], [data-draggable-folder], button, a, input, textarea, " +
-        "select, label, summary, [contenteditable], [phx-click], [role='button'], dialog, .modal, .dropdown";
-
-      function selectables(area) {
-        return Array.prototype.slice.call(
-          area.querySelectorAll("[data-draggable-file], [data-draggable-folder]")
-        ).filter(function(el) { return el.offsetParent; });
+      this.el.__pkBoxHook = this;
+      var pending = window.__pkPendingBox;
+      if (pending && pending.root === this.el.id) {
+        window.__pkPendingBox = null;
+        pending.unmark();
+        this.pushEventTo(this.el, "box_select", pending.payload);
       }
-
-      root.addEventListener("pointerdown", function(e) {
-        if (e.button !== 0 || e.pointerType === "touch") return;
-        var area = e.target.closest && e.target.closest("[data-box-area]");
-        if (!area || !root.contains(area)) return;
-        if (e.target.closest(NOT_EMPTY)) return;
-
-        var additive = e.shiftKey || e.metaKey || e.ctrlKey;
-        // Content coordinates: the press point travels with the content
-        // when the column scrolls.
-        var start = { x: e.clientX, y: e.clientY, scroll: area.scrollTop };
-        var last = { x: e.clientX, y: e.clientY };
-        var box = null, cards = null, hits = [], raf = 0, scrollRaf = 0;
-
-        function rectNow() {
-          var dy = area.scrollTop - start.scroll;
-          var x1 = start.x, y1 = start.y - dy;
-          return {
-            left: Math.min(x1, last.x), top: Math.min(y1, last.y),
-            right: Math.max(x1, last.x), bottom: Math.max(y1, last.y)
-          };
-        }
-
-        function mark(el, on) {
-          el.style.outline = on ? "2px solid var(--color-primary)" : "";
-          el.style.outlineOffset = on ? "2px" : "";
-        }
-
-        function paint() {
-          raf = 0;
-          if (!box) return;
-          var r = rectNow();
-          var a = area.getBoundingClientRect();
-          // The drawn box stays inside the column; the hit test uses the
-          // whole of it, scrolled-away part included.
-          var left = Math.max(r.left, a.left), top = Math.max(r.top, a.top);
-          box.style.left = left + "px";
-          box.style.top = top + "px";
-          box.style.width = Math.max(0, Math.min(r.right, a.right) - left) + "px";
-          box.style.height = Math.max(0, Math.min(r.bottom, a.bottom) - top) + "px";
-          var next = cards.filter(function(el) {
-            var c = el.getBoundingClientRect();
-            return c.right > r.left && c.left < r.right && c.bottom > r.top && c.top < r.bottom;
-          });
-          hits.forEach(function(el) { if (next.indexOf(el) === -1) mark(el, false); });
-          next.forEach(function(el) { if (hits.indexOf(el) === -1) mark(el, true); });
-          hits = next;
-        }
-
-        function autoScroll() {
-          scrollRaf = 0;
-          if (!box) return;
-          var a = area.getBoundingClientRect();
-          var v = 0;
-          if (last.y < a.top + EDGE) v = -Math.ceil((a.top + EDGE - last.y) / 4);
-          else if (last.y > a.bottom - EDGE) v = Math.ceil((last.y - (a.bottom - EDGE)) / 4);
-          if (!v) return;
-          var before = area.scrollTop;
-          area.scrollTop += v;
-          if (area.scrollTop === before) return;
-          paint();
-          scrollRaf = requestAnimationFrame(autoScroll);
-        }
-
-        function begin() {
-          cards = selectables(area);
-          box = document.createElement("div");
-          box.setAttribute("data-box-select-rect", "");
-          box.style.cssText = "position:fixed;z-index:60;pointer-events:none;border-radius:4px;" +
-            "border:1px solid var(--color-primary);" +
-            "background:color-mix(in oklab, var(--color-primary) 12%, transparent);";
-          document.body.appendChild(box);
-          document.documentElement.style.userSelect = "none";
-          try { window.getSelection().removeAllRanges(); } catch (_e) {}
-        }
-
-        function finish(commit) {
-          window.removeEventListener("pointermove", onMove, true);
-          window.removeEventListener("pointerup", onUp, true);
-          window.removeEventListener("pointercancel", onCancel, true);
-          window.removeEventListener("keydown", onKey, true);
-          if (raf) cancelAnimationFrame(raf);
-          if (scrollRaf) cancelAnimationFrame(scrollRaf);
-          raf = scrollRaf = 0;
-          self._boxCancel = null;
-          if (!box) return;
-          if (commit) paint();
-          hits.forEach(function(el) { mark(el, false); });
-          box.remove();
-          box = null;
-          document.documentElement.style.userSelect = "";
-          // The click this release makes belongs to the box, not the page.
-          var swallow = function(ev) { ev.stopPropagation(); ev.preventDefault(); };
-          window.addEventListener("click", swallow, true);
-          setTimeout(function() { window.removeEventListener("click", swallow, true); }, 0);
-          if (!commit) return;
-          var files = [], folders = [];
-          hits.forEach(function(el) {
-            if (el.dataset.draggableFile) files.push(el.dataset.draggableFile);
-            else if (el.dataset.draggableFolder) folders.push(el.dataset.draggableFolder);
-          });
-          self.pushEventTo(root, "box_select", { files: files, folders: folders, additive: additive });
-        }
-
-        function onMove(ev) {
-          last = { x: ev.clientX, y: ev.clientY };
-          if (!box) {
-            if (Math.abs(last.x - start.x) < THRESHOLD && Math.abs(last.y - start.y) < THRESHOLD) return;
-            begin();
-          }
-          ev.preventDefault();
-          if (!raf) raf = requestAnimationFrame(paint);
-          if (!scrollRaf) scrollRaf = requestAnimationFrame(autoScroll);
-        }
-        function onUp() { finish(true); }
-        function onCancel() { finish(false); }
-        function onKey(ev) {
-          if (ev.key === "Escape" && box) {
-            ev.preventDefault();
-            ev.stopPropagation();
-            finish(false);
-          }
-        }
-
-        window.addEventListener("pointermove", onMove, true);
-        window.addEventListener("pointerup", onUp, true);
-        window.addEventListener("pointercancel", onCancel, true);
-        window.addEventListener("keydown", onKey, true);
-        self._boxCancel = function() { finish(false); };
-      });
     },
 
     // Long-press (hold ~450ms without moving) on a file/folder card enters
