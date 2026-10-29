@@ -755,7 +755,11 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
 
   def handle_event("toggle_viewer_sidebar", _params, socket) do
     collapsed = not socket.assigns[:sidebar_collapsed]
-    persist_sidebar_collapsed(socket.assigns[:current_user], collapsed)
+    # A picker's viewer (`pick` is set) writes none of the user's preferences:
+    # the sidebar folds for this opening only.
+    if not is_map(socket.assigns[:pick]),
+      do: persist_sidebar_collapsed(socket.assigns[:current_user], collapsed)
+
     {:noreply, assign(socket, :sidebar_collapsed, collapsed)}
   end
 

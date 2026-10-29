@@ -581,6 +581,22 @@ test("a chevron press paints the neighbour instantly", () => {
   assert.ok(/rotate-90/.test(el.img.className), "the neighbour's rotation rides along");
 });
 
+test("a chevron press reads the neighbours off ITS viewer, not the first one on the page", () => {
+  const { hook, listeners, doc } = loadHook();
+  const el = fakeEl(true);
+  hook.mounted.call({ el });
+  doc.querySelector = () => ({ dataset: { stepNextSrc: "/f/other/small/xx" } });
+  const mine = { dataset: { stepNextSrc: "/f/mine/small/aa", stepNextRot: "" } };
+  const btn = {
+    getAttribute: (k) => (k === "phx-value-dir" ? "next" : null),
+    closest: (sel) => (sel.includes("-viewer-modal") ? mine : null),
+  };
+  listeners.document.click.fn({
+    target: { closest: (sel) => (sel.includes("step_viewer") ? btn : null) },
+  });
+  assert.strictEqual(el.img.attrs.src, "/f/mine/small/aa");
+});
+
 test("a keyboard step announces itself and the stand-in answers", () => {
   const { hook, listeners } = loadHook();
   const el = fakeEl(true);

@@ -2577,7 +2577,11 @@ if (typeof window.Chart === "undefined") {
         // motion instead of the viewer freezing on the old image.
         const step = e.target.closest && e.target.closest('[phx-click="step_viewer"]');
         if (step) {
-          const modal = document.querySelector('[id$="-viewer-modal"]');
+          // The viewer the press is in: a page can hold two browsers (a picker
+          // beside another), and the first viewer in the document may be the
+          // other one's.
+          const own = step.closest && step.closest('[id$="-viewer-modal"]');
+          const modal = own || document.querySelector('[id$="-viewer-modal"]');
           const d = (modal && modal.dataset) || {};
           const dir = step.getAttribute("phx-value-dir");
           const src = dir === "prev" ? d.stepPrevSrc : d.stepNextSrc;

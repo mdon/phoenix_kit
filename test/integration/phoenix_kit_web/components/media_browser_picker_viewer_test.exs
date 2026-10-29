@@ -606,6 +606,27 @@ defmodule PhoenixKitWeb.Components.MediaBrowserPickerViewerTest do
     end
   end
 
+  describe "the sidebar fold" do
+    test "a picker's viewer folds the sidebar without writing the user's preference",
+         %{
+           conn: conn
+         } = ctx do
+      a = file!(ctx.scope)
+      view = open(conn, ctx)
+      eye(view, a)
+
+      view
+      |> element(
+        ~s(#pick-viewer-modal button[phx-click="toggle_viewer_sidebar"][class*="right-14"]),
+        ""
+      )
+      |> render_click()
+
+      user = PhoenixKit.Users.Auth.get_user(ctx.user.uuid)
+      assert (user.custom_fields || %{})["media_viewer_info_collapsed"] == nil
+    end
+  end
+
   test "the viewer's pick events are not writes" do
     refute "view_file" in MediaBrowser.write_events()
     refute "viewer_pick" in MediaBrowser.write_events()
