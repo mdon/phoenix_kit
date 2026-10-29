@@ -116,6 +116,9 @@ different authority check:
   to the root identity. A lost session resumes inside Acme.
 - **Back to my account** = `switch_to/2` with the root's ref. Logging out of
   the organization = `log_out_active/1` (drops back to the root).
+- **Reads as a borrowed account.** `MultiSession.impersonated?/1` stays true
+  while acting (decided): callers that refuse a borrowed account, such as the
+  AI assistant spending an account's limits, refuse an organization session too.
 - **Works with `multi_session_enabled` off** (the default). The organization
   part of the stack needs no "add account" UI; only the gate in `scope_fields/1`
   and the routes must not require the setting. Verify `switch_to/2` and
@@ -174,11 +177,11 @@ rules), and converting an organization that holds one is refused.
 
 ### 8. Attribution
 
-Activity rows written while acting carry the organization as `actor_uuid`
-(its own history reads naturally, and per-user queries keep working) and the
-person in `metadata["acting_user_uuid"]`. Best done once, centrally: the scope
-knows it is acting (`Scope.acting_user_uuid/1`), and `PhoenixKitWeb.Actor`
-exposes it, so `Activity.log/3` callers need no change. Open decision 2.
+**Decided:** activity rows written while acting carry the organization as
+`actor_uuid` (its own history reads naturally, and per-user queries keep
+working) and the person in `metadata["acting_user_uuid"]`. Done once,
+centrally: the scope knows it is acting (`Scope.acting_user_uuid/1`), and
+`PhoenixKitWeb.Actor` exposes it, so `Activity.log/3` callers need no change.
 
 ### 9. Admin UI and creating organizations
 
@@ -190,9 +193,8 @@ exposes it, so `Activity.log/3` callers need no change. Open decision 2.
   remember-me tokens are revoked. Converting back asks for a new unique
   login email.
 - **New managed organization** (admin): name, contact email, first manager.
-- **Self-serve "Add a company"** from the person's own account settings:
-  creates the managed organization with the person as its first manager.
-  Phase 2, behind a setting; Andi decides whether they need it.
+- **No self-serve creation.** Decided: organizations are created by an
+  admin only. A person never creates one from their own account settings.
 
 ## Phases
 
@@ -201,7 +203,6 @@ exposes it, so `Activity.log/3` callers need no change. Open decision 2.
 2. **Switching** — `act_as_organization`, routes, the switcher component in
    both navs, the "acting as" header, attribution.
 3. **Admin UI** — managers on the details page, convert, create.
-4. **Self-serve** (optional) — "Add a company" in account settings.
 
 Each phase is releasable on its own; nothing changes for an install until an
 organization is marked managed.
@@ -223,16 +224,16 @@ organization is marked managed.
   person/org the form never offered).
 - Prefix migration test covers V226.
 
+## Decisions (2026-10-29)
+
+1. **Creation:** admin-created only; no self-serve "Add a company".
+2. **Attribution:** the organization is the actor, the person is in
+   `metadata["acting_user_uuid"]`.
+3. **`MultiSession.impersonated?/1`** stays true while acting for an
+   organization (the safe default): it reads as a borrowed account.
+
 ## Open decisions
 
-1. **Self-serve creation** (phase 4): needed by Andi, or admin-created only?
-2. **Attribution**: org as actor + person in metadata (proposed), or the
-   person as actor with the org in metadata?
-3. **`MultiSession.impersonated?/1`** is true for any active account that is not
-   the root, so acting for an organization reads as "borrowed account" to
-   callers that refuse one (the AI assistant spending limits). Keep that (safe)
-   or teach it that an organization token with `acting_user_uuid = root` is
-   the person's own?
 4. **Impersonating a managed organization** (Owner/Admin support access): its
    token has no `acting_user_uuid`, so the session query would refuse it.
    Refuse in v1, or let an impersonation token carry the impersonator?
