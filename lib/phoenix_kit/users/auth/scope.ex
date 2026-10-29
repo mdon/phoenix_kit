@@ -219,18 +219,31 @@ defmodule PhoenixKit.Users.Auth.Scope do
     }
   end
 
-  defp eligible_roles(%User{managed_by_members: true}, roles) do
-    system = Role.system_roles()
-    Enum.reject(roles, &(&1.name in [system.owner, system.admin]))
-  end
+  defp eligible_roles(%User{managed_by_members: true}, roles),
+    do: Enum.reject(roles, &managed_ceiling_role?(&1.name))
 
   defp eligible_roles(_user, roles), do: roles
 
-  defp permission_ceiling(%User{managed_by_members: true}, permissions) do
-    Enum.reject(permissions, &(&1 in [@superadmin_key, "api"]))
-  end
+  defp permission_ceiling(%User{managed_by_members: true}, permissions),
+    do: Enum.reject(permissions, &managed_ceiling_key?/1)
 
   defp permission_ceiling(_user, permissions), do: permissions
+
+  @doc false
+  # The managed-organization ceiling, defined once: the scope applies it here
+  # and `Roles` refuses to assign past it. A role named here is never in a
+  # managed organization's effective roles; a key named here (or a sub-key of
+  # `api`) never in its permissions.
+  @spec managed_ceiling_role?(String.t()) :: boolean()
+  def managed_ceiling_role?(name) do
+    system = Role.system_roles()
+    name in [system.owner, system.admin]
+  end
+
+  @doc false
+  @spec managed_ceiling_key?(String.t()) :: boolean()
+  def managed_ceiling_key?(key) when is_binary(key),
+    do: key in [@superadmin_key, "api"] or String.starts_with?(key, "api.")
 
   # Not narrowed: the union across every held role, exactly as before the
   # active role existed. Narrowed: only the roles in effect.

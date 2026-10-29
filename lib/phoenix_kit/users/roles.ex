@@ -131,11 +131,9 @@ defmodule PhoenixKit.Users.Roles do
   defp managed_role_allowed(user, role) do
     case RepoHelper.repo().get(User, user.uuid) do
       %User{managed_by_members: true} ->
-        system = Role.system_roles()
-
-        with false <- role.name in [system.owner, system.admin],
+        with false <- Scope.managed_ceiling_role?(role.name),
              {:ok, keys} <- Permissions.fetch_permissions_for_role(to_string(role.uuid)),
-             false <- Enum.any?(keys, &(&1 in ["*", "api"])) do
+             false <- Enum.any?(keys, &Scope.managed_ceiling_key?/1) do
           :ok
         else
           _ -> {:error, :managed_organization_role_not_allowed}
@@ -1361,6 +1359,12 @@ defmodule PhoenixKit.Users.Roles do
   # Owner, and the scope their effective permissions are read from.
   defp actor_context(:system), do: :system
 
+  # A managed organization is never an Owner here either: `held_roles` are the
+  # real role rows, and the scope's ceiling does not filter them.
+  defp actor_context(%Scope{user: %User{managed_by_members: true} = user} = scope) do
+    %{user: user, owner?: false, scope: scope}
+  end
+
   defp actor_context(%Scope{user: %User{} = user} = scope) do
     %{user: user, owner?: Role.system_roles().owner in Scope.held_roles(scope), scope: scope}
   end
@@ -1428,6 +1432,7 @@ defmodule PhoenixKit.Users.Roles do
     Enum.split_with(role_names, &role_name_manageable?(ctx, &1))
   end
 
+  defp owner?(%User{managed_by_members: true}), do: false
   defp owner?(%User{} = user), do: Role.system_roles().owner in get_user_roles(user)
 
   # Blocks removing the final active Owner, mirroring safely_remove_role/2.

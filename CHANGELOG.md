@@ -1,4 +1,4 @@
-## 3.0.0 - 2026-10-27
+## Unreleased
 
 ### Added
 
@@ -13,6 +13,8 @@
   and disconnects their sockets after commit, including credential changes,
   user deletion and calls inside host-owned transactions. Rollbacks and
   savepoint rollbacks preserve restored sessions.
+
+## 3.0.0 - 2026-10-27
 
 **Core no longer creates the tables of the optional modules, and the database layer for email templates is gone.** An
 existing install must be at **V225** (the last 2.x release, 2.65.0) before it upgrades: below that,

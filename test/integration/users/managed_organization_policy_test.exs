@@ -115,7 +115,18 @@ defmodule PhoenixKit.Users.ManagedOrganizationPolicyTest do
       refute Scope.superadmin?(scope)
       refute Scope.can?(scope, "api")
       assert Scope.can?(scope, "users")
+
+      # Role authority reads the real role rows, not the ceilinged scope.
+      refute Roles.can_manage_role?(scope, "Admin")
     end
+
+    refute Roles.can_manage_role?(org, "Admin")
+  end
+
+  test "the ceiling also covers sub-keys of api" do
+    assert Scope.managed_ceiling_key?("api.keys")
+    refute Scope.managed_ceiling_key?("apiary")
+    refute Scope.managed_ceiling_key?("users")
   end
 
   test "member and manager invitations coexist and duplicate pending kinds are changeset errors" do

@@ -1110,3 +1110,50 @@ requirements were tightened before starting:
 Start with V226, the schema, session-query guard and authentication doors.
 Validate against real PostgreSQL, including a named prefix. Add switching
 and UI after the foundation is verified.
+
+## Review (Claude, implementation, 2026-10-29)
+
+Claude reviewed the two foundation commits (`88d197fd6`, `e42cc7ebf`) against
+this plan. Verdict: the session-query guard, the doors, the migration and the
+revocation drain match the plan, and the tests exercise them for real
+(targeted suites 92/92, `test/integration/users` 797/797, unit `users`
+344/344 against PostgreSQL). Fixed in this review:
+
+- **CHANGELOG.** The entries went under `## 3.0.0`, which is already tagged
+  and published. Moved to `## Unreleased`.
+- **The ceiling did not reach role authority.** `Roles.can_manage_role?/2`
+  and the other `actor:` checks take `owner?` from `Scope.held_roles/1` (or
+  the DB roles for a bare `%User{}`), which the scope ceiling does not filter.
+  A managed organization holding an Owner row (inserted directly, or left by
+  a buggy future conversion) was an Owner there. Both `actor_context/1`
+  clauses now answer `owner?: false` for a managed organization; regression
+  assertion in `managed_organization_policy_test.exs`.
+- **One ceiling definition.** `Scope` and `Roles` each spelled the forbidden
+  roles and keys. Now `Scope.managed_ceiling_role?/1` and
+  `Scope.managed_ceiling_key?/1`, which also cover any future `api.*` sub-key.
+- **AGENTS.md** gained two landmines: managed organizations never sign in on
+  their own (with `User.delivery_email/1` for addresses), and session tokens
+  are deleted only through `Sessions.Revocation`.
+
+Open, for the next batches:
+
+- **Observer retries forever when the repo is unreachable.** Each revoke
+  inside a host-owned transaction starts one task that polls up to once a
+  second until it sees the outcome. Self-healing when the database returns,
+  but a dynamic repo that is shut down for good leaves tasks polling. Either
+  cap `:unavailable` retries (and log the count, never tokens) or accept it.
+- **Host test suites.** Under the SQL sandbox a host's own `Repo.transaction`
+  never commits, so a drain inside one is never followed by a disconnect.
+  A sibling test that asserts the disconnect from inside its own transaction
+  will not see it. Worth a sentence in the external-module guide.
+- **Grant eligibility is read without locks.** `OrganizationManager.changeset/2`
+  reads the person and organization in `validate_change`, and
+  `change_account_type/2` checks for grants without a lock. The session query
+  re-checks `account_type = 'person'`, so a race leaves a stale grant row,
+  not a working session. The phase-3 manager context should take the
+  organization lock and re-check the person in the same transaction.
+- **Cost per logout.** Every token drain is now lock, dependents, delete and
+  a post-commit absence check in a transaction (was one `DELETE`). Fine at
+  current scale; noted in case session churn grows.
+- **Plan length.** The four review sections restate design text that §1–§10
+  already carry. Once phase 1 ships, fold them into a short history.
