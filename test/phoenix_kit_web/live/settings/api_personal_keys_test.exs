@@ -362,6 +362,50 @@ defmodule PhoenixKitWeb.Live.Settings.ApiPersonalKeysTest do
       assert reloaded(key).revoked_at
     end
 
+    test "at the limit the dialog starts at grace 0 and says why; a longer grace is refused", %{
+      conn: conn
+    } do
+      {user, _role} = KeyTestSupport.user_with(["media"])
+      scope = KeyTestSupport.scope_of(user)
+      KeyTestSupport.put_setting("api_personal_key_max_count", 2)
+      {key, _} = personal!(scope)
+      {_other, _} = personal!(scope)
+      before = Repo.aggregate(Key, :count)
+
+      {:ok, view, _html} = live(log_in_user(conn, user), @path)
+
+      menu_button(view, key, "request_rotate") |> render_click()
+      assert has_element?(view, "#rotate-api-key-at-limit")
+      assert has_element?(view, ~s(#rotate-grace-hours option[value="0"][selected]))
+
+      html =
+        view
+        |> form("#rotate-api-key-form", %{"rotate" => %{"grace_hours" => "3"}})
+        |> render_submit()
+
+      assert html =~ "the old key cannot keep working next to the new one"
+      assert Repo.aggregate(Key, :count) == before
+      assert reloaded(key).revoked_at == nil
+
+      menu_button(view, key, "request_rotate") |> render_click()
+      view |> form("#rotate-api-key-form") |> render_submit()
+
+      assert has_element?(view, "#new-api-token-done")
+      assert Repo.aggregate(Key, :count) == before + 1
+      assert reloaded(key).revoked_at
+    end
+
+    test "below the limit the dialog starts at one hour, without the notice", %{conn: conn} do
+      {user, _role} = KeyTestSupport.user_with(["media"])
+      {key, _} = personal!(KeyTestSupport.scope_of(user))
+
+      {:ok, view, _html} = live(log_in_user(conn, user), @path)
+
+      menu_button(view, key, "request_rotate") |> render_click()
+      refute has_element?(view, "#rotate-api-key-at-limit")
+      assert has_element?(view, ~s(#rotate-grace-hours option[value="1"][selected]))
+    end
+
     test "in a borrowed session it is refused; an ordinary key rotates as before", %{conn: conn} do
       {user, _role} = KeyTestSupport.user_with(["media"])
       scope = KeyTestSupport.scope_of(user)

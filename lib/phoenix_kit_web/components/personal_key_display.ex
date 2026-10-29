@@ -95,6 +95,13 @@ defmodule PhoenixKitWeb.Components.PersonalKeyDisplay do
   def label(:no_permission), do: gettext("No permission")
   def label(:owner_inactive), do: gettext("Owner inactive")
 
+  @doc "A moment (a grace period's end) in the user's date format, time format and time zone."
+  @spec moment(DateTime.t(), term()) :: String.t()
+  def moment(%DateTime{} = at, user) do
+    UtilsDate.format_date_with_user_timezone(at, user) <>
+      " " <> UtilsDate.format_time_with_user_timezone(at, user)
+  end
+
   @doc """
   The expiry as the UTC day it names, in the user's date format and without a time zone
   shift.

@@ -21765,15 +21765,17 @@ msgstr "В особистого ключа можна лише прибират�
 msgid "This session cannot tell whether you act in another account."
 msgstr "Сеанс не може визначити, чи ви дієте в іншому обліковому записі."
 
+#: lib/phoenix_kit_web/live/components/personal_api_keys.ex
 #: lib/phoenix_kit_web/live/settings/api.ex
 #, elixir-autogen, elixir-format
-msgid "This person already has the most personal keys allowed."
-msgstr "У цієї людини вже максимально допустима кількість особистих ключів."
+msgid "You already have the largest number of keys allowed, so the old key cannot keep working next to the new one. Rotate with a grace period of 0, or revoke a key first."
+msgstr "У вас уже максимально допустима кількість ключів, тому старий ключ не може працювати поряд з новим. Випустіть новий з перехідним періодом 0 або спершу відкличте один ключ."
 
-#: lib/phoenix_kit_web/live/settings/api.ex
+#: lib/phoenix_kit_web/live/components/personal_api_keys.ex
+#: lib/phoenix_kit_web/live/settings/api.html.heex
 #, elixir-autogen, elixir-format
-msgid "This person may not have personal keys."
-msgstr "Цій людині особисті ключі недоступні."
+msgid "You already have the largest number of keys allowed, so the old key cannot keep working next to the new one: the grace period starts at 0 and the old key stops at once. Revoke another key first if you need a longer overlap."
+msgstr "У вас уже максимально допустима кількість ключів, тому старий ключ не може працювати поряд з новим: перехідний період починається з 0, і старий ключ перестає працювати одразу. Спершу відкличте інший ключ, якщо потрібне довше суміщення."
 
 #: lib/phoenix_kit_web/live/settings/api.html.heex
 #, elixir-autogen, elixir-format
@@ -21837,8 +21839,13 @@ msgstr "Owner бачить особисті ключі в списку ключ�
 
 #: lib/phoenix_kit_web/live/settings/api_guide_panel.html.heex
 #, elixir-autogen, elixir-format
-msgid "A person who signs in to another account with that account's own password, for example after an administrator reset it, can make a key there, as they can do anything else in that account."
-msgstr "Людина, яка увійшла в чужий обліковий запис його власним паролем, наприклад після скидання пароля адміністратором, може створити там ключ — як і зробити там усе інше."
+msgid "Someone who signs in as a person directly, not as a second account in the same session, with that person's own password, for example after an administrator reset it, can make a key as that person."
+msgstr "Той, хто входить напряму як ця людина, а не як другий обліковий запис у тій самій сесії, з її власним паролем, наприклад після скидання пароля адміністратором, може створити ключ від її імені."
+
+#: lib/phoenix_kit_web/live/settings/api_guide_panel.html.heex
+#, elixir-autogen, elixir-format
+msgid "A person never has more live personal keys than the limit set under “Switches and modules”, a key in the grace period of a rotation included. At the limit, a key can only be rotated with a grace period of 0, which stops the old key at once."
+msgstr "У людини ніколи не буває більше чинних особистих ключів, ніж задано в розділі «Перемикачі та модулі», враховуючи ключ у перехідному періоді заміни. На межі ключ можна замінити лише з перехідним періодом 0, за якого старий ключ перестає працювати одразу."
 
 #: lib/phoenix_kit_web/live/settings/api.html.heex
 #, elixir-autogen, elixir-format

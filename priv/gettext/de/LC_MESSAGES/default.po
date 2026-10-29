@@ -21703,15 +21703,17 @@ msgstr "Bei einem persönlichen Schlüssel können Sie Berechtigungsbereiche nur
 msgid "This session cannot tell whether you act in another account."
 msgstr "Diese Sitzung kann nicht feststellen, ob Sie in einem anderen Konto handeln."
 
+#: lib/phoenix_kit_web/live/components/personal_api_keys.ex
 #: lib/phoenix_kit_web/live/settings/api.ex
 #, elixir-autogen, elixir-format
-msgid "This person already has the most personal keys allowed."
-msgstr "Diese Person hat bereits die höchste zulässige Anzahl persönlicher Schlüssel."
+msgid "You already have the largest number of keys allowed, so the old key cannot keep working next to the new one. Rotate with a grace period of 0, or revoke a key first."
+msgstr "Sie haben bereits die größte erlaubte Anzahl an Schlüsseln, daher kann der alte Schlüssel nicht neben dem neuen weiterarbeiten. Rotieren Sie mit einer Übergangszeit von 0 oder widerrufen Sie zuerst einen Schlüssel."
 
-#: lib/phoenix_kit_web/live/settings/api.ex
+#: lib/phoenix_kit_web/live/components/personal_api_keys.ex
+#: lib/phoenix_kit_web/live/settings/api.html.heex
 #, elixir-autogen, elixir-format
-msgid "This person may not have personal keys."
-msgstr "Diese Person darf keine persönlichen Schlüssel haben."
+msgid "You already have the largest number of keys allowed, so the old key cannot keep working next to the new one: the grace period starts at 0 and the old key stops at once. Revoke another key first if you need a longer overlap."
+msgstr "Sie haben bereits die größte erlaubte Anzahl an Schlüsseln, daher kann der alte Schlüssel nicht neben dem neuen weiterarbeiten: Die Übergangszeit beginnt bei 0 und der alte Schlüssel endet sofort. Widerrufen Sie zuerst einen anderen Schlüssel, wenn Sie eine längere Überlappung brauchen."
 
 #: lib/phoenix_kit_web/live/settings/api.html.heex
 #, elixir-autogen, elixir-format
@@ -21775,8 +21777,13 @@ msgstr "Der Owner sieht persönliche Schlüssel in der Schlüsselliste. Er kann 
 
 #: lib/phoenix_kit_web/live/settings/api_guide_panel.html.heex
 #, elixir-autogen, elixir-format
-msgid "A person who signs in to another account with that account's own password, for example after an administrator reset it, can make a key there, as they can do anything else in that account."
-msgstr "Wer sich mit dem eigenen Passwort eines anderen Kontos in diesem Konto anmeldet, etwa nachdem ein Administrator es zurückgesetzt hat, kann dort einen Schlüssel erstellen, wie alles andere in diesem Konto."
+msgid "Someone who signs in as a person directly, not as a second account in the same session, with that person's own password, for example after an administrator reset it, can make a key as that person."
+msgstr "Wer sich direkt als eine Person anmeldet, nicht als zweites Konto in derselben Sitzung, und deren eigenes Passwort kennt, zum Beispiel nach einem Zurücksetzen durch einen Administrator, kann einen Schlüssel als diese Person erstellen."
+
+#: lib/phoenix_kit_web/live/settings/api_guide_panel.html.heex
+#, elixir-autogen, elixir-format
+msgid "A person never has more live personal keys than the limit set under “Switches and modules”, a key in the grace period of a rotation included. At the limit, a key can only be rotated with a grace period of 0, which stops the old key at once."
+msgstr "Eine Person hat nie mehr aktive persönliche Schlüssel als die unter „Schalter und Module“ festgelegte Grenze, ein Schlüssel in der Übergangszeit einer Rotation eingeschlossen. An der Grenze lässt sich ein Schlüssel nur mit einer Übergangszeit von 0 rotieren, wodurch der alte Schlüssel sofort endet."
 
 #: lib/phoenix_kit_web/live/settings/api.html.heex
 #, elixir-autogen, elixir-format

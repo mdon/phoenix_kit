@@ -46,6 +46,21 @@ defmodule PhoenixKitWeb.Live.Components.UserSettingsApiKeysTest do
   defp fire(view, event, params),
     do: view |> with_target(@component) |> render_hook(event, params)
 
+  # Every event that opens a dialog or changes something, with the params a real page sends.
+  defp changing_events(key) do
+    [
+      {"open_create", %{}},
+      {"create_key",
+       %{"key" => %{"name" => "Late", "scopes" => [], "expires_on" => "2999-01-01"}}},
+      {"request_revoke", %{"uuid" => key.uuid}},
+      {"confirm_revoke", %{}},
+      {"request_rotate", %{"uuid" => key.uuid}},
+      {"confirm_rotate", %{"rotate" => %{"grace_hours" => "1"}}},
+      {"request_edit_scopes", %{"uuid" => key.uuid}},
+      {"save_key_scopes", %{"key_scopes" => %{"present" => "1", "scopes" => []}}}
+    ]
+  end
+
   defp keys_of(user), do: Repo.all(from(k in Key, where: k.user_uuid == ^user.uuid))
 
   test ":api_keys is opt-in, never in the default sections" do
@@ -146,14 +161,9 @@ defmodule PhoenixKitWeb.Live.Components.UserSettingsApiKeysTest do
       assert has_element?(view, "#user-settings-api-keys-key-#{key.uuid}")
       refute has_element?(view, "#user-settings-api-keys-new-key")
 
-      for {event, params} <- [
-            {"open_create", %{}},
-            {"request_revoke", %{"uuid" => key.uuid}},
-            {"confirm_revoke", %{}},
-            {"request_rotate", %{"uuid" => key.uuid}},
-            {"request_edit_scopes", %{"uuid" => key.uuid}}
-          ] do
-        assert fire(view, event, params) =~ "cannot be changed while you act in another account"
+      for {event, params} <- changing_events(key) do
+        assert fire(view, event, params) =~ "cannot be changed while you act in another account",
+               event
       end
 
       assert [only] = keys_of(user)
@@ -171,15 +181,34 @@ defmodule PhoenixKitWeb.Live.Components.UserSettingsApiKeysTest do
           )
         )
 
-      assert fire(view, "create_key", %{
-               "key" => %{"name" => "Late", "scopes" => [], "expires_on" => "2999-01-01"}
-             }) =~ "You are not allowed to do that."
-
-      assert fire(view, "request_revoke", %{"uuid" => key.uuid}) =~
-               "You are not allowed to do that."
+      for {event, params} <- changing_events(key) do
+        assert fire(view, event, params) =~ "You are not allowed to do that.", event
+      end
 
       assert [only] = keys_of(user)
       assert only.revoked_at == nil
+    end
+
+    test "the API switch is read again for each event, not taken from the last render", %{
+      conn: conn,
+      user: user
+    } do
+      {:ok, view, _html} = host(conn, user, %{"impersonated" => false})
+      view |> element("#user-settings-api-keys-new-key") |> render_click()
+      KeyTestSupport.put_setting("api_admin_enabled", "false")
+
+      html =
+        fire(view, "create_key", %{
+          "key" => %{
+            "name" => "Too late",
+            "scopes" => [@read],
+            "allowed_ips" => "",
+            "expires_on" => Date.to_iso8601(Date.add(Date.utc_today(), 10))
+          }
+        })
+
+      assert html =~ "That action is not available."
+      assert length(keys_of(user)) == 1
     end
 
     test "a forged uuid of another person's key finds nothing", %{conn: conn, user: user} do

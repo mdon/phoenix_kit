@@ -356,23 +356,22 @@
                 </.table_default_cell>
                 <.table_default_cell>
                   <%= if key.personal do %>
-                    <% pstatus = @personal_statuses[key.uuid] %>
                     <.status_badge
-                      status={PersonalKeyDisplay.badge_name(pstatus)}
-                      label={PersonalKeyDisplay.label(pstatus)}
+                      status={PersonalKeyDisplay.badge_name(@personal_statuses[key.uuid])}
+                      label={PersonalKeyDisplay.label(@personal_statuses[key.uuid])}
                     />
                     <div
-                      :if={pstatus == :rotating}
+                      :if={@personal_statuses[key.uuid] == :rotating}
                       class="text-xs text-base-content/60 mt-0.5"
                     >
                       {gettext("until %{time}",
-                        time: Calendar.strftime(ends_at(key), "%Y-%m-%d %H:%M UTC")
+                        time: PersonalKeyDisplay.moment(ends_at(key), @api_scope.user)
                       )}
                     </div>
                     <div
                       :if={
-                        key.expires_at && PersonalKeyDisplay.live?(pstatus) &&
-                          pstatus != :rotating
+                        key.expires_at && PersonalKeyDisplay.live?(@personal_statuses[key.uuid]) &&
+                          @personal_statuses[key.uuid] != :rotating
                       }
                       class="text-xs text-base-content/60 mt-0.5"
                     >
@@ -1125,6 +1124,15 @@
         value={@rotate_form[:hours]}
         options={grace_options()}
       />
+      <div
+        :if={Map.get(@rotate_form, :at_limit)}
+        id="rotate-api-key-at-limit"
+        class="alert alert-info text-sm"
+      >
+        {gettext(
+          "You already have the largest number of keys allowed, so the old key cannot keep working next to the new one: the grace period starts at 0 and the old key stops at once. Revoke another key first if you need a longer overlap."
+        )}
+      </div>
     </form>
 
     <:actions>

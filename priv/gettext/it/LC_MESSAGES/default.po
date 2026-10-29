@@ -21703,15 +21703,17 @@ msgstr "Da una chiave personale puoi solo rimuovere ambiti, non aggiungerne."
 msgid "This session cannot tell whether you act in another account."
 msgstr "Questa sessione non può stabilire se agisci in un altro account."
 
+#: lib/phoenix_kit_web/live/components/personal_api_keys.ex
 #: lib/phoenix_kit_web/live/settings/api.ex
 #, elixir-autogen, elixir-format
-msgid "This person already has the most personal keys allowed."
-msgstr "Questa persona ha già il numero massimo di chiavi personali consentito."
+msgid "You already have the largest number of keys allowed, so the old key cannot keep working next to the new one. Rotate with a grace period of 0, or revoke a key first."
+msgstr "Hai già il numero massimo di chiavi consentito, quindi la vecchia chiave non può continuare a funzionare accanto alla nuova. Ruota con un periodo di tolleranza di 0 oppure revoca prima una chiave."
 
-#: lib/phoenix_kit_web/live/settings/api.ex
+#: lib/phoenix_kit_web/live/components/personal_api_keys.ex
+#: lib/phoenix_kit_web/live/settings/api.html.heex
 #, elixir-autogen, elixir-format
-msgid "This person may not have personal keys."
-msgstr "Questa persona non può avere chiavi personali."
+msgid "You already have the largest number of keys allowed, so the old key cannot keep working next to the new one: the grace period starts at 0 and the old key stops at once. Revoke another key first if you need a longer overlap."
+msgstr "Hai già il numero massimo di chiavi consentito, quindi la vecchia chiave non può continuare a funzionare accanto alla nuova: il periodo di tolleranza parte da 0 e la vecchia chiave si ferma subito. Revoca prima un'altra chiave se ti serve una sovrapposizione più lunga."
 
 #: lib/phoenix_kit_web/live/settings/api.html.heex
 #, elixir-autogen, elixir-format
@@ -21775,8 +21777,13 @@ msgstr "L'Owner vede le chiavi personali nell'elenco delle chiavi. Può revocarn
 
 #: lib/phoenix_kit_web/live/settings/api_guide_panel.html.heex
 #, elixir-autogen, elixir-format
-msgid "A person who signs in to another account with that account's own password, for example after an administrator reset it, can make a key there, as they can do anything else in that account."
-msgstr "Chi accede a un altro account con la password di quell'account, per esempio dopo un ripristino da parte di un amministratore, può crearvi una chiave, come può fare qualsiasi altra cosa in quell'account."
+msgid "Someone who signs in as a person directly, not as a second account in the same session, with that person's own password, for example after an administrator reset it, can make a key as that person."
+msgstr "Chi accede direttamente come una persona, non come secondo account nella stessa sessione, con la password propria di quella persona, per esempio dopo un ripristino da parte di un amministratore, può creare una chiave a nome di quella persona."
+
+#: lib/phoenix_kit_web/live/settings/api_guide_panel.html.heex
+#, elixir-autogen, elixir-format
+msgid "A person never has more live personal keys than the limit set under “Switches and modules”, a key in the grace period of a rotation included. At the limit, a key can only be rotated with a grace period of 0, which stops the old key at once."
+msgstr "Una persona non ha mai più chiavi personali attive del limite impostato in «Interruttori e moduli», compresa una chiave nel periodo di tolleranza di una rotazione. Al limite, una chiave può essere ruotata solo con un periodo di tolleranza di 0, che ferma subito la vecchia chiave."
 
 #: lib/phoenix_kit_web/live/settings/api.html.heex
 #, elixir-autogen, elixir-format

@@ -429,6 +429,43 @@ defmodule PhoenixKitWeb.Live.Users.MyApiKeysTest do
       assert length(keys_of(user)) == 1
     end
 
+    test "at the limit the dialog starts at grace 0 and says why; a longer grace is refused", %{
+      conn: conn,
+      key: key,
+      user: user
+    } do
+      KeyTestSupport.put_setting("api_personal_key_max_count", 1)
+      {:ok, view, _html} = live(conn, @path)
+
+      menu_click(view, key, "request_rotate")
+      assert has_element?(view, "#personal-api-keys-rotate-at-limit")
+      assert has_element?(view, ~s(#personal-api-keys-grace-hours option[value="0"][selected]))
+
+      html = fire(view, "confirm_rotate", %{"rotate" => %{"grace_hours" => "2"}})
+
+      assert html =~ "the old key cannot keep working next to the new one"
+      assert [_only] = keys_of(user)
+      assert Keys.get_key(key.uuid).revoked_at == nil
+
+      menu_click(view, key, "request_rotate")
+      view |> form("#personal-api-keys-rotate-form") |> render_submit()
+
+      assert has_element?(view, "#personal-api-keys-token-modal")
+      assert length(keys_of(user)) == 2
+      assert Keys.get_key(key.uuid).revoked_at
+    end
+
+    test "below the limit the dialog starts at one hour, without the notice", %{
+      conn: conn,
+      key: key
+    } do
+      {:ok, view, _html} = live(conn, @path)
+
+      menu_click(view, key, "request_rotate")
+      refute has_element?(view, "#personal-api-keys-rotate-at-limit")
+      assert has_element?(view, ~s(#personal-api-keys-grace-hours option[value="1"][selected]))
+    end
+
     test "editing the scopes saves them", %{conn: conn, key: key} do
       {:ok, view, _html} = live(conn, @path)
       menu_click(view, key, "request_edit_scopes")

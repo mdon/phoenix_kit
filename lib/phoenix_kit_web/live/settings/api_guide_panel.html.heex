@@ -263,7 +263,12 @@
         </li>
         <li>
           {gettext(
-            "A person who signs in to another account with that account's own password, for example after an administrator reset it, can make a key there, as they can do anything else in that account."
+            "Someone who signs in as a person directly, not as a second account in the same session, with that person's own password, for example after an administrator reset it, can make a key as that person."
+          )}
+        </li>
+        <li>
+          {gettext(
+            "A person never has more live personal keys than the limit set under “Switches and modules”, a key in the grace period of a rotation included. At the limit, a key can only be rotated with a grace period of 0, which stops the old key at once."
           )}
         </li>
       </ul>
