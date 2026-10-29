@@ -3,8 +3,7 @@
 **Status:** scope only, not started. Design reviewed by Codex on 2026-10-29
 and by Grok on 2026-10-29 (findings folded in; see
 [Review (Codex)](#review-codex-2026-10-29) and
-[Review (Grok)](#review-grok-2026-10-29)). One question is open
-([Open questions](#open-questions)).
+[Review (Grok)](#review-grok-2026-10-29)). All decisions are made.
 **Requested by:** Andi's project (2026-10-29).
 
 ## Problem
@@ -101,6 +100,9 @@ phoenix_kit_organization_managers      NEW table: who may act for which organiza
 phoenix_kit_users_tokens               (existing table)
   acting_session_uuid       NEW → phoenix_kit_users_tokens(uuid) ON DELETE CASCADE
   organization_manager_uuid NEW → phoenix_kit_organization_managers(uuid) ON DELETE CASCADE
+
+phoenix_kit_organization_invitations   (existing core table)
+  kind                      NEW varchar NOT NULL DEFAULT 'member'   ('member' | 'manager')
 ```
 
 - `managed_by_members = true` is allowed only with `account_type =
@@ -396,8 +398,9 @@ managed organization holds only if an admin gave one of its roles that key.)
 Convert either way stays admin-only in every case: a manager must not give
 the organization a real login and cut the other managers out.
 
-Whether managers may add and remove managers themselves while acting is
-**open** (question A below); the v1 default is admin-only.
+Managers **may** add and remove managers themselves (decision 7, §9a), but
+not through this rule: the context checks the acting grant, never "the actor
+is the organization".
 
 `TimeZoneAlert.observe/2` and any auto-save of `user_timezone` are skipped
 while `Scope.acting_user_uuid/1` is set. The detector would otherwise write
@@ -468,10 +471,10 @@ display name next to it ("Acme OÜ · via Dmitri Don").
   organization, so it is decided like credential management, by role and rank
   (`Auth.can_manage_user_credentials?/2`), not by the `users` permission that
   opens the page, and without the self clause (§6). **Convert is admin-only
-  even when the actor is the organization.** Managers managing managers:
-  open, question A (v1 default: admin-only). Checked in the context on every
-  call, with fresh state, and in the event handler; forged-input tests for
-  each event.
+  even when the actor is the organization.** Managers also manage managers
+  from inside the organization (§9a). Checked in the context on every call,
+  with fresh state, and in the event handler; forged-input tests for each
+  event.
 - **New managed organization:** name, contact email, first manager (required),
   dedicated insert (§2). Default role `User`.
 - **Convert an existing organization to managed:** its login email moves to
@@ -500,6 +503,52 @@ display name next to it ("Acme OÜ · via Dmitri Don").
   email equality never grants management. For a managed organization the
   mirror maps the company's email to `contact_email` in creation, diff and
   reverse mirroring (`PhoenixKitCrm.Mirror`). A separate CRM release, after core.
+
+### 9a. Managers manage managers (decision 7)
+
+A person acting for an organization can add and remove its managers, without
+a site admin. They are managers after all.
+
+- **Where:** a "Managers" section in the account settings
+  (`/profile/settings/<tab>`, `ProfileSettingsTabs` and the `UserSettings`
+  LiveComponent), shown only while acting for a managed organization. Not the
+  admin user page: that needs the `users` permission.
+- **Adding is by invitation, never by search.** The manager types an email;
+  core sends a manager invitation (`Invitations.create_invitation/4` with
+  `kind: :manager`, the existing email-bound flow). The invitee accepts while
+  signed in **as themselves** (the existing invitation banner,
+  `InvitationHook`), which creates the manager row. A person search would let
+  any manager enumerate the site's accounts; the invitation also gets the
+  invitee's consent. An email with no account yet: the invitee registers as a
+  person, then accepts.
+  - The answer to "invite" is the same whether or not an account exists for
+    that email. Today `validate_invitation_allowed/2` answers "This user
+    already belongs to an organization", an account-existence oracle; manager
+    invitations skip that rule (managing is not "working at") and give one
+    generic answer. Duplicates (already a manager, already invited) are
+    collapsed into the same answer.
+  - Accepting needs a `person` account, not `api_only`, not acting. A manager
+    invitation never writes `organization_uuid`.
+  - Rate-limited per acting person and per organization (each invitation sends
+    mail). Pending manager invitations can be cancelled by any manager.
+- **Admins** add a manager directly on the organization's details page
+  (person search there is fine: admins already see the users list).
+- **Removing:** any manager may remove any other manager, or themselves
+  ("Leave"). Removing yourself ends your organization session (the cascade)
+  and lands you back in your own account. The last manager cannot remove
+  themselves or be removed by a manager; only an admin can leave an
+  organization without managers (§9).
+- **Authority, checked in the context with fresh state on every call:** the
+  caller is (a) an Owner or Admin by role, acting from their own session, or
+  (b) a session acting for **this** organization whose grant still exists
+  (the token's `organization_manager_uuid` row, re-read, for this
+  organization and this acting person). Never "the actor is the organization"
+  (§6). Managers cannot convert, deactivate or delete the organization.
+- **Accepted risk:** a manager can remove every other manager. Every add and
+  remove is an activity row (`organization.manager_added`,
+  `organization.manager_removed`; actor the organization, the acting person in
+  metadata, target the affected person, so they get a notification), and an
+  admin can restore a removed manager.
 
 ### 10. Ending sessions and open pages
 
@@ -537,7 +586,9 @@ The admin sessions list uses the display helper (§5), not the placeholder.
    "acting as" header, attribution (including the activity UI), revocation
    with disconnects, the Sessions page entry, enter/leave landing, log-out
    copy.
-3. **Admin UI** — managers on the details page, create, convert either way,
+3. **Admin UI and self-service managers** — managers on the details page,
+   the "Managers" settings section while acting, manager invitations
+   (`kind` column, generic answers, rate limit), create, convert either way,
    the last-manager rule (including person deactivate/delete), users-list
    search and badge, i18n.
 4. **CRM** — the managed-organization mirror option (`phoenix_kit_crm`).
@@ -601,12 +652,21 @@ organization is marked managed.
 - Display helper: nav, admin users list/search (`contact_email`,
   `organization_name`), admin sessions, presence — no placeholder.
 - `UserSettings` email/password/OAuth event while acting is rejected.
-  Convert and manager changes while acting are rejected even though "self"
-  passes `can_manage_user_credentials?/2` (unless question A is answered yes).
+  Convert while acting is rejected even though "self" passes
+  `can_manage_user_credentials?/2`; manager changes while acting pass only
+  through the grant check (§9a).
 - `TimeZoneAlert` does not write the organization.
 - Last-manager rule: manager-row remove, **and** deactivating or deleting the
   person who is the last manager. A person with manager rows cannot become
   `account_type: "organization"`.
+- Managers managing managers: a manager invites by email and the answer is
+  identical for an existing account, a missing one, an existing manager and a
+  pending invitation; accepting requires the invitee's own session (not
+  acting, a person, the invited email) and creates a manager row, not
+  `organization_uuid`; a manager removes another and themselves; the last
+  manager cannot; a session acting for org A cannot change org B's managers;
+  a session whose grant was removed mid-session is refused on its next event;
+  the removed person gets a notification; invitations are rate-limited.
 - Managers UI: forged-input tests (`render_submit` with a person, organization
   or role the form never offered); a `users` holder without credential
   authority cannot add a manager.
@@ -624,6 +684,9 @@ organization is marked managed.
 5. **CRM mirror:** an explicit, admin-chosen "managed organization" option
    with a first manager; never an automatic fallback on an email collision.
 6. **Manager rights:** one level, the organization's full authority.
+7. **Managers may add and remove managers** themselves while acting, by
+   invitation, never by person search (§9a).
+
 Design defaults proposed in the Grok review (not maintainer decisions;
 adopted because they follow from the decisions above or from existing
 behaviour, change them if wanted):
@@ -642,15 +705,6 @@ behaviour, change them if wanted):
   the details page, inside the ceiling.
 - **Person-delete / deactivate of the last manager:** same checkbox as
   manager-row remove (last-Owner shape).
-
-## Open questions
-
-A. **May managers add and remove managers themselves, while acting?** Grok
-   proposed yes (an owner of five companies adds their accountant without a
-   site admin). That is new scope: a "Managers" section the organization can
-   reach (its account settings, since `/admin/users/view` needs `users`), and
-   any manager could also remove the others. v1 default until answered:
-   admin-only.
 
 ## Review (Codex, 2026-10-29)
 
@@ -702,7 +756,7 @@ What changed because of it:
   same as `confirmed_at`.
 - **`can_manage_user_credentials?/2` is true for self.** Manager changes and
   convert use the rule without the self clause; convert is admin-only.
-  Grok's proposal that managers manage managers is open question A.
+  Grok's proposal that managers manage managers was accepted (decision 7, §9a).
 - **Last manager vs person lifecycle.** Deactivating or deleting the person
   who is the last manager went through user status/delete and skipped the
   checkbox (`ON DELETE CASCADE` on `user_uuid`). Same rule as manager-row
@@ -740,4 +794,4 @@ What changed because of it:
 - **v1 limitations** written down: authorship is the org, notifications are
   org-centric, AI / machine API off while acting.
 - Grok's proposals recorded as design defaults, not decisions; managers
-  managing managers is open question A.
+  managing managers became decision 7.
