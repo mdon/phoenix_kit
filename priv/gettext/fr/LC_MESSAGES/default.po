@@ -21522,3 +21522,8 @@ msgstr "La vérification de la connexion a donné une réponse inattendue"
 #, elixir-autogen, elixir-format
 msgid "These files belong to the module that stored them and cannot be changed here."
 msgstr "Ces fichiers appartiennent au module qui les a enregistrés et ne peuvent pas être modifiés ici."
+
+#: lib/phoenix_kit/users/permissions.ex
+#, elixir-autogen, elixir-format
+msgid "Personal API keys"
+msgstr "Clés d'API personnelles"

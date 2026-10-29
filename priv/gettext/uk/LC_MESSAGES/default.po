@@ -21584,3 +21584,8 @@ msgstr "Перевірка з’єднання дала несподівану �
 #, elixir-autogen, elixir-format
 msgid "These files belong to the module that stored them and cannot be changed here."
 msgstr "Ці файли належать модулю, який їх зберіг, і змінити їх тут не можна."
+
+#: lib/phoenix_kit/users/permissions.ex
+#, elixir-autogen, elixir-format
+msgid "Personal API keys"
+msgstr "Особисті API-ключі"

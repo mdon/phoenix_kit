@@ -477,7 +477,9 @@ defmodule PhoenixKit.API.Confirm do
   request.
   """
   @spec live_actor(String.t()) ::
-          {:ok, Actor.t()} | {:error, :not_found | :revoked | :expired | :owner_inactive}
+          {:ok, Actor.t()}
+          | {:error,
+             :not_found | :revoked | :expired | :owner_inactive | :personal_keys_not_allowed}
   def live_actor(key_uuid) do
     with %Key{} = key <- Keys.get_key(key_uuid) || {:error, :not_found},
          :ok <- alive(key),

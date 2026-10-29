@@ -21590,3 +21590,8 @@ msgstr "Sprawdzenie połączenia zwróciło nieoczekiwaną odpowiedź"
 #, elixir-autogen, elixir-format
 msgid "These files belong to the module that stored them and cannot be changed here."
 msgstr "Te pliki należą do modułu, który je zapisał, i nie można ich tutaj zmieniać."
+
+#: lib/phoenix_kit/users/permissions.ex
+#, elixir-autogen, elixir-format
+msgid "Personal API keys"
+msgstr "Osobiste klucze API"

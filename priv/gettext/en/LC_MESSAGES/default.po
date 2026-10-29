@@ -21522,3 +21522,8 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "These files belong to the module that stored them and cannot be changed here."
 msgstr ""
+
+#: lib/phoenix_kit/users/permissions.ex
+#, elixir-autogen, elixir-format
+msgid "Personal API keys"
+msgstr ""
