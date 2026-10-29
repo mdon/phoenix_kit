@@ -21614,3 +21614,96 @@ msgstr[2] "Maksymalnie %{count} plików"
 msgid "Deselect"
 msgstr "Odznacz"
 
+#: lib/phoenix_kit_web/components/media_browser.ex
+#, elixir-autogen, elixir-format
+msgid "There is nothing left to remove."
+msgstr "Nie ma już nic do usunięcia."
+
+#: lib/phoenix_kit_web/components/media_browser.ex
+#, elixir-autogen, elixir-format
+msgid "The files changed. Check the list and confirm again."
+msgstr "Pliki uległy zmianie. Sprawdź listę i potwierdź ponownie."
+
+#: lib/phoenix_kit_web/components/media_browser.ex
+#, elixir-autogen, elixir-format
+msgid "%{deleted} deleted, %{kept} kept: in use"
+msgstr "Usunięto: %{deleted}, zachowano: %{kept} — w użyciu"
+
+#: lib/phoenix_kit_web/components/media_browser/removal_modal.ex
+#, elixir-autogen, elixir-format
+msgid "The files could not be checked, so nothing was removed. Try again later."
+msgstr "Nie udało się sprawdzić plików, więc nic nie usunięto. Spróbuj ponownie później."
+
+#: lib/phoenix_kit_web/components/media_browser/removal_modal.ex
+#, elixir-autogen, elixir-format
+msgid "The files could not be freed. Nothing was removed."
+msgstr "Nie udało się zwolnić plików. Nic nie usunięto."
+
+#: lib/phoenix_kit_web/components/media_browser/removal_modal.ex
+#, elixir-autogen, elixir-format
+msgid "This cannot be undone."
+msgstr "Tej operacji nie można cofnąć."
+
+#: lib/phoenix_kit_web/components/media_browser/removal_modal.ex
+#, elixir-autogen, elixir-format
+msgid "Not available to you"
+msgstr "Niedostępne dla Ciebie"
+
+#: lib/phoenix_kit_web/components/media_browser/removal_modal.ex
+#, elixir-autogen, elixir-format
+msgid "Please wait…"
+msgstr "Proszę czekać…"
+
+#: lib/phoenix_kit_web/components/media_browser/removal_modal.ex
+#, elixir-autogen, elixir-format
+msgid "Could not check the files"
+msgstr "Nie udało się sprawdzić plików"
+
+#: lib/phoenix_kit_web/components/media_browser/removal_modal.ex
+#, elixir-autogen, elixir-format
+msgid "and %{count} more file"
+msgid_plural "and %{count} more files"
+msgstr[0] "i jeszcze %{count} plik"
+msgstr[1] "i jeszcze %{count} pliki"
+msgstr[2] "i jeszcze %{count} plików"
+
+#: lib/phoenix_kit_web/components/media_browser/removal_modal.ex
+#, elixir-autogen, elixir-format
+msgid "%{count} file is in use and stays in the trash:"
+msgid_plural "%{count} files are in use and stay in the trash:"
+msgstr[0] "%{count} plik jest w użyciu i zostaje w koszu:"
+msgstr[1] "%{count} pliki są w użyciu i zostają w koszu:"
+msgstr[2] "%{count} plików jest w użyciu i zostaje w koszu:"
+
+#: lib/phoenix_kit_web/components/media_browser/removal_modal.ex
+#, elixir-autogen, elixir-format
+msgid "Cannot delete: the file is in use"
+msgid_plural "Cannot delete: %{count} files are in use"
+msgstr[0] "Nie można usunąć: plik jest w użyciu"
+msgstr[1] "Nie można usunąć: %{count} pliki są w użyciu"
+msgstr[2] "Nie można usunąć: %{count} plików jest w użyciu"
+
+#: lib/phoenix_kit_web/components/media_browser/removal_modal.ex
+#, elixir-autogen, elixir-format
+msgid "Move %{count} folder and its contents to trash?"
+msgid_plural "Move %{count} folders and their contents to trash?"
+msgstr[0] "Przenieść %{count} folder i jego zawartość do kosza?"
+msgstr[1] "Przenieść %{count} foldery i ich zawartość do kosza?"
+msgstr[2] "Przenieść %{count} folderów i ich zawartość do kosza?"
+
+#: lib/phoenix_kit_web/components/media_browser/removal_modal.ex
+#, elixir-autogen, elixir-format
+msgid "Delete %{count} folder and its contents for good?"
+msgid_plural "Delete %{count} folders and their contents for good?"
+msgstr[0] "Trwale usunąć %{count} folder i jego zawartość?"
+msgstr[1] "Trwale usunąć %{count} foldery i ich zawartość?"
+msgstr[2] "Trwale usunąć %{count} folderów i ich zawartość?"
+
+#: lib/phoenix_kit_web/components/media_browser/removal_modal.ex
+#, elixir-autogen, elixir-format
+msgid "Delete %{count} file for good?"
+msgid_plural "Delete %{count} files for good?"
+msgstr[0] "Trwale usunąć %{count} plik?"
+msgstr[1] "Trwale usunąć %{count} pliki?"
+msgstr[2] "Trwale usunąć %{count} plików?"
+

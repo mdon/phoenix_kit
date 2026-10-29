@@ -298,17 +298,21 @@
                     phx-target={@myself}
                     phx-value-id={folder.uuid}
                     data-confirm={
-                      if @filter_trash,
-                        do:
-                          gettext(
-                            "Permanently delete '%{name}' and all its contents? This cannot be undone.",
-                            name: folder.name
-                          ),
-                        else:
-                          gettext(
-                            "Move '%{name}' and all its contents to trash?",
-                            name: folder.name
-                          )
+                      client_confirm(
+                        @removal_guarded,
+                        if(@filter_trash,
+                          do:
+                            gettext(
+                              "Permanently delete '%{name}' and all its contents? This cannot be undone.",
+                              name: folder.name
+                            ),
+                          else:
+                            gettext(
+                              "Move '%{name}' and all its contents to trash?",
+                              name: folder.name
+                            )
+                        )
+                      )
                     }
                     icon="hero-trash"
                     label={gettext("Delete")}
@@ -502,12 +506,16 @@
                   phx-target={@myself}
                   phx-value-file-uuid={file.file_uuid}
                   data-confirm={
-                    if @filter_trash,
-                      do:
-                        gettext(
-                          "Permanently delete '%{name}'? This cannot be undone.",
-                          name: file.filename
-                        )
+                    client_confirm(
+                      @removal_guarded,
+                      if(@filter_trash,
+                        do:
+                          gettext(
+                            "Permanently delete '%{name}'? This cannot be undone.",
+                            name: file.filename
+                          )
+                      )
+                    )
                   }
                   icon="hero-trash"
                   label={

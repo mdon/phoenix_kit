@@ -2777,6 +2777,47 @@ if (typeof window.Chart === "undefined") {
     }
   };
 
+  // RemovalModal — the media browser's removal dialog (the removal guard's
+  // confirmation, or the list of places a file is in use). The element carries
+  // `popover="manual"`: shown as a popover it sits in the browser's top layer,
+  // above an open viewer and above a host's <dialog>. Escape closes THIS
+  // dialog and nothing under it: the key is taken in the capture phase, before
+  // the viewer's or the host dialog's own listener sees it.
+  window.PhoenixKitHooks.RemovalModal = {
+    mounted() {
+      const self = this;
+      self._showPopover = function() {
+        const el = self.el;
+        if (!el.hasAttribute || !el.hasAttribute("popover") || typeof el.showPopover !== "function") return;
+        let open = false;
+        try { open = el.matches(":popover-open"); } catch (_e) { open = false; }
+        if (!open) {
+          try { el.showPopover(); } catch (_e) { /* not connected, or already shown */ }
+        }
+      };
+      self._showPopover();
+      self._onKey = function(e) {
+        if (e.key !== "Escape") return;
+        e.preventDefault();
+        e.stopPropagation();
+        self.pushEventTo(self.el, "removal_cancel", {});
+      };
+      window.addEventListener("keydown", self._onKey, true);
+      // Keyboard focus goes to the dialog's safe button, not a destructive one.
+      const cancel = self.el.querySelector && self.el.querySelector("[id$='-removal-cancel']");
+      if (cancel && typeof cancel.focus === "function") cancel.focus();
+    },
+    updated() {
+      if (this._showPopover) this._showPopover();
+    },
+    destroyed() {
+      if (this._onKey) {
+        window.removeEventListener("keydown", this._onKey, true);
+        this._onKey = null;
+      }
+    }
+  };
+
   window.PhoenixKitHooks.ViewerKeydown = {
     mounted() {
       const self = this;

@@ -423,6 +423,7 @@
                 picker_uploading={assigns[:picker_uploading]}
                 max_select={assigns[:max_select]}
                 readonly={assigns[:readonly]}
+                removal_guarded={assigns[:removal_guarded]}
                 renaming_folder={assigns[:renaming_folder]}
                 renaming_text={assigns[:renaming_text]}
                 scope_folder={assigns[:scope_folder]}
@@ -551,6 +552,7 @@
                       picked={assigns[:picked]}
                       picker={assigns[:picker]}
                       readonly={assigns[:readonly]}
+                      removal_guarded={assigns[:removal_guarded]}
                       renaming_folder={assigns[:renaming_folder]}
                       renaming_source={assigns[:renaming_source]}
                       renaming_text={assigns[:renaming_text]}
@@ -571,6 +573,7 @@
                       just_opened_stack={assigns[:just_opened_stack]}
                       myself={assigns[:myself]}
                       readonly={assigns[:readonly]}
+                      removal_guarded={assigns[:removal_guarded]}
                       scope_folder_id={assigns[:scope_folder_id]}
                       select_mode={assigns[:select_mode]}
                       selected_files={assigns[:selected_files]}
@@ -593,6 +596,7 @@
                       id={assigns[:id]}
                       myself={assigns[:myself]}
                       readonly={assigns[:readonly]}
+                      removal_guarded={assigns[:removal_guarded]}
                       renaming_folder={assigns[:renaming_folder]}
                       renaming_source={assigns[:renaming_source]}
                       renaming_text={assigns[:renaming_text]}
@@ -1049,6 +1053,7 @@
           }
           edit_target={if writes? and not @select_mode, do: {MediaBrowser, @id}}
           can_trash={@picker and not @readonly}
+          server_confirm={@removal_guarded}
           pick={@picker && viewer_pick_state(@picked, @pick_mode, @max_select, f)}
           write_scope={@scope_folder_id}
           own_files_only={@own_files_only}
@@ -1100,4 +1105,12 @@
       <div class="modal-backdrop" phx-click="close_image_editor" phx-target={@myself}></div>
     </div>
   <% end %>
+
+  <%!-- The removal guard's dialog (see the moduledoc's "Removal guard"): last,   --%>
+  <%!-- and in the top layer, so it sits above an open viewer.                    --%>
+  <MediaBrowser.RemovalModal.removal_modal
+    id={@id}
+    myself={@myself}
+    pending={assigns[:removal_pending]}
+  />
 </div>

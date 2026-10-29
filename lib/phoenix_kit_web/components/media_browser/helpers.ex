@@ -303,6 +303,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Helpers do
   # star badge and kebab item off.
   attr :featured, :any, default: nil
   attr :readonly, :boolean, default: false
+  attr :removal_guarded, :boolean, default: false
   # `false`: no Move (see the moduledoc's "Picker"). The card stays
   # draggable — long press, Shift-click and box select ride on that — but
   # no folder, tree node or Trash takes a drag move.
@@ -477,11 +478,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Helpers do
           phx-target={@myself}
           phx-value-file-uuid={@file.file_uuid}
           data-confirm={
-            if @filter_trash,
-              do:
-                gettext("Permanently delete '%{name}'? This cannot be undone.",
-                  name: @file.filename
-                )
+            client_confirm(
+              @removal_guarded,
+              if(@filter_trash,
+                do:
+                  gettext("Permanently delete '%{name}'? This cannot be undone.",
+                    name: @file.filename
+                  )
+              )
+            )
           }
           icon="hero-trash"
           label={
@@ -715,6 +720,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Helpers do
   def folder_list_path(%{uuid: uuid}, _scope_id), do: breadcrumb_path(uuid)
 
   def format_file_size(bytes), do: Format.bytes(bytes, base: 1000, decimals: 2)
+
+  # The browser's own confirmation of a removal, left out when a removal guard
+  # asks on the server instead (a second question would be a double confirm).
+  def client_confirm(true, _text), do: nil
+  def client_confirm(_guarded, text), do: text
 
   def delete_selected_confirm(selected_files, selected_folders, filter_trash) do
     file_count = MapSet.size(selected_files)

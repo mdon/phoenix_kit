@@ -92,6 +92,9 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
       that is not in the trash even without `:edit_target` (a picker's
       viewer, which writes nothing else). The click posts `"trash_file"`
       to `:parent_id`, which checks it.
+    * `:server_confirm` (default `false`) — the browser asks for the removal
+      itself (its removal guard), so "Delete forever" carries no
+      `data-confirm` of its own.
     * `:pick` (default `nil`) — a picker's state for the file shown,
       `%{picked?: boolean, full?: boolean, max_select: integer | nil}`.
       When set, the picture carries "Select" (disabled while `full?`) or
@@ -219,6 +222,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
      |> assign(:file_writable, true)
      |> assign(:featured, nil)
      |> assign(:can_trash, false)
+     |> assign(:server_confirm, false)
      |> assign(:pick, nil)
      |> assign(:media_meta_status_token, 0)}
   end
@@ -327,6 +331,7 @@ defmodule PhoenixKitWeb.Components.MediaCanvasViewer do
       |> assign(:viewer_uuid, assigns[:viewer_uuid])
       |> assign(:featured, assigns[:featured])
       |> assign(:can_trash, assigns[:can_trash] == true)
+      |> assign(:server_confirm, assigns[:server_confirm] == true)
       |> assign(:pick, assigns[:pick])
       |> assign_new(:media_meta, fn -> %{title: "", alt: "", description: ""} end)
       |> assign_new(:media_meta_own, fn -> %{title: "", alt: "", description: ""} end)

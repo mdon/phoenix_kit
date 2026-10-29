@@ -207,6 +207,54 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   without it the picker uses `:media_files`, which is fine while it is the
   only browser on the page. `only_file_type` is held for either upload.
 
+  ## Removal guard
+
+  A file can be in use where the media library cannot see — an order's
+  attachment, a page's picture. `config :phoenix_kit, :file_removal_guard,
+  MyApp.FileRemovalGuard` names a module (the
+  `PhoenixKit.Modules.Storage.RemovalGuard` behaviour) that every media
+  browser asks before a file disappears, the Media page of the core included:
+
+  - `removal_guard` — overrides the configured module for one browser; `false`
+    goes without. With no module configured, nothing here applies: the browser
+    acts and confirms as it always did.
+  - `phoenix_kit_current_scope` — the scope of the person acting, handed to the
+    guard as `ctx.scope`. A host that narrows rights to the person's active role
+    passes the narrowed scope; without it the scope is built from
+    `phoenix_kit_current_user`.
+
+  The events that can remove a file — `trash_file` (tile, menu, viewer, the drag
+  onto Trash), `delete_file`, `delete_selected` (folders in it too),
+  `trash_folder`, `delete_folder` and `empty_trash` — are stopped before their
+  handlers. `Storage.removal_plan/2`, the reading the operations themselves
+  decide by, says which files would be trashed or deleted; a file only unlinked
+  from a folder or re-homed to another that holds it is not asked about. The
+  module is asked where the others are in use, and a **server dialog** (inside
+  the browser, above an open viewer, Escape closes it and not the viewer or the
+  picker) asks the person:
+
+  - no place: "Move 3 files to trash?" / "Delete 3 files for good?" with the
+    names, then the action runs;
+  - places: "Cannot delete: the file is in use", with the places (links open in
+    a new tab; a place with no label is "not available to you"). When the module
+    has `release/2` and `release_label/1` gives this person a text, a button with
+    it frees the files, the module is asked again, and the confirmation follows;
+  - **Empty trash** and deleting a selection of files in the Trash view skip the
+    files that are in use (they stay in the trash): "2 deleted, 1 kept: in use".
+
+  The browser's own `data-confirm` for these actions is dropped while a guard is
+  configured (it would be a second question). A folder is confirmed in the
+  dialog even when no file goes with it. The confirmation runs the same event
+  again through every gate (readonly, `viewer_uuid`, `own_files_only`, the shown
+  library) and from a fresh plan: if the files, or what is in use, changed since
+  the dialog was drawn, the dialog is drawn again instead of removing. A guard
+  that raises, exits or answers a shape that is not the contract removes
+  nothing (the log names the module and the exception, no request data).
+
+  **Not covered**, by design: the daily `Storage.prune_trash/1`, the host's own
+  background jobs, the API and the console, and "Delete all orphaned" (an orphan
+  is in no folder).
+
   ## Taking a browser off the page
 
   The page routes every finished upload to each browser that registered on
@@ -326,6 +374,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # Called by module, never imported: an import would make this module wait
   # for the view to finish compiling instead of compiling beside it.
   alias PhoenixKitWeb.Components.MediaBrowser.Helpers
+  alias PhoenixKitWeb.Components.MediaBrowser.Removal
   alias PhoenixKitWeb.Components.MediaBrowser.View
 
   alias PhoenixKit.Modules.Storage
@@ -514,7 +563,14 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       |> assign_new(:notify, fn -> nil end)
       |> assign_new(:folder_labels, fn -> %{} end)
       |> assign_new(:folder_actions, fn -> true end)
+      # The removal guard (see the moduledoc's "Removal guard"): `nil` takes
+      # the module configured for every browser, a module overrides it,
+      # `false` goes without. `removal_pending` is the dialog's state.
+      |> assign_new(:removal_guard, fn -> nil end)
+      |> assign_new(:phoenix_kit_current_scope, fn -> nil end)
+      |> assign_new(:removal_pending, fn -> nil end)
       |> normalize_picker_attrs()
+      |> assign_removal_guarded()
       |> assign_upload_name()
       |> assign_new(:picked, fn -> [] end)
       |> assign_new(:pick_limit_hit, fn -> false end)
@@ -2567,7 +2623,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     retry_all_uploads retry_upload rotate_file save_folder_description
     save_folder_header box_select select_all set_featured set_header_size show_move_modal show_upload
     start_edit_folder_description start_edit_folder_header start_rename_folder
-    submit_new_folder toggle_header_option toggle_move_folder toggle_select
+    removal_confirm removal_release submit_new_folder toggle_header_option toggle_move_folder toggle_select
     toggle_select_folder toggle_select_mode toggle_upload trash_file trash_folder
     unset_featured
   )
@@ -2580,6 +2636,12 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
   # The actions that work on every file of the view at once.
   @every_file_events ~w(empty_trash delete_all_orphaned)
+
+  # The events the removal guard stands in front of: each can send a file to
+  # the trash or delete it (the drag onto the Trash button pushes
+  # `trash_file`, `trash_folder` or `delete_selected`). "Delete all orphaned"
+  # is not one of them: orphans are in no folder.
+  @removal_events ~w(trash_file delete_file delete_selected trash_folder delete_folder empty_trash)
 
   # The actions that carry every file homed under a folder with them: trash,
   # delete and move a folder. Renaming or recolouring one is shared folder
@@ -2742,6 +2804,57 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       # cancelled transfer is seen on the next `update/2`, not here.
       {:noreply, socket |> unchecked() |> sync_picker_uploading()}
     end
+  end
+
+  # The removal guard (see the moduledoc's "Removal guard"). Every event that
+  # can make a file disappear is stopped here, AFTER the gates above (readonly
+  # is left to the handler, which refuses it; the viewer, own-files and
+  # library gates have run) and BEFORE its handler: the plan says which files
+  # would go, the module is asked where they are in use, and the dialog asks
+  # the person. The handler itself runs on the confirmation, through the
+  # gates again. With no guard, or nothing that disappears, it runs at once —
+  # as it always did.
+  def handle_event(event, params, socket)
+      when event in @removal_events and not is_map_key(socket.private, :removal_checked) do
+    run_removal(event, params, socket)
+  end
+
+  def handle_event("removal_confirm", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "removal_confirm")}
+  end
+
+  def handle_event("removal_release", _params, socket)
+      when socket.assigns.readonly == true do
+    {:noreply, log_readonly_blocked(socket, "removal_release")}
+  end
+
+  # Only the dialog this browser shows now: a click from a stale render, or an
+  # event made up in a console, names a token that is not the pending one.
+  def handle_event("removal_confirm", %{"token" => token}, socket) do
+    case socket.assigns[:removal_pending] do
+      %{token: ^token, event: event, params: params, failed?: false} = pending ->
+        socket
+        |> assign(:removal_pending, nil)
+        |> replay_removal(event, params, {:confirm, pending})
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("removal_release", %{"token" => token}, socket) do
+    case socket.assigns[:removal_pending] do
+      %{token: ^token, release_label: label} = pending when is_binary(label) ->
+        release_removal(socket, pending)
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("removal_cancel", _params, socket) do
+    {:noreply, assign(socket, :removal_pending, nil)}
   end
 
   # Finder/Explorer-style instant folder creation. Click the "+" button
@@ -4114,7 +4227,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       # belt-and-braces guard: only files actually in the trash may be
       # destroyed, no matter how a uuid ended up in the selection.
       Enum.each(files, fn file ->
-        if file.status == "trashed" && Storage.within_scope?(file.folder_uuid, scope) do
+        if file.status == "trashed" && Storage.within_scope?(file.folder_uuid, scope) &&
+             file.uuid not in removal_except(socket) do
           Storage.delete_file_completely(file)
         end
       end)
@@ -4470,11 +4584,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   def handle_event("empty_trash", _params, socket) do
     # Scoped to the folder you're viewing the Trash of — emptying a folder's
     # trash must not purge sibling roots' trashed files.
-    {:ok, count} = Storage.empty_trash(trash_scope(socket), lib_opts(socket))
+    {:ok, count} =
+      Storage.empty_trash(trash_scope(socket), [
+        {:except, removal_except(socket)} | lib_opts(socket)
+      ])
 
     {:noreply,
      socket
-     |> assign(:filter_trash, false)
+     # What the removal guard kept stays in the trash, and in view.
+     |> assign(:filter_trash, removal_except(socket) != [])
      |> put_flash(
        :info,
        ngettext("%{count} file permanently deleted", "%{count} files permanently deleted", count)
@@ -5169,6 +5287,362 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   defp unpick_removed(socket, _file_uuid, _result), do: socket
+
+  # ── Removal guard ────────────────────────────────────────────────────
+  #
+  # `mode` is where the event came from: `:fresh` (a click), `{:confirm,
+  # pending}` (the person confirmed the dialog) or `{:reask, pending}` (the
+  # guard released the files). Only a confirmation removes anything after the
+  # dialog was shown, and only what the dialog showed.
+
+  defp run_removal(event, params, socket) do
+    mode = Map.get(socket.private, :removal_mode, :fresh)
+    module = Removal.guard(socket.assigns)
+
+    if is_nil(module) or socket.assigns.readonly == true do
+      removal_pass(event, params, socket, [])
+    else
+      case removal_analysis(event, params, socket) do
+        :pass when mode == :fresh ->
+          removal_pass(event, params, socket, [])
+
+        :pass ->
+          {:noreply, put_flash(socket, :info, gettext("There is nothing left to remove."))}
+
+        analysis ->
+          removal_decide(module, event, params, socket, analysis, mode)
+      end
+    end
+  end
+
+  # Runs the handler. `except` are files it must leave alone (kept by the guard).
+  defp removal_pass(event, params, socket, except) do
+    private =
+      socket.private |> Map.put(:removal_checked, true) |> Map.put(:removal_except, except)
+
+    {:noreply, socket} = handle_event(event, params, %{socket | private: private})
+
+    {:noreply,
+     %{
+       socket
+       | private: socket.private |> Map.delete(:removal_checked) |> Map.delete(:removal_except)
+     }}
+  end
+
+  defp removal_except(socket), do: Map.get(socket.private, :removal_except, [])
+
+  # The person's click on the dialog runs the event again, so every gate of
+  # `handle_event/3` — viewer, own files, library — judges it once more.
+  defp replay_removal(socket, event, params, mode) do
+    socket = %{socket | private: Map.put(socket.private, :removal_mode, mode)}
+    {:noreply, socket} = handle_event(event, params, socket)
+    {:noreply, %{socket | private: Map.delete(socket.private, :removal_mode)}}
+  end
+
+  defp release_removal(socket, pending) do
+    module = Removal.guard(socket.assigns)
+    ctx = Removal.ctx(socket.assigns, pending.action, pending.folder_uuid)
+    held = pending.places |> Enum.map(& &1.file_uuid) |> Enum.uniq()
+
+    result = if module, do: Removal.release(module, held, ctx), else: {:error, nil}
+
+    case result do
+      :ok ->
+        socket
+        |> assign(:removal_pending, nil)
+        |> replay_removal(pending.event, pending.params, {:reask, pending})
+
+      {:error, message} ->
+        {:noreply, assign(socket, :removal_pending, %{pending | error: message || :generic})}
+    end
+  end
+
+  defp removal_decide(module, event, params, socket, analysis, mode) do
+    ctx = Removal.ctx(socket.assigns, analysis.action, analysis.folder_uuid)
+
+    case removal_places(module, analysis.files, ctx) do
+      :error ->
+        {:noreply, assign(socket, :removal_pending, removal_failed(analysis))}
+
+      {:ok, places} ->
+        held = places |> Enum.map(& &1.file_uuid) |> Enum.uniq()
+        free = analysis.files -- held
+        shown = shown_removal(mode)
+
+        if removal_confirmed?(mode, analysis, free, held) do
+          removal_execute(event, params, socket, free, held)
+        else
+          error =
+            if shown && not same_files?(shown, analysis, free),
+              do: gettext("The files changed. Check the list and confirm again.")
+
+          pending =
+            removal_pending(module, ctx, socket, analysis, {event, params}, %{
+              places: places,
+              free: free,
+              held: held,
+              error: error
+            })
+
+          {:noreply, assign(socket, :removal_pending, pending)}
+        end
+    end
+  end
+
+  defp removal_places(_module, [], _ctx), do: {:ok, []}
+  defp removal_places(module, files, ctx), do: Removal.places(module, files, ctx)
+
+  defp shown_removal({:confirm, pending}), do: pending
+  defp shown_removal({:reask, _pending}), do: nil
+  defp shown_removal(:fresh), do: nil
+
+  # The same plan the dialog showed, and still removable: all of it, or — for
+  # the actions that skip what is in use — what was free.
+  defp removal_confirmed?({:confirm, pending}, analysis, free, held) do
+    same_files?(pending, analysis, free) and (free != [] or analysis.folders > 0) and
+      (held == [] or analysis.skip?)
+  end
+
+  defp removal_confirmed?(_mode, _analysis, _free, _held), do: false
+
+  defp same_files?(pending, analysis, free),
+    do:
+      Enum.sort(pending.files) == Enum.sort(analysis.files) and
+        Enum.sort(pending.free) == Enum.sort(free)
+
+  defp removal_execute(event, params, socket, free, held) do
+    {:noreply, socket} = removal_pass(event, params, socket, held)
+
+    if held == [] do
+      {:noreply, socket}
+    else
+      {:noreply,
+       put_flash(
+         socket,
+         :info,
+         gettext("%{deleted} deleted, %{kept} kept: in use",
+           deleted: length(free),
+           kept: length(held)
+         )
+       )}
+    end
+  end
+
+  @removal_names_shown 8
+  @removal_names_held 50
+
+  defp removal_pending(module, ctx, socket, analysis, {event, params}, found) do
+    %{places: places, free: free, held: held, error: error} = found
+    free_shown = Enum.take(free, @removal_names_shown)
+    names = removal_names(socket, Enum.take(held, @removal_names_held) ++ free_shown)
+
+    free_names = for uuid <- free_shown, name = names[uuid], do: name
+
+    %{
+      token: Base.url_encode64(:crypto.strong_rand_bytes(9), padding: false),
+      failed?: false,
+      event: event,
+      params: params,
+      action: analysis.action,
+      folder_uuid: analysis.folder_uuid,
+      kind: analysis.kind,
+      skip?: analysis.skip?,
+      folders: analysis.folders,
+      files: analysis.files,
+      free: free,
+      places: places,
+      names: names,
+      free_names: free_names,
+      free_hidden: length(free) - length(free_names),
+      release_label: if(held != [], do: Removal.release_label(module, ctx)),
+      error: error
+    }
+  end
+
+  defp removal_failed(analysis) do
+    %{
+      token: Base.url_encode64(:crypto.strong_rand_bytes(9), padding: false),
+      failed?: true,
+      kind: analysis.kind,
+      folders: analysis.folders,
+      files: analysis.files,
+      free: [],
+      places: [],
+      names: %{},
+      free_names: [],
+      free_hidden: 0,
+      release_label: nil,
+      error: nil
+    }
+  end
+
+  # File names for the dialog, of the files this browser shows only.
+  defp removal_names(_socket, []), do: %{}
+
+  defp removal_names(socket, uuids) do
+    uuids
+    |> load_by_uuid(Storage.File)
+    |> shown_only(socket)
+    |> Map.new(&{&1.uuid, &1.original_file_name || &1.file_name})
+  end
+
+  # What an event would remove, from the same readings its handler acts on
+  # (`Storage.removal_plan/2`). `:pass` when no file disappears — or the
+  # handler is going to refuse the event, which it must say itself.
+  defp removal_analysis("trash_file", %{"file_uuid" => file_uuid}, socket)
+       when is_binary(file_uuid) do
+    scope = scope_folder_id(socket)
+    file = PhoenixKit.Config.get_repo().get(Storage.File, file_uuid)
+    viewed = file && appearance_folder(socket, file)
+
+    if file && removable_here?(file, viewed, scope),
+      do:
+        removal_analysis_of(
+          :trash_file,
+          :trash,
+          Storage.removal_plan(:remove_file, {file, viewed}),
+          viewed
+        ),
+      else: :pass
+  end
+
+  defp removal_analysis("delete_file", %{"file-uuid" => file_uuid}, socket)
+       when is_binary(file_uuid) do
+    scope = scope_folder_id(socket)
+    file = PhoenixKit.Config.get_repo().get(Storage.File, file_uuid)
+    viewed = file && appearance_folder(socket, file)
+
+    cond do
+      is_nil(file) or not removable_here?(file, viewed, scope) ->
+        :pass
+
+      # The handler refuses a picker's delete for good.
+      socket.assigns[:picker] == true and file.status == "trashed" ->
+        :pass
+
+      file.status == "trashed" and Storage.within_scope?(file.folder_uuid, scope) ->
+        removal_analysis_of(
+          :delete_file,
+          :delete,
+          Storage.removal_plan(:delete_files, [file]),
+          viewed
+        )
+
+      true ->
+        removal_analysis_of(
+          :delete_file,
+          :trash,
+          Storage.removal_plan(:remove_file, {file, viewed}),
+          viewed
+        )
+    end
+  end
+
+  defp removal_analysis("trash_folder", %{"folder_uuid" => folder_uuid}, socket)
+       when is_binary(folder_uuid) do
+    folder_removal_analysis(:trash_folder, :trash_folder, :trash, folder_uuid, socket)
+  end
+
+  defp removal_analysis("delete_folder", %{"id" => folder_uuid}, socket)
+       when is_binary(folder_uuid) do
+    if socket.assigns[:filter_trash],
+      do: folder_removal_analysis(:delete_folder, :delete_folder, :delete, folder_uuid, socket),
+      else: folder_removal_analysis(:delete_folder, :trash_folder, :trash, folder_uuid, socket)
+  end
+
+  defp removal_analysis("delete_selected", _params, socket) do
+    scope = scope_folder_id(socket)
+    {files, folders} = shown_selection(socket)
+    folders = Enum.filter(folders, &Storage.within_scope?(&1.uuid, scope))
+    trash? = socket.assigns[:filter_trash] == true
+
+    file_plan =
+      if trash? do
+        files
+        |> Enum.filter(&(&1.status == "trashed" and Storage.within_scope?(&1.folder_uuid, scope)))
+        |> then(&Storage.removal_plan(:delete_files, &1))
+      else
+        files
+        |> Enum.filter(&removable_here?(&1, appearance_folder(socket, &1), scope))
+        |> Enum.map(&Storage.removal_plan(:remove_file, {&1, appearance_folder(socket, &1)}))
+        |> merge_removal_plans()
+      end
+
+    folder_action = if trash?, do: :delete_folder, else: :trash_folder
+
+    plan =
+      merge_removal_plans([
+        file_plan | Enum.map(folders, &Storage.removal_plan(folder_action, &1))
+      ])
+
+    removal_analysis_of(
+      :delete_selected,
+      if(trash?, do: :delete, else: :trash),
+      plan,
+      current_folder_uuid(socket),
+      skip?: trash? and folders == [],
+      folders: length(folders)
+    )
+  end
+
+  defp removal_analysis("empty_trash", _params, socket) do
+    trashed =
+      Storage.list_trashed_files(
+        trash_scope(socket),
+        Keyword.take(lib_opts(socket), [:library_uuid, :viewer_uuid])
+      )
+
+    removal_analysis_of(
+      :empty_trash,
+      :delete,
+      Storage.removal_plan(:delete_files, trashed),
+      current_folder_uuid(socket),
+      skip?: true
+    )
+  end
+
+  defp removal_analysis(_event, _params, _socket), do: :pass
+
+  defp folder_removal_analysis(action, plan_action, kind, folder_uuid, socket) do
+    folder = Storage.get_folder(folder_uuid)
+
+    if folder && Storage.within_scope?(folder.uuid, scope_folder_id(socket)),
+      do:
+        removal_analysis_of(action, kind, Storage.removal_plan(plan_action, folder), folder.uuid,
+          folders: 1
+        ),
+      else: :pass
+  end
+
+  # Only `trash` and `delete` make a file disappear: a plan with neither needs
+  # no guard. A folder removed has always been confirmed, though, so an action
+  # on folders asks even when no file goes with them.
+  defp removal_analysis_of(action, kind, plan, folder_uuid, opts \\ []) do
+    files = Enum.uniq(plan.trash ++ plan.delete)
+    folders = Keyword.get(opts, :folders, 0)
+
+    if files == [] and folders == 0 do
+      :pass
+    else
+      %{
+        action: action,
+        kind: kind,
+        files: files,
+        folders: folders,
+        folder_uuid: folder_uuid,
+        skip?: Keyword.get(opts, :skip?, false)
+      }
+    end
+  end
+
+  defp merge_removal_plans(plans) do
+    Enum.reduce(plans, %{trash: [], delete: [], rehome: [], unlink: []}, fn plan, acc ->
+      Map.merge(acc, plan, fn _key, a, b -> a ++ b end)
+    end)
+  end
+
+  defp assign_removal_guarded(socket),
+    do: assign(socket, :removal_guarded, not is_nil(Removal.guard(socket.assigns)))
 
   defp removal_flash({:ok, :trashed, _}), do: gettext("File moved to trash")
   defp removal_flash({:ok, _unlinked_or_rehomed, _}), do: gettext("File removed from this folder")
