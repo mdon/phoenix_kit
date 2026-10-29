@@ -83,8 +83,9 @@ defmodule PhoenixKitWeb.Live.Settings.Api do
   seven days, the grace period of a rotation as "until …", "Owner inactive" or "No
   permission" while its owner may not use it; `PhoenixKitWeb.Components.PersonalKeyDisplay`,
   shared with "My API keys", computes the statuses once in `assign_state/1`; that costs a
-  permission check per owner of a live personal key, so an event that changes no key and no
-  owner, such as a switch, keeps the statuses it has).
+  permission check per owner of a live personal key, so an event that changes no owner's
+  rights, such as a switch, keeps the owners' rights it has read and reads only an owner it
+  has not seen; each key's own status is always computed from the list just read).
   The row menu follows `PhoenixKit.API.Keys.can_manage?/2`: the owner has Edit scopes,
   Rotate and Revoke; an Owner looking at someone else's personal key has only "Remove
   scopes" and "Revoke" (`Keys.can_revoke?/2`). Removing scopes opens the scopes dialog
@@ -515,9 +516,9 @@ defmodule PhoenixKitWeb.Live.Settings.Api do
 
   # ── State ──────────────────────────────────────────────────────────
 
-  # `statuses: :keep` leaves the personal keys' statuses as they are, for an event that
-  # changes no key and no owner (a switch). Computing them costs a permission check per
-  # owner of a live personal key, so everything else recomputes them once per reload.
+  # `statuses: :keep` reuses the owners' rights read earlier, for an event that changes no
+  # owner's rights (a switch). Reading them costs a permission check per owner of a live
+  # personal key, so everything else reads them again, once per reload.
   defp assign_state(socket, opts \\ []) do
     scope = scope(socket)
     keys = Keys.list_keys(scope)
@@ -537,12 +538,17 @@ defmodule PhoenixKitWeb.Live.Settings.Api do
     |> assign(:key_access, key_access(scope, keys))
   end
 
-  defp assign_personal_statuses(socket, _keys, :keep)
-       when is_map_key(socket.assigns, :personal_statuses),
-       do: socket
+  # The owners' rights are the costly part: a `statuses: :keep` event reuses the ones read
+  # before and reads only an owner that is new. Each key's status is computed from the key
+  # list just read, so a key made or ended in the meantime shows its real status.
+  defp assign_personal_statuses(socket, keys, mode) do
+    known = if mode == :keep, do: socket.assigns[:personal_owner_states] || %{}, else: %{}
+    owners = PersonalKeyDisplay.owner_states(keys, known)
 
-  defp assign_personal_statuses(socket, keys, _recompute),
-    do: assign(socket, :personal_statuses, PersonalKeyDisplay.statuses(keys))
+    socket
+    |> assign(:personal_owner_states, owners)
+    |> assign(:personal_statuses, PersonalKeyDisplay.statuses(keys, owners))
+  end
 
   # Only this module's key changes; keys of modules that are not installed stay listed. The
   # list is read from the database under a row lock inside the write, not from the settings

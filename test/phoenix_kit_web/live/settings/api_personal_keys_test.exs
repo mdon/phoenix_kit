@@ -195,6 +195,45 @@ defmodule PhoenixKitWeb.Live.Settings.ApiPersonalKeysTest do
 
   # ── The Owner and someone else's personal key ──────────────────────
 
+  describe "a switch flipped while the key list changes elsewhere" do
+    # Each of the three switch events re-reads the keys, so a personal key made (or ended)
+    # behind the page's back must show with its real status and never crash the page.
+    @switch_events [
+      {"toggle_switch", %{"switch" => "admin"}},
+      {"set_module_api", %{"module" => "apikeytest", "state" => "off"}},
+      {"set_module_session_write", %{"module" => "apikeytest", "state" => "on"}}
+    ]
+
+    for {event, params} <- @switch_events do
+      test "#{event} lists a personal key created after the page was mounted", %{conn: conn} do
+        {:ok, view, _html} = live(owner_conn(conn), @path)
+
+        {_user, _role, scope} = personal_holder()
+        {created, _} = personal!(scope)
+        refute has_element?(view, "#api-key-#{created.uuid}")
+
+        html = render_click(view, unquote(event), unquote(Macro.escape(params)))
+
+        assert html =~ created.name
+        assert has_element?(view, "#api-key-#{created.uuid} span.badge", "Active")
+      end
+
+      test "#{event} shows a personal key revoked after the page was mounted as revoked", %{
+        conn: conn
+      } do
+        {_user, _role, scope} = personal_holder()
+        {key, _} = personal!(scope)
+        {:ok, view, _html} = live(owner_conn(conn), @path)
+        assert has_element?(view, "#api-key-#{key.uuid} span.badge", "Active")
+
+        {:ok, _} = Keys.revoke(key, nil)
+        render_click(view, unquote(event), unquote(Macro.escape(params)))
+
+        assert has_element?(view, "#api-key-#{key.uuid} span.badge", "Revoked")
+      end
+    end
+  end
+
   describe "an Owner and a personal key of another person" do
     setup %{conn: conn} do
       {_user, _role, scope} = personal_holder()

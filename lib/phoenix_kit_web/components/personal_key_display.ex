@@ -3,9 +3,12 @@ defmodule PhoenixKitWeb.Components.PersonalKeyDisplay do
   How a personal API key's state and expiry are shown, for "My API keys" and for
   Settings -> API alike.
 
-  `statuses/1` is computed once for a list (the owner's right is read once per owner,
-  not once per key) and the page reads the result from a map; the template never asks
-  `PhoenixKit.API.Keys`. `expiry_date/2` shows the UTC day the person chose in the form,
+  `statuses/2` is computed once for a list and the page reads the result from a map; the
+  template never asks `PhoenixKit.API.Keys`. The owner's right is the costly part (a
+  permission check per owner), so `owner_states/2` reads it once per owner and a page can
+  keep the result between renders; the status of each key is cheap and always computed
+  fresh from the key list, so a key made or ended since the owners were read still gets
+  its real status. `expiry_date/2` shows the UTC day the person chose in the form,
   not that moment moved into their time zone (east of UTC it would read one day later).
   """
 
@@ -27,30 +30,39 @@ defmodule PhoenixKitWeb.Components.PersonalKeyDisplay do
           | :active
 
   @doc """
-  The status of every personal key of the list, by uuid. Keys that are not personal are
-  left out.
+  The state of every owner that has a live personal key in the list, by owner uuid:
+  `:ok` or the reason `Keys.active_owner/1` gave. Owners already in `known` are not read
+  again, so a page that keeps the map pays for a new owner only.
   """
-  @spec statuses([Key.t()]) :: %{String.t() => status()}
-  def statuses(keys) do
-    personal = Enum.filter(keys, & &1.personal)
-    now = DateTime.utc_now()
-    owners = owner_states(personal)
-
-    Map.new(personal, fn key ->
-      {key.uuid, status(key, Map.get(owners, key.user_uuid, :ok), now)}
+  @spec owner_states([Key.t()], %{String.t() => atom()}) :: %{String.t() => atom()}
+  def owner_states(keys, known \\ %{}) do
+    keys
+    |> Enum.filter(&(&1.personal and Keys.dead_reason(&1) == nil))
+    |> Enum.uniq_by(& &1.user_uuid)
+    |> Map.new(fn key ->
+      {key.user_uuid, Map.get_lazy(known, key.user_uuid, fn -> owner_state(key) end)}
     end)
   end
 
-  # One `Keys.active_owner/1` per owner that has a live key; the others need none.
-  defp owner_states(keys) do
-    keys
-    |> Enum.filter(&(Keys.dead_reason(&1) == nil))
-    |> Enum.uniq_by(& &1.user_uuid)
-    |> Map.new(fn key ->
-      case Keys.active_owner(key) do
-        {:ok, _owner} -> {key.user_uuid, :ok}
-        {:error, reason} -> {key.user_uuid, reason}
-      end
+  defp owner_state(key) do
+    case Keys.active_owner(key) do
+      {:ok, _owner} -> :ok
+      {:error, reason} -> reason
+    end
+  end
+
+  @doc """
+  The status of every personal key of the list, by uuid. Keys that are not personal are
+  left out. `owner_states` defaults to a fresh `owner_states/1` of the list.
+  """
+  @spec statuses([Key.t()], %{String.t() => atom()} | nil) :: %{String.t() => status()}
+  def statuses(keys, owner_states \\ nil) do
+    personal = Enum.filter(keys, & &1.personal)
+    now = DateTime.utc_now()
+    owners = owner_states || owner_states(personal)
+
+    Map.new(personal, fn key ->
+      {key.uuid, status(key, Map.get(owners, key.user_uuid, :ok), now)}
     end)
   end
 
@@ -76,7 +88,8 @@ defmodule PhoenixKitWeb.Components.PersonalKeyDisplay do
   def live?(status), do: status not in [:revoked, :expired]
 
   @doc "The `<.status_badge status=…>` name."
-  @spec badge_name(status()) :: String.t()
+  @spec badge_name(status() | nil) :: String.t()
+  def badge_name(nil), do: "pending"
   def badge_name(:active), do: "active"
   def badge_name(:expiring_soon), do: "ending"
   def badge_name(:rotating), do: "ending"
@@ -86,7 +99,8 @@ defmodule PhoenixKitWeb.Components.PersonalKeyDisplay do
   def badge_name(:owner_inactive), do: "suspended"
 
   @doc "The `<.status_badge label=…>` text."
-  @spec label(status()) :: String.t()
+  @spec label(status() | nil) :: String.t() | nil
+  def label(nil), do: nil
   def label(:active), do: gettext("Active")
   def label(:expiring_soon), do: gettext("Expires soon")
   def label(:rotating), do: gettext("Being replaced")
