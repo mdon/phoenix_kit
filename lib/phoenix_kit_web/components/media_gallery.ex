@@ -88,6 +88,14 @@ defmodule PhoenixKitWeb.Components.MediaGallery do
   are the host picker's business. A `readonly` gallery shows no "Add" tile and
   refuses `open_picker` on the server, so the host is never asked.
 
+  - The host is not asked while the "Add" tile is hidden either — the
+    selection is at `max_count`, or a `:single` gallery already holds a file
+    — the same as with the built-in picker.
+  - Make the host's `handle_info` idempotent: every click sends a request, so
+    a double click delivers two `{:open_picker, …}` messages.
+  - Pass `media_selected` uuids without repeats; the gallery does not
+    deduplicate the list.
+
       <.live_component
         module={PhoenixKitWeb.Components.MediaGallery}
         id="my-gallery"
