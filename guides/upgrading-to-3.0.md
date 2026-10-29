@@ -17,9 +17,11 @@ The machine API also lost its deprecated shop names (see "Removed" below).
 
 ## Order of operations
 
-1. **Get to 2.65.0 first.** 3.0 only upgrades an existing database that is at **V225**, the last 2.x version. A lower
-   database that has any of the module tables (every database upgraded from 2.x does) or sits below V135 is refused with
-   `BelowFloorError`, which names 2.65.0; 2.65.0 sends a database below V135 to `1.7.236` first (see
+1. **Get to 2.65.0 first.** 3.0 upgrades an existing database only from **V225**, the last 2.x version.
+   `mix phoenix_kit.update` refuses every lower database with a notice that names 2.65.0;
+   `PhoenixKit.Migrations.up/1` (what a migration file runs) raises `BelowFloorError`, also naming 2.65.0, for a
+   database below V135 or one that has any of the module tables (every database built by a 2.x release does).
+   2.65.0 sends a database below V135 to `1.7.236` first (see
    [Upgrading to 2.0](https://github.com/BeamLabEU/phoenix_kit/blob/main/dev_docs/guides/2026-08-07-upgrading-to-2.0-guide.md)).
 
    ```elixir
