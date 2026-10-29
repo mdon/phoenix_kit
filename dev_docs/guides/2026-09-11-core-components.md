@@ -84,6 +84,8 @@ use PhoenixKitWeb.Components.MediaBrowser.Embed
 
 `parent_uploads={@uploads}` is required (LiveView `allow_upload` constraint). Key attrs: `scope_folder_id`, `on_navigate={:navigate}` (controlled mode), `initial_params`, `admin`, `select_mode`.
 
+**Picker:** `picker` makes it a window for choosing files for a slot (`pick_mode`, `max_select`, `selected`, `notify`, `folder_labels`, `folder_actions={false}`) — the moduledoc's "Picker" has the attrs and the three messages the host must handle; a host that stops rendering a browser calls `MediaBrowser.unregister_browser/1`.
+
 **URL sync (shareable folder deep links):** `use …Embed, url_sync: true` puts folder/search/page/view in the URL via lifecycle hooks (`attach_hook`, **not** injected clauses) — composes with a host LV that has its own `handle_params`/`handle_info`. Reference: `lib/phoenix_kit_web/live/users/media.ex`.
 
 ## FeaturedImage Component
