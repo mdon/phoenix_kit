@@ -127,6 +127,16 @@ function cardClick(srcUrl, cls, natural) {
   return { target: { closest: (sel) => (sel.includes("click_file") ? card : null) } };
 }
 
+test("a card of another browser on the page opens nothing here", () => {
+  const { hook, listeners } = loadHook();
+  const el = fakeEl(true);
+  el.parentElement = { contains: () => false };
+  hook.mounted.call({ el });
+
+  listeners.document.click.fn(cardClick("/uploads/small/cat.jpg"));
+  assert.strictEqual(el.style.display, "none", "the other browser's stand-in stays hidden");
+});
+
 test("shows the card's own bitmap on the click", () => {
   const { hook, listeners } = loadHook();
   const el = fakeEl(true);

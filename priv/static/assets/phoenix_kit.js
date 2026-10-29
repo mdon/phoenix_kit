@@ -2592,6 +2592,10 @@ if (typeof window.Chart === "undefined") {
 
         const card = e.target.closest && e.target.closest('[phx-click="click_file"]');
         if (!card) return;
+        // Only this browser's own cards: a page can hold two (a picker opened
+        // beside another), and each has a stand-in of its own.
+        const browser = el.parentElement;
+        if (browser && !browser.contains(card)) return;
         // Select mode turns the same click into a checkbox toggle, and a
         // picker's click may open nothing at all. The browser marks which it
         // is, so this can stay out of both.
