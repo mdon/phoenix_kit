@@ -21530,5 +21530,5 @@ msgstr "Attendi il termine dei caricamenti"
 
 #: lib/phoenix_kit_web/components/media_browser.ex
 #, elixir-autogen, elixir-format
-msgid "No media browser was open to receive it."
-msgstr "Nessun browser multimediale era aperto per riceverlo."
+msgid "No open media browser could receive this upload."
+msgstr "Nessun browser multimediale aperto ha potuto ricevere questo caricamento."

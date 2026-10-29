@@ -21530,5 +21530,5 @@ msgstr ""
 
 #: lib/phoenix_kit_web/components/media_browser.ex
 #, elixir-autogen, elixir-format
-msgid "No media browser was open to receive it."
+msgid "No open media browser could receive this upload."
 msgstr ""

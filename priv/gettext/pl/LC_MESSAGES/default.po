@@ -21598,5 +21598,5 @@ msgstr "Poczekaj na zakończenie przesyłania"
 
 #: lib/phoenix_kit_web/components/media_browser.ex
 #, elixir-autogen, elixir-format
-msgid "No media browser was open to receive it."
-msgstr "Żadna przeglądarka multimediów nie była otwarta, aby go odebrać."
+msgid "No open media browser could receive this upload."
+msgstr "Żadna otwarta przeglądarka multimediów nie mogła odebrać tego przesłania."

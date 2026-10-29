@@ -21659,5 +21659,5 @@ msgstr "Oodake, kuni üleslaadimised lõpevad"
 
 #: lib/phoenix_kit_web/components/media_browser.ex
 #, elixir-autogen, elixir-format
-msgid "No media browser was open to receive it."
-msgstr "Selle vastuvõtmiseks polnud ühtegi meediabrauserit avatud."
+msgid "No open media browser could receive this upload."
+msgstr "Ükski avatud meediabrauser ei saanud seda üleslaadimist vastu võtta."

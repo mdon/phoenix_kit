@@ -64,7 +64,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowserPickerTest do
          opts: session["opts"] || %{},
          browsers: session["browsers"] || ["pick"],
          selected: session["selected"] || [],
-         notify?: session["notify"] || false
+         notify?: session["notify"] || false,
+         uploads_on?: Map.get(session, "uploads_on", true)
        )}
     end
 
@@ -77,6 +78,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowserPickerTest do
             module={MediaBrowser}
             id={id}
             scope_folder_id={@scope}
+            folder_actions={Map.get(@opts, :files_folder_actions, true)}
             parent_uploads={@uploads}
             phoenix_kit_current_user={@phoenix_kit_current_user}
           />
@@ -95,7 +97,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowserPickerTest do
             readonly={Map.get(@opts, :readonly, false)}
             scope_folder_id={@scope}
             initial_params={@opts[:initial_params] || %{}}
-            parent_uploads={@uploads}
+            featured={@opts[:featured]}
+            parent_uploads={if @uploads_on?, do: @uploads}
             phoenix_kit_current_user={@phoenix_kit_current_user}
           />
         <% end %>
@@ -118,6 +121,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowserPickerTest do
       send_update(MediaBrowser, id: "pick", picker_reset: uuids)
       {:noreply, socket}
     end
+
+    def handle_event("uploads_on", _params, socket),
+      do: {:noreply, assign(socket, :uploads_on?, true)}
 
     def handle_event("show", params, socket) do
       ids = params["ids"] || []
@@ -935,7 +941,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowserPickerTest do
       render(view)
 
       assert File.exists?(path), "the bytes are kept"
-      assert [%{client_name: "kitchen.png", status: "failed"}] = UploadInbox.list(ctx.user.uuid)
+
+      assert [%{client_name: "kitchen.png", status: "failed", error: error}] =
+               UploadInbox.list(ctx.user.uuid)
+
+      assert error == "No open media browser could receive this upload."
       assert stored(ctx.user) == []
 
       # The next browser opened lists it, with Retry.
@@ -1027,6 +1037,335 @@ defmodule PhoenixKitWeb.Components.MediaBrowserPickerTest do
     test "unregister_browser/1 sends the unregister message to the calling process" do
       MediaBrowser.unregister_browser("pick")
       assert_received {MediaBrowser, :unregister, "pick"}
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Review round: an uploaded file, preselection, the kebab, gestures
+  # ---------------------------------------------------------------------------
+
+  # A real 1×1 PNG: the store keeps what the bytes are, not what the name says.
+  @png Base.decode64!(
+         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+       )
+
+  defp upload_bytes(view, name, content) do
+    input =
+      file_input(view, "#pick-folder-drop-upload-form", :media_picker_files, [
+        %{name: name, content: content, type: "image/png"}
+      ])
+
+    capture_log(fn ->
+      render_upload(input, name)
+      settle(view)
+    end)
+  end
+
+  describe "an uploaded file is picked only if a click could pick it" do
+    test "a typed picker picks an upload of its type", %{conn: conn} = ctx do
+      view = open(conn, ctx, %{"opts" => %{only_file_type: "image"}})
+      upload_bytes(view, "kitchen.png", @png)
+      confirm(view)
+
+      [stored] = stored(ctx.user)
+      assert stored.file_type == "image"
+      assert_receive {:picked, "pick", [uuid]}
+      assert uuid == stored.uuid
+    end
+
+    test "a typed picker does not pick a duplicate kept as another type", %{conn: conn} = ctx do
+      content = "notes-" <> :binary.copy("n", 800)
+
+      # The same bytes uploaded earlier as a document: the store hands that
+      # row back for the later "image".
+      first = open(conn, ctx)
+
+      input =
+        file_input(first, "#pick-folder-drop-upload-form", :media_picker_files, [
+          %{name: "notes.pdf", content: content, type: "application/pdf"}
+        ])
+
+      capture_log(fn ->
+        render_upload(input, "notes.pdf")
+        settle(first)
+      end)
+
+      view = open(conn, ctx, %{"opts" => %{only_file_type: "image"}})
+      upload_bytes(view, "kitchen.png", content)
+      html = render(view)
+
+      assert [%{file_type: type}] = stored(ctx.user)
+      refute type == "image", "precondition: dedup handed back the document"
+      assert html =~ "0 selected"
+
+      confirm(view)
+      assert_receive {:picked, "pick", []}
+    end
+
+    test "a duplicate of a file in the trash is not picked", %{conn: conn} = ctx do
+      view = open(conn, ctx, %{"opts" => %{pick_mode: :single}})
+      content = "kitchen-" <> :binary.copy("q", 800)
+
+      upload_bytes(view, "kitchen.png", content)
+      [first] = stored(ctx.user)
+      {:ok, _} = Storage.trash_file(first)
+      render(view)
+
+      upload_bytes(view, "kitchen-again.png", content)
+      html = render(view)
+
+      assert [%{status: "trashed"}] = stored(ctx.user),
+             "precondition: dedup handed back the trashed row"
+
+      assert html =~ "0 selected"
+
+      confirm(view)
+      assert_receive {:picked, "pick", []}
+    end
+  end
+
+  describe "pre-selection is checked" do
+    test "`selected` drops what the picker could not pick and keeps max_select",
+         %{conn: conn} = ctx do
+      [a, b, c] = for _ <- 1..3, do: file!(ctx.scope)
+      outside = file!(folder!("Elsewhere"))
+      trashed = file!(ctx.scope, %{status: "trashed"})
+
+      view =
+        open(conn, ctx, %{
+          "opts" => %{max_select: 2},
+          "selected" => [outside.uuid, a.uuid, trashed.uuid, b.uuid, c.uuid]
+        })
+
+      confirm(view)
+      assert_receive {:picked, "pick", uuids}
+      assert uuids == [a.uuid, b.uuid]
+    end
+
+    test "`picker_reset` is checked the same way", %{conn: conn} = ctx do
+      [a, b, c] = for _ <- 1..3, do: file!(ctx.scope)
+      outside = file!(folder!("Elsewhere"))
+      view = open(conn, ctx, %{"opts" => %{max_select: 2}})
+
+      render_click(view, "reset", %{"uuids" => [outside.uuid, c.uuid, a.uuid, b.uuid]})
+      confirm(view)
+
+      assert_receive {:picked, "pick", uuids}
+      assert uuids == [c.uuid, a.uuid]
+    end
+  end
+
+  describe "the file menu in a picker" do
+    test "keeps Download and Move to Trash, drops Rotate, Edit image and featured",
+         %{conn: conn} = ctx do
+      a = file!(ctx.scope)
+      view = open(conn, ctx, %{"opts" => %{featured: %{uuid: nil, label: nil}}})
+      tile = ~s(#pick-file-kebab-grid-#{a.uuid})
+
+      assert has_element?(view, ~s(#{tile} [phx-click="delete_file"]))
+      refute has_element?(view, ~s(#{tile} [phx-click="rotate_file"]))
+      refute has_element?(view, ~s(#{tile} [phx-click="open_image_editor"]))
+      refute has_element?(view, ~s(#{tile} [phx-click="set_featured"]))
+      refute has_element?(view, ~s(#pick [data-role="featured-toggle"]))
+    end
+
+    test "Rotate and Edit image are refused on the server", %{conn: conn} = ctx do
+      a = file!(ctx.scope)
+      view = open(conn, ctx)
+
+      capture_log(fn ->
+        hook(view, "rotate_file", %{"file-uuid" => a.uuid, "dir" => "right"})
+        hook(view, "open_image_editor", %{"file-uuid" => a.uuid})
+      end)
+
+      assert Map.get(Repo.get(StorageFile, a.uuid).metadata || %{}, "rotation") == nil
+      refute has_element?(view, "#pick-image-editor-modal")
+    end
+
+    test "Move to Trash still works", %{conn: conn} = ctx do
+      a = file!(ctx.scope)
+      view = open(conn, ctx)
+
+      hook(view, "delete_file", %{"file-uuid" => a.uuid})
+      assert Repo.get(StorageFile, a.uuid).status == "trashed"
+    end
+
+    test "every picker file write, and deleting for good, is refused untouched" do
+      for event <- MediaBrowser.picker_file_write_events() do
+        socket = %Phoenix.LiveView.Socket{assigns: %{__changed__: %{}, id: "mb", picker: true}}
+
+        assert {:noreply, ^socket} =
+                 capture_log_result(fn -> MediaBrowser.handle_event(event, %{}, socket) end),
+               "expected #{event} to be refused in a picker"
+      end
+
+      for event <- ~w(delete_file delete_folder delete_selected) do
+        socket = %Phoenix.LiveView.Socket{
+          assigns: %{__changed__: %{}, id: "mb", picker: true, filter_trash: true}
+        }
+
+        assert {:noreply, ^socket} =
+                 capture_log_result(fn -> MediaBrowser.handle_event(event, %{}, socket) end),
+               "expected #{event} to be refused in a picker's trash view"
+      end
+
+      for event <- ~w(rotate_file open_image_editor set_featured unset_featured empty_trash) do
+        assert event in MediaBrowser.picker_file_write_events()
+      end
+    end
+  end
+
+  describe "bulk select is off in a picker" do
+    test "every picker-off event is refused with the socket untouched" do
+      for event <- MediaBrowser.picker_off_events() do
+        socket = %Phoenix.LiveView.Socket{assigns: %{__changed__: %{}, id: "mb", picker: true}}
+
+        assert {:noreply, ^socket} =
+                 capture_log_result(fn -> MediaBrowser.handle_event(event, %{}, socket) end),
+               "expected #{event} to be refused in a picker"
+      end
+
+      for event <-
+            ~w(toggle_select_mode long_press_select toggle_select toggle_select_folder
+               select_all box_select set_view_mode) do
+        assert event in MediaBrowser.picker_off_events()
+      end
+    end
+
+    test "none of them picks or selects anything", %{conn: conn} = ctx do
+      a = file!(ctx.scope)
+      sub = folder!("Kitchen", ctx.scope)
+      view = open(conn, ctx)
+
+      capture_log(fn ->
+        hook(view, "long_press_select", %{"type" => "file", "uuid" => a.uuid})
+        hook(view, "toggle_select", %{"file-uuid" => a.uuid})
+        hook(view, "toggle_select_folder", %{"folder-uuid" => sub.uuid})
+        hook(view, "select_all")
+      end)
+
+      refute has_element?(view, ~s(#pick [data-selected="true"]))
+      refute has_element?(view, ~s(#pick [phx-click="delete_selected"]))
+      confirm(view)
+      assert_receive {:picked, "pick", []}
+    end
+  end
+
+  describe "a browser that is not a picker, with folder_actions: false" do
+    defp files_view(conn, ctx) do
+      open(conn, ctx, %{"browsers" => ["files"], "opts" => %{files_folder_actions: false}})
+    end
+
+    test "files keep their selection gestures; nothing takes a drag move", %{conn: conn} = ctx do
+      a = file!(ctx.scope)
+      sub = folder!("Kitchen", ctx.scope)
+      view = files_view(conn, ctx)
+
+      assert has_element?(view, ~s(#files [data-draggable-file="#{a.uuid}"]))
+      assert has_element?(view, "#files [data-box-area]")
+      refute has_element?(view, "#files [data-draggable-folder]")
+      refute has_element?(view, ~s(#files [data-drop-folder="#{sub.uuid}"]))
+      refute has_element?(view, "#media-browser-sidebar [data-drop-folder]")
+      refute has_element?(view, "#files [data-drop-trash]")
+    end
+
+    test "select all and a box take the files, never a folder", %{conn: conn} = ctx do
+      a = file!(ctx.scope)
+      b = file!(ctx.scope)
+      sub = folder!("Kitchen", ctx.scope)
+      view = files_view(conn, ctx)
+
+      hook(view, "toggle_select_mode", %{}, "files")
+      html = hook(view, "select_all", %{}, "files")
+      assert html =~ "2 selected"
+
+      hook(view, "deselect_all", %{}, "files")
+
+      html =
+        hook(
+          view,
+          "box_select",
+          %{"files" => [a.uuid, b.uuid], "folders" => [sub.uuid], "additive" => false},
+          "files"
+        )
+
+      assert html =~ "2 selected"
+
+      refute has_element?(
+               view,
+               ~s(#files [data-selected="true"] [phx-value-folder-uuid="#{sub.uuid}"])
+             )
+    end
+
+    test "a long press on a folder selects nothing", %{conn: conn} = ctx do
+      sub = folder!("Kitchen", ctx.scope)
+      view = files_view(conn, ctx)
+
+      capture_log(fn ->
+        hook(view, "long_press_select", %{"type" => "folder", "uuid" => sub.uuid}, "files")
+      end)
+
+      refute has_element?(view, ~s(#files [data-selected="true"]))
+    end
+  end
+
+  describe "the upload state follows the browser's own events" do
+    test "an event that leaves nothing in flight starts the idle check" do
+      socket = %Phoenix.LiveView.Socket{
+        assigns: %{
+          __changed__: %{},
+          id: "p",
+          picker: true,
+          picker_uploading: true,
+          upload_process_queue: [],
+          pending_batch: []
+        }
+      }
+
+      {:noreply, socket} = MediaBrowser.handle_event("noop", %{}, socket)
+      assert socket.assigns.picker_idle_check
+    end
+  end
+
+  describe "a picker that gets its upload after the first render" do
+    test "registers for the picker's upload when it appears", %{conn: conn} = ctx do
+      view = open(conn, ctx, %{"uploads_on" => false})
+
+      refute MapSet.member?(
+               :sys.get_state(view.pid).socket.assigns[:media_picker_ids] || MapSet.new(),
+               "pick"
+             )
+
+      render_click(view, "uploads_on")
+      render(view)
+      assert MapSet.member?(:sys.get_state(view.pid).socket.assigns.media_picker_ids, "pick")
+    end
+  end
+
+  describe "a second Confirm" do
+    test "reports the pick once", %{conn: conn} = ctx do
+      a = file!(ctx.scope)
+      view = open(conn, ctx)
+
+      click_file(view, a)
+      confirm(view)
+      confirm(view)
+
+      assert_receive {:picked, "pick", [_]}
+      refute_receive {:picked, "pick", _}, 100
+    end
+
+    test "after the pick changed, Confirm reports again", %{conn: conn} = ctx do
+      [a, b] = for _ <- 1..2, do: file!(ctx.scope)
+      view = open(conn, ctx)
+
+      click_file(view, a)
+      confirm(view)
+      click_file(view, b)
+      confirm(view)
+
+      assert_receive {:picked, "pick", [_]}
+      assert_receive {:picked, "pick", [_, _]}
     end
   end
 

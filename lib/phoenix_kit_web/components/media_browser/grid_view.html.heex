@@ -210,6 +210,7 @@
               label={gettext("Move")}
             />
             <.table_row_menu_button
+              :if={not (@picker and @filter_trash)}
               phx-click="delete_folder"
               phx-target={@myself}
               phx-value-id={folder.uuid}
@@ -234,11 +235,14 @@
     </div>
   <% end %>
   <%!-- Files. In a picker a click picks (`click_file`); a picked file is
-       ringed and numbered in the order it was picked. --%>
+       ringed and numbered in the order it was picked, and the card is not
+       draggable (no long press, Shift-click or box select either). Without
+       folder actions the card stays draggable — the selection gestures ride
+       on that — but no drop target takes a move. --%>
   <%= for file <- @uploaded_files do %>
     <% pick_order = @picker && pick_position(@picked, file.file_uuid) %>
     <div
-      data-draggable-file={if @drag, do: file.file_uuid}
+      data-draggable-file={if not @readonly and not @picker, do: file.file_uuid}
       data-selected={
         if @select_mode && MapSet.member?(@selected_files, file.file_uuid),
           do: "true"
@@ -349,7 +353,7 @@
       <.featured_badge
         file={file}
         featured={@featured}
-        interactive={not @readonly and not @select_mode and not @filter_trash}
+        interactive={not @readonly and not @select_mode and not @filter_trash and not @picker}
         select_mode={@select_mode}
         myself={@myself}
       />
@@ -382,7 +386,7 @@
                 button; the thumbnail reorients live. --%>
           <.table_row_menu_button
             :if={
-              not @readonly and file.file_type == "image" and
+              not @readonly and not @picker and file.file_type == "image" and
                 not @filter_trash and
                 ImageEditing.editable_mime?(file.mime_type)
             }
@@ -396,7 +400,7 @@
                 entirely when the host didn't opt in. --%>
           <.table_row_menu_button
             :if={
-              (not @readonly and @featured) && file.file_type == "image" &&
+              (not @readonly and not @picker and @featured) && file.file_type == "image" &&
                 !@filter_trash
             }
             phx-click={
@@ -418,7 +422,7 @@
             }
           />
           <.table_row_menu_button
-            :if={not @readonly and file.file_type == "image"}
+            :if={not @readonly and not @picker and file.file_type == "image"}
             phx-click="rotate_file"
             phx-target={@myself}
             phx-value-file-uuid={file.file_uuid}
@@ -427,7 +431,7 @@
             label={gettext("Rotate left")}
           />
           <.table_row_menu_button
-            :if={not @readonly and file.file_type == "image"}
+            :if={not @readonly and not @picker and file.file_type == "image"}
             phx-click="rotate_file"
             phx-target={@myself}
             phx-value-file-uuid={file.file_uuid}
@@ -455,8 +459,10 @@
             icon="hero-arrow-uturn-left"
             label={gettext("Restore")}
           />
+          <%!-- A picker moves a file to the Trash but deletes nothing for
+               good (see the moduledoc's "Picker"). --%>
           <.table_row_menu_button
-            :if={not @readonly}
+            :if={not @readonly and not (@picker and @filter_trash)}
             phx-click="delete_file"
             phx-target={@myself}
             phx-value-file-uuid={file.file_uuid}

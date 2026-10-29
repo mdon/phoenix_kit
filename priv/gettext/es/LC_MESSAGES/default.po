@@ -21539,5 +21539,5 @@ msgstr "Espera a que terminen las subidas"
 
 #: lib/phoenix_kit_web/components/media_browser.ex
 #, elixir-autogen, elixir-format
-msgid "No media browser was open to receive it."
-msgstr "No había ningún explorador de medios abierto para recibirlo."
+msgid "No open media browser could receive this upload."
+msgstr "Ningún explorador de medios abierto pudo recibir esta subida."

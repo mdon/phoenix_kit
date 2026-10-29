@@ -823,7 +823,7 @@
           (@show_search or @search_query != "") && "w-full sm:w-auto"
         ]}>
           <%!-- Empty Trash (trash view) --%>
-          <%= if not @readonly and @filter_trash and @total_count > 0 do %>
+          <%= if not @readonly and not @picker and @filter_trash and @total_count > 0 do %>
             <button
               phx-click="empty_trash"
               phx-target={@myself}

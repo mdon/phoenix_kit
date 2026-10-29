@@ -322,7 +322,7 @@
       <%!-- Files --%>
       <%= for file <- @uploaded_files do %>
         <tr
-          data-draggable-file={if @drag, do: file.file_uuid}
+          data-draggable-file={if not @readonly, do: file.file_uuid}
           data-selected={
             if @select_mode &&
                  MapSet.member?(@selected_files, file.file_uuid),

@@ -124,6 +124,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Helpers do
   attr :count, :integer, default: 0
   attr :expanded, :boolean, default: false
   attr :myself, :any, required: true
+  # `false` (no folder actions): not a drop target for a drag move.
+  attr :drop, :boolean, default: true
 
   def stack_tile(assigns) do
     ~H"""
@@ -139,7 +141,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Helpers do
             )
       }
       data-stack-tile={@folder.uuid}
-      data-drop-folder={@folder.uuid}
+      data-drop-folder={@drop && @folder.uuid}
       data-drop-color={drop_outline_color(@folder.color)}
       class="group flex flex-col items-center gap-2 w-40 rounded-lg focus:outline-none"
       title={@folder.name}
@@ -283,13 +285,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Helpers do
   # star badge and kebab item off.
   attr :featured, :any, default: nil
   attr :readonly, :boolean, default: false
-  # `false`: no drag move and no Move (see the moduledoc's "Picker").
+  # `false`: no Move (see the moduledoc's "Picker"). The card stays
+  # draggable — long press, Shift-click and box select ride on that — but
+  # nothing takes a drag move.
   attr :folder_actions, :boolean, default: true
 
   def file_card(assigns) do
     ~H"""
     <div
-      data-draggable-file={if not @readonly and @folder_actions, do: @file.file_uuid}
+      data-draggable-file={if not @readonly, do: @file.file_uuid}
       data-selected={if @select_mode && MapSet.member?(@selected_files, @file.file_uuid), do: "true"}
       data-stack-card={@index}
       class={[

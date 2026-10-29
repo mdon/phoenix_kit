@@ -21592,5 +21592,5 @@ msgstr "Дочекайтеся завершення завантаження"
 
 #: lib/phoenix_kit_web/components/media_browser.ex
 #, elixir-autogen, elixir-format
-msgid "No media browser was open to receive it."
-msgstr "Не було відкрито жодного медіабраузера, щоб його прийняти."
+msgid "No open media browser could receive this upload."
+msgstr "Жоден відкритий медіабраузер не зміг прийняти це завантаження."
