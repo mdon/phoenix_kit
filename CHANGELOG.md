@@ -13,6 +13,10 @@
   and disconnects their sockets after commit, including credential changes,
   user deletion and calls inside host-owned transactions. Rollbacks and
   savepoint rollbacks preserve restored sessions.
+- Managed organizations cannot use credential or session settings in embedded
+  profile components, and the manager's browser does not trigger organization
+  time-zone detection or mismatch alerts. Host-transaction disconnect observers
+  stop after 30 consecutive failed database checks.
 
 ## 3.0.0 - 2026-10-27
 

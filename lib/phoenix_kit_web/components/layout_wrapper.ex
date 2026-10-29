@@ -1703,7 +1703,10 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   def timezone_detector(assigns) do
     ~H"""
     <div
-      :if={@handler_attached && @scope && PhoenixKit.Users.Auth.Scope.authenticated?(@scope)}
+      :if={
+        @handler_attached && @scope && PhoenixKit.Users.Auth.Scope.authenticated?(@scope) &&
+          !@scope.user.managed_by_members
+      }
       id="phoenix-kit-timezone-detector"
       phx-hook="TimezoneDetector"
       hidden

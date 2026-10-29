@@ -746,8 +746,10 @@ First foundation batch (part of phase 1):
 - [x] Scope ceiling and assignment guards; API key/service-user refusals.
 - [x] Shared display/delivery helper, core notifier and email notification
   routing, and `.invalid` recipient filtering at both mail transports.
-- [ ] Dedicated creation/conversion contexts, referral satisfaction and
-  credential-settings/automatic timezone guards (remaining phase 1 work).
+- [ ] Dedicated creation/conversion contexts and referral satisfaction
+  (remaining phase 1 work).
+- [x] Reusable credential-settings guards and automatic timezone suppression
+  for managed organizations (third batch below).
 - [x] Transactional dependent-token collection, disconnects and concurrent
   lifecycle tests; these must precede exposing managed-account creation.
 - [ ] Switching, attribution, managers UI/invitations, full display audit,
@@ -805,6 +807,39 @@ Validation:
 
 Last-manager protection, creation/conversion and the account switcher remain
 pending; completing the drain alone does not expose managed accounts.
+
+Third batch — implementation review follow-up (complete):
+
+- [x] Bound the observer to 30 consecutive unavailable database checks.
+  A reachable transaction resets the failure count, regardless of how long
+  it stays open. Exhaustion logs the failure count and batch size, never
+  tokens, and stops without guessing that a transaction committed.
+  Deleted tokens still fail validation; sockets can remain connected until
+  their next authorization check or reconnect if observation is exhausted.
+- [x] Document host-owned transaction behavior under the SQL sandbox in the
+  external-module guide, including how to test real commit/disconnects.
+- [x] `UserSettings` removes email/password/OAuth/session sections even for
+  host embeds and rejects their events before parsing input. Crafted profile
+  saves cannot change login or Google email. Security/session tabs are not
+  offered to managed accounts.
+- [x] Layout and settings timezone detectors are suppressed for managed
+  accounts; server-side alerts and browser-timezone events also no-op.
+  An explicitly selected organization timezone remains editable.
+- [x] PostgreSQL regression tests and `mix precommit` passed.
+
+Validation:
+
+- Fresh PostgreSQL test database, with integration tests enabled: **50 tests,
+  0 failures**, covering revocation lifecycle/concurrency, observer exhaustion
+  and recovery, managed settings, ordinary profile tabs and timezone alerts.
+- Additional existing embedded-settings and registered-tab regressions:
+  **18 tests, 0 failures**. Final focused observer/settings rerun after the
+  explicit-section test and log wording changes: **7 tests, 0 failures**.
+- `mix precommit` passed (compile, test-file compilation, format, Credo,
+  Dialyzer and all **480 JavaScript tests**). No migration changes in this batch.
+
+Creation/conversion and manager lifecycle locking remain pending. No public
+managed-account creation or acting-session minting is exposed by this batch.
 
 ## Tests
 
@@ -1135,17 +1170,15 @@ revocation drain match the plan, and the tests exercise them for real
   their own (with `User.delivery_email/1` for addresses), and session tokens
   are deleted only through `Sessions.Revocation`.
 
-Open, for the next batches:
+Follow-up status:
 
-- **Observer retries forever when the repo is unreachable.** Each revoke
-  inside a host-owned transaction starts one task that polls up to once a
-  second until it sees the outcome. Self-healing when the database returns,
-  but a dynamic repo that is shut down for good leaves tasks polling. Either
-  cap `:unavailable` retries (and log the count, never tokens) or accept it.
-- **Host test suites.** Under the SQL sandbox a host's own `Repo.transaction`
-  never commits, so a drain inside one is never followed by a disconnect.
-  A sibling test that asserts the disconnect from inside its own transaction
-  will not see it. Worth a sentence in the external-module guide.
+- **Observer retry limit — resolved in third batch.** Thirty consecutive
+  unavailable checks stop observation; reachable open transactions reset the
+  failure count. Exhaustion logs counts only and never assumes commit.
+- **Host test suites — documented in third batch.** A sandbox's outer
+  transaction rolls back at cleanup, so a drain inside a host-owned transaction
+  cannot produce a commit/disconnect assertion there. The external-module
+  guide now explains the real-connection test setup.
 - **Grant eligibility is read without locks.** `OrganizationManager.changeset/2`
   reads the person and organization in `validate_change`, and
   `change_account_type/2` checks for grants without a lock. The session query

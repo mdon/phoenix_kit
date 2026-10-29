@@ -229,6 +229,10 @@ defmodule PhoenixKitWeb.Components.ProfileSettingsTabs do
   defp visible?("notifications", _scope),
     do: NotificationTypes.list() != [] and sections("notifications") != []
 
+  defp visible?(tab, %Scope{user: %{managed_by_members: true}})
+       when tab in ["security", "sessions"],
+       do: false
+
   defp visible?("integrations", scope),
     do: not is_nil(scope) and Scope.has_module_access?(scope, "integrations")
 

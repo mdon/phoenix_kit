@@ -96,6 +96,11 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   # which is the whole reason this is a single button.
   @etcher_user_keys ~w(etcher_colors etcher_line_params)
 
+  @credential_sections [:email, :password, :oauth, :sessions]
+  @credential_events ~w(validate_email update_email validate_password update_password
+    connect_oauth_provider disconnect_oauth_provider toggle_email_form
+    toggle_password_form revoke_session revoke_other_sessions)
+
   @doc """
   The section list rendered when a caller doesn't pass `sections` — does NOT
   include `:integrations` (see the module attribute comment above). A caller
@@ -135,6 +140,8 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
         other -> [other]
       end)
 
+    sections = if user.managed_by_members, do: sections -- @credential_sections, else: sections
+
     email_confirm_url_fn =
       assigns[:email_confirm_url_fn] || socket.assigns[:email_confirm_url_fn] ||
         (&Routes.url("/profile/settings/confirm-email/#{&1}"))
@@ -149,11 +156,12 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
       |> assign(:sections, sections)
       |> assign(
         :show_google_email,
-        Map.get(
-          assigns,
-          :show_google_email,
-          ProfileSettingsTabs.google_email_shown?()
-        )
+        not user.managed_by_members and
+          Map.get(
+            assigns,
+            :show_google_email,
+            ProfileSettingsTabs.google_email_shown?()
+          )
       )
       |> assign(:email_confirm_url_fn, email_confirm_url_fn)
       |> assign(:return_to, return_to)
@@ -239,6 +247,14 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   # Event handlers
 
   @impl true
+  def handle_event(event, _params, %{assigns: %{user: %{managed_by_members: true}}} = socket)
+      when event in @credential_events,
+      do: {:noreply, socket}
+
+  def handle_event(event, _params, %{assigns: %{user: %{managed_by_members: true}}} = socket)
+      when event in ["browser_timezone_detected", "use_browser_timezone"],
+      do: {:noreply, socket}
+
   def handle_event("validate_email", params, socket) do
     %{"current_password" => password, "user" => user_params} = params
 
@@ -341,7 +357,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   end
 
   def handle_event("validate_profile", params, socket) do
-    user_params = profile_params(params)
+    user_params = profile_params(params, socket.assigns.user)
 
     merged_params = merge_custom_fields(params, user_params)
 
@@ -364,7 +380,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   end
 
   def handle_event("update_profile", params, socket) do
-    user_params = profile_params(params)
+    user_params = profile_params(params, socket.assigns.user)
 
     user = socket.assigns.user
 
@@ -955,7 +971,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
   # current password and confirms the new address by mail. Taken from the
   # profile events it would re-point the account (and every password-reset
   # link) at an unconfirmed address with one crafted submit.
-  defp profile_params(params) do
+  defp profile_params(params, user) do
     user_params =
       case params do
         %{"user" => user_params} when is_map(user_params) -> user_params
@@ -963,7 +979,8 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
         _ -> %{}
       end
 
-    Map.delete(user_params, "email")
+    excluded = if user.managed_by_members, do: ["email", "google_email"], else: ["email"]
+    Map.drop(user_params, excluded)
   end
 
   defp extract_custom_fields(params) do
@@ -1177,7 +1194,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
               <%!-- line stops appearing, look here first.                       --%>
               <div
                 id={"#{@id}-timezone-detector"}
-                phx-hook="TimezoneDetector"
+                phx-hook={if !@user.managed_by_members, do: "TimezoneDetector"}
                 phx-target={@myself}
                 data-event="browser_timezone_detected"
               >

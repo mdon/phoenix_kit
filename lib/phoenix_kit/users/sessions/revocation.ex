@@ -18,6 +18,10 @@ defmodule PhoenixKit.Users.Sessions.Revocation do
   Raw tokens stay in process memory. They are never written to a job, database
   notification or log. The observer uses PostgreSQL's transaction-status
   functions (available since PostgreSQL 13); no extension or host hook is needed.
+  Observation stops after 30 consecutive failed database checks. An open,
+  reachable transaction does not count as a failure. On exhaustion, token
+  validation still refuses deleted sessions but sockets may remain connected
+  until their next authorization check or reconnect.
 
   These are system primitives, not authorization APIs. A request-driven caller
   authorizes before invoking them. Manager lifecycle callers must also hold
@@ -26,16 +30,12 @@ defmodule PhoenixKit.Users.Sessions.Revocation do
 
   import Ecto.Query
 
-  require Logger
-
   alias Ecto.Adapters.SQL.Sandbox
   alias PhoenixKit.RepoHelper
   alias PhoenixKit.Users.Auth.UserToken
   alias PhoenixKit.Users.OrganizationManager
   alias PhoenixKit.Users.Sessions
-
-  @initial_delay 25
-  @max_delay 1_000
+  alias PhoenixKit.Users.Sessions.Revocation.Observer
 
   @doc "An Ecto transaction whose session disconnects are deferred until commit."
   def transaction(fun_or_multi, opts \\ []) do
@@ -172,7 +172,7 @@ defmodule PhoenixKit.Users.Sessions.Revocation do
   defp observe_later(repo, dynamic_repo, xid, tokens) do
     fun = fn ->
       repo.put_dynamic_repo(dynamic_repo)
-      observe(repo, xid, tokens, @initial_delay, false)
+      Observer.run(fn -> check_outcome(repo, xid, tokens) end, length(tokens))
     end
 
     start_observer(fun)
@@ -192,27 +192,6 @@ defmodule PhoenixKit.Users.Sessions.Revocation do
     end
   catch
     :exit, _ -> Task.start(fun)
-  end
-
-  defp observe(repo, xid, tokens, delay, warned?) do
-    case check_outcome(repo, xid, tokens) do
-      :done ->
-        :ok
-
-      :retry ->
-        Process.sleep(delay)
-        observe(repo, xid, tokens, min(delay * 2, @max_delay), warned?)
-
-      :unavailable ->
-        unless warned?,
-          do:
-            Logger.warning(
-              "[PhoenixKit] Session disconnect observer cannot reach the repo; retrying"
-            )
-
-        Process.sleep(delay)
-        observe(repo, xid, tokens, min(delay * 2, @max_delay), true)
-    end
   end
 
   defp check_outcome(repo, xid, tokens) do
