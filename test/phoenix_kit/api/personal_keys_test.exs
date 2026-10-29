@@ -475,10 +475,12 @@ defmodule PhoenixKit.API.PersonalKeysTest do
       {key, _} = personal!(scope, %{expires_at: end_of_day(3)})
       put_setting("api_personal_key_max_days", 20)
 
+      before = end_of_day(20)
       assert {:ok, new_key, token} = Keys.rotate(key, 2, scope, impersonated: false)
 
       assert new_key.personal
-      assert new_key.expires_at == end_of_day(20)
+      # Read around the rotation, so a run across UTC midnight still matches.
+      assert new_key.expires_at in [before, end_of_day(20)]
       refute new_key.requires_approval
       assert new_key.scopes == key.scopes
       assert {:ok, %Actor{personal: true}} = Keys.verify(token, nil)

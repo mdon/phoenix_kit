@@ -344,6 +344,7 @@ defmodule PhoenixKitWeb.Live.Settings.ApiPersonalKeysTest do
       {:ok, view, _html} = live(log_in_user(conn, user), @path)
 
       menu_button(view, key, "request_rotate") |> render_click()
+      latest_before = PersonalKeysConfig.latest_expiry()
 
       view
       |> form("#rotate-api-key-form", %{"rotate" => %{"grace_hours" => "1"}})
@@ -356,7 +357,8 @@ defmodule PhoenixKitWeb.Live.Settings.ApiPersonalKeysTest do
 
       assert new_key.personal
       refute new_key.requires_approval
-      assert new_key.expires_at == PersonalKeysConfig.latest_expiry()
+      # Read around the rotation, so a run across UTC midnight still matches.
+      assert new_key.expires_at in [latest_before, PersonalKeysConfig.latest_expiry()]
       assert reloaded(key).revoked_at
     end
 
