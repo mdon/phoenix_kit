@@ -39,6 +39,7 @@ function load() {
 
 function el({ popover = true } = {}) {
   const e = {
+    dataset: { token: "tok" },
     shown: 0,
     open: false,
     focused: 0,
@@ -89,7 +90,7 @@ test("Escape cancels the dialog and is taken before the page's listeners", () =>
 
   assert.equal(e.prevented, true, "a host dialog gets no cancel");
   assert.equal(e.stopped, true, "the viewer's handler never runs");
-  assert.deepEqual(m.pushed, [{ event: "removal_cancel", payload: {} }]);
+  assert.deepEqual(m.pushed, [{ event: "removal_cancel", payload: { token: "tok" } }]);
 });
 
 test("other keys are left alone", () => {

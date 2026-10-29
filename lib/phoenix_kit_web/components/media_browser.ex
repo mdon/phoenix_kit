@@ -2853,9 +2853,17 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
-  def handle_event("removal_cancel", _params, socket) do
-    {:noreply, assign(socket, :removal_pending, nil)}
+  def handle_event("removal_cancel", %{"token" => token}, socket) do
+    case socket.assigns[:removal_pending] do
+      %{token: ^token} -> {:noreply, assign(socket, :removal_pending, nil)}
+      _ -> {:noreply, socket}
+    end
   end
+
+  # No token, or not a map of params the dialog sends: nothing to answer.
+  def handle_event(event, _params, socket)
+      when event in ~w(removal_confirm removal_release removal_cancel),
+      do: {:noreply, socket}
 
   # Finder/Explorer-style instant folder creation. Click the "+" button
   # in any toolbar and a folder appears named "untitled" (or
@@ -4228,7 +4236,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       # destroyed, no matter how a uuid ended up in the selection.
       Enum.each(files, fn file ->
         if file.status == "trashed" && Storage.within_scope?(file.folder_uuid, scope) &&
-             file.uuid not in removal_except(socket) do
+             file.uuid not in removal_except(socket) &&
+             (is_nil(removal_only(socket)) or file.uuid in removal_only(socket)) do
           Storage.delete_file_completely(file)
         end
       end)
@@ -4586,7 +4595,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     # trash must not purge sibling roots' trashed files.
     {:ok, count} =
       Storage.empty_trash(trash_scope(socket), [
-        {:except, removal_except(socket)} | lib_opts(socket)
+        {:except, removal_except(socket)} | [{:only, removal_only(socket)} | lib_opts(socket)]
       ])
 
     {:noreply,
@@ -5316,25 +5325,41 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   # Runs the handler. `except` are files it must leave alone (kept by the guard).
-  defp removal_pass(event, params, socket, except) do
+  defp removal_pass(event, params, socket, except, only \\ nil) do
     private =
-      socket.private |> Map.put(:removal_checked, true) |> Map.put(:removal_except, except)
+      socket.private
+      |> Map.put(:removal_checked, true)
+      |> Map.put(:removal_except, except)
+      |> Map.put(:removal_only, only)
 
     {:noreply, socket} = handle_event(event, params, %{socket | private: private})
 
     {:noreply,
      %{
        socket
-       | private: socket.private |> Map.delete(:removal_checked) |> Map.delete(:removal_except)
+       | private: Map.drop(socket.private, [:removal_checked, :removal_except, :removal_only])
      }}
   end
 
   defp removal_except(socket), do: Map.get(socket.private, :removal_except, [])
 
+  # The files the dialog showed as free, when the action skips what is in use:
+  # the handler deletes exactly these, not whatever it finds now.
+  defp removal_only(socket), do: Map.get(socket.private, :removal_only)
+
   # The person's click on the dialog runs the event again, so every gate of
   # `handle_event/3` — viewer, own files, library — judges it once more.
+  #
+  # The confirmation itself passed those gates, and their markers ride in
+  # `private`; they are taken off so that the replay is judged afresh, against
+  # the rows as they are now.
   defp replay_removal(socket, event, params, mode) do
-    socket = %{socket | private: Map.put(socket.private, :removal_mode, mode)}
+    private =
+      socket.private
+      |> Map.drop([:viewer_checked, :own_files_checked, :library_checked])
+      |> Map.put(:removal_mode, mode)
+
+    socket = %{socket | private: private}
     {:noreply, socket} = handle_event(event, params, socket)
     {:noreply, %{socket | private: Map.delete(socket.private, :removal_mode)}}
   end
@@ -5370,7 +5395,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         shown = shown_removal(mode)
 
         if removal_confirmed?(mode, analysis, free, held) do
-          removal_execute(event, params, socket, free, held)
+          removal_execute(event, params, socket, analysis, free, held)
         else
           error =
             if shown && not same_files?(shown, analysis, free),
@@ -5410,22 +5435,38 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       Enum.sort(pending.files) == Enum.sort(analysis.files) and
         Enum.sort(pending.free) == Enum.sort(free)
 
-  defp removal_execute(event, params, socket, free, held) do
-    {:noreply, socket} = removal_pass(event, params, socket, held)
+  defp removal_execute(event, params, socket, analysis, free, held) do
+    only = if analysis.skip?, do: free
+
+    {:noreply, socket} = removal_pass(event, params, socket, held, only)
 
     if held == [] do
       {:noreply, socket}
     else
+      # What is left of the free files was not deleted (a refusal, a race):
+      # the summary counts the fact, not the plan.
+      left = count_files(free)
+
       {:noreply,
        put_flash(
          socket,
          :info,
          gettext("%{deleted} deleted, %{kept} kept: in use",
-           deleted: length(free),
-           kept: length(held)
+           deleted: length(free) - left,
+           kept: length(held) + left
          )
        )}
     end
+  end
+
+  defp count_files([]), do: 0
+
+  defp count_files(uuids) do
+    PhoenixKit.Config.get_repo().aggregate(
+      from(f in Storage.File, where: f.uuid in ^uuids),
+      :count,
+      :uuid
+    )
   end
 
   @removal_names_shown 8
@@ -5553,7 +5594,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   defp removal_analysis("delete_selected", _params, socket) do
     scope = scope_folder_id(socket)
     {files, folders} = shown_selection(socket)
-    folders = Enum.filter(folders, &Storage.within_scope?(&1.uuid, scope))
+    folders = folders_in_scope(folders, scope)
     trash? = socket.assigns[:filter_trash] == true
 
     file_plan =
@@ -6583,8 +6624,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         PhoenixKit.Config.get_repo().all(from(r in schema, where: r.uuid in ^Enum.to_list(uuids)))
   end
 
+  # The folders of a selection a removal reaches: the ones in the browser's
+  # scope. The analysis and the handler read the same set.
+  defp folders_in_scope(folders, scope),
+    do: Enum.filter(folders, &Storage.within_scope?(&1.uuid, scope))
+
   defp delete_selected_folders(socket, folders, scope) do
-    Enum.each(folders, fn folder ->
+    folders
+    |> folders_in_scope(scope)
+    |> Enum.each(fn folder ->
       if socket.assigns.filter_trash,
         do: Storage.delete_folder_completely(folder, scope),
         else: Storage.trash_folder(folder, scope)

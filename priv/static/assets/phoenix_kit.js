@@ -2800,7 +2800,7 @@ if (typeof window.Chart === "undefined") {
         if (e.key !== "Escape") return;
         e.preventDefault();
         e.stopPropagation();
-        self.pushEventTo(self.el, "removal_cancel", {});
+        self.pushEventTo(self.el, "removal_cancel", { token: (self.el.dataset && self.el.dataset.token) || "" });
       };
       window.addEventListener("keydown", self._onKey, true);
       // Keyboard focus goes to the dialog's safe button, not a destructive one.

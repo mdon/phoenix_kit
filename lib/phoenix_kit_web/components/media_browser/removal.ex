@@ -39,7 +39,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Removal do
   """
   def places(module, uuids, ctx) do
     with {:ok, answer} <- call(module, :places, fn -> module.places(uuids, ctx) end),
-         {:ok, places} <- read_places(answer, MapSet.new(uuids)) do
+         {:ok, places} <- read_places(answer, Map.new(uuids, &{String.downcase(&1), &1})) do
       {:ok, places}
     else
       _ -> :error
@@ -72,16 +72,47 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Removal do
   defp exported?(module, fun, arity),
     do: Code.ensure_loaded?(module) and function_exported?(module, fun, arity)
 
+  @default_timeout 5_000
+
+  # The host's module runs in a task, so one that hangs cannot hold the page:
+  # after the timeout (`config :phoenix_kit, :file_removal_guard_timeout`, ms)
+  # it is killed and the call fails closed. The task catches everything, so a
+  # crash cannot take the browser with it through the link.
   defp call(module, what, fun) do
-    {:ok, fun.()}
-  rescue
-    exception ->
-      log_failure(module, what, exception.__struct__)
-      :error
-  catch
-    kind, _reason ->
-      log_failure(module, what, kind)
-      :error
+    task =
+      Task.async(fn ->
+        try do
+          {:ok, fun.()}
+        rescue
+          exception -> {:failed, exception.__struct__}
+        catch
+          kind, _reason -> {:failed, kind}
+        end
+      end)
+
+    case Task.yield(task, timeout()) || Task.shutdown(task, :brutal_kill) do
+      {:ok, {:ok, _answer} = ok} ->
+        ok
+
+      {:ok, {:failed, why}} ->
+        log_failure(module, what, why)
+        :error
+
+      _ ->
+        log_failure(module, what, :timed_out)
+        :error
+    end
+  end
+
+  defp timeout do
+    case Application.get_env(:phoenix_kit, :file_removal_guard_timeout, @default_timeout) do
+      ms when is_integer(ms) and ms > 0 -> ms
+      _ -> @default_timeout
+    end
+  end
+
+  defp log_failure(module, what, :timed_out) do
+    Logger.error("MediaBrowser removal guard #{inspect(module)}.#{what} timed out")
   end
 
   defp log_failure(module, what, why) do
@@ -92,7 +123,6 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Removal do
     answer
     |> Enum.reduce_while({:ok, []}, fn place, {:ok, acc} ->
       case read_place(place, requested) do
-        {:ok, nil} -> {:cont, {:ok, acc}}
         {:ok, place} -> {:cont, {:ok, [place | acc]}}
         :error -> {:halt, :error}
       end
@@ -105,13 +135,14 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Removal do
 
   defp read_places(_answer, _requested), do: :error
 
-  # A place of a file that was not asked about is dropped; one that is no
-  # map, or names no file, is a contract break.
+  # Uuids are compared in lower case and answered in the form they were asked.
+  # A place for a file that was not asked about breaks the contract — a guard
+  # that names files by some other key would otherwise leave a file in use
+  # looking free — so the whole answer is refused.
   defp read_place(%{file_uuid: uuid} = place, requested) when is_binary(uuid) do
-    if MapSet.member?(requested, uuid) do
-      read_place_fields(uuid, place)
-    else
-      {:ok, nil}
+    case Map.fetch(requested, String.downcase(uuid)) do
+      {:ok, asked} -> read_place_fields(asked, place)
+      :error -> :error
     end
   end
 

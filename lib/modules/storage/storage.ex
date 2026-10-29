@@ -2390,8 +2390,26 @@ defmodule PhoenixKit.Modules.Storage do
     repo().all(query)
   end
 
-  defp linked_outside_subtree?(file_uuid, subtree_uuids, which),
-    do: links_outside_subtree(file_uuid, subtree_uuids, which) != []
+  # Which of `file_uuids` a folder outside `subtree_uuids` links — one query for
+  # the whole set (`which` as in `links_outside_subtree/3`).
+  defp files_linked_outside(file_uuids, subtree_uuids, which) do
+    query =
+      from(fl in FolderLink,
+        join: fo in Folder,
+        on: fo.uuid == fl.folder_uuid,
+        where: fl.file_uuid in ^file_uuids and fl.folder_uuid not in ^subtree_uuids,
+        distinct: true,
+        select: fl.file_uuid
+      )
+
+    query =
+      case which do
+        :live -> where(query, [_fl, fo], is_nil(fo.trashed_at))
+        :any -> query
+      end
+
+    if file_uuids == [], do: MapSet.new(), else: query |> repo().all() |> MapSet.new(&to_string/1)
+  end
 
   # The files homed in a subtree, split in two: `{promote, rest}` — those a
   # folder outside it also holds (they are re-homed there and survive) and
@@ -2399,9 +2417,12 @@ defmodule PhoenixKit.Modules.Storage do
   # delete carry out and `removal_plan/2` reports; `which` is as in
   # `links_outside_subtree/3`.
   defp split_subtree_files(subtree_uuids, which) do
-    from(f in PhoenixKit.Modules.Storage.File, where: f.folder_uuid in ^subtree_uuids)
-    |> repo().all()
-    |> Enum.split_with(&linked_outside_subtree?(&1.uuid, subtree_uuids, which))
+    files =
+      from(f in PhoenixKit.Modules.Storage.File, where: f.folder_uuid in ^subtree_uuids)
+      |> repo().all()
+
+    linked = files |> Enum.map(& &1.uuid) |> files_linked_outside(subtree_uuids, which)
+    Enum.split_with(files, &MapSet.member?(linked, to_string(&1.uuid)))
   end
 
   # Re-home a file to the first folder that links it from outside the deleted
@@ -5713,7 +5734,8 @@ defmodule PhoenixKit.Modules.Storage do
   @doc """
   Permanently deletes all trashed files, optionally scoped — to a folder's
   subtree, and with `library_uuid:` to one storage library. `except:` is a
-  list of file uuids that stay in the trash.
+  list of file uuids that stay in the trash; `only:` limits the deletion to
+  those uuids (a caller that asked about exactly these files).
   """
   def empty_trash(scope \\ nil, opts \\ []) do
     except = opts |> Keyword.get(:except, []) |> MapSet.new(&to_string/1)
@@ -5722,8 +5744,16 @@ defmodule PhoenixKit.Modules.Storage do
       scope
       |> list_trashed_files(Keyword.take(opts, [:library_uuid, :viewer_uuid]))
       |> Enum.reject(&MapSet.member?(except, to_string(&1.uuid)))
+      |> only_listed(Keyword.get(opts, :only))
 
     {:ok, delete_counting(trashed)}
+  end
+
+  defp only_listed(files, nil), do: files
+
+  defp only_listed(files, only) do
+    only = MapSet.new(only, &to_string/1)
+    Enum.filter(files, &MapSet.member?(only, to_string(&1.uuid)))
   end
 
   @doc "Permanently deletes trashed files older than the given number of days."

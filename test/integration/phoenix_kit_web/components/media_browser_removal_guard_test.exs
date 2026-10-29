@@ -11,6 +11,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowserRemovalGuardTest do
 
   use PhoenixKitWeb.ConnCase, async: false
 
+  import Ecto.Query, only: [from: 2]
   import ExUnit.CaptureLog
 
   alias PhoenixKit.Modules.Storage
@@ -32,9 +33,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowserRemovalGuardTest do
       state = state()
       send(state.pid, {:places, uuids, ctx})
       if state[:raise], do: raise("sentinel-#{inspect(uuids)}")
+      if state[:sleep], do: Process.sleep(state[:sleep])
+      if hook = state[:on_places], do: hook.()
 
-      for uuid <- uuids, place = Map.get(state[:places] || %{}, uuid) do
-        Map.put(place, :file_uuid, uuid)
+      if fun = state[:answer] do
+        fun.(uuids)
+      else
+        for uuid <- uuids, place = Map.get(state[:places] || %{}, uuid) do
+          Map.put(place, :file_uuid, uuid)
+        end
       end
     end
 
@@ -884,6 +891,124 @@ defmodule PhoenixKitWeb.Components.MediaBrowserRemovalGuardTest do
       assert "removal_confirm" in MediaBrowser.write_events()
       assert "removal_release" in MediaBrowser.write_events()
       refute "removal_cancel" in MediaBrowser.write_events()
+    end
+  end
+
+  describe "review fixes" do
+    test "the confirmation judges the gates again: a file rewritten to another owner is not removed",
+         %{conn: conn, user: user} = ctx do
+      file = file!(ctx.scope)
+      view = open(conn, ctx, %{own_files_only: user.uuid})
+      hook(view, "trash_file", %{"file_uuid" => file.uuid})
+      assert modal?(view)
+
+      {:ok, other} =
+        Auth.register_user(%{
+          email: "other-#{System.unique_integer([:positive])}@example.com",
+          password: "ValidPassword123!"
+        })
+
+      Repo.update_all(from(f in StorageFile, where: f.uuid == ^file.uuid),
+        set: [user_uuid: other.uuid]
+      )
+
+      capture_log(fn -> press(view, "confirm") end)
+
+      assert status(file) == "active"
+      assert flash(view) =~ "You can only change files you uploaded"
+    end
+
+    test "a file that reaches the trash while the guard answers is not deleted",
+         %{conn: conn} = ctx do
+      shown = trashed!(ctx.scope)
+      kept = trashed!(ctx.scope)
+      attach!(kept)
+      view = open(conn, ctx)
+      trash_view(view)
+      hook(view, "empty_trash")
+      test_pid = self()
+
+      guard_state(%{
+        on_places: fn ->
+          late = trashed!(ctx.scope)
+          send(test_pid, {:late, late.uuid})
+        end
+      })
+
+      press(view, "confirm")
+
+      assert_received {:late, late_uuid}
+      assert is_nil(Repo.get(StorageFile, shown.uuid))
+      assert Repo.get(StorageFile, late_uuid), "the file the dialog never listed stays"
+      assert status(kept) == "trashed"
+    end
+
+    test "a slow guard fails closed after the timeout", %{conn: conn} = ctx do
+      file = file!(ctx.scope)
+      Application.put_env(:phoenix_kit, :file_removal_guard_timeout, 50)
+      on_exit(fn -> Application.delete_env(:phoenix_kit, :file_removal_guard_timeout) end)
+      guard_state(%{sleep: 1_000})
+      view = open(conn, ctx)
+
+      log = capture_log(fn -> hook(view, "trash_file", %{"file_uuid" => file.uuid}) end)
+
+      assert render(view) =~ "The files could not be checked, so nothing was removed."
+      assert status(file) == "active"
+      assert log =~ "timed out"
+    end
+
+    test "the dialog's events without a token, or with another, do nothing",
+         %{conn: conn} = ctx do
+      file = file!(ctx.scope)
+      view = open(conn, ctx)
+      hook(view, "trash_file", %{"file_uuid" => file.uuid})
+
+      for event <- ~w(removal_confirm removal_release removal_cancel) do
+        hook(view, event, %{})
+        hook(view, event, %{"token" => "other"})
+      end
+
+      assert modal?(view)
+      assert status(file) == "active"
+
+      press(view, "cancel")
+      refute modal?(view)
+    end
+
+    test "a place for a uuid in another case still holds the file", %{conn: conn} = ctx do
+      file = file!(ctx.scope)
+
+      guard_state(%{
+        answer: fn [uuid] ->
+          [%{file_uuid: String.upcase(uuid), label: "Order 9", detail: nil, href: nil}]
+        end
+      })
+
+      view = open(conn, ctx)
+
+      html = hook(view, "trash_file", %{"file_uuid" => file.uuid})
+
+      assert html =~ "Cannot delete: the file is in use"
+      assert status(file) == "active"
+    end
+
+    test "a place for a file that was not asked about breaks the contract: fail closed",
+         %{
+           conn: conn
+         } = ctx do
+      file = file!(ctx.scope)
+
+      guard_state(%{
+        answer: fn _ -> [%{file_uuid: Ecto.UUID.generate(), label: "Order 9"}] end
+      })
+
+      view = open(conn, ctx)
+
+      capture_log(fn -> hook(view, "trash_file", %{"file_uuid" => file.uuid}) end)
+
+      assert render(view) =~ "The files could not be checked, so nothing was removed."
+      refute has_element?(view, "#mb-removal-confirm")
+      assert status(file) == "active"
     end
   end
 end

@@ -32,6 +32,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.RemovalModal do
       phx-hook="RemovalModal"
       phx-target={@myself}
       data-removal-state={@state}
+      data-token={@pending.token}
     >
       <div class="modal-box max-w-lg">
         <h3 id={"#{@id}-removal-title"} class="font-bold text-lg">
@@ -138,7 +139,13 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.RemovalModal do
           </button>
         </div>
       </div>
-      <div class="modal-backdrop" phx-click="removal_cancel" phx-target={@myself}></div>
+      <div
+        class="modal-backdrop"
+        phx-click="removal_cancel"
+        phx-target={@myself}
+        phx-value-token={@pending.token}
+      >
+      </div>
     </div>
     """
   end

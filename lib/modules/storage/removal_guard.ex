@@ -49,6 +49,24 @@ defmodule PhoenixKit.Modules.Storage.RemovalGuard do
   that answers `{:error, message}` shows `message` when it is a string, a
   generic text otherwise.
 
+  A call that takes longer than `config :phoenix_kit,
+  :file_removal_guard_timeout` (milliseconds, default 5000) is stopped and
+  fails closed the same way. The calls run in a task, outside the page's
+  process; a module that needs the database sandbox in tests gets it through
+  `$callers`.
+
+  An answer that names a file the browser did not ask about is a contract
+  break and fails closed too (uuids are compared in lower case).
+
+  ## The window that remains
+
+  The browser asks, then removes. What the dialog showed is what is removed
+  (the files named, nothing found later), but a file attached between
+  `places/2` and the DELETE is still removed. A host for which that matters
+  keeps the reference as a foreign key with `ON DELETE RESTRICT` (or the
+  equivalent check in its own transaction): the database, not this callback,
+  is the last word.
+
   ## What it does not cover
 
   The guard stands in the media browser's events. It is not asked by the
