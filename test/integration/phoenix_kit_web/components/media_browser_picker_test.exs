@@ -1182,6 +1182,23 @@ defmodule PhoenixKitWeb.Components.MediaBrowserPickerTest do
       refute has_element?(view, "#pick-image-editor-modal")
     end
 
+    test "a file already in the trash is never deleted for good, whatever the view",
+         %{conn: conn} = ctx do
+      trashed = file!(ctx.scope, %{status: "trashed"})
+      view = open(conn, ctx)
+
+      capture_log(fn -> hook(view, "delete_file", %{"file-uuid" => trashed.uuid}) end)
+      assert Repo.get(StorageFile, trashed.uuid), "the active view's Delete must not destroy it"
+
+      # The selection the file menu's Move fills, then a forged bulk delete
+      # from the active view: that only ever moves to the Trash.
+      hook(view, "prepare_move_file", %{"file-uuid" => trashed.uuid})
+      hook(view, "close_move_modal")
+      hook(view, "prepare_move_file", %{"file-uuid" => trashed.uuid})
+      capture_log(fn -> hook(view, "delete_selected") end)
+      assert Repo.get(StorageFile, trashed.uuid)
+    end
+
     test "Move to Trash still works", %{conn: conn} = ctx do
       a = file!(ctx.scope)
       view = open(conn, ctx)

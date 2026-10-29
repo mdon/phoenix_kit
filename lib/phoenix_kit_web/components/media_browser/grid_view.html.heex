@@ -238,7 +238,8 @@
        ringed and numbered in the order it was picked, and the card is not
        draggable (no long press, Shift-click or box select either). Without
        folder actions the card stays draggable — the selection gestures ride
-       on that — but no drop target takes a move. --%>
+       on that — but no folder, tree node or Trash takes a move (the content
+       area stays a drop target for uploads; the server refuses a move). --%>
   <%= for file <- @uploaded_files do %>
     <% pick_order = @picker && pick_position(@picked, file.file_uuid) %>
     <div

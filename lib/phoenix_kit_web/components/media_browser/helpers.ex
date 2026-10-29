@@ -287,7 +287,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Helpers do
   attr :readonly, :boolean, default: false
   # `false`: no Move (see the moduledoc's "Picker"). The card stays
   # draggable — long press, Shift-click and box select ride on that — but
-  # nothing takes a drag move.
+  # no folder, tree node or Trash takes a drag move.
   attr :folder_actions, :boolean, default: true
 
   def file_card(assigns) do

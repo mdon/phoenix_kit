@@ -112,7 +112,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     assign) leaves the working pick alone. Replace it with
     `send_update(MediaBrowser, id: id, picker_reset: uuids)`. Both keep what
     a click could pick (below), at most `max_select` of it (one in
-    `:single`); anything else is dropped without a word.
+    `:single`); anything else is dropped without a word, and Confirm returns
+    the list without it — a slot's file outside the scope, in the trash or of
+    another type leaves the slot when the person confirms.
   - `notify` — `{module, id}` of a host LiveComponent. Confirm sends it
     `send_update(module, id: id, picked: uuids)`, Cancel
     `picked: :cancelled`, and a change of the upload state
@@ -124,7 +126,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     upload, whether or not the host cares. ⚠️ A host that funnels every
     `{MediaBrowser, _, _}` message into `handle_parent_info/2` must match them
     before it, as with `{:set_featured, _}`: the delegate only logs them. A
-    Confirm or Cancel pressed again with nothing changed is reported once.
+    Confirm or Cancel pressed again with nothing changed is reported once, so
+    a host that keeps the picker mounted between openings (hidden, not
+    removed) sends `picker_reset` when it opens it again — otherwise a
+    Confirm of the same pick reports nothing.
   - `folder_labels` — `%{folder_uuid => label}`: the label is shown instead of
     the folder's name in the tree, the breadcrumbs, the title and the folder
     tiles. Display only; nothing is renamed.
@@ -136,7 +141,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     from such a browser cannot be brought back from it (the Trash view and
     Restore are folder actions here). Outside a picker the file cards stay
     draggable for the selection gestures (long press, Shift-click, box
-    select), but no drop target takes a move, and folders are never selected.
+    select), but no folder, tree node or Trash takes a move, and folders are
+    never selected. The content area stays a drop target, for files dropped
+    from the computer; a move dropped there is refused on the server.
 
   A picker's file menu keeps Download and Move to Trash. Rotate, Edit image,
   the featured toggle and deleting for good (the Trash view's Delete, Empty
@@ -2686,8 +2693,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
 
       {:noreply, socket} = handle_event(event, params, socket)
       # An event can end an upload's wait without the page rendering again
-      # (a Retry that failed, a cancelled transfer): the picker's report to
-      # its host follows it here, as it follows `update/2`.
+      # (a Retry whose store failed empties the browser's own queue): the
+      # picker's report to its host follows it here, as it follows
+      # `update/2`. The page's transfers are read from its last render, so a
+      # cancelled transfer is seen on the next `update/2`, not here.
       {:noreply, socket |> unchecked() |> sync_picker_uploading()}
     end
   end
@@ -4152,19 +4161,20 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       # destroying the record and its bytes reaches every folder holding
       # the file, so appearing here (a link from outside) is not enough. A
       # linked file in this folder's trash is unlinked instead.
-      flash =
-        if file.status == "trashed" and Storage.within_scope?(file.folder_uuid, scope) do
-          Storage.delete_file_completely(file)
-          gettext("File permanently deleted")
-        else
-          removal_flash(Storage.remove_file_from_folder(file, viewed))
-        end
+      cond do
+        # A picker deletes nothing for good, from whatever view: the
+        # permanent branch below is chosen by the row, not by the view.
+        socket.assigns[:picker] == true and file.status == "trashed" ->
+          {:noreply, log_refused(socket, "delete_file", "a picker deletes nothing for good")}
 
-      {:noreply,
-       socket
-       |> put_flash(:info, flash)
-       |> close_viewer_on(file_uuid)
-       |> reload_current_page()}
+        file.status == "trashed" and Storage.within_scope?(file.folder_uuid, scope) ->
+          Storage.delete_file_completely(file)
+          {:noreply, removed(socket, file_uuid, gettext("File permanently deleted"))}
+
+        true ->
+          flash = removal_flash(Storage.remove_file_from_folder(file, viewed))
+          {:noreply, removed(socket, file_uuid, flash)}
+      end
     else
       # Nothing in this browser shows that file: a stale row, a uuid from
       # another listing, a forged one. Refusing is right; refusing in
@@ -5055,6 +5065,14 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       %Storage.File{} = file -> appearance_folder(socket, file)
       _ -> current_folder_uuid(socket)
     end
+  end
+
+  # `delete_file` done: say so, close the viewer on the file, reload.
+  defp removed(socket, file_uuid, flash) do
+    socket
+    |> put_flash(:info, flash)
+    |> close_viewer_on(file_uuid)
+    |> reload_current_page()
   end
 
   defp removal_flash({:ok, :trashed, _}), do: gettext("File moved to trash")
