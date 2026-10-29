@@ -735,6 +735,41 @@ defmodule PhoenixKitWeb.Components.MediaBrowserTest do
       render_hook(browser, "box_select", %{"files" => [], "folders" => [], "additive" => false})
       refute selected?.(a) or selected?.(b) or selected?.(c)
     end
+
+    test "a dragged selection dropped on a folder moves it there", %{conn: conn} do
+      {user, _token} = create_admin_user()
+      folder = create_folder!()
+      target = create_folder!()
+      [a, b, c] = for _ <- 1..3, do: create_file!(folder.uuid)
+      conn = log_in_user(conn, user)
+
+      {:ok, view, _html} = live(conn, @media_path <> "?folder=#{folder.uuid}")
+      browser = element(view, "#media-browser")
+
+      render_hook(browser, "box_select", %{
+        "files" => [a.uuid, b.uuid],
+        "folders" => [],
+        "additive" => false
+      })
+
+      # The key the drag hook sends now — the move dialog's.
+      render_hook(browser, "move_selected_to_folder", %{"folder-uuid" => target.uuid})
+      assert Storage.get_file(a.uuid).folder_uuid == target.uuid
+      assert Storage.get_file(b.uuid).folder_uuid == target.uuid
+      assert Storage.get_file(c.uuid).folder_uuid == folder.uuid
+
+      # The key the drag hook used to send crashed the LiveView (no clause);
+      # a page still on the old script is handled the same way.
+      render_hook(browser, "box_select", %{
+        "files" => [c.uuid],
+        "folders" => [],
+        "additive" => false
+      })
+
+      render_hook(browser, "move_selected_to_folder", %{"folder_uuid" => target.uuid})
+      assert Storage.get_file(c.uuid).folder_uuid == target.uuid
+      assert render(view) =~ "media-browser"
+    end
   end
 
   # ---------------------------------------------------------------------------

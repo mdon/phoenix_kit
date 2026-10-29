@@ -3291,6 +3291,16 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     {:noreply, log_readonly_blocked(socket, "move_selected_to_folder")}
   end
 
+  # The drag-and-drop batch drop used to send `folder_uuid` (the move
+  # dialog's `phx-value-folder-uuid` arrives as `folder-uuid`), and with no
+  # clause for it the LiveView crashed and the page reloaded with nothing
+  # moved. The hook sends `folder-uuid` now; a page still running the old
+  # script lands here instead of crashing.
+  def handle_event("move_selected_to_folder", %{"folder_uuid" => folder_uuid} = params, socket)
+      when not is_map_key(params, "folder-uuid") do
+    handle_event("move_selected_to_folder", %{"folder-uuid" => folder_uuid}, socket)
+  end
+
   def handle_event("move_selected_to_folder", %{"folder-uuid" => folder_uuid}, socket) do
     scope = scope_folder_id(socket)
     # "root" in a scoped browser is the scope folder, not nil — same fix as

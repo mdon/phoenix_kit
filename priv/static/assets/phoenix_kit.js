@@ -9099,8 +9099,9 @@ if (typeof window.Chart === "undefined") {
             // and clears them + resets select_mode after. Drag-on-self
             // for a folder in the batch is handled server-side (the
             // bulk handler skips moving a folder onto itself).
+            // The same key the move dialog sends (`phx-value-folder-uuid`).
             self.pushEventTo(self.el, "move_selected_to_folder", {
-              folder_uuid: resolvedTarget
+              "folder-uuid": resolvedTarget
             });
           } else if (isFolder) {
             if (draggedUuid === dropFolderUuid) return;
