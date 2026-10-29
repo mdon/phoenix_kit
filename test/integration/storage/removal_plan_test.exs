@@ -234,4 +234,18 @@ defmodule PhoenixKit.Modules.Storage.RemovalPlanTest do
       assert Storage.removal_plan(:delete_files, [file]) == empty()
     end
   end
+
+  describe "empty_trash with except:" do
+    test "leaves the named files in the trash and deletes the rest", %{user: user} do
+      keep = file!(user)
+      gone = file!(user)
+      {:ok, _} = Storage.trash_file(keep)
+      {:ok, _} = Storage.trash_file(gone)
+
+      assert {:ok, 1} = Storage.empty_trash(nil, except: [keep.uuid])
+
+      assert Repo.get(File, keep.uuid).status == "trashed"
+      assert is_nil(Repo.get(File, gone.uuid))
+    end
+  end
 end

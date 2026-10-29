@@ -5712,10 +5712,17 @@ defmodule PhoenixKit.Modules.Storage do
 
   @doc """
   Permanently deletes all trashed files, optionally scoped — to a folder's
-  subtree, and with `library_uuid:` to one storage library.
+  subtree, and with `library_uuid:` to one storage library. `except:` is a
+  list of file uuids that stay in the trash.
   """
   def empty_trash(scope \\ nil, opts \\ []) do
-    trashed = list_trashed_files(scope, Keyword.take(opts, [:library_uuid, :viewer_uuid]))
+    except = opts |> Keyword.get(:except, []) |> MapSet.new(&to_string/1)
+
+    trashed =
+      scope
+      |> list_trashed_files(Keyword.take(opts, [:library_uuid, :viewer_uuid]))
+      |> Enum.reject(&MapSet.member?(except, to_string(&1.uuid)))
+
     {:ok, delete_counting(trashed)}
   end
 
