@@ -1,9 +1,13 @@
 # Acting for an organization
 
-**Status:** scope only, not started. Design reviewed by Codex on 2026-10-29
-and by Grok on 2026-10-29 (findings folded in; see
-[Review (Codex)](#review-codex-2026-10-29) and
-[Review (Grok)](#review-grok-2026-10-29)). All decisions are made.
+**Status:** implementation started (foundation). Design reviewed by Codex on 2026-10-29
+and by Grok on 2026-10-29 (first pass folded in; second pass on Claude's
+recheck folded in; see
+[Review (Codex)](#review-codex-2026-10-29),
+[Review (Grok)](#review-grok-2026-10-29),
+[Review (Grok, second pass)](#review-grok-second-pass-2026-10-29) and
+[Implementation readiness](#review-codex-implementation-readiness-2026-10-29)). All
+decisions are made.
 **Requested by:** Andi's project (2026-10-29).
 
 ## Problem
@@ -102,7 +106,8 @@ phoenix_kit_users_tokens               (existing table)
   organization_manager_uuid NEW → phoenix_kit_organization_managers(uuid) ON DELETE CASCADE
 
 phoenix_kit_organization_invitations   (existing core table)
-  kind                      NEW varchar NOT NULL DEFAULT 'member'   ('member' | 'manager')
+  kind                      NEW varchar NOT NULL DEFAULT 'member'
+                            CHECK (kind IN ('member', 'manager'))
 ```
 
 - `managed_by_members = true` is allowed only with `account_type =
@@ -130,6 +135,19 @@ phoenix_kit_organization_invitations   (existing core table)
   A person who has manager rows cannot change `account_type` to
   `"organization"` or become `api_only` while those rows exist (the insert
   check is not enough).
+- **Pending uniqueness includes `kind`.** Today's unique index is
+  `(organization_uuid, email) WHERE pending`
+  (`phoenix_kit_org_invitations_pending_unique_idx` in V135). V226 drops
+  it and creates `(organization_uuid, email, kind) WHERE pending`, so a
+  pending member invite and a pending manager invite for the same address
+  can coexist. Leaving the old index in place would make a pending member
+  invite for `bob@x` fail (or, under the generic answer, silently no-op)
+  a manager invite for `bob@x`, and Bob would still join as a member.
+  `kind` is an `Ecto.Enum` (`:member | :manager`) like `status`.
+  `OrganizationInvitation.create_changeset/2` currently only
+  `unique_constraint`s `:token`; it must also map the pending index **by
+  name** so a race is a changeset error, not a raw DB error, and manager
+  invites can collapse that error into the generic answer (§9a).
 - New core table → `ModuleOwnedTables` core list. New schema uses
   `PhoenixKit.SchemaPrefix`. Prefix-safe rules apply (`uuid_v7_call/1`, bare
   index names on CREATE, schema anchors on existence checks). The new columns
@@ -222,6 +240,13 @@ organization on their own:
   controller-rendered page, which has no parent LiveView to re-check it).
   Every other uuid keeps today's behaviour. One extra token lookup, only for
   managed organizations.
+  Use the **user (and then `Scope.for_user/1`) returned by
+  `session_user_query/1`**, not a second `Auth.get_user/1`: that query is
+  what fills `acting_user_uuid` and `active_role_uuid` onto the user, so
+  `Actor.opts/1` in an embed (comment composers) still names the person.
+  Also set `phoenix_kit_session_token` from `session["user_token"]`.
+  `reload_session_user/2` falls back to `Auth.get_user/1` when that assign
+  is missing, which skips the grant.
 - **API keys** (`PhoenixKit.API.Keys.verify/2` loads the key's owner directly).
   A managed organization owns no keys and no service users in v1: refused in
   `Keys.create_key/3` (including a key for itself, which `owner_allowed/2`
@@ -250,7 +275,8 @@ not only in `act_as_organization` / leave:
   `org_uuid`, and the organization must be active and managed. Mints a session
   token for the organization with `acting_session_uuid` = the root token's row
   and `organization_manager_uuid` = the grant, appends it to the stack, makes
-  it active, logs `organization.entered` (§8). Rate-limited per root user
+  it active, logs `organization.entered` (§8) with **no `target_uuid`** (a
+  feed row, not an inbox notification). Rate-limited per root user
   (authenticated enumeration of org uuids).
 - **At most one organization token per stack, outside the account limit.**
   Entering another organization replaces (and deletes, and disconnects) the
@@ -355,7 +381,7 @@ Acting as
   `multi_session_accounts` (`scope.acting_organizations`). The scope already
   resolves the root for multi-session; reuse that read.
 - Strings go into `default.pot` and the nine `.po` files (switcher, flashes,
-  admin managers UI).
+  admin managers UI, manager-invitation banner / mail / registration copy).
 
 ### 6. What an organization may do (the permission ceiling)
 
@@ -488,6 +514,10 @@ display name next to it ("Acme OÜ · via Dmitri Don").
   normal set-password / confirmation path. All acting sessions are revoked
   first (otherwise, with the flag cleared, they would read as ordinary
   organization sessions), and nothing old (password, OAuth identity) comes back.
+  Delete the manager grants and cancel pending **manager** invitations in
+  the same transaction. A later conversion to managed starts with fresh
+  grants. Acceptance re-checks that the organization is active and managed;
+  an invitation read before conversion cannot grant access afterwards.
 - **The last manager.** Removing, deactivating or deleting the last *active*
   manager of a managed organization is refused unless the admin explicitly
   leaves it without managers (a checkbox; the organization then stays
@@ -511,28 +541,92 @@ a site admin. They are managers after all.
 
 - **Where:** a "Managers" section in the account settings
   (`/profile/settings/<tab>`, `ProfileSettingsTabs` and the `UserSettings`
-  LiveComponent), shown only while acting for a managed organization. Not the
-  admin user page: that needs the `users` permission.
+  LiveComponent), shown only while `Scope.acting_user_uuid/1` is set for a
+  managed organization. Not the admin user page: that needs the `users`
+  permission. The section is **not hideable** (same idea as `:identity`: it
+  is not in `ProfileSettingsTabs` `@hideable`). `visible?/2` offers it only
+  while acting. The invite form has a unique `id` derived from the
+  LiveComponent `@id`. A host that sets `user_settings_path` away from
+  `/profile/settings` does not get this UI unless it embeds the section —
+  kit's `ProfileSettings` is the self-service surface.
 - **Adding is by invitation, never by search.** The manager types an email;
-  core sends a manager invitation (`Invitations.create_invitation/4` with
-  `kind: :manager`, the existing email-bound flow). The invitee accepts while
-  signed in **as themselves** (the existing invitation banner,
-  `InvitationHook`), which creates the manager row. A person search would let
-  any manager enumerate the site's accounts; the invitation also gets the
-  invitee's consent. An email with no account yet: the invitee registers as a
-  person, then accepts.
-  - The answer to "invite" is the same whether or not an account exists for
-    that email. Today `validate_invitation_allowed/2` answers "This user
-    already belongs to an organization", an account-existence oracle; manager
-    invitations skip that rule (managing is not "working at") and give one
-    generic answer. Duplicates (already a manager, already invited) are
-    collapsed into the same answer.
-  - Accepting needs a `person` account, not `api_only`, not acting. A manager
-    invitation never writes `organization_uuid`.
-  - Rate-limited per acting person and per organization (each invitation sends
-    mail). Pending manager invitations can be cancelled by any manager.
+  core sends a manager invitation. A person search would let any manager
+  enumerate the site's accounts; the invitation also gets the invitee's
+  consent. An email with no account yet: the invitee registers as a person
+  (`account_type_mode/1` already forces `"person"` when an invitation is
+  in the URL), then accepts.
+  - **Arity.** Keep `Invitations.create_invitation/3` (admin member form
+    and existing tests). Add an optional 4th argument / opts,
+    `kind: :member | :manager`, default `:member`. `user_form.ex`
+    `invite_member` stays a `/3` call.
+  - **`invited_by` is the acting person**, `Scope.acting_user_uuid/1`,
+    never the organization row. Today's `user_form.ex` passes
+    `phoenix_kit_current_user`, which while acting *is* the org.
+  - **Refuse `.invalid` invitee addresses** (placeholder /
+    `api-*@service.invalid` mailboxes). Format validation is not enough;
+    `.invalid` is a valid-looking address.
+  - **Generic HTTP answer.** The answer to "invite" is the same whether or
+    not an account exists for that email. Today `validate_invitation_allowed/2`
+    answers "This user already belongs to an organization", an
+    account-existence oracle; manager invitations skip that rule (managing
+    is not "working at") and give one generic answer. Duplicates (already a
+    manager, already invited as manager) collapse into the same answer,
+    including the pending-unique race mapped by name in the changeset
+    (§1). A pending *member* invite for the same address is a different
+    row (the unique index includes `kind`) and does not no-op the manager
+    invite.
+  - **Accept branches on `kind`.** Today's `do_accept_invitation/3` always
+    calls `Auth.set_organization/2`. A manager invitation never writes
+    `organization_uuid`; it inserts the manager row. Accepting needs a
+    `person` account, not `api_only`, not acting. The same branch applies
+    to auto-accept from `pending_invitation_uuid` in `registration.ex`
+    (`maybe_accept_invitation_without_confirmation/1`) and
+    `confirmation.ex` (`maybe_accept_pending_invitation/1`) — both call
+    `accept_invitation_by_uuid/2` today with no kind check.
+  - **Accept from your own account.** `InvitationHook.confirmed_person?/1`
+    requires `account_type: "person"`, so while acting (current user is
+    the org) the hook does not attach and the banner is hidden. The
+    invitee switches back, then accepts. `invitee?/2` already fails if
+    the acting org tries to accept (placeholder email ≠ invitation
+    email); the context still refuses a non-person / acting caller.
+  - **After a manager accept, rebuild `scope.acting_organizations`.** The
+    hook today only assigns `phoenix_kit_current_user`. The switcher
+    reads the scope from mount; without a rebuild or navigate, Acme does
+    not appear until the next remount.
+- **The banner and the mail have to actually exist.**
+  - **`InvitationHook` is not on any kit `live_session`**
+    (`PhoenixKitWeb.Integration`: admin, authenticated, public). Install
+    does not add it. Hosts may opt in; out of the box the banner never
+    renders on `/admin` or `/profile/settings`. Attach the hook to every
+    kit session that mounts a user (it already no-ops for nil /
+    non-person). Kind-aware copy in `InvitationBanner` (today: "invited
+    you to join their organization."), the registration alert, the
+    accept flash ("You joined the organization!"), and the mail
+    templates.
+  - **Mail.** `maybe_send_invitation_email/3` currently skips existing
+    users, and `UserNotifier.deliver_organization_invitation/3` always
+    sends a **registration** URL (`/users/register?invitation=`). Member
+    invitations keep that split once the hook is on kit sessions (banner
+    for existing users, registration mail for new). **Manager
+    invitations always send mail:** registration URL if no account; a
+    **login** URL if there is one — never the register URL, which would
+    fail on the unique email. The inviter's HTTP answer stays generic;
+    only the invitee's mailbox differs. New gettext / template copy for
+    the manager kind.
+  - **Rate limit** through `PhoenixKit.Users.RateLimiter`, keyed on the
+    acting person **and** the organization. Applied to no-ops too, or
+    timing leaks the generic answer.
+  - **Cancel is authorized.** Today's `cancel_invitation/1` takes only a
+    uuid: no org scope, no actor. The admin form lists that org's rows;
+    a manager who learns another org's invitation uuid would cancel it.
+    Cancel takes the caller, and refuses unless the row belongs to this
+    organization and the grant (or admin rank, without the self clause)
+    still holds. Pending manager invitations can be cancelled by any
+    manager of that org.
 - **Admins** add a manager directly on the organization's details page
-  (person search there is fine: admins already see the users list).
+  (person search there is fine: admins already see the users list). That
+  insert is the manager row, not an invitation; it logs
+  `organization.manager_added` immediately.
 - **Removing:** any manager may remove any other manager, or themselves
   ("Leave"). Removing yourself ends your organization session (the cascade)
   and lands you back in your own account. The last manager cannot remove
@@ -546,9 +640,14 @@ a site admin. They are managers after all.
   (§6). Managers cannot convert, deactivate or delete the organization.
 - **Accepted risk:** a manager can remove every other manager. Every add and
   remove is an activity row (`organization.manager_added`,
-  `organization.manager_removed`; actor the organization, the acting person in
-  metadata, target the affected person, so they get a notification), and an
-  admin can restore a removed manager.
+  `organization.manager_removed`), logged on **row create / delete** (accept
+  or admin add / remove), not on sending the invitation — a not-yet-registered
+  invitee has no user uuid to target. Actor the organization, the acting
+  person in metadata, target the affected person, so they get a notification.
+  Register both actions on the `account` notification type
+  (`PhoenixKit.Notifications.Types`) and in `Notifications.Render`; unknown
+  actions notify with the raw action string. An admin can restore a removed
+  manager.
 
 ### 10. Ending sessions and open pages
 
@@ -562,9 +661,22 @@ So every path that ends organization access deletes **and** disconnects:
   dependent organization tokens, but cannot broadcast, so the revoke paths in
   `Sessions` (`revoke_user_session/2`, `revoke_other_user_sessions/2`,
   `revoke_session/2`, `revoke_user_sessions/2`, `revoke_user_sessions_in_role/2`)
-  and the password-reset path collect the dependent organization tokens
+  and every token-deletion / credential-rotation path in `Auth`
+  (`delete_user_session_token/1`, `delete_all_user_session_tokens/1`,
+  user and admin password changes, password reset and external-proof
+  confirmation) collect the dependent organization tokens
   **before** deleting, then disconnect them after commit. One shared helper,
   so a new revoke path cannot forget it.
+
+Collection and deletion happen in one transaction under locks that also
+serialize organization-token minting. Lock the referenced session / manager
+rows before collecting dependents: a concurrent insert must either finish
+before collection or fail after the parent is deleted. A read followed by
+an unlocked delete can cascade away a newly minted token that was not in the
+disconnect list. Manager removal, person deactivate/delete and conversion
+also share the organization lock; operations spanning several organizations
+take those locks in uuid order. Re-check authority and the last-active-manager
+count under those locks, not before acquiring them.
 
 A person deleted outright cascades too; collect the dependent tokens first
 there as well. Deleting or deactivating the last manager's person goes
@@ -576,10 +688,14 @@ The admin sessions list uses the display helper (§5), not the placeholder.
 
 ## Phases
 
-1. **Core model + doors** — V226, schema/changeset changes, placeholder email,
-   dedicated create path, every login door, the session-query guard, embedded
-   identity, API-key refusals, the permission ceiling, the recipient helper
-   and `.invalid` guard, referral satisfied, display helper.
+1. **Core model + doors** — V226, schema/changeset changes (including
+   `kind`, the kind CHECK, dropping the old pending-unique index and
+   creating `(organization_uuid, email, kind) WHERE pending`, mapping
+   that index in the changeset), placeholder email, dedicated create
+   path, every login door, the session-query guard, embedded identity
+   (session-query user + `phoenix_kit_session_token`), API-key refusals,
+   the permission ceiling, the recipient helper and `.invalid` guard,
+   referral satisfied, display helper.
 2. **Switching** — `act_as_organization` and leaving, routes in both scopes,
    every stack helper treating the org token as an exception, the mirror slot
    (org-only and old cookies), the switcher component in both navs, the
@@ -587,14 +703,65 @@ The admin sessions list uses the display helper (§5), not the placeholder.
    with disconnects, the Sessions page entry, enter/leave landing, log-out
    copy.
 3. **Admin UI and self-service managers** — managers on the details page,
-   the "Managers" settings section while acting, manager invitations
-   (`kind` column, generic answers, rate limit), create, convert either way,
-   the last-manager rule (including person deactivate/delete), users-list
-   search and badge, i18n.
+   the "Managers" settings section while acting (not hideable), manager
+   invitations (`create_invitation/3` default `kind: :member`, accept
+   branches on kind including registration/confirmation auto-accept,
+   generic answers, unique-index race, `invited_by` the acting person,
+   authorized cancel, rate limit on no-ops too), `InvitationHook` on kit
+   live sessions, kind-aware banner / mail / registration copy, login
+   mail for existing-user manager invites, notification type + render
+   for `organization.manager_added` / `manager_removed`, create, convert
+   either way, the last-manager rule (including person deactivate/delete),
+   users-list search and badge, i18n.
 4. **CRM** — the managed-organization mirror option (`phoenix_kit_crm`).
 
-Each phase is releasable on its own; nothing changes for an install until an
-organization is marked managed.
+Foundation code can ship incrementally. Creating or converting managed
+organizations stays unavailable until switching, attribution, revocation,
+credential guards and last-manager protection from phases 1–3 are complete
+and tested together. Keep the dedicated creation path internal until then;
+the phase boundaries are work packages, not independent feature releases.
+
+## Implementation progress (2026-10-29)
+
+First foundation batch (part of phase 1):
+
+- [x] V226: managed-account policy and contact email, manager grants,
+  cascading token provenance and indexes, invitation kind and pending index.
+- [x] Catalog-generated manifest overlay and SQL reference, preserving the
+  historical baseline; regeneration script in `dev_docs/squash/`.
+- [x] Schemas, contact-address validation, manager eligibility and the
+  person-to-organization guard for people holding manager grants.
+- [x] Session-query validation and provenance for token and token-uuid reads;
+  embedded managed identity requires its own matching live token.
+- [x] Independent-login refusals: password, common web login, magic link,
+  OAuth, QR approval/completion, reset, confirmation/email-change tokens,
+  add-account and impersonation. Reset re-reads account policy so a form
+  loaded before conversion cannot write a managed account's password.
+- [x] Scope ceiling and assignment guards; API key/service-user refusals.
+- [x] Shared display/delivery helper, core notifier and email notification
+  routing, and `.invalid` recipient filtering at both mail transports.
+- [ ] Dedicated creation/conversion contexts, referral satisfaction and
+  credential-settings/automatic timezone guards (remaining phase 1 work).
+- [ ] Transactional dependent-token collection, disconnects and concurrent
+  lifecycle tests; these must precede exposing managed-account creation.
+- [ ] Switching, attribution, managers UI/invitations, full display audit,
+  translations and CRM integration (phases 2–4).
+
+No public managed-account creation, conversion or acting-session minting is
+exposed by this batch. Database-cascade tests prove token deletion; they do
+not yet prove dependent socket disconnects, which remain work above.
+
+Validation of this batch:
+
+- `mix precommit` passed (compile, test-file compilation, formatting, Credo,
+  Dialyzer and all 480 JavaScript tests).
+- Full suite against a fresh PostgreSQL database:
+  `PGDATABASE=<scratch-test-db> PGPOOL=10 mix test --max-cases 8` —
+  **89 doctests, 12,905 tests, 0 failures, 38 skipped, 1 excluded**.
+  The excluded test requires `CREATEROLE`, which the test role lacks.
+- V226's 27 generated manifest objects match the real catalog in `public`
+  and in the named-prefix full-chain test. Migration rerun, down/up,
+  constraint enforcement and an empty `search_path` are covered.
 
 ## Tests
 
@@ -631,9 +798,21 @@ organization is marked managed.
 - Revocation: each `Sessions` revoke path, password reset, person
   deactivation/deletion, manager removal, conversion and organization
   deactivation end the organization session **and** disconnect its socket.
+- The same cascade + disconnect checks cover `Auth` single/all-session
+  deletion, user/admin password changes and external-proof confirmation.
+- Real concurrent transactions: enter vs session revoke, enter vs grant
+  removal, conversion vs enter / invitation accept, two last-manager
+  removals, and manager removal vs person deactivation. No surviving socket,
+  revived grant, or unintentionally managerless organization.
+- Convert-back deletes manager grants and cancels pending manager invites;
+  an old invite cannot be accepted afterwards or after converting to managed
+  again. Member invitations keep their existing semantics.
 - Embedded LiveView with a managed organization's uuid: loads it when the
   session's token resolves to that organization; anonymous when the grant has
-  ended or the token is another account's. Any other uuid: unchanged.
+  ended or the token is another account's. Any other uuid: unchanged. The
+  loaded user carries `acting_user_uuid` from the session query (not a
+  second `get_user`); `phoenix_kit_session_token` is set so a later
+  refresh still consults the grant.
 - API: a managed organization cannot get a key or service user; an existing
   key row for one fails `Keys.verify/2`; conversion revokes keys.
 - Ceiling: a managed organization never gets Owner/Admin/`"*"`/`api`, also
@@ -661,17 +840,37 @@ organization is marked managed.
   `account_type: "organization"`.
 - Managers managing managers: a manager invites by email and the answer is
   identical for an existing account, a missing one, an existing manager and a
-  pending invitation; accepting requires the invitee's own session (not
-  acting, a person, the invited email) and creates a manager row, not
-  `organization_uuid`; a manager removes another and themselves; the last
-  manager cannot; a session acting for org A cannot change org B's managers;
-  a session whose grant was removed mid-session is refused on its next event;
-  the removed person gets a notification; invitations are rate-limited.
+  pending *manager* invitation; a pending *member* invite for the same
+  address does not block or no-op the manager invite (unique index includes
+  `kind`); accepting requires the invitee's own session (not acting, a
+  person, the invited email) and creates a manager row, not
+  `organization_uuid`; auto-accept on register/confirm of `kind: :manager`
+  does the same; `create_invitation/3` still inserts `kind: :member`;
+  `invited_by` is the acting person while acting; a manager removes another
+  and themselves; the last manager cannot; a session acting for org A cannot
+  change org B's managers; a session whose grant was removed mid-session is
+  refused on its next event; cancel is org- and grant-scoped (a uuid from
+  another org is refused); `.invalid` invitee addresses are refused; the
+  unique-index race maps to the generic answer; invitations are rate-limited
+  including no-ops.
+- Manager invitation mail and banner: existing-user manager invite sends a
+  login URL, not `/users/register?invitation=`; new-user manager invite
+  still sends a registration URL with manager copy; `InvitationHook` is on
+  kit admin and authenticated (and public-with-user) live sessions;
+  banner / flash / registration copy distinguish member vs manager; after
+  accept the switcher lists the org without a full reload.
+- Notifications: `organization.manager_added` / `manager_removed` are on
+  the `account` type and `Notifications.Render` (readable copy, not the raw
+  action); they fire on row create/delete, not on send; the affected person
+  gets an inbox row. `organization.entered` has no `target_uuid` and creates
+  no inbox row.
 - Managers UI: forged-input tests (`render_submit` with a person, organization
   or role the form never offered); a `users` holder without credential
-  authority cannot add a manager.
-- Prefix migration test covers V226; module-owned-tables test sees the new
-  core table; both new token columns are indexed.
+  authority cannot add a manager. The Managers settings section is absent
+  when not acting, and is not in `@hideable`.
+- Prefix migration test covers V226 (kind column, kind CHECK, pending-unique
+  index now includes `kind`); module-owned-tables test sees the new core
+  table; both new token columns are indexed.
 
 ## Decisions (2026-10-29)
 
@@ -705,6 +904,13 @@ behaviour, change them if wanted):
   the details page, inside the ceiling.
 - **Person-delete / deactivate of the last manager:** same checkbox as
   manager-row remove (last-Owner shape).
+- **Pending-unique index includes `kind`:** a member invite and a manager
+  invite for the same address can both be pending.
+- **`InvitationHook` on kit live sessions** that mount a user, so the
+  banner exists without a host opt-in.
+- **Manager invitations always mail;** existing users get a login URL.
+- **`invited_by` is the acting person** while acting.
+- **Managers settings section is not hideable;** offered only while acting.
 
 ## Review (Codex, 2026-10-29)
 
@@ -795,3 +1001,69 @@ What changed because of it:
   org-centric, AI / machine API off while acting.
 - Grok's proposals recorded as design defaults, not decisions; managers
   managing managers became decision 7.
+
+## Review (Grok, second pass, 2026-10-29)
+
+Grok re-read Claude's recheck against the invitation and LiveView-session
+code (read-only). Verdict: the embeds middle ground and §9a
+invitation-not-search are right; the invitation *path as it is written
+today* would ship manager invites as member joins, with no working accept
+UI for existing users.
+
+What changed because of it:
+
+- **Pending unique index.** V135's
+  `phoenix_kit_org_invitations_pending_unique_idx` is
+  `(organization_uuid, email) WHERE pending`. V226 replaces it with
+  `(organization_uuid, email, kind) WHERE pending`, plus a CHECK on
+  `kind`. The changeset maps that index by name so a race is the generic
+  answer, not a raw DB error. Today's changeset only constrains `:token`.
+- **Accept branches on `kind`.** `do_accept_invitation/3` always
+  `Auth.set_organization/2`. Registration and confirmation auto-accept
+  (`pending_invitation_uuid`) go through that too. Manager accept inserts
+  the manager row and never writes `organization_uuid`.
+  `create_invitation/3` stays, default `kind: :member`.
+- **`InvitationHook` is not on any kit `live_session`.** Install does not
+  add it. `maybe_send_invitation_email/3` skips existing users;
+  `deliver_organization_invitation/3` always sends a registration URL.
+  Hook attached to kit sessions that mount a user; manager invites of
+  existing users get a login-URL mail; member invites keep banner-only
+  for existing users once the banner actually renders. Kind-aware copy
+  on banner, flash, registration, templates.
+- **`cancel_invitation/1` takes only a uuid.** Cancel is org- and
+  grant-scoped.
+- **`invited_by` while acting is the org** if the caller passes
+  `phoenix_kit_current_user`. Store `Scope.acting_user_uuid/1`.
+- **After manager accept, `scope.acting_organizations` is stale** (the
+  hook only assigns `current_user`). Rebuild it so the switcher updates.
+- **Banner hidden while acting** (`confirmed_person?` requires a person).
+  Accept from your own account; document it.
+- **Embeds:** use the session-query user (so `acting_user_uuid` is
+  present) and set `phoenix_kit_session_token`; otherwise
+  `reload_session_user/2` falls back to `get_user/1` and skips the grant.
+- **Activity / notifications.** `organization.manager_added` /
+  `manager_removed` on row create/delete, registered on the `account`
+  type and in `Notifications.Render`. `organization.entered` has no
+  `target_uuid`. `.invalid` invitee addresses refused. Rate limit
+  through `RateLimiter` on acting person and org, including no-ops.
+  Managers section not hideable, offered only while acting.
+
+## Review (Codex, implementation readiness, 2026-10-29)
+
+Ready to begin implementation. The architecture and decisions stand. Four
+requirements were tightened before starting:
+
+- Revocation covers the `Auth` token drains and every credential rotation,
+  not only `Sessions` and password reset. Cascades alone do not disconnect
+  the dependent organization's LiveView sockets.
+- Token collection and deletion share a transaction and locks with token
+  minting. Add actual concurrent-transaction tests for enter/revoke and
+  last-manager races.
+- Conversion back removes manager grants and cancels pending manager
+  invitations; acceptance checks the current organization state.
+- Phases are implementation work packages. Managed creation/conversion is
+  exposed only after the safety requirements from phases 1–3 work together.
+
+Start with V226, the schema, session-query guard and authentication doors.
+Validate against real PostgreSQL, including a named prefix. Add switching
+and UI after the foundation is verified.

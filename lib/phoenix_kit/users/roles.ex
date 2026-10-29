@@ -121,32 +121,59 @@ defmodule PhoenixKit.Users.Roles do
         {:error, :role_not_found}
 
       role ->
-        attrs = %{
-          user_uuid: user.uuid,
-          role_uuid: role.uuid,
-          assigned_by_uuid: assigned_by && assigned_by.uuid
-        }
-
-        # Use upsert with ON CONFLICT DO NOTHING for idempotency
-        # This prevents duplicate role assignment errors during concurrent operations
-        %RoleAssignment{}
-        |> RoleAssignment.changeset(attrs)
-        |> repo.insert(
-          on_conflict: :nothing,
-          conflict_target: [:user_uuid, :role_uuid]
-        )
-        |> case do
-          {:ok, assignment} ->
-            if broadcast? do
-              Events.broadcast_user_role_assigned(user, role_name)
-              ScopeNotifier.broadcast_roles_updated(user)
-            end
-
-            {:ok, assignment}
-
-          {:error, changeset} ->
-            {:error, changeset}
+        with :ok <- managed_role_allowed(user, role) do
+          insert_role_assignment(repo, user, role, assigned_by, broadcast?)
         end
+    end
+  end
+
+  defp managed_role_allowed(user, role) do
+    case RepoHelper.repo().get(User, user.uuid) do
+      %User{managed_by_members: true} ->
+        system = Role.system_roles()
+
+        with false <- role.name in [system.owner, system.admin],
+             {:ok, keys} <- Permissions.fetch_permissions_for_role(to_string(role.uuid)),
+             false <- Enum.any?(keys, &(&1 in ["*", "api"])) do
+          :ok
+        else
+          _ -> {:error, :managed_organization_role_not_allowed}
+        end
+
+      %User{} ->
+        :ok
+
+      nil ->
+        {:error, :user_not_found}
+    end
+  end
+
+  defp insert_role_assignment(repo, user, role, assigned_by, broadcast?) do
+    attrs = %{
+      user_uuid: user.uuid,
+      role_uuid: role.uuid,
+      assigned_by_uuid: assigned_by && assigned_by.uuid
+    }
+
+    # Use upsert with ON CONFLICT DO NOTHING for idempotency
+    # This prevents duplicate role assignment errors during concurrent operations
+    %RoleAssignment{}
+    |> RoleAssignment.changeset(attrs)
+    |> repo.insert(
+      on_conflict: :nothing,
+      conflict_target: [:user_uuid, :role_uuid]
+    )
+    |> case do
+      {:ok, assignment} ->
+        if broadcast? do
+          Events.broadcast_user_role_assigned(user, role.name)
+          ScopeNotifier.broadcast_roles_updated(user)
+        end
+
+        {:ok, assignment}
+
+      {:error, changeset} ->
+        {:error, changeset}
     end
   end
 

@@ -249,7 +249,7 @@ defmodule PhoenixKitWeb.Users.MultiSession do
              password,
              IpAddress.extract_from_conn(conn)
            ) do
-        {:ok, %Auth.User{is_active: true, api_only: false} = user} ->
+        {:ok, %Auth.User{is_active: true, api_only: false, managed_by_members: false} = user} ->
           if already_in_stack?(stack, user) do
             {:error, :already_in_stack}
           else
@@ -299,7 +299,11 @@ defmodule PhoenixKitWeb.Users.MultiSession do
 
   # A service user (`api_only`) falls through to the last clause with a deactivated one:
   # neither can be added to a browser session, by password, OAuth or impersonation.
-  def add_authenticated_user(conn, %Auth.User{is_active: true, api_only: false} = user, opts) do
+  def add_authenticated_user(
+        conn,
+        %Auth.User{is_active: true, api_only: false, managed_by_members: false} = user,
+        opts
+      ) do
     session = get_session(conn)
     stack = stack_tokens(session)
 
@@ -461,7 +465,10 @@ defmodule PhoenixKitWeb.Users.MultiSession do
 
   def impersonable?(nil, %Auth.User{}), do: false
 
-  def impersonable?(%Auth.User{} = actor, %Auth.User{is_active: true, api_only: false} = target) do
+  def impersonable?(
+        %Auth.User{} = actor,
+        %Auth.User{is_active: true, api_only: false, managed_by_members: false} = target
+      ) do
     decide_impersonation(
       actor.uuid,
       actor_roles(actor),
@@ -496,7 +503,7 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   def impersonable_uuids(%Auth.User{} = actor, users) when is_list(users) do
     actor_roles = actor_roles(actor)
 
-    for %Auth.User{is_active: true, api_only: false} = user <- users,
+    for %Auth.User{is_active: true, api_only: false, managed_by_members: false} = user <- users,
         decide_impersonation(actor.uuid, actor_roles, user.uuid, role_names(user)) == :ok,
         into: MapSet.new(),
         do: user.uuid
@@ -518,6 +525,9 @@ defmodule PhoenixKitWeb.Users.MultiSession do
   end
 
   defp authorize_impersonation(nil, _target), do: {:error, :not_allowed}
+
+  defp authorize_impersonation(_actor, %Auth.User{managed_by_members: true}),
+    do: {:error, :inactive}
 
   defp authorize_impersonation(%Auth.User{} = actor, %Auth.User{} = target) do
     decide_impersonation(

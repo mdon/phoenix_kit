@@ -1221,10 +1221,24 @@ defmodule PhoenixKit.Users.Auth do
   Changes a user's account type. Validates no members exist when switching org→person.
   """
   def change_account_type(%User{} = user, attrs) do
-    with :ok <- validate_can_change_type(user, attrs) do
+    with :ok <- validate_manager_account_type(user, attrs),
+         :ok <- validate_can_change_type(user, attrs) do
       user
       |> User.account_type_changeset(attrs)
       |> Repo.update()
+    end
+  end
+
+  defp validate_manager_account_type(user, attrs) do
+    type = Map.get(attrs, :account_type, Map.get(attrs, "account_type"))
+
+    if type == "organization" and
+         Repo.exists?(
+           from(m in PhoenixKit.Users.OrganizationManager, where: m.user_uuid == ^user.uuid)
+         ) do
+      {:error, :organization_manager_must_be_person}
+    else
+      :ok
     end
   end
 
@@ -1546,7 +1560,7 @@ defmodule PhoenixKit.Users.Auth do
       when is_function(confirmation_url_fun, 1) do
     # A service user (`api_only`) needs no confirmation and has no inbox: it counts as
     # confirmed, so no token is made and no mail is sent.
-    if user.confirmed_at || user.api_only do
+    if user.confirmed_at || user.api_only || user.managed_by_members do
       {:error, :already_confirmed}
     else
       {encoded_token, user_token} = UserToken.build_email_token(user, "confirm")
@@ -1811,6 +1825,14 @@ defmodule PhoenixKit.Users.Auth do
   """
   def deliver_user_reset_password_instructions(user, reset_password_url_fun, opts \\ [])
 
+  def deliver_user_reset_password_instructions(
+        %User{managed_by_members: true},
+        reset_password_url_fun,
+        _opts
+      )
+      when is_function(reset_password_url_fun, 1),
+      do: {:error, :managed_organization}
+
   # A service user (`api_only`) has no password to reset and an address nobody reads: a
   # reset would only be a way to give it one.
   def deliver_user_reset_password_instructions(
@@ -1877,6 +1899,13 @@ defmodule PhoenixKit.Users.Auth do
 
   """
   def reset_user_password(user, attrs) do
+    # A reset LiveView may hold a struct from before an admin converted the
+    # account. Decide from its current policy, not that stale struct.
+    current = Repo.get!(User, user.uuid)
+    do_reset_user_password(current, attrs)
+  end
+
+  defp do_reset_user_password(user, attrs) do
     multi = Ecto.Multi.new()
     multi = Ecto.Multi.update(multi, :user, User.password_changeset(user, attrs))
 

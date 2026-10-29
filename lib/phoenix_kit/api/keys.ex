@@ -128,6 +128,9 @@ defmodule PhoenixKit.API.Keys do
     end
   end
 
+  defp authorize_creator(%Scope{user: %User{managed_by_members: true}}),
+    do: {:error, :forbidden}
+
   defp authorize_creator(%Scope{user: %User{}} = scope) do
     if Scope.can?(scope, "api"), do: :ok, else: {:error, :forbidden}
   end
@@ -142,6 +145,8 @@ defmodule PhoenixKit.API.Keys do
       nil -> {:error, :owner_inactive}
     end
   end
+
+  defp owner_allowed(%User{managed_by_members: true}, _scope), do: {:error, :owner_not_allowed}
 
   defp owner_allowed(%User{uuid: uuid} = owner, %Scope{user: %User{uuid: uuid}}), do: {:ok, owner}
 
@@ -376,6 +381,7 @@ defmodule PhoenixKit.API.Keys do
   @spec active_owner(Key.t()) :: {:ok, User.t()} | {:error, :owner_inactive}
   def active_owner(%Key{user_uuid: user_uuid}) do
     case user_uuid |> Auth.get_user() |> Auth.ensure_active_user() do
+      %User{managed_by_members: true} -> {:error, :owner_inactive}
       %User{api_only: true} = owner -> {:ok, owner}
       %User{confirmed_at: %DateTime{}} = owner -> {:ok, owner}
       %User{} = owner -> confirmation_optional(owner)

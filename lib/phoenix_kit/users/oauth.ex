@@ -133,10 +133,14 @@ if Code.ensure_loaded?(Ueberauth) do
     # A service user (`api_only`) signs in with an API key only: no provider identity may be
     # linked to it, by a stored link or by an address that happens to match.
     defp found(%User{api_only: true}), do: {:error, :api_only_account}
+    defp found(%User{managed_by_members: true}), do: {:error, :managed_organization}
     defp found(%User{} = user), do: {:ok, user, :found}
 
     defp attach_to_existing_user(%User{api_only: true}, _oauth_data),
       do: {:error, :api_only_account}
+
+    defp attach_to_existing_user(%User{managed_by_members: true}, _oauth_data),
+      do: {:error, :managed_organization}
 
     defp attach_to_existing_user(%User{} = user, oauth_data) do
       if email_ownership_proven?(oauth_data) do

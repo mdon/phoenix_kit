@@ -655,17 +655,21 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   #   tolerate schema-qualification differences), never by raw text equality across
   #   PG majors.
 
+  alias PhoenixKit.Migrations.ExpectedSchema.V226
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "83a2ad46d1aeedffb8341f19b27c3f9c4d84062f874409bdbc25e431aedaf9d4"
+  @chain_hash "4ca96802c446624e08f3ff63691c94e1f89e70f089082d8af40432ea0f67711f"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
 
     raw_objects()
+    # Catalog-generated post-squash delta; preserves the baseline's historical
+    # revisions and bimodal objects. Regenerate with generate_v226_manifest.exs.
+    |> V226.merge()
     |> Enum.reject(&module_owned_object?/1)
     |> Enum.map(&materialize_object(&1, prefix))
   end
@@ -722,7 +726,9 @@ defmodule PhoenixKit.Migrations.ExpectedSchema do
   # `ModuleOwnedTablesTest` still has to prove the ownership lists cover all
   # of core's chain. Goes when step 7 rewrites this file.
   def created_table_names do
-    for %{class: :table, check: {:catalog, %{name: name}}} <- raw_objects(),
+    objects = raw_objects() |> V226.merge()
+
+    for %{class: :table, check: {:catalog, %{name: name}}} <- objects,
         into: MapSet.new(),
         do: name
   end
