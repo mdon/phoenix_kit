@@ -21584,3 +21584,13 @@ msgstr "Перевірка з’єднання дала несподівану �
 #, elixir-autogen, elixir-format
 msgid "These files belong to the module that stored them and cannot be changed here."
 msgstr "Ці файли належать модулю, який їх зберіг, і змінити їх тут не можна."
+
+#: lib/phoenix_kit_web/components/media_browser/header.html.heex
+#, elixir-autogen, elixir-format
+msgid "Wait for the uploads to finish"
+msgstr "Дочекайтеся завершення завантаження"
+
+#: lib/phoenix_kit_web/components/media_browser.ex
+#, elixir-autogen, elixir-format
+msgid "No media browser was open to receive it."
+msgstr "Не було відкрито жодного медіабраузера, щоб його прийняти."

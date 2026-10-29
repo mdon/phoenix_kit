@@ -21723,3 +21723,13 @@ msgstr "Вам не разрешено завершать сеансы этог�
 #, elixir-autogen, elixir-format
 msgid "These files belong to the module that stored them and cannot be changed here."
 msgstr "Эти файлы принадлежат модулю, который их сохранил, и здесь их изменить нельзя."
+
+#: lib/phoenix_kit_web/components/media_browser/header.html.heex
+#, elixir-autogen, elixir-format
+msgid "Wait for the uploads to finish"
+msgstr "Дождитесь окончания загрузки"
+
+#: lib/phoenix_kit_web/components/media_browser.ex
+#, elixir-autogen, elixir-format
+msgid "No media browser was open to receive it."
+msgstr "Не было открыто ни одного медиабраузера, чтобы его принять."

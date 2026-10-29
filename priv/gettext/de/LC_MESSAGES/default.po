@@ -21522,3 +21522,13 @@ msgstr "Die Verbindungsprüfung hat eine unerwartete Antwort geliefert"
 #, elixir-autogen, elixir-format
 msgid "These files belong to the module that stored them and cannot be changed here."
 msgstr "Diese Dateien gehören dem Modul, das sie gespeichert hat, und können hier nicht geändert werden."
+
+#: lib/phoenix_kit_web/components/media_browser/header.html.heex
+#, elixir-autogen, elixir-format
+msgid "Wait for the uploads to finish"
+msgstr "Warten Sie, bis die Uploads abgeschlossen sind"
+
+#: lib/phoenix_kit_web/components/media_browser.ex
+#, elixir-autogen, elixir-format
+msgid "No media browser was open to receive it."
+msgstr "Es war kein Medienbrowser geöffnet, der sie empfangen konnte."

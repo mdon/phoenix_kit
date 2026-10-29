@@ -8790,11 +8790,31 @@ if (typeof window.Chart === "undefined") {
       this.setupDragDrop();
       this.setupLongPress();
       this.setupBoxSelect();
+      this.setupPickConfirm();
     },
 
     destroyed: function() {
       if (this.el.__pkCancelBox) this.el.__pkCancelBox();
       if (this.el.__pkBoxHook === this) this.el.__pkBoxHook = null;
+      if (this._pickDblClick) this.el.removeEventListener("dblclick", this._pickDblClick);
+    },
+
+    // A single-pick picker (`data-pick-mode="single"`) confirms on a double
+    // click, file-dialog style: the two clicks have picked the file already,
+    // and this names it again so the server confirms exactly that one.
+    // LiveView has no double-click binding, so the hook listens. Read on
+    // every event, so a re-render that changes the mode needs no rewiring.
+    setupPickConfirm: function() {
+      var self = this;
+      this._pickDblClick = function(e) {
+        if (self.el.dataset.pickMode !== "single") return;
+        var card = e.target && e.target.closest && e.target.closest('[phx-click="click_file"]');
+        if (!card || card.closest('[phx-hook="MediaDragDrop"]') !== self.el) return;
+        var uuid = card.getAttribute("phx-value-file-uuid");
+        if (!uuid) return;
+        self.pushEventTo(self.el, "pick_quick_confirm", { "file-uuid": uuid });
+      };
+      this.el.addEventListener("dblclick", this._pickDblClick);
     },
 
     updated: function() {
@@ -10157,7 +10177,8 @@ if (typeof window.Chart === "undefined") {
             return new File([row.blob], row.name, { type: row.type, lastModified: row.lastModified });
           });
         if (!files.length) return;
-        var input = self._root.querySelector("#folder-drop-upload-form input[type=file]") ||
+        // `<id>-folder-drop-upload-form` in a picker, which carries its id.
+        var input = self._root.querySelector('form[id$="folder-drop-upload-form"] input[type=file]') ||
                     self._root.querySelector("input[type=file][data-phx-upload-ref]");
         if (!input || typeof DataTransfer === "undefined") return;
         var dt = new DataTransfer();

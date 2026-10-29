@@ -21651,3 +21651,13 @@ msgstr "Sul pole lubatud selle inimese seansse lõpetada"
 #, elixir-autogen, elixir-format
 msgid "These files belong to the module that stored them and cannot be changed here."
 msgstr "Need failid kuuluvad moodulile, mis need salvestas, ja neid ei saa siin muuta."
+
+#: lib/phoenix_kit_web/components/media_browser/header.html.heex
+#, elixir-autogen, elixir-format
+msgid "Wait for the uploads to finish"
+msgstr "Oodake, kuni üleslaadimised lõpevad"
+
+#: lib/phoenix_kit_web/components/media_browser.ex
+#, elixir-autogen, elixir-format
+msgid "No media browser was open to receive it."
+msgstr "Selle vastuvõtmiseks polnud ühtegi meediabrauserit avatud."

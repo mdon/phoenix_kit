@@ -11,6 +11,7 @@
   }
   phx-window-keydown={@select_mode && "exit_select_mode"}
   phx-key="Escape"
+  data-pick-mode={@picker && to_string(@pick_mode)}
   class={@fill_height && "flex flex-col flex-1 min-h-0 w-full"}
 >
   <%!-- Keeps a copy of every picked file in the browser (IndexedDB) until
@@ -88,7 +89,7 @@
           </div>
           <%= if @has_buckets do %>
             <.file_upload
-              upload={@parent_uploads.media_files}
+              upload={@parent_uploads[@upload_name]}
               label={gettext("Upload Media Files")}
               icon="hero-cloud-arrow-up"
               accept_description={gettext("All file types supported")}
@@ -125,14 +126,16 @@
         if(@fill_height, do: "flex-1 min-h-0", else: "h-[72vh] max-h-[48rem] min-h-[24rem]")
       ]}>
         <%!-- Folder Sidebar --%>
+        <%!-- A picker's tree has no drag moves (a card's click is a pick);
+             without folder actions it has no create / rename / Trash. --%>
         <.folder_explorer
-          id="media-browser-sidebar"
+          id={dom_id(assigns, "media-browser-sidebar")}
           myself={@myself}
-          folder_tree={@folder_tree}
+          folder_tree={label_tree(@folder_tree, @folder_labels)}
           current_folder={@current_folder}
           expanded_folders={@expanded_folders}
           scope_folder_id={@scope_folder_id}
-          scope_folder_name={@scope_folder_name}
+          scope_folder_name={scope_label(@scope_folder_id, @scope_folder_name, @folder_labels)}
           renaming_folder={@renaming_folder}
           renaming_source={@renaming_source}
           renaming_text={@renaming_text}
@@ -141,9 +144,10 @@
           sidebar_collapsed={@sidebar_collapsed}
           sidebar_rev={@sidebar_rev}
           trash_count={@trash_count}
-          show_create={not @readonly}
-          show_rename={not @readonly}
-          enable_drag={not @readonly}
+          show_create={not @readonly and @folder_actions}
+          show_rename={not @readonly and @folder_actions}
+          show_trash={@folder_actions}
+          enable_drag={not @readonly and @folder_actions and not @picker}
         />
 
         <%!-- Main content area --%>
@@ -152,10 +156,10 @@
           <%= if not @readonly && @has_buckets && !@show_upload && assigns[:parent_uploads] do %>
             <form
               phx-change="validate"
-              id="folder-drop-upload-form"
+              id={dom_id(assigns, "folder-drop-upload-form")}
               class="hidden"
             >
-              <.live_file_input upload={@parent_uploads.media_files} />
+              <.live_file_input upload={@parent_uploads[@upload_name]} />
             </form>
           <% end %>
 
@@ -176,11 +180,12 @@
                  as `.drawer-side` in layout_wrapper: an inner scroller, not
                  the root gutter daisyUI owns. --%>
             <%!-- data-box-area: a press on empty space here draws a box
-                 that selects the cards it touches (MediaDragDrop). --%>
+                 that selects the cards it touches (MediaDragDrop). Not in a
+                 picker: its pick is an ordered list, made by clicks. --%>
             <div
               class="px-2 pb-2 min-h-0 flex-1 flex flex-col overflow-auto [scrollbar-gutter:stable]"
-              data-box-area={not @readonly}
-              id={if @has_buckets, do: "folder-drop-upload"}
+              data-box-area={not @readonly and not @picker}
+              id={if @has_buckets, do: dom_id(assigns, "folder-drop-upload")}
               phx-hook={if @has_buckets and not @readonly, do: "FolderDropUpload"}
               phx-target={if @has_buckets, do: @myself}
             >
@@ -268,9 +273,9 @@
               </div>
 
               <%!-- Inline upload progress for drag-drop (no modal) --%>
-              <%= if !@show_upload && assigns[:parent_uploads] && length(@parent_uploads.media_files.entries) > 0 do %>
+              <%= if !@show_upload && assigns[:parent_uploads] && length(@parent_uploads[@upload_name].entries) > 0 do %>
                 <div class="space-y-2 mb-4">
-                  <%= for entry <- @parent_uploads.media_files.entries do %>
+                  <%= for entry <- @parent_uploads[@upload_name].entries do %>
                     <div class="flex items-center gap-3 p-3 border border-base-300 rounded-lg bg-base-100">
                       <div class="flex-1">
                         <p class="font-medium text-sm truncate">{entry.client_name}</p>
@@ -349,11 +354,11 @@
                       class="hover:underline text-primary"
                     >
                       {if @scope_folder_id,
-                        do: @scope_folder_name,
+                        do: scope_label(@scope_folder_id, @scope_folder_name, @folder_labels),
                         else: gettext("Top level")}
                     </button>
                   </li>
-                  <%= for folder <- Enum.drop(@breadcrumbs, -1) do %>
+                  <%= for folder <- Enum.drop(label_folders(@breadcrumbs, @folder_labels), -1) do %>
                     <li>
                       <button
                         phx-click="navigate_folder"
@@ -366,7 +371,7 @@
                     </li>
                   <% end %>
                   <li>
-                    {@current_folder.name}
+                    {label_folder(@current_folder, @folder_labels).name}
                   </li>
                 </ul>
               </nav>
@@ -391,12 +396,13 @@
                    would disagree with the scope folder's metadata. See
                    `header_folder_target/6`. --%>
               <MediaBrowser.Header.header
-                current_folder={assigns[:current_folder]}
+                current_folder={label_folder(assigns[:current_folder], @folder_labels)}
                 editing_folder_header={assigns[:editing_folder_header]}
                 file_type_filter={assigns[:file_type_filter]}
                 file_view={assigns[:file_view]}
                 filter_orphaned={assigns[:filter_orphaned]}
                 filter_trash={assigns[:filter_trash]}
+                folder_actions={assigns[:folder_actions]}
                 folder_cover_rotation={assigns[:folder_cover_rotation]}
                 folder_cover_url={assigns[:folder_cover_url]}
                 folder_creator_name={assigns[:folder_creator_name]}
@@ -408,12 +414,24 @@
                 id={assigns[:id]}
                 myself={assigns[:myself]}
                 only_file_type={assigns[:only_file_type]}
+                pick_limit_hit={assigns[:pick_limit_hit]}
+                pick_mode={assigns[:pick_mode]}
+                picked={assigns[:picked]}
+                picker={assigns[:picker]}
+                picker_uploading={assigns[:picker_uploading]}
+                max_select={assigns[:max_select]}
                 readonly={assigns[:readonly]}
                 renaming_folder={assigns[:renaming_folder]}
                 renaming_text={assigns[:renaming_text]}
                 scope_folder={assigns[:scope_folder]}
                 scope_folder_id={assigns[:scope_folder_id]}
-                scope_folder_name={assigns[:scope_folder_name]}
+                scope_folder_name={
+                  scope_label(
+                    assigns[:scope_folder_id],
+                    assigns[:scope_folder_name],
+                    @folder_labels
+                  )
+                }
                 search_query={assigns[:search_query]}
                 select_mode={assigns[:select_mode]}
                 selected_files={assigns[:selected_files]}
@@ -517,14 +535,19 @@
                 <% else %>
                   <%= if @view_mode == "grid" do %>
                     <MediaBrowser.GridView.grid_view
+                      drag={not @readonly and @folder_actions and not @picker}
                       editing_folder_description={assigns[:editing_folder_description]}
                       featured={assigns[:featured]}
                       file_view={assigns[:file_view]}
                       filter_trash={assigns[:filter_trash]}
+                      folder_actions={assigns[:folder_actions]}
                       folder_description_text={assigns[:folder_description_text]}
-                      folders={assigns[:folders]}
+                      folders={label_folders(assigns[:folders], @folder_labels)}
                       id={assigns[:id]}
                       myself={assigns[:myself]}
+                      pick_mode={assigns[:pick_mode]}
+                      picked={assigns[:picked]}
+                      picker={assigns[:picker]}
                       readonly={assigns[:readonly]}
                       renaming_folder={assigns[:renaming_folder]}
                       renaming_source={assigns[:renaming_source]}
@@ -540,7 +563,8 @@
                       expanded_stacks={assigns[:expanded_stacks]}
                       featured={assigns[:featured]}
                       filter_trash={assigns[:filter_trash]}
-                      folders={assigns[:folders]}
+                      folder_actions={assigns[:folder_actions]}
+                      folders={label_folders(assigns[:folders], @folder_labels)}
                       id={assigns[:id]}
                       just_opened_stack={assigns[:just_opened_stack]}
                       myself={assigns[:myself]}
@@ -556,12 +580,14 @@
                   <%= if @view_mode == "list" do %>
                     <MediaBrowser.ListView.list_view
                       current_folder={assigns[:current_folder]}
+                      drag={not @readonly and @folder_actions and not @picker}
                       editing_folder_description={assigns[:editing_folder_description]}
                       featured={assigns[:featured]}
                       file_view={assigns[:file_view]}
                       filter_trash={assigns[:filter_trash]}
+                      folder_actions={assigns[:folder_actions]}
                       folder_description_text={assigns[:folder_description_text]}
-                      folders={assigns[:folders]}
+                      folders={label_folders(assigns[:folders], @folder_labels)}
                       id={assigns[:id]}
                       myself={assigns[:myself]}
                       readonly={assigns[:readonly]}
@@ -648,7 +674,9 @@
                 ]}
               >
                 <.icon name="hero-home" class="w-4 h-4 shrink-0" />
-                <span class="truncate">{@scope_folder_name}</span>
+                <span class="truncate">
+                  {scope_label(@scope_folder_id, @scope_folder_name, @folder_labels)}
+                </span>
               </button>
             </li>
             <%!--
@@ -659,7 +687,7 @@
               set, and rename + drag are off. No active highlight (current_folder
               left nil — you're picking where to move TO).
             --%>
-            <%= for node <- @folder_tree do %>
+            <%= for node <- label_tree(@folder_tree, @folder_labels) do %>
               <.folder_tree_node
                 node={node}
                 current_folder={nil}
@@ -704,7 +732,7 @@
             phx-target={@myself}
           >
             <input
-              id="new-folder-name-input"
+              id={dom_id(assigns, "new-folder-name-input")}
               type="text"
               name="name"
               value={@new_folder_name}
@@ -784,7 +812,7 @@
     id={"#{@id}-instant-viewer"}
     phx-hook="InstantViewer"
     phx-update="ignore"
-    data-armed={to_string(not @select_mode)}
+    data-armed={to_string(not @select_mode and not @picker)}
     data-sidebar-open={
       to_string(
         PhoenixKitWeb.Components.MediaCanvasViewer.sidebar_open?(

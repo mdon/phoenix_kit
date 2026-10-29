@@ -61,8 +61,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       <.live_component
         module={PhoenixKitWeb.Components.MediaBrowser}
         id="audio-picker"
-        select_mode
+        picker
+        pick_mode={:single}
         only_file_type="audio"
+        parent_uploads={@uploads}
         phoenix_kit_current_user={@phoenix_kit_current_user}
       />
 
@@ -72,6 +74,98 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   re-check, the PNG lands in the field and renders as a dead `<audio>`.
 
   Values: `image`, `video`, `document`, `audio`, `archive`, `other`.
+
+  ## Picker
+
+  `picker` turns the browser into a window for choosing files — the folder
+  tree, upload into the open folder, search and sort stay; what is chosen goes
+  back to the host:
+
+      <.live_component
+        module={PhoenixKitWeb.Components.MediaBrowser}
+        id="slot-picker"
+        picker
+        pick_mode={:multiple}
+        max_select={4}
+        selected={@slot_file_uuids}
+        scope_folder_id={@order_folder_uuid}
+        folder_labels={%{@kitchen_folder_uuid => "60-1 — Kitchen"}}
+        folder_actions={false}
+        only_file_type="image"
+        parent_uploads={@uploads}
+        phoenix_kit_current_user={@phoenix_kit_current_user}
+      />
+
+  - `picker` (default `false`) — a click on a file picks it and opens no
+    viewer; folders are browsed, never picked. The view is always the grid
+    (no view switch), and the picker writes none of the user's view or
+    folder-tree preferences. Bulk select (Select, box select, Shift-click,
+    long press) is off: the pick is its own ordered list. The toolbar shows
+    the count with Confirm and Cancel.
+  - `pick_mode` — `:multiple` (default) keeps the files in the order they were
+    picked, a second click takes one out; `:single` replaces the pick on every
+    click, and a double click picks and confirms.
+  - `max_select` — the most files `:multiple` takes (`nil`, the default, is no
+    limit). A click past it is refused and the toolbar says so.
+  - `selected` — the pick the browser opens with, in order. Read on the
+    first mount only: a later render of the host (an upload tick, any changed
+    assign) leaves the working pick alone. Replace it with
+    `send_update(MediaBrowser, id: id, picker_reset: uuids)`.
+  - `notify` — `{module, id}` of a host LiveComponent. Confirm sends it
+    `send_update(module, id: id, picked: uuids)`, Cancel
+    `picked: :cancelled`, and a change of the upload state
+    `picker_uploading: boolean`. Without `notify` the host LiveView process
+    gets `{MediaBrowser, id, {:picked, uuids}}`,
+    `{MediaBrowser, id, :pick_cancelled}` and
+    `{MediaBrowser, id, {:picker_uploading, boolean}}`. ⚠️ A host that funnels
+    every `{MediaBrowser, _, _}` message into `handle_parent_info/2` must match
+    these before it, as with `{:set_featured, _}`: the delegate only logs them.
+  - `folder_labels` — `%{folder_uuid => label}`: the label is shown instead of
+    the folder's name in the tree, the breadcrumbs, the title and the folder
+    tiles. Display only; nothing is renamed.
+  - `folder_actions` (default `true`) — `false` takes away New folder,
+    renaming and every other folder edit (header, description, colour,
+    cover), moving files and folders, trashing and deleting folders, the
+    sidebar's Trash link and drag moves: hidden AND refused on the server.
+    Dropping files from the computer still uploads.
+
+  Every pick is checked on the server, whatever the click named: a file of
+  this library the viewer may see, live (not in the trash), inside the scope
+  folder (homed there or linked into it) and of `only_file_type`. Confirm
+  leaves out a picked file that has been trashed or deleted since. A file
+  uploaded in the picker picks itself: `:single` replaces the pick, `:multiple`
+  adds it while there is room under `max_select`.
+
+  While an upload is on its way (a transfer, or a file waiting to be stored)
+  Confirm and Cancel are disabled with a note, and refused, and the host is
+  told (`picker_uploading`) so it can keep its own close control from
+  dropping the upload.
+
+  A picker is usually a second browser on its page, so its DOM ids carry its
+  `id` (`<id>-media-browser-sidebar`, `<id>-folder-drop-upload-form`, …);
+  every other browser keeps the ids it has always had.
+
+  A picker uploads through an upload of its own, `:media_picker_files`, which
+  `setup_uploads/1` (and so `Embed`) registers next to `:media_files` with the
+  same limits. A page has one file input per upload: sharing `:media_files`
+  would give a picker opened beside another browser a second input with the
+  same id, the other browser's transfers in its list, and its uploads copied
+  into the other browser's folder too. A picker's upload goes to the pickers
+  only, any other upload to the other browsers only. A host that calls
+  `allow_upload` itself instead of `setup_uploads/1` adds
+  `:media_picker_files` with the same options (`progress:
+  &MediaBrowser.parent_progress/3`) for a picker beside another browser;
+  without it the picker uses `:media_files`, which is fine while it is the
+  only browser on the page. `only_file_type` is held for either upload.
+
+  ## Taking a browser off the page
+
+  The page routes every finished upload to each browser that registered on
+  mount. A host that stops rendering one (a closed modal, another tab) calls
+  `unregister_browser/1` with its id, or uploads keep being routed — and
+  copied — to it. With no browser registered an upload is not deleted: it
+  stays in the user's upload inbox and shows under "Upload problems", with
+  Retry, in the next browser opened.
 
   ## Usage (controlled — URL-sync driven by parent)
 
@@ -196,6 +290,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.Auth.User
+  alias PhoenixKit.Utils.TreeQuery
   alias PhoenixKit.Utils.UUID, as: UUIDUtils
   alias PhoenixKitWeb.Components.Core.MediaThumbnail
 
@@ -204,6 +299,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # no grid→list flash while the client restores a localStorage value
   # after connect.
   @media_view_mode_key "media_view_mode"
+
+  # The parent's upload a picker renders and watches (see `setup_uploads/1`).
+  @picker_upload :media_picker_files
 
   # Sidebar folder-tree state, also persisted server-side in user meta and
   # rendered on first paint — same reasoning as the view mode above: restoring
@@ -357,40 +455,76 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       |> assign_new(:gallery_mode, fn -> false end)
       |> assign_new(:upload_in_flight, fn -> false end)
       |> assign_new(:upload_problems_session, fn -> [] end)
+      # The picker (see the moduledoc's "Picker"). `picked` is the working
+      # pick, an ordered list of file uuids; `selected` is only where it
+      # starts (first mount) — the host's later renders never reach it.
+      |> assign_new(:picker, fn -> false end)
+      |> assign_new(:pick_mode, fn -> :multiple end)
+      |> assign_new(:max_select, fn -> nil end)
+      |> assign_new(:selected, fn -> [] end)
+      |> assign_new(:notify, fn -> nil end)
+      |> assign_new(:folder_labels, fn -> %{} end)
+      |> assign_new(:folder_actions, fn -> true end)
+      |> normalize_picker_attrs()
+      |> assign_upload_name()
+      |> assign_new(:picked, fn assigns -> initial_pick(assigns.selected, assigns.pick_mode) end)
+      |> assign_new(:pick_limit_hit, fn -> false end)
+      |> assign_new(:picker_uploading, fn -> false end)
       |> close_upload_on_start()
       |> harvest_rejected_uploads()
       |> force_managed_readonly()
 
     socket = maybe_switch_library(socket, shown_library)
 
-    cond do
-      not Map.has_key?(socket.assigns, :uploaded_files) ->
-        socket = init_socket(socket)
+    socket =
+      cond do
+        not Map.has_key?(socket.assigns, :uploaded_files) ->
+          socket = init_socket(socket)
 
-        # Register this component id with the parent so it can route uploads here
-        send(self(), {__MODULE__, :register_component, socket.assigns.id})
+          # Register this component id with the parent so it can route uploads here
+          send(self(), {__MODULE__, :register_component, socket.assigns.id})
 
-        # Apply initial params if provided (avoids flash of root before correct view)
-        socket =
+          # A browser on the picker's own upload takes only that upload's
+          # files (see `setup_uploads/1`); a picker on `:media_files` (a host
+          # that allowed only that) is routed like any other browser.
+          if socket.assigns.upload_name == @picker_upload,
+            do: send(self(), {__MODULE__, :register_picker, socket.assigns.id})
+
+          # Apply initial params if provided (avoids flash of root before correct view)
           if Map.has_key?(assigns, :initial_params),
             do: apply_nav_params(socket, assigns.initial_params),
             else: socket
 
-        {:ok, socket}
+        Map.has_key?(assigns, :picker_reset) ->
+          socket
+          |> assign(:picked, initial_pick(assigns.picker_reset, socket.assigns.pick_mode))
+          |> assign(:pick_limit_hit, false)
 
+        Map.get(assigns, :action) == :picker_idle_check ->
+          settle_picker_idle(socket)
+
+        true ->
+          update_from_message(socket, assigns)
+      end
+
+    {:ok, sync_picker_uploading(socket)}
+  end
+
+  defp update_from_message(socket, assigns) do
+    cond do
       Map.has_key?(assigns, :nav_params) ->
-        {:ok, apply_nav_params(socket, socket.assigns.nav_params)}
+        apply_nav_params(socket, socket.assigns.nav_params)
 
       Map.has_key?(assigns, :pending_upload) ->
-        {:ok, receive_pending_upload(socket, assigns.pending_upload)}
+        receive_pending_upload(socket, assigns.pending_upload)
 
       Map.get(assigns, :action) == :drain_upload_queue ->
-        {:ok, drain_upload_queue(socket)}
+        drain_upload_queue(socket)
 
       # Background processing finished (see attach_file_event_forwarding/1).
       Map.has_key?(assigns, :file_processed) ->
         notify_image_editor(socket, assigns.file_processed)
-        {:ok, refresh_processed_file(socket, assigns.file_processed)}
+        refresh_processed_file(socket, assigns.file_processed)
 
       # Annotated thumbnail (re)baked, or a burn stored — refresh the grid
       # row only. The open viewer must NOT be swapped: the annotator is
@@ -406,22 +540,22 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       Map.has_key?(assigns, :thumbnail_updated) ->
         socket = refresh_processed_file(socket, assigns.thumbnail_updated, viewer: false)
         poke_viewer_burn(socket, assigns.thumbnail_updated)
-        {:ok, socket}
+        socket
 
       # The header-image picker (MediaSelectorModal) reports back here via
       # `notify: {__MODULE__, id}`: a confirmed selection sets the cover or logo
       # (per `@image_picker_target`); a close just dismisses the picker.
       Map.has_key?(assigns, :media_selected) ->
-        {:ok, set_image_from_selection(socket, assigns.media_selected)}
+        set_image_from_selection(socket, assigns.media_selected)
 
       Map.has_key?(assigns, :media_selector_closed) ->
-        {:ok, assign(socket, :selecting_cover, false)}
+        assign(socket, :selecting_cover, false)
 
       Map.get(assigns, :action) == :commit_upload_batch ->
-        {:ok, commit_upload_batch(socket)}
+        commit_upload_batch(socket)
 
       true ->
-        {:ok, socket}
+        socket
     end
   end
 
@@ -442,6 +576,235 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     if managed?, do: assign(socket, :readonly, true), else: socket
   end
 
+  # ──────────────────────────────────────────────────────────────
+  # Picker (see the moduledoc's "Picker")
+  # ──────────────────────────────────────────────────────────────
+
+  defp normalize_picker_attrs(socket) do
+    pick_mode = if socket.assigns.pick_mode in [:single, "single"], do: :single, else: :multiple
+
+    max_select =
+      case socket.assigns.max_select do
+        n when is_integer(n) and n > 0 -> n
+        _ -> nil
+      end
+
+    socket
+    |> assign(:picker, socket.assigns.picker == true)
+    |> assign(:folder_actions, socket.assigns.folder_actions != false)
+    |> assign(:pick_mode, pick_mode)
+    |> assign(:max_select, max_select)
+  end
+
+  # The parent's upload this browser renders and watches: a picker's own
+  # (see `setup_uploads/1`), or the shared one — also for a picker whose host
+  # allowed only that.
+  defp assign_upload_name(socket) do
+    name =
+      if socket.assigns.picker and
+           is_map_key(socket.assigns[:parent_uploads] || %{}, @picker_upload),
+         do: @picker_upload,
+         else: :media_files
+
+    assign(socket, :upload_name, name)
+  end
+
+  # The pick a picker opens with (`selected`) or is reset to (`picker_reset`):
+  # well-formed uuids, each once, in the host's order — one in `:single`. It
+  # is the host's own data, so it is not checked against the database; a pick
+  # made in the browser is (`pickable?/2`).
+  defp initial_pick(uuids, pick_mode) when is_list(uuids) do
+    uuids = uuids |> Enum.filter(&uuid_string?/1) |> Enum.uniq()
+    if pick_mode == :single, do: Enum.take(uuids, 1), else: uuids
+  end
+
+  defp initial_pick(_uuids, _pick_mode), do: []
+
+  # A uuid in its 36-character text form. `Ecto.UUID.cast/1` alone would also
+  # take any 16-byte string as a raw uuid.
+  defp uuid_string?(value),
+    do: is_binary(value) and byte_size(value) == 36 and UUIDUtils.valid?(value)
+
+  # A click on a file. `:multiple` takes a picked file back out; `:single`
+  # keeps it (a file dialog does not unselect on a second click). Adding is
+  # for a file this picker could have listed only.
+  defp pick(socket, file_uuid) do
+    %{picked: picked, pick_mode: pick_mode} = socket.assigns
+
+    cond do
+      file_uuid in picked and pick_mode == :multiple ->
+        socket
+        |> assign(:picked, List.delete(picked, file_uuid))
+        |> assign(:pick_limit_hit, false)
+
+      file_uuid in picked ->
+        socket
+
+      pickable?(socket, file_uuid) ->
+        add_pick(socket, file_uuid)
+
+      true ->
+        Logger.warning(
+          "MediaBrowser id=#{socket.assigns.id}: pick refused — #{inspect(file_uuid)} is not " <>
+            "a file this picker lists"
+        )
+
+        socket
+    end
+  end
+
+  # `:single` replaces the pick; `:multiple` appends while there is room under
+  # `max_select`, and says so when there is not.
+  defp add_pick(socket, file_uuid) do
+    %{picked: picked, pick_mode: pick_mode, max_select: max} = socket.assigns
+
+    cond do
+      pick_mode == :single ->
+        socket |> assign(:picked, [file_uuid]) |> assign(:pick_limit_hit, false)
+
+      file_uuid in picked ->
+        socket
+
+      is_integer(max) and length(picked) >= max ->
+        assign(socket, :pick_limit_hit, true)
+
+      true ->
+        socket |> assign(:picked, picked ++ [file_uuid]) |> assign(:pick_limit_hit, false)
+    end
+  end
+
+  # What the picker could have listed, whatever page, search or filter is on
+  # screen: a live file of this library that the viewer may see, of the
+  # locked type, homed inside the scope folder or linked into it.
+  defp pickable?(socket, file_uuid) do
+    with true <- uuid_string?(file_uuid),
+         %Storage.File{system_managed: false} = file <- Storage.get_file(file_uuid),
+         true <- file.status != "trashed",
+         true <- socket.assigns[:only_file_type] in [nil, file.file_type],
+         true <- in_browser_library?(socket, file),
+         true <- Storage.viewer_can_see_file?(socket.assigns[:viewer_uuid], file) do
+      in_pick_scope?(file, scope_folder_id(socket))
+    else
+      _ -> false
+    end
+  end
+
+  defp in_pick_scope?(_file, nil), do: true
+
+  defp in_pick_scope?(file, scope) do
+    (is_binary(file.folder_uuid) and Storage.within_scope?(file.folder_uuid, scope)) or
+      PhoenixKit.Config.get_repo().exists?(
+        from(fl in Storage.FolderLink,
+          where:
+            fl.file_uuid == ^file.uuid and
+              fl.folder_uuid in ^TreeQuery.subtree_uuids(Storage.Folder, [scope])
+        )
+      )
+  end
+
+  # An upload made in the picker picks itself (see `buffer_pending_upload/3`).
+  defp pick_upload(%{assigns: %{picker: true}} = socket, {:ok, %{file_uuid: uuid}}),
+    do: add_pick(socket, to_string(uuid))
+
+  defp pick_upload(socket, _result), do: socket
+
+  # Confirm hands the host the pick minus what was trashed or deleted since it
+  # was picked.
+  defp confirm_pick(socket) do
+    uuids = still_live(socket.assigns.picked)
+
+    socket
+    |> assign(:picked, uuids)
+    |> notify_picker_host({:picked, uuids})
+  end
+
+  defp still_live([]), do: []
+
+  defp still_live(uuids) do
+    live =
+      from(f in Storage.File,
+        where: f.uuid in ^uuids and f.status != "trashed",
+        select: f.uuid
+      )
+      |> PhoenixKit.Config.get_repo().all()
+      |> MapSet.new(&to_string/1)
+
+    Enum.filter(uuids, &MapSet.member?(live, &1))
+  end
+
+  defp notify_picker_host(socket, message) do
+    case socket.assigns[:notify] do
+      {module, id} -> send_update(module, [{:id, id} | picker_update(message)])
+      _ -> send(self(), {__MODULE__, socket.assigns.id, message})
+    end
+
+    socket
+  end
+
+  defp picker_update({:picked, uuids}), do: [picked: uuids]
+  defp picker_update(:pick_cancelled), do: [picked: :cancelled]
+  defp picker_update({:picker_uploading, uploading?}), do: [picker_uploading: uploading?]
+
+  # Confirm and Cancel wait while an upload is on its way: a transfer the
+  # page is receiving, or a received file not yet stored (queued, being
+  # stored, or stored and waiting for its batch).
+  defp upload_in_progress?(socket) do
+    a = socket.assigns
+
+    match?(%{entries: [_ | _]}, a[:parent_uploads][a[:upload_name] || :media_files]) or
+      a[:upload_processing] != nil or
+      (a[:upload_process_queue] || []) != [] or
+      (a[:pending_batch] || []) != []
+  end
+
+  defp picker_busy?(socket), do: socket.assigns.picker_uploading or upload_in_progress?(socket)
+
+  # Tells the host when the picker starts and stops waiting for an upload.
+  # The stop is reported a moment late, once it holds: between a transfer
+  # ending and the page handing the file to this browser there is a render
+  # with nothing in flight, and reporting it would let the host close the
+  # picker on the upload it is about to receive.
+  @picker_idle_ms 300
+
+  defp sync_picker_uploading(%{assigns: %{picker: true}} = socket) do
+    busy? = upload_in_progress?(socket)
+
+    cond do
+      busy? and not socket.assigns.picker_uploading ->
+        socket
+        |> assign(:picker_uploading, true)
+        |> notify_picker_host({:picker_uploading, true})
+
+      not busy? and socket.assigns.picker_uploading and
+          socket.assigns[:picker_idle_check] != true ->
+        Phoenix.LiveView.send_update_after(
+          __MODULE__,
+          [id: socket.assigns.id, action: :picker_idle_check],
+          @picker_idle_ms
+        )
+
+        assign(socket, :picker_idle_check, true)
+
+      true ->
+        socket
+    end
+  end
+
+  defp sync_picker_uploading(socket), do: socket
+
+  defp settle_picker_idle(socket) do
+    socket = assign(socket, :picker_idle_check, false)
+
+    if socket.assigns.picker and socket.assigns.picker_uploading and
+         not upload_in_progress?(socket) do
+      socket
+      |> assign(:picker_uploading, false)
+      |> notify_picker_host({:picker_uploading, false})
+    else
+      socket
+    end
+  end
+
   # The upload drawer's job ends the moment files are accepted: transfers
   # are auto_upload, and their progress renders as the same inline rows the
   # drag-drop path uses — so a drawer left open past that point only spends
@@ -452,9 +815,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # user who deliberately reopens the drawer mid-upload (to add more
   # files) is not fighting a panel that snaps shut on every tick.
   defp close_upload_on_start(socket) do
+    name = socket.assigns.upload_name
+
     active =
       case socket.assigns[:parent_uploads] do
-        %{media_files: %{entries: [_ | _]}} -> true
+        %{^name => %{entries: [_ | _]}} -> true
         _ -> false
       end
 
@@ -818,6 +1183,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       socket
       |> assign(:pending_batch, batch)
       |> assign(:last_uploaded_file_uuids, new_uuids)
+      |> pick_upload(result)
 
     if socket.assigns[:batch_scheduled] do
       socket
@@ -941,6 +1307,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       :selected_files,
       MapSet.difference(socket.assigns[:selected_files] || MapSet.new(), gone)
     )
+    |> assign(:picked, Enum.reject(socket.assigns[:picked] || [], &MapSet.member?(gone, &1)))
     |> then(fn socket ->
       viewer = socket.assigns[:viewer_file]
 
@@ -1507,14 +1874,20 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
       :folder_tree,
       if(scope_invalid, do: [], else: Storage.list_folder_tree(scope, lib_opts(socket)))
     )
+    # A picker keeps its tree to itself: it neither reads nor writes the
+    # user's saved tree (see `persist_tree_state/1`).
     |> assign(
       :sidebar_collapsed,
-      load_user_sidebar_collapsed(socket.assigns[:phoenix_kit_current_user])
+      not socket.assigns.picker and
+        load_user_sidebar_collapsed(socket.assigns[:phoenix_kit_current_user])
     )
     |> assign(:sidebar_rev, 0)
     |> assign(
       :expanded_folders,
-      load_user_expanded_folders(socket.assigns[:phoenix_kit_current_user])
+      if(socket.assigns.picker,
+        do: MapSet.new(),
+        else: load_user_expanded_folders(socket.assigns[:phoenix_kit_current_user])
+      )
     )
     |> assign(:renaming_folder, nil)
     |> assign(:renaming_source, nil)
@@ -1526,7 +1899,14 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     |> assign(:editing_folder_header, nil)
     |> assign(:folder_header_name, "")
     |> assign(:folder_header_description, "")
-    |> assign(:view_mode, load_user_view_mode(socket.assigns[:phoenix_kit_current_user]))
+    # A picker always shows the grid, whatever the user chose elsewhere.
+    |> assign(
+      :view_mode,
+      if(socket.assigns.picker,
+        do: "grid",
+        else: load_user_view_mode(socket.assigns[:phoenix_kit_current_user])
+      )
+    )
     # Toolbar sort + file-type filter (socket state, applied to the listing).
     |> assign(:sort_by, "newest")
     # `only_file_type` locks this to one kind for the whole session — see the
@@ -1594,15 +1974,22 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     else
       max_size_mb = max_upload_size_mb()
 
-      socket
-      |> assign(:max_upload_size_mb, max_size_mb)
-      |> allow_upload(:media_files,
+      upload_opts = [
         accept: :any,
         max_entries: 10,
         max_file_size: max_size_mb * 1_000_000,
         auto_upload: true,
         progress: &__MODULE__.parent_progress/3
-      )
+      ]
+
+      # Pickers upload through an upload of their own (`@picker_upload`): a
+      # page has one file input per upload, so a picker opened beside another
+      # browser would otherwise render a second input with the same id, show
+      # the other browser's transfers, and have its uploads copied there too.
+      socket
+      |> assign(:max_upload_size_mb, max_size_mb)
+      |> allow_upload(:media_files, upload_opts)
+      |> allow_upload(@picker_upload, upload_opts)
       |> attach_file_event_forwarding()
     end
   end
@@ -1622,10 +2009,12 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # however its entries were registered. The uploads live on the parent's
   # socket, so the cancel is the parent's (`:cancel_rejected_uploads`).
   defp harvest_rejected_uploads(socket) do
+    name = socket.assigns.upload_name
+
     case socket.assigns[:parent_uploads] do
       # A real upload config only: `upload_errors/1,2` read its internals,
       # and component tests hand down plain maps standing in for one.
-      %{media_files: %Phoenix.LiveView.UploadConfig{} = conf} ->
+      %{^name => %Phoenix.LiveView.UploadConfig{} = conf} ->
         seen = socket.assigns[:upload_rejected_refs] || MapSet.new()
 
         case Enum.reject(rejected_entries(conf), fn {e, _} -> MapSet.member?(seen, e.ref) end) do
@@ -1768,7 +2157,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   @doc false
   # Progress callback that runs on the parent LiveView socket.
   # Consumes the upload and sends the file to the MediaBrowser component for processing.
-  def parent_progress(:media_files, entry, socket) do
+  def parent_progress(name, entry, socket) when name in [:media_files, @picker_upload] do
     if entry.done? do
       # Persist file to a temp path since consume_uploaded_entry cleans up the original
       persistent_path = Path.join(System.tmp_dir!(), "pk_upload_#{entry.uuid}")
@@ -1858,10 +2247,62 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
+  @doc """
+  Takes the browser `id` off the page's upload routing.
+
+  Every browser registers with its LiveView when it mounts, and the page sends
+  each finished upload — and a copy of it — to every browser registered. A
+  host that stops rendering a browser (a closed modal, a switched tab) calls
+  this, from the LiveView or from one of its LiveComponents (both run in the
+  LiveView's process), so nothing is routed to a browser that is gone. It
+  sends `{MediaBrowser, :unregister, id}` to the calling process, which
+  `handle_parent_info/2` handles. Rendering the browser again registers it
+  again.
+  """
+  @spec unregister_browser(String.t()) :: :ok
+  def unregister_browser(id) do
+    send(self(), {__MODULE__, :unregister, id})
+    :ok
+  end
+
   @doc "Catch-all handler for parent LiveViews to delegate MediaBrowser messages."
   def handle_parent_info({__MODULE__, :register_component, id}, socket) do
     ids = MapSet.put(socket.assigns[:media_browser_ids] || MapSet.new(), id)
     {:noreply, assign(socket, :media_browser_ids, ids)}
+  end
+
+  def handle_parent_info({__MODULE__, :register_picker, id}, socket) do
+    ids = MapSet.put(socket.assigns[:media_picker_ids] || MapSet.new(), id)
+    {:noreply, assign(socket, :media_picker_ids, ids)}
+  end
+
+  def handle_parent_info({__MODULE__, :unregister, id}, socket) do
+    {:noreply,
+     socket
+     |> assign(
+       :media_browser_ids,
+       MapSet.delete(socket.assigns[:media_browser_ids] || MapSet.new(), id)
+     )
+     |> assign(
+       :media_picker_ids,
+       MapSet.delete(socket.assigns[:media_picker_ids] || MapSet.new(), id)
+     )}
+  end
+
+  # A picker's report is the host's to handle, ahead of this delegate (see the
+  # moduledoc's "Picker"). One that ends up here was not handled: said in the
+  # log rather than dropped in silence.
+  def handle_parent_info({__MODULE__, id, payload}, socket)
+      when payload == :pick_cancelled or
+             (is_tuple(payload) and tuple_size(payload) == 2 and
+                elem(payload, 0) in [:picked, :picker_uploading]) do
+    Logger.warning(
+      "MediaBrowser id=#{id}: the host did not handle the picker's " <>
+        "#{inspect(if is_tuple(payload), do: elem(payload, 0), else: payload)} — match " <>
+        "{MediaBrowser, id, _} picker messages before handle_parent_info/2"
+    )
+
+    {:noreply, socket}
   end
 
   def handle_parent_info({__MODULE__, _id, {:flash, kind, message}}, socket)
@@ -1874,14 +2315,21 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     # the page, copy the temp file per recipient so each component owns its own
     # path — otherwise the first one to run would delete the shared file and the
     # rest would crash on `File.stat/1`.
+    # The picker upload's files go to the browsers on it, any other upload's
+    # to the other browsers (see `setup_uploads/1`). A retried or hand-built
+    # entry carries no upload name and goes to the other browsers, as every
+    # upload used to.
+    browsers = socket.assigns[:media_browser_ids] || MapSet.new()
+    pickers = socket.assigns[:media_picker_ids] || MapSet.new()
+
     component_ids =
-      socket.assigns[:media_browser_ids]
-      |> Kernel.||(MapSet.new())
-      |> MapSet.to_list()
+      if Map.get(entry, :upload_config) == @picker_upload,
+        do: browsers |> MapSet.intersection(pickers) |> MapSet.to_list(),
+        else: browsers |> MapSet.difference(pickers) |> MapSet.to_list()
 
     case component_ids do
       [] ->
-        drop_upload_bytes(path, UploadInbox.locate(path))
+        keep_unrouted_upload(path, entry)
 
       [single] ->
         send_update(__MODULE__, id: single, pending_upload: {path, entry})
@@ -1907,17 +2355,43 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   def handle_parent_info({__MODULE__, :cancel_rejected_uploads, entries}, socket) do
     socket =
       Enum.reduce(entries, socket, fn entry, acc ->
-        open? =
-          match?(%{media_files: %{entries: list}} when is_list(list), acc.assigns[:uploads]) and
-            Enum.any?(acc.assigns.uploads.media_files.entries, &(&1.ref == entry.ref))
+        name = Map.get(entry, :upload_config) || :media_files
 
-        if open?, do: cancel_upload(acc, :media_files, entry.ref), else: acc
+        open? =
+          case acc.assigns[:uploads] do
+            %{^name => %{entries: list}} when is_list(list) ->
+              Enum.any?(list, &(&1.ref == entry.ref))
+
+            _ ->
+              false
+          end
+
+        if open?, do: cancel_upload(acc, name, entry.ref), else: acc
       end)
 
     {:noreply, ack_received(socket, entries)}
   end
 
   def handle_parent_info(_msg, socket), do: {:noreply, socket}
+
+  # No browser is registered to take the upload: the host took the last one
+  # off the page while the transfer ran. Deleting it lost the file without a
+  # word; kept in the inbox it is an upload problem the next browser lists,
+  # with Retry. A plain temp file (no user, no inbox) has nowhere to be
+  # listed, so it goes.
+  defp keep_unrouted_upload(path, entry) do
+    case UploadInbox.locate(path) do
+      {user_uuid, id} ->
+        UploadInbox.fail(user_uuid, id, gettext("No media browser was open to receive it."))
+
+      nil ->
+        Logger.warning(
+          "MediaBrowser: no browser was registered to receive #{inspect(entry.client_name)}"
+        )
+
+        File.rm(path)
+    end
+  end
 
   defp maybe_allow_upload(socket, has_buckets) do
     if has_buckets do
@@ -2000,6 +2474,42 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     toggle_header_option open_cover_picker open_logo_picker remove_folder_cover
     remove_folder_logo trash_folder delete_folder restore_folder
   )
+
+  # The folder writes `folder_actions: false` takes away (see the moduledoc's
+  # "Picker"): every folder edit, every move, folders in a selection, and the
+  # Trash view. Hidden in the markup and refused below, ahead of every other
+  # clause — the markup is a courtesy, a console can send any event.
+  @folder_action_events ~w(
+    open_new_folder_modal new_folder_input submit_new_folder
+    start_rename_folder rename_folder_input rename_folder change_folder_color
+    start_edit_folder_description folder_description_input save_folder_description
+    start_edit_folder_header folder_header_input save_folder_header set_header_size
+    toggle_header_option open_cover_picker open_logo_picker remove_folder_cover
+    remove_folder_logo trash_folder delete_folder restore_folder
+    move_folder_to_folder prepare_move_folder move_file_to_folder prepare_move_file
+    show_move_modal toggle_move_folder move_selected_to_folder toggle_select_folder
+    toggle_trash_filter empty_trash restore_file restore_selected
+  )
+
+  @doc false
+  def folder_action_events, do: @folder_action_events
+
+  # What a picker does not have: bulk select (its pick is an ordered list of
+  # its own) and the view switch (it always shows the grid).
+  @picker_off_events ~w(
+    toggle_select_mode long_press_select toggle_select toggle_select_folder
+    select_all box_select set_view_mode
+  )
+
+  def handle_event(event, _params, socket)
+      when event in @folder_action_events and socket.assigns.folder_actions == false do
+    {:noreply, log_refused(socket, event, "folder actions are off")}
+  end
+
+  def handle_event(event, _params, socket)
+      when event in @picker_off_events and socket.assigns.picker == true do
+    {:noreply, log_refused(socket, event, "the browser is a picker")}
+  end
 
   # A restricted viewer (`viewer_uuid`) is shown only what is theirs, and this is
   # the boundary for what an event NAMES: any uuid can be sent from a console.
@@ -3025,12 +3535,62 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
      |> assign(:selected_files, MapSet.put(socket.assigns.selected_files, uuid))}
   end
 
+  # Without folder actions a folder is never selected (see `selectable_on_screen/1`).
+  def handle_event(
+        "long_press_select",
+        %{"type" => "folder"},
+        %{assigns: %{folder_actions: false}} = socket
+      ),
+      do: {:noreply, log_refused(socket, "long_press_select", "folder actions are off")}
+
   def handle_event("long_press_select", %{"type" => "folder", "uuid" => uuid}, socket) do
     {:noreply,
      socket
      |> assign(:select_mode, true)
      |> assign(:selected_folders, MapSet.put(socket.assigns.selected_folders, uuid))}
   end
+
+  # A picker's click picks (see `pick/2`) and opens nothing.
+  def handle_event(
+        "click_file",
+        %{"file-uuid" => file_uuid},
+        %{assigns: %{picker: true}} = socket
+      ) do
+    {:noreply, pick(socket, file_uuid)}
+  end
+
+  # A double click in a `:single` picker picks that file and confirms, file
+  # dialog style (MediaDragDrop sends it). A double click elsewhere is just
+  # two clicks.
+  def handle_event(
+        "pick_quick_confirm",
+        %{"file-uuid" => file_uuid},
+        %{assigns: %{picker: true, pick_mode: :single}} = socket
+      ) do
+    socket = pick(socket, file_uuid)
+
+    cond do
+      socket.assigns.picked != [file_uuid] -> {:noreply, socket}
+      picker_busy?(socket) -> {:noreply, log_refused(socket, "pick_quick_confirm", "uploading")}
+      true -> {:noreply, confirm_pick(socket)}
+    end
+  end
+
+  def handle_event("pick_quick_confirm", _params, socket), do: {:noreply, socket}
+
+  # Confirm and Cancel are disabled while an upload is on its way (see
+  # `upload_in_progress?/1`); refused here too.
+  def handle_event(event, _params, %{assigns: %{picker: true}} = socket)
+      when event in ~w(pick_confirm pick_cancel) do
+    cond do
+      picker_busy?(socket) -> {:noreply, log_refused(socket, event, "an upload is on its way")}
+      event == "pick_confirm" -> {:noreply, confirm_pick(socket)}
+      true -> {:noreply, notify_picker_host(socket, :pick_cancelled)}
+    end
+  end
+
+  def handle_event(event, _params, socket) when event in ~w(pick_confirm pick_cancel),
+    do: {:noreply, socket}
 
   # In selection mode, clicks toggle the file in/out and stay in selection
   # mode (the toolbar's "Select" button is how callers reach bulk-select).
@@ -3903,7 +4463,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   def handle_event("upload_resume_available", _params, socket), do: {:noreply, socket}
 
   def handle_event("cancel_upload", %{"ref" => ref}, socket) do
-    {:noreply, cancel_upload(socket, :media_files, ref)}
+    {:noreply, cancel_upload(socket, socket.assigns.upload_name, ref)}
   end
 
   def handle_event("set_page", %{"page" => page_str}, socket) do
@@ -3970,7 +4530,13 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     files =
       MapSet.new(Enum.map(socket.assigns.uploaded_files, & &1.file_uuid) ++ stack_file_uuids)
 
-    folders = MapSet.new(socket.assigns.folders, & &1.uuid)
+    # Without folder actions a folder is never in a selection: every bulk
+    # action on one (move, trash, delete) is a folder action.
+    folders =
+      if socket.assigns.folder_actions,
+        do: MapSet.new(socket.assigns.folders, & &1.uuid),
+        else: MapSet.new()
+
     {files, folders}
   end
 
@@ -4655,6 +5221,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # custom_fields map (no server-side merge) — using the in-socket copy would
   # clobber any custom_fields key written elsewhere since this socket loaded
   # (e.g. notification preferences saved on the settings page in another tab).
+  defp persist_tree_state(%{assigns: %{picker: true}} = socket), do: socket
+
   defp persist_tree_state(socket) do
     case socket.assigns[:phoenix_kit_current_user] do
       %{uuid: uuid} = user when is_binary(uuid) ->
@@ -5497,6 +6065,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   defp param_uuids(_value, acc), do: acc
+
+  defp log_refused(socket, event, why) do
+    Logger.warning("MediaBrowser id=#{socket.assigns.id}: #{event} refused — #{why}")
+    socket
+  end
 
   defp log_readonly_blocked(socket, event) do
     Logger.warning(

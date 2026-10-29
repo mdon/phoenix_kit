@@ -60,6 +60,59 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Helpers do
       Integer.to_string(:erlang.phash2(f.urls["original"]))
   end
 
+  # The DOM id of one of the browser's own elements. A picker is usually a
+  # second browser on its page, so its ids carry the component id; every
+  # other browser keeps the ids it has always had (hosts, tests and scripts
+  # select them by name).
+  def dom_id(%{picker: true, id: id}, name), do: "#{id}-#{name}"
+  def dom_id(_assigns, name), do: name
+
+  # ── Folder labels (`folder_labels`) ───────────────────────────────
+  #
+  # Display only: a copy of the folder with its label as its name, for the
+  # tree, the breadcrumbs, the title and the tiles. Nothing is saved from it.
+  def label_folder(nil, _labels), do: nil
+
+  def label_folder(folder, labels) when map_size(labels) == 0, do: folder
+
+  def label_folder(folder, labels) do
+    case Map.get(labels, to_string(folder.uuid)) do
+      label when is_binary(label) and label != "" -> %{folder | name: label}
+      _ -> folder
+    end
+  end
+
+  def label_folders(folders, labels) when map_size(labels) == 0, do: folders
+  def label_folders(folders, labels), do: Enum.map(folders, &label_folder(&1, labels))
+
+  def label_tree(tree, labels) when map_size(labels) == 0, do: tree
+
+  def label_tree(tree, labels) do
+    Enum.map(tree, fn node ->
+      %{
+        node
+        | folder: label_folder(node.folder, labels),
+          children: label_tree(node.children, labels)
+      }
+    end)
+  end
+
+  # The browser's root name: the scope folder's label, else its name.
+  def scope_label(scope_folder_id, name, labels) do
+    case scope_folder_id && Map.get(labels, to_string(scope_folder_id)) do
+      label when is_binary(label) and label != "" -> label
+      _ -> name
+    end
+  end
+
+  # A picked file's place in the pick (1-based), or nil.
+  def pick_position(picked, file_uuid) do
+    case Enum.find_index(picked, &(&1 == file_uuid)) do
+      nil -> nil
+      index -> index + 1
+    end
+  end
+
   # ──────────────────────────────────────────────────────────────
   # Stacks view — function components
   # ──────────────────────────────────────────────────────────────
@@ -230,11 +283,13 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Helpers do
   # star badge and kebab item off.
   attr :featured, :any, default: nil
   attr :readonly, :boolean, default: false
+  # `false`: no drag move and no Move (see the moduledoc's "Picker").
+  attr :folder_actions, :boolean, default: true
 
   def file_card(assigns) do
     ~H"""
     <div
-      data-draggable-file={if not @readonly, do: @file.file_uuid}
+      data-draggable-file={if not @readonly and @folder_actions, do: @file.file_uuid}
       data-selected={if @select_mode && MapSet.member?(@selected_files, @file.file_uuid), do: "true"}
       data-stack-card={@index}
       class={[
@@ -376,7 +431,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser.Helpers do
           label={gettext("Rotate right")}
         />
         <.table_row_menu_button
-          :if={not @readonly}
+          :if={not @readonly and @folder_actions}
           phx-click="prepare_move_file"
           phx-target={@myself}
           phx-value-file-uuid={@file.file_uuid}
