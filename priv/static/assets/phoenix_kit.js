@@ -8683,6 +8683,75 @@ if (typeof window.Chart === "undefined") {
     if (root) startBoxSelect(e, root);
   });
 
+  // Shift-click range select: Shift-clicking a card selects every card from
+  // the anchor (the last card clicked or long-pressed while selecting) to it,
+  // in the order they are on screen, added to what is selected. With nothing
+  // selected yet it selects just that card, which becomes the anchor. Sent as
+  // a `box_select`, so only what is on screen can be picked.
+  var rangeAnchor = null; // {root, key}
+  function cardKey(card) {
+    return card.dataset.draggableFile ? "f:" + card.dataset.draggableFile
+      : card.dataset.draggableFolder ? "d:" + card.dataset.draggableFolder : null;
+  }
+  function rangeCard(e) {
+    var root = e.target && e.target.closest && e.target.closest('[phx-hook="MediaDragDrop"]');
+    if (!root) return null;
+    var card = e.target.closest("[data-draggable-file], [data-draggable-folder]");
+    if (!card || !root.contains(card) || !card.closest("[data-box-area]")) return null;
+    // A card's own menu and its rename / description fields keep their
+    // clicks (a folder card's body is itself a button, which ranges).
+    var control = e.target.closest(".dropdown, [role='menu'], [aria-haspopup], form, textarea, " +
+      "input:not([type='checkbox'])");
+    if (control && card.contains(control)) return null;
+    return { root: root, card: card };
+  }
+
+  // Shift + press on a card would extend the page's text selection.
+  document.addEventListener("pointerdown", function(e) {
+    if (e.shiftKey && e.button === 0 && rangeCard(e)) e.preventDefault();
+  }, true);
+
+  document.addEventListener("click", function(e) {
+    var hit = rangeCard(e);
+    if (!hit) return;
+    var root = hit.root, card = hit.card, key = cardKey(card);
+    if (!key) return;
+    if (!e.shiftKey) {
+      // A plain click while selecting moves the anchor.
+      if (root.querySelector('[data-selected="true"]') || root.dataset.selectionCount) {
+        rangeAnchor = { root: root.id, key: key };
+      }
+      return;
+    }
+    var hook = root.__pkBoxHook;
+    if (!hook || hook.el !== root) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var area = card.closest("[data-box-area]");
+    var cards = Array.prototype.slice.call(
+      area.querySelectorAll("[data-draggable-file], [data-draggable-folder]")
+    ).filter(function(el) { return el.offsetParent; });
+    var to = cards.indexOf(card);
+    var from = -1;
+    if (rangeAnchor && rangeAnchor.root === root.id) {
+      from = cards.findIndex(function(el) { return cardKey(el) === rangeAnchor.key; });
+    }
+    if (from === -1) {
+      // No anchor on screen: the selected card nearest before this one,
+      // else the first selected after it.
+      for (var i = to - 1; i >= 0 && from === -1; i--) if (cards[i].dataset.selected === "true") from = i;
+      for (var j = to + 1; j < cards.length && from === -1; j++) if (cards[j].dataset.selected === "true") from = j;
+    }
+    var picked = from === -1 ? [card] : cards.slice(Math.min(from, to), Math.max(from, to) + 1);
+    if (from === -1) rangeAnchor = { root: root.id, key: key };
+    var files = [], folders = [];
+    picked.forEach(function(el) {
+      if (el.dataset.draggableFile) files.push(el.dataset.draggableFile);
+      else folders.push(el.dataset.draggableFolder);
+    });
+    hook.pushEventTo(root, "box_select", { files: files, folders: folders, additive: true });
+  }, true);
+
   window.PhoenixKitHooks.MediaDragDrop = {
     mounted: function() {
       // View mode (grid/list) AND the sidebar folder-tree state (expanded
@@ -8773,6 +8842,8 @@ if (typeof window.Chart === "undefined") {
             el._lpFired = true;
             if (navigator.vibrate) { try { navigator.vibrate(30); } catch (_) {} }
             self.pushEventTo(self.el, "long_press_select", { type: type, uuid: uuid });
+            // The held card anchors a later Shift-click range.
+            rangeAnchor = { root: self.el.id, key: (type === "folder" ? "d:" : "f:") + uuid };
           }, LONG_PRESS_MS);
         };
         el._lpMove = function(e) {
