@@ -1113,12 +1113,19 @@ picker only while the setting is on).
   `backup`, and `targets`: up to three buckets, each one of the user's
   `object_storage` integrations plus a bucket name). The provider, region and
   endpoint are the integration's own (`Libraries.integration_summary/2`) and are
-  not asked for. Every bucket is probed first (list, write, delete); a failure
+  not asked for. Every bucket is probed first (write, read, delete); a failure
   creates nothing. The form lists an integration's buckets on request
   (`Libraries.list_own_buckets/3`, S3 `ListBuckets`; a key limited to one bucket
-  is refused and the user types the name). **The choice is final**:
+  is refused and the user types the name). **Primary storage stays fixed**:
   `Profiles.set_library_profile/2` refuses to move a library off or onto user
-  storage.
+  storage. The owner can append backups with `Libraries.add_user_storage/4`
+  from **Storage and backups**. This probes every new target, checks the tested
+  connection snapshot again under the integration lock, preserves every existing
+  bucket and minimum write requirement, raises the cloud copy count and queues
+  the reconciler by bumping the profile revision. Pending files and recent
+  failures are visible in the dialog. The three-owned-bucket/five-total-copy
+  limits still apply; reaching the cap never drops existing site copies. Two
+  integrations pointing at the same physical bucket count as one destination.
 - **`only`**: the user's first bucket is the profile's one `primary`; any further
   bucket is a `backup` (a copy of every file, never served, made by the
   reconciler). **`backup`**: the
@@ -1141,6 +1148,16 @@ picker only while the setting is on).
   other buckets is the site's pool alone), and the objects of a user library are
   deleted from its profile's own buckets (`Storage.owned_buckets_for_dir/1`,
   found through the library's `key_prefix`).
+- **Integration lifecycle**: any bucket reference (disabled or unassigned buckets
+  and trashed libraries included) blocks removal and disconnection. Integration
+  lists and edit forms show library/bucket/role usage. Service identity is fixed
+  after initial setup; in-use endpoints, regions and account identifiers are also
+  fixed. Key rotation is tested against every dependent bucket with candidate
+  credentials held only in memory, including an existing object's metadata when
+  available. Failed checks keep the saved name and keys. Network probes run
+  outside transactions; connection/dependency fingerprints are compared under a
+  row lock shared with attachment before committing. Normal bucket writers also
+  reject missing, foreign or disconnected integrations.
 - **Safety**: credentials are read as the owner (`owner: {:user, uuid}`); the
   endpoint is held to the `:personal` policy (https, no local/private/metadata
   address, host resolved) when the bucket is saved and whenever a request is built

@@ -1,3 +1,25 @@
+## 3.2.0 - 2026-10-29
+
+### Added
+
+- Owners can add backup storage to existing libraries from Storage and backups. New buckets
+  are tested before attachment; existing storage stays in place while background reconciliation
+  copies and verifies files. The dialog shows pending files and recent failed attempts.
+- Personal and system integration lists and edit forms show dependent libraries, buckets and
+  roles, including disabled buckets and trashed libraries. Private user-library names stay hidden
+  from system integration views.
+
+### Fixed
+
+- Storage dependencies now block integration removal and disconnection. Bucket attachment
+  shares a database row lock with integration mutations and rejects missing or disconnected
+  credentials, closing concurrent deletion and attachment races.
+- Existing storage services cannot be switched. In-use destinations stay fixed, and key rotation
+  checks every dependent bucket before saving. Failed or stale validation preserves the saved
+  credentials and name; edits commit atomically and network checks run outside transactions.
+- Separate integrations pointing at the same physical bucket no longer count as independent
+  backup copies.
+
 ## 3.1.0 - 2026-10-27
 
 ### Added

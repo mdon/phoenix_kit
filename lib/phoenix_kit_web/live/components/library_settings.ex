@@ -14,8 +14,8 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
       their Object Storage integrations and a bucket on it (listed from the
       integration when its key may list buckets), only there or with the site's
       storage plus a backup copy there, and optionally copies on further
-      integrations. The choice is made here, once, and cannot be changed
-      afterwards.
+      integrations. More backup storage can be added afterwards; existing primary
+      storage is kept until all copies are verified.
 
   The create form is closed until "Create library" is pressed, so the page is
   first of all the list of the user's libraries. What an integration already
@@ -35,6 +35,7 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
   alias PhoenixKit.Integrations
   alias PhoenixKit.Integrations.ObjectStorageServices
   alias PhoenixKit.Modules.Storage.{Libraries, Library, LibraryMember, Profiles, VariantSets}
+  alias PhoenixKit.Modules.Storage.Reconciler
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWeb.Live.Components.LibraryPreferences
@@ -53,9 +54,9 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
       |> assign_new(:dialog, fn -> nil end)
       |> assign_new(:form, fn -> new_form() end)
       |> assign_new(:testing, fn -> false end)
+      |> assign_new(:adding_storage, fn -> false end)
       |> assign_new(:creating, fn -> false end)
       |> assign_new(:bucket_lists, fn -> %{} end)
-      |> assign_new(:pending_create, fn -> nil end)
       |> assign_new(:test_result, fn -> nil end)
       |> load()
 
@@ -82,6 +83,10 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
     |> assign(:can_own_storage, Libraries.may_use_own_storage?(scope))
     |> assign(:connections, connections(scope))
     |> assign(:own_storage, Profiles.user_storage_for(Enum.map(owned, & &1.library)))
+    |> assign(
+      :storage_progress,
+      Reconciler.counts_by_library(Enum.map(owned, & &1.library.uuid))
+    )
     |> assign(:limit, Libraries.user_library_limit())
     |> assign(:managed_uuids, Enum.map(managed, & &1.library.uuid))
     |> assign(:variant_sets, VariantSets.list_selectable())
@@ -125,6 +130,7 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
   defp dialog_allowed?("settings", role), do: role in [:owner, :manager]
   defp dialog_allowed?("rename", role), do: Libraries.allows?(role, :rename)
   defp dialog_allowed?("members", role), do: Libraries.allows?(role, :members)
+  defp dialog_allowed?("storage", role), do: role == :owner
   defp dialog_allowed?("sizes", role), do: role == :owner
   defp dialog_allowed?(_kind, _role), do: false
 
@@ -145,7 +151,16 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
   def handle_event("open_dialog", %{"kind" => kind, "uuid" => uuid}, socket) do
     with %{role: role} <- entry(socket, uuid),
          true <- dialog_allowed?(kind, role) do
-      {:noreply, socket |> assign(:dialog, {String.to_existing_atom(kind), uuid}) |> load()}
+      {:noreply,
+       socket
+       |> assign(
+         dialog: {String.to_existing_atom(kind), uuid},
+         form: new_form(),
+         bucket_lists: %{},
+         test_result: nil
+       )
+       |> load()
+       |> preselect_integration()}
     else
       _ -> {:noreply, socket}
     end
@@ -282,6 +297,33 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
     end
   end
 
+  def handle_event("add_storage", %{"library" => params}, socket) do
+    socket = merge_form(socket, params)
+
+    with {:storage, uuid} <- socket.assigns.dialog,
+         %{library: library, role: :owner} <- entry(socket, uuid),
+         false <- socket.assigns.adding_storage do
+      scope = socket.assigns.scope
+      storage = storage_params(socket.assigns.form)
+      opts = probe_opts(socket)
+
+      if socket.assigns[:probe] do
+        storage_added(socket, Libraries.add_user_storage(scope, library, storage, opts))
+      else
+        {:noreply,
+         socket
+         |> assign(:adding_storage, true)
+         |> start_async(:add_storage, fn ->
+           Libraries.add_user_storage(scope, library, storage)
+         end)}
+      end
+    else
+      _ -> reply(socket, :error, gettext("You may not change this library's storage"))
+    end
+  end
+
+  def handle_event("refresh_storage", _params, socket), do: {:noreply, load(socket)}
+
   def handle_event("rename", %{"uuid" => uuid, "name" => name}, socket) do
     with %{library: library} <- entry(socket, uuid),
          {:ok, _} <- Libraries.rename_user_library(socket.assigns.scope, library, name) do
@@ -340,6 +382,13 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
          {:ok, restored} <- Libraries.restore_library(socket.assigns.scope, library) do
       reply(socket, :success, gettext("Library “%{name}” restored", name: restored.name))
     else
+      {:error, :storage_changed} ->
+        reply(
+          socket,
+          :error,
+          gettext("The integration changed during testing. Refresh and try again.")
+        )
+
       {:error, :limit_reached} ->
         reply(socket, :error, gettext("You have reached the number of libraries you may own"))
 
@@ -436,31 +485,72 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
      )}
   end
 
-  # The bucket was checked off the page's process; now the library is created
-  # (database only) without checking it again.
-  def handle_async(:probe_storage, {:ok, :ok}, socket) do
-    attrs = socket.assigns.pending_create
-    socket = assign(socket, creating: false, pending_create: nil)
-    finish_create(socket, attrs, probe: fn _params -> :ok end)
+  def handle_async(:create_library, {:ok, result}, socket) do
+    create_result(assign(socket, creating: false), result)
   end
 
-  def handle_async(:probe_storage, {:ok, result}, socket) do
-    socket = assign(socket, creating: false, pending_create: nil)
+  def handle_async(:create_library, {:exit, _reason}, socket) do
+    reply(
+      assign(socket, creating: false),
+      :error,
+      gettext("The storage operation stopped unexpectedly. Refresh before trying again.")
+    )
+  end
 
-    case probe_message(result) do
-      {:error, message} ->
-        reply(
-          socket,
-          :error,
-          gettext("Your storage could not be used: %{reason}", reason: message)
+  def handle_async(:add_storage, {:ok, result}, socket) do
+    storage_added(assign(socket, adding_storage: false), result)
+  end
+
+  def handle_async(:add_storage, {:exit, _reason}, socket) do
+    reply(
+      assign(socket, adding_storage: false),
+      :error,
+      gettext("The storage operation stopped unexpectedly. Refresh before trying again.")
+    )
+  end
+
+  defp storage_added(socket, {:ok, _library}) do
+    reply(
+      assign(socket, dialog: nil, form: new_form(), bucket_lists: %{}),
+      :success,
+      gettext("Backup storage added. Existing files are copied and verified in the background.")
+    )
+  end
+
+  defp storage_added(socket, {:error, %Ecto.Changeset{} = changeset}),
+    do: reply(socket, :error, storage_message(changeset))
+
+  defp storage_added(socket, {:error, message}) when is_binary(message),
+    do: reply(socket, :error, message)
+
+  defp storage_added(socket, {:error, :duplicate_bucket}),
+    do: reply(socket, :error, gettext("This library already uses that bucket."))
+
+  defp storage_added(socket, {:error, reason}) when reason in [:too_many_buckets, :copy_limit],
+    do:
+      reply(
+        socket,
+        :error,
+        gettext(
+          "This library has reached its storage copy limit. Existing storage has been kept."
         )
-    end
-  end
+      )
 
-  def handle_async(:probe_storage, {:exit, _reason}, socket) do
-    socket = assign(socket, creating: false, pending_create: nil)
-    reply(socket, :error, gettext("The test stopped unexpectedly"))
-  end
+  defp storage_added(socket, {:error, :storage_changed}),
+    do:
+      reply(
+        socket,
+        :error,
+        gettext("The integration changed during testing. Refresh and try again.")
+      )
+
+  defp storage_added(socket, {:error, _}),
+    do:
+      reply(
+        socket,
+        :error,
+        gettext("Storage could not be added. Check your access and the bucket connection.")
+      )
 
   # `:probe` (an assign, unset in production) replaces the bucket check, and with
   # it the wait: the library is created at once.
@@ -479,8 +569,7 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
         {:noreply,
          socket
          |> assign(:creating, true)
-         |> assign(:pending_create, attrs)
-         |> start_async(:probe_storage, fn -> Libraries.probe_own_storage(scope, storage) end)}
+         |> start_async(:create_library, fn -> Libraries.create_user_library(scope, attrs) end)}
 
       probe ->
         finish_create(socket, attrs, probe: probe)
@@ -499,7 +588,11 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
   end
 
   defp finish_create(socket, attrs, opts) do
-    case Libraries.create_user_library(socket.assigns.scope, attrs, opts) do
+    create_result(socket, Libraries.create_user_library(socket.assigns.scope, attrs, opts))
+  end
+
+  defp create_result(socket, result) do
+    case result do
       {:ok, library} ->
         socket =
           assign(socket,
@@ -941,6 +1034,15 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
                     icon="hero-adjustments-horizontal"
                     label={gettext("Renditions")}
                   />
+                  <.table_row_menu_button
+                    :if={@can_own_storage and @own_storage[to_string(library.uuid)]}
+                    phx-click="open_dialog"
+                    phx-target={@myself}
+                    phx-value-kind="storage"
+                    phx-value-uuid={library.uuid}
+                    icon="hero-cloud-arrow-up"
+                    label={gettext("Storage and backups")}
+                  />
                   <.table_row_menu_divider />
                   <.table_row_menu_button
                     phx-click="trash"
@@ -1113,8 +1215,83 @@ defmodule PhoenixKitWeb.Live.Components.LibrarySettings do
           library_uuid={@dialog_library.uuid}
           scope={@scope}
           management_target={@myself}
+          backup_management_target={@myself}
           notify={%{module: __MODULE__, id: @id}}
         />
+        <:actions>
+          <button type="button" class="btn btn-ghost" phx-click="close_dialog" phx-target={@myself}>{gettext(
+            "Close"
+          )}</button>
+        </:actions>
+      </.modal>
+
+      <.modal
+        :if={match?({:storage, _}, @dialog) and @dialog_library}
+        show
+        id={"#{@id}-storage-modal"}
+        on_close="close_dialog"
+        max_width="2xl"
+      >
+        <:title>{gettext("Storage and backups")} · {@dialog_library.name}</:title>
+        <div class="space-y-4">
+          <p>
+            {gettext(
+              "Add another integration as backup storage. Your current storage stays in place. Existing files, including renditions, are copied and verified in the background."
+            )}
+          </p>
+          <div :if={storage = @own_storage[to_string(@dialog_library.uuid)]}>
+            <p :for={row <- storage.buckets}>{row.bucket.bucket_name} · {row.role}</p>
+          </div>
+          <% progress =
+            @storage_progress[to_string(@dialog_library.uuid)] || %{out_of_date: 0, failing: 0} %>
+          <p>
+            {gettext("Files awaiting updates: %{pending}. Recent failed attempts: %{failed}.",
+              pending: progress.out_of_date,
+              failed: progress.failing
+            )}
+          </p>
+          <button
+            type="button"
+            class="btn btn-sm btn-ghost"
+            phx-click="refresh_storage"
+            phx-target={@myself}
+          >{gettext("Refresh status")}</button>
+          <form
+            id={"#{@id}-add-storage"}
+            phx-change="form_change"
+            phx-submit="add_storage"
+            phx-target={@myself}
+          >
+            <.target_row
+              :for={{target, index} <- Enum.with_index(@form["targets"])}
+              id={"#{@id}-backup"}
+              index={index}
+              count={length(@form["targets"])}
+              target={target}
+              connections={@connections}
+              list={bucket_list(@bucket_lists, index, target["integration_uuid"])}
+              myself={@myself}
+            />
+            <a
+              href={Routes.path("/profile/settings/integrations/new?provider=object_storage")}
+              target="_blank"
+              rel="noopener"
+              class="btn btn-sm btn-ghost"
+            >{gettext("Add an integration")}</a>
+            <button
+              type="button"
+              class="btn btn-sm btn-ghost"
+              phx-click="refresh_connections"
+              phx-target={@myself}
+            >{gettext("Refresh integrations")}</button>
+            <button
+              type="submit"
+              class="btn btn-primary"
+              disabled={@adding_storage or @connections == []}
+              phx-disable-with={gettext("Testing and adding...")}
+            >{gettext("Add backup storage")}</button>
+          </form>
+        </div>
         <:actions>
           <button type="button" class="btn btn-ghost" phx-click="close_dialog" phx-target={@myself}>{gettext(
             "Close"

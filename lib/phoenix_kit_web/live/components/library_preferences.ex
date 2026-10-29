@@ -28,7 +28,15 @@ defmodule PhoenixKitWeb.Live.Components.LibraryPreferences do
        publish_allowed: Preferences.can_publish?(assigns.scope, library),
        access_options: access_options(assigns.scope, library),
        public_path: library_url(library, assigns.scope),
-       profile_name: (profile && profile.name) || gettext("Default"),
+       profile_name:
+         if(profile && profile.owner_uuid,
+           do: gettext("Personal storage"),
+           else: (profile && profile.name) || gettext("Default")
+         ),
+       backup_management_target: assigns[:backup_management_target],
+       can_add_storage:
+         library && library.owner_uuid == Scope.user_uuid(assigns.scope) && profile &&
+           profile.owner_uuid != nil && Libraries.may_use_own_storage?(assigns.scope),
        rendition_set: set,
        rendition_options: VariantSets.list_selectable(),
        members: Libraries.list_members(library),
@@ -363,6 +371,17 @@ defmodule PhoenixKitWeb.Live.Components.LibraryPreferences do
             "Access and address changes keep all files on their current storage. Renditions control the smaller copies generated for viewing."
           )}
         </p>
+        <button
+          :if={@can_add_storage and @backup_management_target}
+          type="button"
+          class="btn btn-outline btn-sm"
+          phx-click="open_dialog"
+          phx-target={@backup_management_target}
+          phx-value-kind="storage"
+          phx-value-uuid={@library_uuid}
+        >
+          {gettext("Storage and backups")}
+        </button>
         <form
           :if={@allowed and length(@rendition_options) > 1}
           id={"#{@id}-renditions-form"}

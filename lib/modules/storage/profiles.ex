@@ -855,6 +855,51 @@ defmodule PhoenixKit.Modules.Storage.Profiles do
 
   def create_user_profile(_owner_uuid, _buckets, _mode), do: {:error, :foreign_bucket}
 
+  @doc false
+  # Called only after Libraries authorizes the current library owner. Appends
+  # backups; never recomputes from Default or removes an existing primary.
+  def add_user_backups(profile_uuid, owner_uuid, buckets) do
+    transact(fn ->
+      current =
+        repo().one(
+          from(p in StorageProfile, where: p.uuid == ^profile_uuid, lock: "FOR NO KEY UPDATE")
+        )
+
+      profile = if current, do: preload_buckets(current)
+
+      cond do
+        is_nil(profile) or profile.owner_uuid != owner_uuid ->
+          {:error, :foreign_bucket}
+
+        buckets == [] or Enum.any?(buckets, &(&1.owner_uuid != owner_uuid)) ->
+          {:error, :foreign_bucket}
+
+        Enum.count(profile.buckets, &(&1.bucket.owner_uuid != nil)) + length(buckets) >
+            @max_user_buckets ->
+          {:error, :too_many_buckets}
+
+        profile.copies_local + profile.copies_cloud + length(buckets) > @max_copies ->
+          {:error, :copy_limit}
+
+        true ->
+          append_user_backups(profile, buckets)
+      end
+    end)
+  end
+
+  defp append_user_backups(profile, buckets) do
+    after_last = profile.buckets |> Enum.map(& &1.serve_order) |> Enum.max(fn -> 0 end)
+
+    rows =
+      buckets
+      |> Enum.with_index(after_last + 1)
+      |> Enum.map(fn {bucket, order} -> user_backup_row(bucket, order) end)
+
+    with :ok <- insert_user_profile_rows(profile, rows) do
+      update_profile(profile, %{copies_cloud: profile.copies_cloud + length(buckets)})
+    end
+  end
+
   @doc "How many of their own buckets one library may use (one main, the rest copies)."
   @spec max_user_buckets() :: pos_integer()
   def max_user_buckets, do: @max_user_buckets

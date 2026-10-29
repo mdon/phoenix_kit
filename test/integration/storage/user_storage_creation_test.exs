@@ -361,4 +361,156 @@ defmodule PhoenixKit.Modules.Storage.UserStorageCreationTest do
 
     assert {:error, :user_storage_locked} = Profiles.set_library_profile(library, nil)
   end
+
+  describe "adding backup storage to an existing library" do
+    test "appends a backup and increases copies while preserving primary and write requirements",
+         %{role: role} do
+      user = user!(role)
+      {:ok, library} = create(user, storage(user))
+      before = Profiles.for_library(library)
+      target = storage(user, %{"bucket_name" => "second-photos"})
+
+      assert {:ok, _} =
+               Libraries.add_user_storage(scope(user), library, target, probe: probe_ok())
+
+      after_profile = Profiles.for_library(library)
+      assert after_profile.uuid == before.uuid
+      assert after_profile.copies_cloud == before.copies_cloud + 1
+      assert after_profile.min_copies_on_write == before.min_copies_on_write
+      assert after_profile.revision > before.revision
+
+      assert Enum.find(after_profile.buckets, &(&1.role == "primary")).bucket_uuid ==
+               hd(before.buckets).bucket_uuid
+
+      assert [%{role: "backup", bucket: %{bucket_name: "second-photos"}}] =
+               Enum.filter(after_profile.buckets, &(&1.role == "backup"))
+    end
+
+    test "two integrations pointing at the same bucket cannot count as two copies", %{role: role} do
+      user = user!(role)
+      {:ok, library} = create(user, storage(user))
+
+      assert {:error, :duplicate_bucket} =
+               Libraries.add_user_storage(scope(user), library, storage(user), probe: probe_ok())
+
+      assert length(Storage.list_owned_buckets(user.uuid)) == 1
+    end
+
+    test "a failed probe changes neither the profile nor its buckets", %{role: role} do
+      user = user!(role)
+      {:ok, library} = create(user, storage(user))
+      before = Profiles.for_library(library)
+      targets = Storage.list_owned_buckets(user.uuid)
+
+      assert {:error, "denied"} =
+               Libraries.add_user_storage(
+                 scope(user),
+                 library,
+                 storage(user, %{"bucket_name" => "second-photos"}),
+                 probe: fn _ -> {:error, "denied"} end
+               )
+
+      assert Profiles.for_library(library) == before
+      assert Storage.list_owned_buckets(user.uuid) == targets
+    end
+
+    test "rejects duplicate buckets and the per-library cap without leaving rows behind", %{
+      role: role
+    } do
+      user = user!(role)
+      first = storage(user)
+      {:ok, library} = create(user, first)
+
+      assert {:error, :duplicate_bucket} =
+               Libraries.add_user_storage(scope(user), library, first, probe: probe_ok())
+
+      second = storage(user, %{"bucket_name" => "second-photos"})
+      third = storage(user, %{"bucket_name" => "third-photos"})
+
+      assert {:ok, _} =
+               Libraries.add_user_storage(scope(user), library, %{"targets" => [second, third]},
+                 probe: probe_ok()
+               )
+
+      assert {:error, :too_many_buckets} =
+               Libraries.add_user_storage(scope(user), library, storage(user), probe: probe_ok())
+
+      assert length(Storage.list_owned_buckets(user.uuid)) == 3
+    end
+
+    test "rejects another owner, a trashed library and revoked permission", %{role: role} do
+      user = user!(role)
+      {:ok, library} = create(user, storage(user))
+      target = storage(user)
+      other = user!(role)
+
+      assert {:error, :not_allowed} =
+               Libraries.add_user_storage(scope(other), library, target, probe: probe_ok())
+
+      stale_scope = scope(user)
+      :ok = Permissions.revoke_permission(role.uuid, "storage.own_storage")
+
+      assert {:error, :not_allowed} =
+               Libraries.add_user_storage(stale_scope, library, target, probe: probe_ok())
+
+      {:ok, _} = Permissions.grant_permission(role.uuid, "storage.own_storage")
+
+      {:ok, _} =
+        library
+        |> Ecto.Changeset.change(trashed_at: DateTime.truncate(DateTime.utc_now(), :second))
+        |> Repo.update()
+
+      assert {:error, :not_allowed} =
+               Libraries.add_user_storage(scope(user), library, target, probe: probe_ok())
+    end
+
+    test "refuses an integration changed after the probe instead of attaching untested credentials",
+         %{role: role} do
+      user = user!(role)
+      {:ok, library} = create(user, storage(user))
+      target = storage(user, %{"bucket_name" => "second-photos"})
+
+      probe = fn _ ->
+        {:ok, _} =
+          Integrations.save_setup(target["integration_uuid"], %{"access_key" => "changed"}, nil,
+            owner: {:user, user.uuid}
+          )
+
+        :ok
+      end
+
+      assert {:error, :storage_changed} =
+               Libraries.add_user_storage(scope(user), library, target, probe: probe)
+
+      assert length(Storage.list_owned_buckets(user.uuid)) == 1
+    end
+
+    test "refuses a foreign integration and preserves site primaries in backup mode", %{
+      role: role,
+      site: site
+    } do
+      user = user!(role)
+      {:ok, library} = create(user, storage(user, %{"mode" => "backup"}))
+
+      assert {:error, %Ecto.Changeset{}} =
+               Libraries.add_user_storage(
+                 scope(user),
+                 library,
+                 storage(user!(role), %{"bucket_name" => "foreign-photos"}),
+                 probe: probe_ok()
+               )
+
+      assert {:ok, _} =
+               Libraries.add_user_storage(
+                 scope(user),
+                 library,
+                 storage(user, %{"bucket_name" => "second-photos"}),
+                 probe: probe_ok()
+               )
+
+      profile = Profiles.for_library(library)
+      assert Enum.any?(profile.buckets, &(&1.bucket_uuid == site.uuid and &1.role == "primary"))
+      assert Enum.count(profile.buckets, &(&1.role == "backup")) == 2
+    end
+  end
 end

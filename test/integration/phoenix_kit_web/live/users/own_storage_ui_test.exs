@@ -617,6 +617,70 @@ defmodule PhoenixKitWeb.Live.Users.OwnStorageUITest do
     end
   end
 
+  test "an existing library can add backup storage and see progress", %{role: role} do
+    user = user!(role)
+    socket = user |> mount!() |> create(own(connection!(user)))
+    [%{library: library}] = socket.assigns.owned
+    second = connection!(user, %{}, "backup")
+    socket = event(socket, "open_dialog", %{"kind" => "storage", "uuid" => library.uuid})
+    assert html(socket) =~ "Storage and backups"
+    assert html(socket) =~ "Files awaiting updates: 0"
+
+    socket =
+      event(socket, "add_storage", %{
+        "library" =>
+          own(second, %{
+            "targets" => %{
+              "0" => %{"integration_uuid" => second, "bucket_name" => "backup-photos"}
+            }
+          })
+      })
+
+    assert {:success, message} = socket.assigns.message
+    assert message =~ "copied and verified"
+    assert Enum.count(Profiles.for_library(library).buckets, &(&1.role == "backup")) == 1
+  end
+
+  test "integration list and edit show usage, refuse removal and permit a safe rename", %{
+    conn: conn,
+    role: role
+  } do
+    user = user!(role)
+    uuid = connection!(user, %{"service" => "aws_s3", "region" => "eu-central-1"})
+    _socket = user |> mount!() |> create(own(uuid))
+    conn = log_in_user(conn, user)
+    {:ok, list, html} = live(conn, Routes.path("/profile/settings/integrations"))
+    assert html =~ "Used by"
+    assert html =~ "Photos"
+    assert html =~ "my-photos"
+    assert has_element?(list, "button[phx-click=remove_connection][disabled]")
+    html = render_click(list, "remove_connection", %{"uuid" => uuid})
+    assert html =~ "cannot be removed"
+    assert {:ok, _} = Integrations.get_integration_by_uuid(uuid, {:user, user.uuid})
+
+    {:ok, edit, html} = live(conn, Routes.path("/profile/settings/integrations/#{uuid}"))
+    assert html =~ "Used by"
+    assert html =~ "Photos"
+    refute html =~ "secret-value"
+    assert has_element?(edit, "input[type=hidden][name=service][value=aws_s3]")
+    refute has_element?(edit, "select[name=service]")
+    assert has_element?(edit, "button[phx-click=delete_connection][disabled]")
+    assert has_element?(edit, "fieldset[disabled] select[name=region]")
+    html = render_click(edit, "select_provider", %{"provider" => "telegram"})
+    refute html =~ "Bot Token"
+
+    render_submit(edit, "save", %{
+      "name" => "Safely renamed",
+      "access_key" => "AKIA",
+      "secret_key" => ""
+    })
+
+    render_async(edit)
+
+    assert {:ok, %{name: "Safely renamed", data: %{"secret_key" => "secret-value"}}} =
+             Integrations.get_integration_by_uuid(uuid, {:user, user.uuid})
+  end
+
   describe "the admin's view" do
     test "the list names the storage and never a credential", %{role: role} do
       user = user!(role)
@@ -649,7 +713,7 @@ defmodule PhoenixKitWeb.Live.Users.OwnStorageUITest do
   end
 
   describe "removing the connection a library's bucket uses" do
-    test "both personal pages say so before it stops working", %{conn: conn, role: role} do
+    test "both personal pages explain why removal is blocked", %{conn: conn, role: role} do
       user = user!(role)
       connection = connection!(user)
       _ = user |> mount!() |> create(own(connection))
@@ -657,10 +721,10 @@ defmodule PhoenixKitWeb.Live.Users.OwnStorageUITest do
       conn = log_in_user(conn, user)
 
       {:ok, _view, html} = live(conn, Routes.path("/profile/settings/integrations"))
-      assert html =~ "1 of your libraries keeps its files in a bucket that uses this connection"
+      assert html =~ "1 storage bucket uses this connection and prevents its removal."
 
       {:ok, _view, html} = live(conn, Routes.path("/profile/settings/integrations/#{connection}"))
-      assert html =~ "1 of your libraries keeps its files in a bucket that uses this connection"
+      assert html =~ "1 storage bucket uses this connection and prevents its removal."
     end
 
     test "a connection nothing uses keeps the plain question", %{conn: conn, role: role} do

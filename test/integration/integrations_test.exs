@@ -1,10 +1,14 @@
 defmodule PhoenixKit.Integration.IntegrationsTest do
-  use PhoenixKit.DataCase, async: true
+  # Validation broadcasts use a shared provider-wide topic; isolate mailbox assertions
+  # from the LiveView suites subscribing to the same topic.
+  use PhoenixKit.DataCase, async: false
 
   alias PhoenixKit.Integrations
   alias PhoenixKit.Integrations.Events
+  alias PhoenixKit.Modules.Storage.Bucket
   alias PhoenixKit.Settings
   alias PhoenixKit.Settings.Queries, as: SettingsQueries
+  alias PhoenixKit.Test.Repo
 
   # Helper: create a connection and (optionally) save credentials in
   # one shot, returning the row's uuid. Mirrors the
@@ -34,6 +38,116 @@ defmodule PhoenixKit.Integration.IntegrationsTest do
     current = Settings.get_json_setting_by_uuid(uuid) || %{}
     Settings.update_json_setting_with_module(uuid, Map.merge(current, attrs), "integrations")
     uuid
+  end
+
+  describe "storage dependency protection" do
+    test "disabled buckets protect removal, disconnection and credentials but allow rename" do
+      uuid =
+        setup_conn("object_storage", %{
+          "service" => "aws_s3",
+          "access_key" => "old",
+          "secret_key" => "secret"
+        })
+
+      Repo.insert!(%Bucket{
+        name: "Protected bucket",
+        provider: "s3",
+        bucket_name: "protected-test",
+        integration_uuid: uuid,
+        enabled: false
+      })
+
+      assert {:error, {:in_use, [_ | _]}} = Integrations.remove_connection(uuid)
+      assert {:error, {:in_use, [_ | _]}} = Integrations.disconnect(uuid)
+
+      assert {:error, {:storage_validation_failed, "Protected bucket"}} =
+               Integrations.save_setup(uuid, %{"access_key" => "new"}, nil,
+                 storage_probe: fn _ -> {:error, :denied} end
+               )
+
+      assert {:ok, _} = Integrations.rename_connection(uuid, "Renamed safely")
+      assert {:ok, %{data: %{"access_key" => "old"}}} = Integrations.get_integration_by_uuid(uuid)
+    end
+
+    test "key rotation checks every dependent bucket and preserves all old data on failure" do
+      uuid =
+        setup_conn("object_storage", %{
+          "service" => "aws_s3",
+          "access_key" => "old",
+          "secret_key" => "old-secret"
+        })
+
+      for n <- 1..2 do
+        Repo.insert!(%Bucket{
+          name: "Rotation #{n}",
+          provider: "s3",
+          bucket_name: "rotation-#{n}",
+          integration_uuid: uuid
+        })
+      end
+
+      assert {:error, {:storage_validation_failed, _}} =
+               Integrations.update_connection(uuid, "New name", %{"access_key" => "new"}, nil,
+                 storage_probe: fn _ -> {:error, :denied} end
+               )
+
+      assert {:ok, %{name: "default", data: %{"access_key" => "old"}}} =
+               Integrations.get_integration_by_uuid(uuid)
+
+      test = self()
+
+      assert {:ok, _} =
+               Integrations.save_setup(
+                 uuid,
+                 %{"access_key" => "new", "secret_key" => "new-secret"},
+                 nil,
+                 storage_probe: fn bucket ->
+                   assert bucket.integration_uuid == nil
+                   assert bucket.access_key_id == "new"
+                   assert bucket.secret_access_key == "new-secret"
+                   send(test, {:checked, bucket.bucket_name})
+                   :ok
+                 end
+               )
+
+      assert_received {:checked, "rotation-1"}
+      assert_received {:checked, "rotation-2"}
+      assert {:ok, %{data: %{"access_key" => "new"}}} = Integrations.get_integration_by_uuid(uuid)
+    end
+
+    test "storage destinations are protected and usage does not reveal a foreign connection" do
+      uuid =
+        setup_conn("object_storage", %{
+          "service" => "aws_s3",
+          "access_key" => "key",
+          "secret_key" => "secret"
+        })
+
+      Repo.insert!(%Bucket{
+        name: "Used",
+        provider: "s3",
+        bucket_name: "photos",
+        integration_uuid: uuid
+      })
+
+      assert {:error, :storage_destination_immutable} =
+               Integrations.save_setup(uuid, %{"region" => "eu-west-1"})
+
+      assert [%{bucket: "photos"}] = Integrations.usage(uuid)
+      assert [] == Integrations.usage(uuid, owner: {:user, UUIDv7.generate()})
+    end
+
+    test "an existing storage service cannot be switched" do
+      uuid =
+        setup_conn("object_storage", %{
+          "service" => "aws_s3",
+          "access_key" => "old",
+          "secret_key" => "secret"
+        })
+
+      assert {:error, :service_immutable} =
+               Integrations.save_setup(uuid, %{"service" => "cloudflare_r2"})
+    end
   end
 
   # ===========================================================================

@@ -112,14 +112,17 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   require Logger
 
   alias PhoenixKit.Integrations
+  alias PhoenixKit.Integrations.ConnectionLock
   alias PhoenixKit.Integrations.{ObjectStorageServices, Probe}
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.Audit
+  alias PhoenixKit.Modules.Storage.Endpoint
   alias PhoenixKit.Modules.Storage.File, as: StorageFile
   alias PhoenixKit.Modules.Storage.{Folder, Library, LibraryMember, Profiles, VariantSets}
   alias PhoenixKit.Modules.Storage.Providers.S3
   alias PhoenixKit.Modules.Storage.Workers.PurgeLibraryJob
   alias PhoenixKit.Settings
+  alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.{Scope, User}
 
   @media_uuid "00000000-0000-7000-8000-000000000001"
@@ -1609,6 +1612,7 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
              | {:storage, String.t() | Ecto.Changeset.t()}
              | Ecto.Changeset.t()}
   def create_user_library(scope, attrs, opts \\ []) do
+    scope = fresh_storage_scope(scope)
     attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
     {storage, attrs} = Map.pop(attrs, "storage")
     {visibility, attrs} = Map.pop(attrs, "visibility")
@@ -1631,6 +1635,80 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
         end
       end)
       |> tap(fn result -> log_published(result, scope) end)
+    end
+  end
+
+  @doc """
+  Adds backup storage to an existing library on its owner's own storage.
+
+  Only the owner with the current own-storage permission may act. Existing
+  primary buckets, copy counts and minimum writes are preserved. Every target
+  is probed before any database change; connection snapshots are checked again
+  under the same lock as credential edits and removal. Profile revisions queue
+  the reconciler, which verifies copies of existing files in the background.
+  """
+  def add_user_storage(scope, %Library{uuid: uuid}, params, opts \\ []) do
+    scope = fresh_storage_scope(scope)
+    user_uuid = Scope.user_uuid(scope)
+
+    with true <- may_use_own_storage?(scope) || {:error, :not_allowed},
+         %Library{kind: "user", owner_uuid: ^user_uuid, trashed_at: nil} = listed <-
+           get_library(uuid),
+         %{} = storage <- Profiles.user_storage_for([listed])[to_string(uuid)],
+         {:ok, targets} <- storage_targets(stringify(params), user_uuid),
+         :ok <- additional_targets_allowed(storage, targets),
+         :ok <- probe_targets(targets, user_uuid, Keyword.get(opts, :probe)) do
+      repo().transaction(fn ->
+        library =
+          repo().one(from(l in Library, where: l.uuid == ^uuid, lock: "FOR NO KEY UPDATE"))
+
+        with true <- may_use_own_storage?(fresh_storage_scope(scope)),
+             %Library{kind: "user", owner_uuid: ^user_uuid, trashed_at: nil} <- library,
+             %{} = storage <- Profiles.user_storage_for([library])[to_string(uuid)],
+             :ok <- additional_targets_allowed(storage, targets),
+             {:ok, buckets} <- create_owned_buckets(library, user_uuid, targets),
+             {:ok, _profile} <-
+               Profiles.add_user_backups(library.storage_profile_uuid, user_uuid, buckets) do
+          library
+        else
+          {:error, reason} -> repo().rollback(reason)
+          _ -> repo().rollback(:not_allowed)
+        end
+      end)
+    else
+      {:error, _} = error -> error
+      _ -> {:error, :not_allowed}
+    end
+  end
+
+  defp fresh_storage_scope(%Scope{} = scope) do
+    case Auth.get_user(Scope.user_uuid(scope)) do
+      %{is_active: true, api_only: false} = user -> Scope.for_user(user)
+      _ -> nil
+    end
+  end
+
+  defp fresh_storage_scope(_scope), do: nil
+
+  defp additional_targets_allowed(storage, targets) do
+    existing =
+      Enum.map(storage.buckets, fn %{bucket: bucket} ->
+        %{
+          "integration_uuid" => bucket.integration_uuid,
+          "bucket_name" => bucket.bucket_name,
+          "endpoint" => bucket.endpoint
+        }
+      end)
+
+    cond do
+      length(existing) + length(targets) > Profiles.max_user_buckets() ->
+        {:error, :too_many_buckets}
+
+      duplicate_targets?(existing ++ targets) ->
+        {:error, :duplicate_bucket}
+
+      true ->
+        :ok
     end
   end
 
@@ -1751,8 +1829,24 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   defp blank?(value), do: value in [nil, ""]
 
   defp duplicate_targets?(targets) do
-    keys = Enum.map(targets, &{&1["integration_uuid"], &1["bucket_name"]})
-    length(Enum.uniq(keys)) != length(keys)
+    connections = Enum.map(targets, &{&1["integration_uuid"], &1["bucket_name"]})
+    destinations = Enum.map(targets, &storage_destination/1)
+
+    length(Enum.uniq(connections)) != length(connections) or
+      length(Enum.uniq(destinations)) != length(destinations)
+  end
+
+  # Different credential rows pointing at the same bucket are one physical
+  # destination, so they cannot count as independent backup copies.
+  defp storage_destination(target) do
+    endpoint =
+      case Endpoint.parse(target["endpoint"]) do
+        %{host: host, port: port} -> {String.downcase(host), port}
+        nil -> :amazon_s3
+        _ -> target["endpoint"]
+      end
+
+    {endpoint, target["bucket_name"]}
   end
 
   # What the user's integration says about itself, for the fields the target
@@ -1760,19 +1854,23 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   # bucket changeset refuses a connection that is not the user's.
   defp fill_from_integration(%{"integration_uuid" => uuid} = target, user_uuid)
        when is_binary(uuid) and uuid != "" do
-    case integration_summary(user_uuid, uuid) do
-      nil ->
-        target
+    case Integrations.get_integration_by_uuid(uuid, {:user, user_uuid}) do
+      {:ok, %{provider: "object_storage", data: data}} ->
+        summary = integration_details(data)
 
-      summary ->
         target
         |> put_blank("provider", summary.provider)
         |> put_blank("region", summary.region)
         |> put_blank("endpoint", summary.endpoint)
+        |> Map.put("__connection_snapshot", connection_digest(data))
+
+      _ ->
+        Map.put(target, "__connection_snapshot", nil)
     end
   end
 
-  defp fill_from_integration(target, _user_uuid), do: target
+  defp fill_from_integration(target, _user_uuid),
+    do: Map.put(target, "__connection_snapshot", nil)
 
   defp put_blank(target, key, value) do
     if blank?(target[key]) and not blank?(value), do: Map.put(target, key, value), else: target
@@ -1796,15 +1894,7 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   def integration_summary(user_uuid, uuid) when is_binary(user_uuid) and is_binary(uuid) do
     case Integrations.get_integration_by_uuid(uuid, {:user, user_uuid}) do
       {:ok, %{provider: "object_storage", data: data}} ->
-        service = ObjectStorageServices.current(data)
-
-        %{
-          provider: ObjectStorageServices.bucket_provider(service),
-          service: service,
-          label: ObjectStorageServices.label(data),
-          region: presence(data["region"]),
-          endpoint: presence(data["endpoint"])
-        }
+        integration_details(data)
 
       _ ->
         nil
@@ -1812,6 +1902,18 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   end
 
   def integration_summary(_user_uuid, _uuid), do: nil
+
+  defp integration_details(data) do
+    service = ObjectStorageServices.current(data)
+
+    %{
+      provider: ObjectStorageServices.bucket_provider(service),
+      service: service,
+      label: ObjectStorageServices.label(data),
+      region: presence(data["region"]),
+      endpoint: presence(data["endpoint"])
+    }
+  end
 
   defp presence(value) when is_binary(value),
     do: if(String.trim(value) == "", do: nil, else: value)
@@ -1910,6 +2012,25 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
     end
   end
 
+  defp connection_snapshot(uuid, user_uuid) do
+    case Integrations.get_integration_by_uuid(uuid, {:user, user_uuid}) do
+      {:ok, %{provider: "object_storage", data: data}} ->
+        connection_digest(data)
+
+      _ ->
+        nil
+    end
+  end
+
+  defp connection_digest(data) do
+    :crypto.hash(
+      :sha256,
+      :erlang.term_to_binary(
+        Map.take(data, ~w(service access_key secret_key endpoint region account_id jurisdiction))
+      )
+    )
+  end
+
   # The probe runs before anything is written, as the user the bucket would
   # belong to: their connection, the strict endpoint policy. A bucket that does
   # not even pass the changeset is not probed.
@@ -1946,6 +2067,31 @@ defmodule PhoenixKit.Modules.Storage.Libraries do
   # One bucket row per target, in order. The first carries the library's name;
   # the others a number after it (the name is never shown to the user).
   defp create_owned_buckets(library, user_uuid, targets) do
+    uuids = targets |> Enum.map(& &1["integration_uuid"]) |> Enum.uniq() |> Enum.sort()
+
+    with_connection_locks(uuids, fn ->
+      unchanged? = Enum.all?(targets, &unchanged_connection?(&1, user_uuid))
+
+      if unchanged? do
+        insert_owned_buckets(library, user_uuid, targets)
+      else
+        {:error, :storage_changed}
+      end
+    end)
+  end
+
+  defp unchanged_connection?(target, user_uuid) do
+    snapshot = connection_snapshot(target["integration_uuid"], user_uuid)
+    snapshot != nil and snapshot == target["__connection_snapshot"]
+  end
+
+  defp with_connection_locks([], fun), do: fun.()
+
+  defp with_connection_locks([uuid | rest], fun) do
+    ConnectionLock.run(uuid, fn -> with_connection_locks(rest, fun) end)
+  end
+
+  defp insert_owned_buckets(library, user_uuid, targets) do
     targets
     |> Enum.with_index(1)
     |> Enum.reduce_while({:ok, []}, fn {params, n}, {:ok, acc} ->
