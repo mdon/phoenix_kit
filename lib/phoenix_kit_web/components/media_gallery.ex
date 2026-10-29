@@ -90,7 +90,7 @@ defmodule PhoenixKitWeb.Components.MediaGallery do
 
   - The host is not asked while the "Add" tile is hidden either — the
     selection is at `max_count`, or a `:single` gallery already holds a file
-    — the same as with the built-in picker.
+    — and a forged `open_picker` then is refused on the server.
   - Make the host's `handle_info` idempotent: every click sends a request, so
     a double click delivers two `{:open_picker, …}` messages.
   - Pass `media_selected` uuids without repeats; the gallery does not
@@ -200,7 +200,15 @@ defmodule PhoenixKitWeb.Components.MediaGallery do
 
   def handle_event("open_picker", _params, %{assigns: %{external_picker: true}} = socket) do
     %{selected: selected, mode: mode, max_count: max_count} = socket.assigns
-    notify_parent(socket, {:open_picker, %{selected: selected, mode: mode, max_count: max_count}})
+
+    # The "Add" tile is hidden at the limit; a forged click asks the host nothing.
+    unless selection_at_limit?(selected, mode, max_count) do
+      notify_parent(
+        socket,
+        {:open_picker, %{selected: selected, mode: mode, max_count: max_count}}
+      )
+    end
+
     {:noreply, socket}
   end
 

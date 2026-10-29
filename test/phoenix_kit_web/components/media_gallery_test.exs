@@ -692,6 +692,29 @@ defmodule PhoenixKitWeb.Components.MediaGalleryTest do
                        {:open_picker, %{selected: [], mode: :single, max_count: nil}}}
     end
 
+    test "a forged open_picker at max_count asks the host nothing" do
+      uuid1 = "01900000-0000-7000-8000-000000000001"
+      uuid2 = "01900000-0000-7000-8000-000000000002"
+
+      assigns =
+        gallery_assigns(selected: [uuid1, uuid2], external_picker: true)
+        |> Map.put(:max_count, 2)
+
+      {:noreply, _socket} = call_handle_event("open_picker", %{}, assigns)
+
+      refute_received {MediaGallery, _, _}
+    end
+
+    test "a forged open_picker on a full :single gallery asks the host nothing" do
+      assigns =
+        gallery_assigns(selected: ["01900000-0000-7000-8000-000000000001"], external_picker: true)
+        |> Map.put(:mode, :single)
+
+      {:noreply, _socket} = call_handle_event("open_picker", %{}, assigns)
+
+      refute_received {MediaGallery, _, _}
+    end
+
     test "the built-in picker modal is never rendered" do
       html = render(gallery_assigns(external_picker: true) |> Map.put(:show_picker, true))
 
