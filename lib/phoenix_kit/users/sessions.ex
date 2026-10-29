@@ -31,6 +31,7 @@ defmodule PhoenixKit.Users.Sessions do
   alias PhoenixKit.Users.ActiveRole
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.{KnownDevice, User, UserToken}
+  alias PhoenixKit.Users.Sessions.Revocation
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.IpAddress
   alias PhoenixKit.Utils.TimeZone
@@ -283,15 +284,14 @@ defmodule PhoenixKit.Users.Sessions do
   guessing a token uuid. Returns `:ok` or `{:error, :not_found}`.
   """
   def revoke_user_session(%User{uuid: user_uuid}, token_uuid) when is_binary(token_uuid) do
-    case Repo.delete_all(
+    case Revocation.delete_all(
            from(t in UserToken,
              where:
                t.uuid == ^token_uuid and t.user_uuid == ^user_uuid and t.context == "session",
              select: t.token
            )
          ) do
-      {1, revoked} ->
-        disconnect_tokens(revoked)
+      {1, _revoked} ->
         Events.broadcast_session_revoked(token_uuid)
         :ok
 
@@ -309,8 +309,8 @@ defmodule PhoenixKit.Users.Sessions do
 
   def revoke_other_user_sessions(%User{uuid: user_uuid}, current_token)
       when is_binary(current_token) do
-    {count, revoked} =
-      Repo.delete_all(
+    {count, _revoked} =
+      Revocation.delete_all(
         from(t in UserToken,
           where:
             t.user_uuid == ^user_uuid and t.context == "session" and t.token != ^current_token,
@@ -318,7 +318,6 @@ defmodule PhoenixKit.Users.Sessions do
         )
       )
 
-    disconnect_tokens(revoked)
     if count > 0, do: Events.broadcast_user_sessions_revoked(user_uuid, count)
     count
   end
@@ -428,14 +427,13 @@ defmodule PhoenixKit.Users.Sessions do
   end
 
   defp do_revoke_session(token_uuid) do
-    case Repo.delete_all(
+    case Revocation.delete_all(
            from(token in UserToken,
              where: token.uuid == ^token_uuid and token.context == "session",
              select: token.token
            )
          ) do
-      {1, revoked} ->
-        disconnect_tokens(revoked)
+      {1, _revoked} ->
         # Broadcast session revocation event
         Events.broadcast_session_revoked(token_uuid)
         :ok
@@ -455,7 +453,7 @@ defmodule PhoenixKit.Users.Sessions do
   @spec revoke_user_sessions_in_role(User.t(), String.t()) :: non_neg_integer()
   def revoke_user_sessions_in_role(%User{uuid: user_uuid}, role_uuid) when is_binary(role_uuid) do
     {count, revoked} =
-      Repo.delete_all(
+      Revocation.delete_all(
         from(token in UserToken,
           where:
             token.user_uuid == ^user_uuid and token.context == "session" and
@@ -464,7 +462,6 @@ defmodule PhoenixKit.Users.Sessions do
         )
       )
 
-    disconnect_tokens(Enum.map(revoked, & &1.token))
     Enum.each(revoked, &Events.broadcast_session_revoked(&1.uuid))
     count
   end
@@ -513,15 +510,13 @@ defmodule PhoenixKit.Users.Sessions do
   defp can_revoke_sessions_now?(_target, _actor), do: false
 
   defp do_revoke_user_sessions(%User{uuid: user_uuid}) do
-    {count, revoked} =
-      Repo.delete_all(
+    {count, _revoked} =
+      Revocation.delete_all(
         from(token in UserToken,
           where: token.user_uuid == ^user_uuid and token.context == "session",
           select: token.token
         )
       )
-
-    disconnect_tokens(revoked)
 
     # Broadcast user sessions revocation event
     if count > 0 do

@@ -74,7 +74,8 @@ defmodule PhoenixKit.Users.Auth do
   alias PhoenixKit.Modules.Storage
   alias PhoenixKit.Modules.Storage.Libraries
   alias PhoenixKit.Users.Auth.{User, UserNotifier, UserToken}
-  alias PhoenixKit.Users.{CustomFields, RateLimiter, Role, Roles, Sessions, WelcomeEmail}
+  alias PhoenixKit.Users.{CustomFields, RateLimiter, Role, Roles, WelcomeEmail}
+  alias PhoenixKit.Users.Sessions.Revocation
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.FileHash
   alias PhoenixKit.Utils.Geolocation
@@ -900,12 +901,12 @@ defmodule PhoenixKit.Users.Auth do
     multi = Ecto.Multi.update(multi, :user, changeset)
 
     multi
-    |> Ecto.Multi.delete_all(:tokens, revoked_tokens_query(user))
-    |> Repo.transaction()
+    |> Revocation.multi_delete_all(:tokens, revoked_tokens_query(user),
+      except_token: opts[:except_token]
+    )
+    |> Revocation.transaction()
     |> case do
-      {:ok, %{user: user, tokens: {_count, revoked}}} ->
-        disconnect_revoked_sessions(revoked, except_token: opts[:except_token])
-
+      {:ok, %{user: user, tokens: {_count, _revoked}}} ->
         PhoenixKit.Activity.log(%{
           action: "user.password_changed",
           module: "users",
@@ -1021,7 +1022,7 @@ defmodule PhoenixKit.Users.Auth do
     multi = Ecto.Multi.update(multi, :user, changeset)
 
     multi =
-      Ecto.Multi.delete_all(multi, :tokens, revoked_tokens_query(user))
+      Revocation.multi_delete_all(multi, :tokens, revoked_tokens_query(user))
 
     # Add audit logging if context is provided
     multi =
@@ -1050,10 +1051,9 @@ defmodule PhoenixKit.Users.Auth do
       end
 
     multi
-    |> Repo.transaction()
+    |> Revocation.transaction()
     |> case do
-      {:ok, %{user: user, tokens: {_count, revoked}}} ->
-        disconnect_revoked_sessions(revoked)
+      {:ok, %{user: user, tokens: {_count, _revoked}}} ->
         admin_user = Map.get(context, :admin_user)
 
         PhoenixKit.Activity.log(%{
@@ -1483,53 +1483,24 @@ defmodule PhoenixKit.Users.Auth do
   `live_socket_id`; the repeat is idempotent.
   """
   def delete_user_session_token(token) do
-    Repo.delete_all(UserToken.by_token_and_context_query(token, "session"))
-    Sessions.disconnect_tokens([token])
+    Revocation.delete_all(UserToken.by_token_and_context_query(token, "session"))
     :ok
   end
 
-  # Every path that rotates a credential deletes ALL of the user's tokens, so
-  # each one also has to close the sockets those sessions were holding open.
-  # `delete_all` only reports what it deleted when the query selects it, and the
-  # raw token is the only way to address the socket once the row is gone.
+  # Keep delete_all's selected result for callers; the shared drain also
+  # captures dependent organization sockets under the source session locks.
   defp revoked_tokens_query(user) do
     from(t in UserToken.by_user_and_contexts_query(user, :all),
       select: %{token: t.token, context: t.context}
     )
   end
 
-  # Picks the session tokens out of a `:all` delete — the rest are one-shot
-  # email tokens with no socket behind them. `:except_token` is the browser
-  # that still has work to do on this request (see `update_user_password/4`).
-  defp disconnect_revoked_sessions(revoked, opts \\ []) do
-    except = opts[:except_token]
-
-    revoked
-    |> Enum.filter(&(&1.context == "session"))
-    |> Enum.map(& &1.token)
-    |> Enum.reject(&(&1 == except))
-    |> Sessions.disconnect_tokens()
-  end
-
   @doc """
-  Deletes all session tokens for the given user and disconnects their open
-  LiveView sockets.
-
-  This function is useful when you need to force logout a user from all sessions,
-  for example when their roles change and they need fresh authentication.
-
-  The disconnect is part of the drain rather than each caller's job: deleting
-  the row only ends the session at the next request, while an already-connected
-  socket keeps its authenticated assigns until it re-mounts. "Force logout" that
-  leaves the open tab working is the failure mode this exists to prevent.
+  Deletes all session tokens for the user, including dependent organization
+  sessions, and disconnects their sockets after commit.
   """
   def delete_all_user_session_tokens(user) do
-    {_count, revoked} =
-      Repo.delete_all(
-        from(t in UserToken.by_user_and_contexts_query(user, ["session"]), select: t.token)
-      )
-
-    Sessions.disconnect_tokens(revoked)
+    Revocation.delete_all(UserToken.by_user_and_contexts_query(user, ["session"]))
     :ok
   end
 
@@ -1686,14 +1657,13 @@ defmodule PhoenixKit.Users.Auth do
     # only the transition the database sees enqueues the welcome email.
     |> WelcomeEmail.track_transition(user)
     |> Ecto.Multi.update(:user, changeset)
-    |> Ecto.Multi.delete_all(:tokens, revoked_tokens_query(user))
+    |> Revocation.multi_delete_all(:tokens, revoked_tokens_query(user))
     # Enqueued in this transaction — and in the OAuth callback's around it —
     # so a rollback takes the welcome email with the confirmation.
     |> WelcomeEmail.multi()
-    |> Repo.transaction()
+    |> Revocation.transaction()
     |> case do
-      {:ok, %{user: confirmed_user, tokens: {_count, revoked}}} ->
-        disconnect_revoked_sessions(revoked)
+      {:ok, %{user: confirmed_user, tokens: {_count, _revoked}}} ->
         Events.broadcast_user_confirmed(confirmed_user)
         {:ok, confirmed_user}
 
@@ -1910,12 +1880,10 @@ defmodule PhoenixKit.Users.Auth do
     multi = Ecto.Multi.update(multi, :user, User.password_changeset(user, attrs))
 
     multi
-    |> Ecto.Multi.delete_all(:tokens, revoked_tokens_query(user))
-    |> Repo.transaction()
+    |> Revocation.multi_delete_all(:tokens, revoked_tokens_query(user))
+    |> Revocation.transaction()
     |> case do
-      {:ok, %{user: user, tokens: {_count, revoked}}} ->
-        disconnect_revoked_sessions(revoked)
-
+      {:ok, %{user: user, tokens: {_count, _revoked}}} ->
         PhoenixKit.Activity.log(%{
           action: "user.password_reset",
           module: "users",
@@ -3710,7 +3678,10 @@ defmodule PhoenixKit.Users.Auth do
 
   # Execute the deletion within a transaction
   defp execute_user_deletion(%User{} = user, opts) do
-    Repo.transaction(fn ->
+    Revocation.transaction(fn ->
+      Repo.one(from(u in User, where: u.uuid == ^user.uuid, lock: "FOR UPDATE"))
+      Revocation.delete_all(UserToken.by_user_and_contexts_query(user, :all))
+
       # 1. Delete cascade data (related records that should be fully removed)
       delete_cascade_data(user)
 

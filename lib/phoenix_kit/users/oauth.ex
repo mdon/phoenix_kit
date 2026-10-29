@@ -16,6 +16,7 @@ if Code.ensure_loaded?(Ueberauth) do
     alias PhoenixKit.Users.Auth.User
     alias PhoenixKit.Users.OAuthProvider
     alias PhoenixKit.Users.Referrals
+    alias PhoenixKit.Users.Sessions.Revocation
     alias PhoenixKit.Utils.Routes
 
     require Logger
@@ -29,7 +30,7 @@ if Code.ensure_loaded?(Ueberauth) do
       ip_address = Keyword.get(opts, :ip_address)
       referral_code = Keyword.get(opts, :referral_code)
 
-      Repo.transaction(fn ->
+      Revocation.transaction(fn ->
         with {:ok, user, _status} <-
                find_or_create_user(oauth_data, track_geolocation, ip_address),
              {:ok, _provider} <- link_oauth_provider(user, oauth_data),

@@ -58,6 +58,7 @@ defmodule PhoenixKit.Users.Roles do
   alias PhoenixKit.Users.Permissions
   alias PhoenixKit.Users.{Role, RoleAssignment, ScopeNotifier}
   alias PhoenixKit.Users.Sessions
+  alias PhoenixKit.Users.Sessions.Revocation
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
   @doc """
@@ -1233,7 +1234,7 @@ defmodule PhoenixKit.Users.Roles do
     repo = RepoHelper.repo()
     actor = actor_context(Keyword.get(opts, :actor, :system))
 
-    case repo.transaction(fn ->
+    case Revocation.transaction(fn ->
            # Serialize concurrent role edits for THIS user (per-user key, so
            # different users never contend), so before/after reflect only this
            # transaction's changes — an exact audit, and no interleaving.

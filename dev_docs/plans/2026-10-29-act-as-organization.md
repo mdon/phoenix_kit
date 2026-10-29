@@ -638,6 +638,12 @@ a site admin. They are managers after all.
   (the token's `organization_manager_uuid` row, re-read, for this
   organization and this acting person). Never "the actor is the organization"
   (§6). Managers cannot convert, deactivate or delete the organization.
+  The admin branch must prove **own session**, too: a bare `User` or `Scope`
+  cannot distinguish an Admin's login from a support impersonation of that
+  Admin (`MultiSession.impersonated?/1` derives this from the signed cookie's
+  stack). Carry current and root session references from that trusted session
+  into the manager context; never construct them from event params. The
+  acting-manager branch rechecks the token-bound grant and parent session.
 - **Accepted risk:** a manager can remove every other manager. Every add and
   remove is an activity row (`organization.manager_added`,
   `organization.manager_removed`), logged on **row create / delete** (accept
@@ -742,14 +748,15 @@ First foundation batch (part of phase 1):
   routing, and `.invalid` recipient filtering at both mail transports.
 - [ ] Dedicated creation/conversion contexts, referral satisfaction and
   credential-settings/automatic timezone guards (remaining phase 1 work).
-- [ ] Transactional dependent-token collection, disconnects and concurrent
+- [x] Transactional dependent-token collection, disconnects and concurrent
   lifecycle tests; these must precede exposing managed-account creation.
 - [ ] Switching, attribution, managers UI/invitations, full display audit,
   translations and CRM integration (phases 2–4).
 
 No public managed-account creation, conversion or acting-session minting is
-exposed by this batch. Database-cascade tests prove token deletion; they do
-not yet prove dependent socket disconnects, which remain work above.
+exposed by these foundation batches. The first batch proved database
+cascades; the second batch below adds post-commit socket disconnects and
+the real concurrent-transaction tests.
 
 Validation of this batch:
 
@@ -762,6 +769,42 @@ Validation of this batch:
 - V226's 27 generated manifest objects match the real catalog in `public`
   and in the named-prefix full-chain test. Migration rerun, down/up,
   constraint enforcement and an empty `search_path` are covered.
+
+Second batch — session revocation (complete):
+
+- [x] Shared token/grant drain locks the source rows before collecting
+  dependent sessions, and deletes exactly that locked set.
+- [x] All `Sessions` revoke functions and `Auth` token drains / credential
+  rotations use it; person/organization deletion collects before cascades.
+- [x] Disconnects are deferred to commit and discarded on rollback. Core
+  transaction wrappers share one collector; a call inside a host-owned repo
+  transaction observes that transaction's outcome from another connection.
+  Before broadcasting, re-check that the tokens are absent, so a rolled-back
+  savepoint cannot disconnect a restored session. No raw token goes into a
+  database notification, job argument or log.
+- [x] Real-connection tests cover commit/rollback, nested transactions,
+  savepoints, and token insert racing a person-session or manager-grant revoke.
+
+Implementation: `PhoenixKit.Users.Sessions.Revocation`. Core-owned
+transactions share a collector. For host-owned transactions, a task polls
+`pg_xact_status` on an independent connection, without holding a connection
+between polls; raw tokens remain only in memory. Both paths check token
+absence before broadcasting, including after a savepoint rollback.
+
+Validation:
+
+- Broader authentication regression run: **153 tests, 0 failures** (passwords,
+  OAuth, role removal, session authority, deletion and multi-session flows).
+- Final targeted run: **54 tests, 0 failures**, including 17 lifecycle/drain
+  tests and 11 real-connection transaction/race cases. It also covers a full
+  task supervisor and captures debug SQL logs to check token secrecy.
+- `mix precommit` passed, including all **480 JavaScript tests**.
+- These runs used a fresh PostgreSQL test database. The full-suite result
+  above belongs to the first foundation batch; this batch ran the relevant
+  regression suites rather than repeating the full suite.
+
+Last-manager protection, creation/conversion and the account switcher remain
+pending; completing the drain alone does not expose managed accounts.
 
 ## Tests
 

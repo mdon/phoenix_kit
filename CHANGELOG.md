@@ -9,6 +9,10 @@
   until the rest of the organization lifecycle is implemented.
 - Account mail uses a managed organization's contact address, and the mailer
   removes reserved `.invalid` recipients from To, Cc and Bcc.
+- Session revocation collects dependent organization sessions under row locks
+  and disconnects their sockets after commit, including credential changes,
+  user deletion and calls inside host-owned transactions. Rollbacks and
+  savepoint rollbacks preserve restored sessions.
 
 **Core no longer creates the tables of the optional modules, and the database layer for email templates is gone.** An
 existing install must be at **V225** (the last 2.x release, 2.65.0) before it upgrades: below that,
