@@ -8858,6 +8858,7 @@ if (typeof window.Chart === "undefined") {
           e.dataTransfer.setData("text/plain", el.dataset.draggableFile);
           e.dataTransfer.effectAllowed = "move";
           self._dragOrigin = dragOrigin(el);
+          self._internalDrag = true;
           // Batch mode: if the dragged item is part of the current
           // selection, the drag moves the WHOLE selection. Marker type
           // `application/x-pk-batch` tells the drop handler to fire the
@@ -8879,6 +8880,7 @@ if (typeof window.Chart === "undefined") {
         el.removeEventListener("dragend", el._dragend);
         el._dragend = function() {
           self._dragOrigin = null;
+          self._internalDrag = false;
           if (self._draggedBatch) {
             setBatchVisuals(false);
             self._draggedBatch = false;
@@ -8914,6 +8916,7 @@ if (typeof window.Chart === "undefined") {
           e.dataTransfer.effectAllowed = "move";
           self._draggedFolderUuid = el.dataset.draggableFolder;
           self._dragOrigin = dragOrigin(el);
+          self._internalDrag = true;
           // Batch mode (same logic as the file dragstart above): if
           // the folder is part of the current selection, the drag
           // represents the whole selection. The folder-marker stays
@@ -8936,6 +8939,7 @@ if (typeof window.Chart === "undefined") {
         el._folderDragend = function() {
           self._draggedFolderUuid = null;
           self._dragOrigin = null;
+          self._internalDrag = false;
           if (self._draggedBatch) {
             setBatchVisuals(false);
             self._draggedBatch = false;
@@ -8992,10 +8996,33 @@ if (typeof window.Chart === "undefined") {
         });
       }
 
+      // Files dragged in from the computer, not a card of this page.
+      function fromComputer(e) {
+        return !self._internalDrag && e.dataTransfer &&
+          Array.prototype.indexOf.call(e.dataTransfer.types || [], "Files") !== -1;
+      }
+
       var dropTargets = document.querySelectorAll("[data-drop-folder]");
       dropTargets.forEach(function(target) {
         target.removeEventListener("dragover", target._dragover);
         target._dragover = function(e) {
+          // Files from the computer are an upload, not a move: only the zone
+          // of the folder being shown (`data-drop-upload`) takes them —
+          // outlined a little outside the cards, dashed — and the drop
+          // carries on up to FolderDropUpload, which uploads them. Folder
+          // cards and the sidebar stay dark so the outline is where they go.
+          if (fromComputer(e)) {
+            if (target.dataset.dropUpload !== "true") return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+            if (self._activeDropTarget && self._activeDropTarget !== target) {
+              clearHighlight(self._activeDropTarget);
+            }
+            self._activeDropTarget = target;
+            target.style.outline = "2px dashed var(--color-primary)";
+            target.style.outlineOffset = "6px";
+            return;
+          }
           var isFolder = e.dataTransfer.types.indexOf("application/x-pk-folder") !== -1;
           if (isFolder && target.dataset.dropFolder === self._draggedFolderUuid) {
             // Drop-on-self for a folder — skip preventDefault so the
@@ -9073,6 +9100,12 @@ if (typeof window.Chart === "undefined") {
 
         target.removeEventListener("drop", target._drop);
         target._drop = function(e) {
+          if (fromComputer(e)) {
+            // Left for FolderDropUpload, further up, to upload.
+            clearHighlight(target);
+            if (self._activeDropTarget === target) self._activeDropTarget = null;
+            return;
+          }
           e.preventDefault();
           e.stopPropagation();
           clearHighlight(target);
@@ -10031,12 +10064,17 @@ if (typeof window.Chart === "undefined") {
       var el = this.el;
       var dragCounter = 0;
 
+      // The folder being shown paints its own upload outline
+      // (`[data-drop-upload]`, MediaDragDrop); the ring here is for views
+      // without one (all files).
+      var ringed = function() { return !el.querySelector('[data-drop-upload="true"]'); };
+
       el.addEventListener("dragenter", function(e) {
         // Only respond to external file drags, not internal file-to-folder moves
         if (!e.dataTransfer.types.includes("Files")) return;
         e.preventDefault();
         dragCounter++;
-        if (dragCounter === 1) {
+        if (dragCounter === 1 && ringed()) {
           el.classList.add("ring-2", "ring-primary", "ring-dashed", "bg-primary/5");
         }
       });
@@ -10048,8 +10086,11 @@ if (typeof window.Chart === "undefined") {
       });
 
       el.addEventListener("dragleave", function(e) {
+        // Counted like dragenter, Files only: a card dragged about the page
+        // drove it negative and the next upload's ring never showed.
+        if (!e.dataTransfer.types.includes("Files")) return;
         e.preventDefault();
-        dragCounter--;
+        dragCounter = Math.max(0, dragCounter - 1);
         if (dragCounter === 0) {
           el.classList.remove("ring-2", "ring-primary", "ring-dashed", "bg-primary/5");
         }
