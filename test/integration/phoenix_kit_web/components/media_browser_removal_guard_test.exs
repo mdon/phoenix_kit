@@ -103,12 +103,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowserRemovalGuardTest do
        socket
        |> assign(:phoenix_kit_current_user, session["user"])
        |> MediaBrowser.setup_uploads()
-       |> tap(fn _ ->
-         if locale = (session["opts"] || %{})[:locale] do
-           Gettext.put_locale(PhoenixKitWeb.Gettext, locale)
-           Gettext.put_locale(locale)
-         end
-       end)
+       |> tap(fn _ -> put_locale((session["opts"] || %{})[:locale]) end)
        |> assign(scope: session["scope"], opts: session["opts"] || %{})}
     end
 
@@ -127,6 +122,13 @@ defmodule PhoenixKitWeb.Components.MediaBrowserRemovalGuardTest do
         phoenix_kit_current_user={@phoenix_kit_current_user}
       />
       """
+    end
+
+    defp put_locale(nil), do: :ok
+
+    defp put_locale(locale) do
+      Gettext.put_locale(PhoenixKitWeb.Gettext, locale)
+      Gettext.put_locale(locale)
     end
 
     def handle_event("validate", _params, socket), do: {:noreply, socket}
