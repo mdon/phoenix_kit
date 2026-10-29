@@ -8542,7 +8542,9 @@ if (typeof window.Chart === "undefined") {
     if (!area || !root.contains(area)) return;
     if (e.target.closest(NOT_EMPTY)) return;
 
+    if (root.__pkCancelBox) root.__pkCancelBox();
     var additive = e.shiftKey || e.metaKey || e.ctrlKey;
+    var previousUserSelect = document.documentElement.style.userSelect;
     // Content coordinates: the press point travels with the content
     // when the column scrolls.
     var start = { x: e.clientX, y: e.clientY, scroll: area.scrollTop };
@@ -8612,6 +8614,7 @@ if (typeof window.Chart === "undefined") {
     }
 
     function finish(commit) {
+      if (root.__pkCancelBox === cancel) root.__pkCancelBox = null;
       window.removeEventListener("pointermove", onMove, true);
       window.removeEventListener("pointerup", onUp, true);
       window.removeEventListener("pointercancel", onCancel, true);
@@ -8624,7 +8627,7 @@ if (typeof window.Chart === "undefined") {
       hits.forEach(function(el) { mark(el, false); });
       box.remove();
       box = null;
-      document.documentElement.style.userSelect = "";
+      document.documentElement.style.userSelect = previousUserSelect;
       // The click this release makes belongs to the box, not the page.
       var swallow = function(ev) { ev.stopPropagation(); ev.preventDefault(); };
       window.addEventListener("click", swallow, true);
@@ -8653,6 +8656,7 @@ if (typeof window.Chart === "undefined") {
     }
 
     function onMove(ev) {
+      if (ev.pointerId !== e.pointerId) return;
       last = { x: ev.clientX, y: ev.clientY };
       if (!box) {
         if (Math.abs(last.x - start.x) < THRESHOLD && Math.abs(last.y - start.y) < THRESHOLD) return;
@@ -8662,8 +8666,9 @@ if (typeof window.Chart === "undefined") {
       if (!raf) raf = requestAnimationFrame(paint);
       if (!scrollRaf) scrollRaf = requestAnimationFrame(autoScroll);
     }
-    function onUp() { finish(true); }
-    function onCancel() { finish(false); }
+    function onUp(ev) { if (ev.pointerId === e.pointerId) finish(true); }
+    function onCancel(ev) { if (ev.pointerId === e.pointerId) finish(false); }
+    function cancel() { finish(false); }
     function onKey(ev) {
       if (ev.key === "Escape" && box) {
         ev.preventDefault();
@@ -8672,6 +8677,7 @@ if (typeof window.Chart === "undefined") {
       }
     }
 
+    root.__pkCancelBox = cancel;
     window.addEventListener("pointermove", onMove, true);
     window.addEventListener("pointerup", onUp, true);
     window.addEventListener("pointercancel", onCancel, true);
@@ -8733,6 +8739,10 @@ if (typeof window.Chart === "undefined") {
     ).filter(function(el) { return el.offsetParent; });
     var to = cards.indexOf(card);
     var from = -1;
+    // Escape / Clear ends the old range even when its anchor is still on
+    // screen. The next Shift-click starts a new selection at this card.
+    if (!root.querySelector('[data-selected="true"]') &&
+        !(parseInt(root.dataset.selectionCount || "0", 10) > 0)) rangeAnchor = null;
     if (rangeAnchor && rangeAnchor.root === root.id) {
       from = cards.findIndex(function(el) { return cardKey(el) === rangeAnchor.key; });
     }
@@ -8783,6 +8793,7 @@ if (typeof window.Chart === "undefined") {
     },
 
     destroyed: function() {
+      if (this.el.__pkCancelBox) this.el.__pkCancelBox();
       if (this.el.__pkBoxHook === this) this.el.__pkBoxHook = null;
     },
 

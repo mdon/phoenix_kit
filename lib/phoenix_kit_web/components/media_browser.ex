@@ -3173,8 +3173,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # without the modifier, clears the selection.
   def handle_event("box_select", params, socket) do
     {on_screen_files, on_screen_folders} = selectable_on_screen(socket)
-    files = params |> Map.get("files", []) |> box_uuids(on_screen_files)
-    folders = params |> Map.get("folders", []) |> box_uuids(on_screen_folders)
+    files = params |> Map.get("files", []) |> box_uuids(on_screen_files) |> MapSet.new()
+    folders = params |> Map.get("folders", []) |> box_uuids(on_screen_folders) |> MapSet.new()
 
     {files, folders} =
       if params["additive"] == true do
@@ -3975,10 +3975,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   end
 
   defp box_uuids(list, allowed) when is_list(list) do
-    list |> Enum.filter(&is_binary/1) |> MapSet.new() |> MapSet.intersection(allowed)
+    Enum.filter(list, &(is_binary(&1) and MapSet.member?(allowed, &1)))
   end
 
-  defp box_uuids(_other, _allowed), do: MapSet.new()
+  defp box_uuids(_other, _allowed), do: []
 
   defp exit_select_mode(socket) do
     socket
