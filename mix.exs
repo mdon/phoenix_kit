@@ -362,8 +362,15 @@ defmodule PhoenixKit.MixProject do
       # the failure names neither library. The same holds for etcher: 0.23 is
       # the first that admits fresco 0.15 (it also brings a scaling and
       # turning selection frame), so the etcher floor moves with fresco's.
+      #
+      # 0.24 is the first that sizes an inserted image to what is on screen.
+      # Before it a pasted, dropped or inserted image was capped at 800 canvas
+      # units and never enlarged: on a large board at its default zoom that is
+      # a speck a person has to scale up by hand, on every paste. Core is what
+      # serves etcher's JS to the media viewer and to the boards module's
+      # canvases, so a host resolving 0.23 here is the one that keeps that.
       {:tessera, "~> 0.3.10"},
-      {:etcher, "~> 0.23.0"},
+      {:etcher, "~> 0.24.0"},
 
       # QR device-handoff login ("scan to sign in" on the login page).
       #
