@@ -3023,6 +3023,19 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         {:error, :managed} ->
           {:noreply, put_flash(socket, :error, managed_folder_message())}
 
+        {:error, :in_use} ->
+          # What could go went; the folders that still hold a file in use stayed.
+          {:noreply,
+           socket
+           |> reload_folder_lists()
+           |> reload_current_page()
+           |> put_flash(
+             :error,
+             gettext(
+               "Some files in this folder are in use by something else, so they and their folders were kept."
+             )
+           )}
+
         {:error, reason} ->
           Logger.warning(
             "[MediaBrowser] delete_folder #{folder.uuid} failed: #{inspect(reason, limit: 5)}"
@@ -4276,8 +4289,8 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
           if file.status == "trashed" && Storage.within_scope?(file.folder_uuid, scope) &&
                file.uuid not in removal_except(socket) &&
                (is_nil(removal_only(socket)) or file.uuid in removal_only(socket)),
-            do: Storage.delete_file_completely(file),
-            else: {:error, :not_removable}
+             do: Storage.delete_file_completely(file),
+             else: {:error, :not_removable}
         end)
       else
         # Soft-delete to trash — folder-aware: a file only LINKED into the
@@ -4325,15 +4338,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
             inspect(Enum.uniq(failed), limit: 5)
         )
 
-        put_flash(
-          socket,
-          :error,
-          ngettext(
-            "%{count} item could not be removed.",
-            "%{count} items could not be removed.",
-            length(failed)
-          )
-        )
+        put_flash(socket, :error, not_removed_message(failed))
       else
         socket
       end
@@ -4437,8 +4442,15 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
           {:noreply, log_refused(socket, "delete_file", "a picker deletes nothing for good")}
 
         file.status == "trashed" and Storage.within_scope?(file.folder_uuid, scope) ->
-          Storage.delete_file_completely(file)
-          {:noreply, removed(socket, file_uuid, gettext("File permanently deleted"))}
+          # A file that something else still uses is kept, and the message says
+          # so; the viewer stays open on it.
+          case permanent_delete_flash(Storage.delete_file_completely(file)) do
+            {:info, flash} ->
+              {:noreply, removed(socket, file_uuid, flash)}
+
+            {:error, message} ->
+              {:noreply, socket |> put_flash(:error, message) |> reload_current_page()}
+          end
 
         true ->
           result = Storage.remove_file_from_folder(file, viewed)
@@ -5757,6 +5769,20 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   defp assign_removal_guarded(socket),
     do: assign(socket, :removal_guarded, not is_nil(Removal.guard(socket.assigns)))
 
+  # What a permanent delete of one file answers. The message says why when the file
+  # is in use: pressing Delete and being told nothing — or told it worked — is
+  # the failure this replaces.
+  defp permanent_delete_flash({:ok, _}), do: {:info, gettext("File permanently deleted")}
+
+  defp permanent_delete_flash({:error, :in_use}),
+    do:
+      {:error,
+       gettext(
+         "This file is in use by something else (a comment, for instance), so it can't be deleted."
+       )}
+
+  defp permanent_delete_flash(_), do: {:error, gettext("Failed to remove file")}
+
   defp removal_flash({:ok, :trashed, _}), do: gettext("File moved to trash")
   defp removal_flash({:ok, _unlinked_or_rehomed, _}), do: gettext("File removed from this folder")
   defp removal_flash(_), do: gettext("Failed to move file")
@@ -6716,6 +6742,35 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   defp ok_tuple(:ok), do: {:ok, nil}
   defp ok_tuple(result) when is_tuple(result) and elem(result, 0) == :ok, do: {:ok, result}
   defp ok_tuple(other), do: other
+
+  # What to tell the person about the items that stayed. A file or folder that
+  # something else still uses (a comment attachment, say) is not a failure of
+  # theirs or of the system; it is named as that, and the rest — if any — is not.
+  defp not_removed_message(failed) do
+    in_use = Enum.count(failed, &match?({:error, :in_use}, &1))
+    other = length(failed) - in_use
+
+    [
+      if(in_use > 0,
+        do:
+          ngettext(
+            "%{count} item is in use by something else and was kept.",
+            "%{count} items are in use by something else and were kept.",
+            in_use
+          )
+      ),
+      if(other > 0,
+        do:
+          ngettext(
+            "%{count} item could not be removed.",
+            "%{count} items could not be removed.",
+            other
+          )
+      )
+    ]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join(" ")
+  end
 
   defp deleted_selection_message(count, true = _permanent),
     do: ngettext("%{count} item permanently deleted", "%{count} items permanently deleted", count)
