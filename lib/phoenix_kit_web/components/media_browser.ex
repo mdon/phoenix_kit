@@ -366,9 +366,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
   # A component's flash never reaches the page — LiveView keeps it to the
   # component — and this browser said everything with `put_flash`: every
   # delete, move, restore, rename and their failures went unseen. Its
-  # `put_flash` hands the message to the host LiveView instead
+  # `put_flash` also hands the message to the host LiveView
   # (`parent_flash/3`, put by `handle_parent_info/2`, which every host gets
-  # from `MediaBrowser.Embed`).
+  # from `MediaBrowser.Embed`). The component keeps its own copy as well, as
+  # it always did, for anything that reads the component's state.
   import Phoenix.LiveView, except: [put_flash: 3]
 
   require Logger
@@ -1543,8 +1544,12 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     end
   end
 
-  # See the `import` at the top: the browser's flash goes to the host.
-  defp put_flash(socket, kind, message), do: parent_flash(socket, kind, message)
+  # See the `import` at the top: the browser's flash goes to the host too.
+  defp put_flash(socket, kind, message) do
+    socket
+    |> Phoenix.LiveView.put_flash(kind, message)
+    |> parent_flash(kind, message)
+  end
 
   # A component's `put_flash` never reaches the page layout. The parent
   # LiveView puts this one (`handle_parent_info/2`).
