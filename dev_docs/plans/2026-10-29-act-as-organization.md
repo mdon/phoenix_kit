@@ -1,6 +1,7 @@
 # Acting for an organization
 
-**Status:** implementation started (foundation). Design reviewed by Codex on 2026-10-29
+**Status:** implementation complete (phases 1–4), verified 2026-10-30. Core and
+CRM changes are committed locally; release core before CRM. Design reviewed by Codex on 2026-10-29
 and by Grok on 2026-10-29 (first pass folded in; second pass on Claude's
 recheck folded in; see
 [Review (Codex)](#review-codex-2026-10-29),
@@ -729,11 +730,12 @@ the phase boundaries are work packages, not independent feature releases.
 
 ## Implementation progress (2026-10-29)
 
-Current status (2026-10-30): core phases 1–3 are implemented and verified with
-PostgreSQL regression tests and the project gate. Managed creation/conversion
-now have administrator controls; managers have self-service invitations and
-removal. The remaining plan item is the CRM package's explicit mirror option
-(phase 4), released after core.
+Current status (2026-10-30): all four implementation phases are complete.
+Core switching, attribution, creation/conversion and manager administration are
+verified together. The CRM's explicit managed mirror option is implemented and
+verified against local core, with compatibility checked against published core.
+Both packages' project gates passed. Release core before CRM; publication and
+deployment are separate work from this implementation.
 
 First foundation batch (part of phase 1):
 
@@ -760,7 +762,7 @@ First foundation batch (part of phase 1):
   lifecycle tests; these must precede exposing managed-account creation.
 - [x] Switching, attribution, core display audit and switching translations (phase 2).
 - [x] Managers UI/invitations, creation/conversion controls and their translations (phase 3).
-- [ ] CRM integration (phase 4).
+- [x] CRM integration (phase 4).
 
 No public managed-account creation, conversion or acting-session minting is
 exposed by these foundation batches. The first batch proved database
@@ -1018,6 +1020,42 @@ Sixth batch — phase 3 interfaces and invitations (2026-10-30, complete):
 - Core safety and UI paths now work together, satisfying the creation gate.
   No version bump, publication or deployment is part of these implementation
   batches. The separate CRM mirror work remains phase 4.
+
+Seventh batch — phase 4 CRM mirror (2026-10-30, complete):
+
+- Implemented in the separate `phoenix_kit_crm` package. The managed option is
+  explicit and requires an own-account administrator plus a first manager;
+  it never becomes an automatic fallback for a company whose email is taken.
+- Managed addresses map to `contact_email` in creation, diff/resolution and
+  reverse creation/adoption. Panels, pickers and organization lists never show
+  the login placeholder. The existing read-only rule for claimed mirror-account
+  profiles remains; those details are edited through core settings. Linking a
+  CRM record never grants management.
+- The company is re-read under a row lock before creation. A real PostgreSQL
+  race verifies that simultaneous requests create/link one account, and stale
+  forms cannot orphan another. Rollback, invalid contacts, shared-email collisions,
+  grant eligibility and forged/stale/borrowed browser authority are covered.
+- CRM full suite against local core: **1,038 tests, 0 failures**, **15 excluded**
+  (catalogue-dependent tests). Local-core `mix precommit` passed. Its owner-marker
+  subprocess test now clones this run's configured test database; previously it
+  used a stale default database even when `PGDATABASE` selected a fresh scratch.
+- New CRM copy is translated in all three package locales (en/et/ru). Published
+  core compatibility: **1,038 tests, 0 failures, 20 skipped**, **15 excluded**;
+  only the managed-feature cases skip when that older core lacks the API.
+- Both local-core and published-core `mix precommit` gates passed. The published
+  dependency audit found an existing Bandit 1.14.0 advisory; Bandit is patched to
+  **1.14.1** and the audit is green. Other unrelated dependency pins are preserved.
+- Final managed-address display audit also covers role lists and the interaction
+  composer's own-account shortcut. Focused verification after these changes:
+  **36 tests, 0 failures**, including the managed role-page rendering test,
+  fresh authority/eligibility, rollback, concurrency and legacy components.
+  The final local-core project gate passed on that source. Isolated scratch
+  databases used for these checks have been removed.
+- The CRM remains compatible with its existing core floor: the new option is
+  offered only when the complete managed-organization API is available.
+- Checkpoints: core `21813586d` (switching/attribution), core `fcd900fc3`
+  (manager interfaces/invitations), CRM `5f5e8c7` (managed mirrors). No package
+  version bump, publication or deployment was performed.
 
 ## Tests
 
