@@ -731,9 +731,9 @@ the phase boundaries are work packages, not independent feature releases.
 
 Current status (2026-10-30): the remaining phase-1 backend and manager lifecycle
 code is complete and verified with PostgreSQL regression tests and the project
-gate. Creation/conversion remain internal. Switching, its routes/cookie
-handling, attribution/display audit and manager administration/invitations still
-gate exposing this feature.
+gate. Phase 2 switching is complete and verified (fifth batch below).
+Creation/conversion remain internal; manager administration/invitations still
+gate exposing the complete feature.
 
 First foundation batch (part of phase 1):
 
@@ -758,8 +758,8 @@ First foundation batch (part of phase 1):
   for managed organizations (third batch below).
 - [x] Transactional dependent-token collection, disconnects and concurrent
   lifecycle tests; these must precede exposing managed-account creation.
-- [ ] Switching, attribution, managers UI/invitations, full display audit,
-  translations and CRM integration (phases 2–4).
+- [x] Switching, attribution, core display audit and switching translations (phase 2).
+- [ ] Managers UI/invitations and CRM integration (phases 3–4).
 
 No public managed-account creation, conversion or acting-session minting is
 exposed by these foundation batches. The first batch proved database
@@ -935,6 +935,52 @@ Next batch: phase 2's enter/leave context and routes, with the root-session,
 grant and organization locks, then the multi-session/cookie exception and
 switcher UI. Public creation/conversion still awaits those pieces and phase 3's
 admin/self-service managers and invitation acceptance flow.
+
+Fifth batch — phase 2 switching (2026-10-30, complete):
+
+- Enter/leave context and both route scopes are implemented. Entry is limited
+  per root user before target lookup and locks organization, parent user/session
+  and manager grant before rechecking authority and minting provenance.
+- One organization token sits outside the five-account limit and is omitted
+  from ordinary account lists. Replacement/switch-away/leave revoke it; add and
+  impersonation refuse while acting. The logout controller ends the full stack.
+  Entry takes `FOR NO KEY UPDATE` on the root session and replaces its existing
+  child sessions from the database, so concurrent requests or stale cookies
+  cannot leave multiple live organization tokens for one browser. Concurrent
+  requests for the same organization reuse one token/activity. Logout/grant
+  revocation still take stronger source locks and collect the committed child.
+- The durable mirror has a separate organization slot, root binding and live
+  grant/session validation. Org-only mirrors survive with multi-session off;
+  ordinary additions are dropped on recovery when that switch is off. Writes
+  track their latest state inside the request to avoid restoring stale cookie
+  contents during composed switch/leave operations.
+  A revoked organization slot falls back to the still-live root on the next
+  HTTP request. A managed token can never be used as a multi-session root, even
+  if malformed session data omits the organization marker.
+- Scope carries root-person organizations and acting identity. Both dropdowns
+  use `Core.OrganizationSwitcher`; headers show organization/person provenance.
+- `Actor.opts/1` supplies the person explicitly; activity logging merges it into
+  metadata and activity lists/details resolve people in a batch. Role/profile
+  writers carry provenance. The source browser's Sessions entry lists acting
+  organizations. User listings/details/search, session projections, presence,
+  mentions and other human-facing account labels use managed contact addresses.
+- Custom-field mutation responses preserve the caller's token-loaded session
+  metadata; shared user-update broadcasts strip it. Profile Settings reloads
+  its own token on updates, so one manager's identity cannot become another's.
+- Switcher/flash/session-row strings are in the catalog and all nine locales.
+  The admin users list now has a managed badge and searches contact/name.
+- PostgreSQL regression: **1,844 tests, 0 failures** across users, web-auth,
+  activity, mentions, profile settings and legacy session flows. Final focused
+  run: **188 tests, 0 failures**, including **11 real-connection races** for
+  enter vs root/grant/person/org revocation, simultaneous same/different-company
+  entry, and rollback of replacement. It also checks cookie recovery/replay,
+  root authority, rate limiting, session provenance and debug-log token secrecy.
+- Final switching/legacy/concurrency verification: **58 tests, 0 failures**,
+  including explicit route checks in both locale scopes, early OAuth add-account
+  refusal, clearing the remembered active account on return to My account, and
+  rendering a managed organization without a contact address.
+- `mix precommit` passed with all **480 JavaScript tests**. No creation/conversion
+  UI is exposed; phase 3 interfaces/invitations remain next.
 
 ## Tests
 

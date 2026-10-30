@@ -1921,6 +1921,18 @@ defmodule PhoenixKit.Users.Auth do
     |> Ecto.Multi.update(:user, fn %{credential_user: current} -> changeset_fun.(current) end)
   end
 
+  # Session-only fields originate with the caller's token loader. Return them
+  # to that same caller, never in a shared user-update broadcast.
+  defp preserve_session_fields(current, source) do
+    %{
+      current
+      | active_role_uuid: source.active_role_uuid,
+        acting_user_uuid: source.acting_user_uuid,
+        acting_session_uuid: source.acting_session_uuid,
+        organization_manager_uuid: source.organization_manager_uuid
+    }
+  end
+
   ## Role Management Functions
 
   @doc """
@@ -2130,7 +2142,12 @@ defmodule PhoenixKit.Users.Auth do
         Events.broadcast_user_updated(updated_user)
 
         PhoenixKit.Activity.log_user_change("user.profile_updated", user, changeset,
-          mode: "manual"
+          mode: "manual",
+          extra_metadata:
+            if(user.acting_user_uuid,
+              do: %{"acting_user_uuid" => user.acting_user_uuid},
+              else: %{}
+            )
         )
 
         {:ok, updated_user}
@@ -2385,7 +2402,7 @@ defmodule PhoenixKit.Users.Auth do
           Events.broadcast_user_updated(updated_user)
         end
 
-        {:ok, updated_user}
+        {:ok, preserve_session_fields(updated_user, user)}
 
       {0, _} ->
         {:error, :not_found}
@@ -2816,7 +2833,7 @@ defmodule PhoenixKit.Users.Auth do
           Events.broadcast_user_updated(updated_user)
         end
 
-        {:ok, updated_user}
+        {:ok, preserve_session_fields(updated_user, user)}
 
       {0, _} ->
         {:error, :not_found}
@@ -3074,7 +3091,8 @@ defmodule PhoenixKit.Users.Auth do
 
     from [u] in query,
       where:
-        ilike(u.email, ^search_pattern) or
+        ilike(u.email, ^search_pattern) or ilike(u.contact_email, ^search_pattern) or
+          ilike(u.organization_name, ^search_pattern) or
           ilike(u.username, ^search_pattern) or
           ilike(u.first_name, ^search_pattern) or
           ilike(u.last_name, ^search_pattern)
@@ -3104,7 +3122,8 @@ defmodule PhoenixKit.Users.Auth do
 
         from(u in User,
           where:
-            ilike(u.email, ^search_pattern) or
+            ilike(u.email, ^search_pattern) or ilike(u.contact_email, ^search_pattern) or
+              ilike(u.organization_name, ^search_pattern) or
               ilike(u.username, ^search_pattern) or
               ilike(u.first_name, ^search_pattern) or
               ilike(u.last_name, ^search_pattern),
@@ -3112,7 +3131,13 @@ defmodule PhoenixKit.Users.Auth do
           limit: 10,
           select: %{
             uuid: u.uuid,
-            email: u.email,
+            email:
+              fragment(
+                "CASE WHEN ? THEN ? ELSE ? END",
+                u.managed_by_members,
+                u.contact_email,
+                u.email
+              ),
             username: u.username,
             first_name: u.first_name,
             last_name: u.last_name

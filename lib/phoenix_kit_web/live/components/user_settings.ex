@@ -1024,6 +1024,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
           module: "users",
           mode: "manual",
           actor_uuid: updated_user.uuid,
+          acting_user_uuid: user.acting_user_uuid,
           resource_type: "user",
           resource_uuid: updated_user.uuid,
           metadata: %{
@@ -1066,6 +1067,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
           module: "users",
           mode: "manual",
           actor_uuid: updated_user.uuid,
+          acting_user_uuid: user.acting_user_uuid,
           resource_type: "user",
           resource_uuid: updated_user.uuid,
           metadata: %{
@@ -1957,6 +1959,14 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
                       </div>
                       <div class="text-xs text-base-content/60 truncate">
                         {session_meta_line(session)}
+                      </div>
+                      <div
+                        :for={organization <- session.acting_organizations}
+                        class="text-xs text-base-content/60"
+                      >
+                        {gettext("%{organization}, from this browser",
+                          organization: organization.name
+                        )}
                       </div>
                     </div>
                   </div>

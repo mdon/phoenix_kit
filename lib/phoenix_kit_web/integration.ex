@@ -311,6 +311,8 @@ defmodule PhoenixKitWeb.Integration do
         post "/users/session/impersonate/:user_uuid", Users.Session, :impersonate
         put "/users/session/active", Users.Session, :set_active_account
         put "/users/session/role", Users.Session, :set_active_role
+        post "/users/session/organizations/:uuid", Users.Session, :enter_organization
+        delete "/users/session/organization", Users.Session, :leave_organization
         delete "/users/session/accounts/:ref", Users.Session, :remove_account
         get "/users/magic-link/:token", Users.MagicLinkVerify, :verify
         # QR device-handoff login — completion endpoint (single-use login token)
@@ -1629,6 +1631,8 @@ defmodule PhoenixKitWeb.Integration do
         post "/users/session/impersonate/:user_uuid", Users.Session, :impersonate
         put "/users/session/active", Users.Session, :set_active_account
         put "/users/session/role", Users.Session, :set_active_role
+        post "/users/session/organizations/:uuid", Users.Session, :enter_organization
+        delete "/users/session/organization", Users.Session, :leave_organization
         delete "/users/session/accounts/:ref", Users.Session, :remove_account
         get "/users/magic-link/:token", Users.MagicLinkVerify, :verify
         # QR device-handoff login — completion endpoint (single-use login token)

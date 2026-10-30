@@ -21584,3 +21584,47 @@ msgstr "Перевірка з’єднання дала несподівану �
 #, elixir-autogen, elixir-format
 msgid "These files belong to the module that stored them and cannot be changed here."
 msgstr "Ці файли належать модулю, який їх зберіг, і змінити їх тут не можна."
+
+#, elixir-autogen, elixir-format
+msgid "Back to my account"
+msgstr "Повернутися до мого облікового запису"
+
+#, elixir-autogen, elixir-format
+msgid "My account"
+msgstr "Мій обліковий запис"
+
+#, elixir-autogen, elixir-format
+msgid "You are now acting as %{organization}."
+msgstr "Тепер ви дієте від імені %{organization}."
+
+#, elixir-autogen, elixir-format
+msgid "Too many organization switches. Please try again later."
+msgstr "Забагато перемикань організацій. Спробуйте пізніше."
+
+#, elixir-autogen, elixir-format
+msgid "Could not enter that organization."
+msgstr "Не вдалося увійти до цієї організації."
+
+#, elixir-autogen, elixir-format
+msgid "You are back in your own account."
+msgstr "Ви повернулися до свого облікового запису."
+
+#, elixir-autogen, elixir-format
+msgid "Return to your own account before adding another account."
+msgstr "Поверніться до свого облікового запису, перш ніж додавати інший."
+
+#, elixir-autogen, elixir-format
+msgid "Return to your own account before signing in as another user."
+msgstr "Поверніться до свого облікового запису, перш ніж входити від імені іншого користувача."
+
+#, elixir-autogen, elixir-format
+msgid "%{organization}, from this browser"
+msgstr "%{organization}, із цього браузера"
+
+#, elixir-autogen, elixir-format
+msgid "%{organization} · via %{person}"
+msgstr "%{organization} · через %{person}"
+
+#, elixir-autogen, elixir-format
+msgid "Managed organization"
+msgstr "Керована організація"

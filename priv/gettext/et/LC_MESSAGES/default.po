@@ -21651,3 +21651,47 @@ msgstr "Sul pole lubatud selle inimese seansse lõpetada"
 #, elixir-autogen, elixir-format
 msgid "These files belong to the module that stored them and cannot be changed here."
 msgstr "Need failid kuuluvad moodulile, mis need salvestas, ja neid ei saa siin muuta."
+
+#, elixir-autogen, elixir-format
+msgid "Back to my account"
+msgstr "Tagasi minu kontole"
+
+#, elixir-autogen, elixir-format
+msgid "My account"
+msgstr "Minu konto"
+
+#, elixir-autogen, elixir-format
+msgid "You are now acting as %{organization}."
+msgstr "Tegutsed nüüd organisatsiooni %{organization} nimel."
+
+#, elixir-autogen, elixir-format
+msgid "Too many organization switches. Please try again later."
+msgstr "Liiga palju organisatsiooni vahetusi. Palun proovi hiljem uuesti."
+
+#, elixir-autogen, elixir-format
+msgid "Could not enter that organization."
+msgstr "Selle organisatsiooni kontole ei saanud siseneda."
+
+#, elixir-autogen, elixir-format
+msgid "You are back in your own account."
+msgstr "Oled tagasi oma kontol."
+
+#, elixir-autogen, elixir-format
+msgid "Return to your own account before adding another account."
+msgstr "Enne teise konto lisamist naase oma kontole."
+
+#, elixir-autogen, elixir-format
+msgid "Return to your own account before signing in as another user."
+msgstr "Enne teise kasutajana sisselogimist naase oma kontole."
+
+#, elixir-autogen, elixir-format
+msgid "%{organization}, from this browser"
+msgstr "%{organization}, sellest brauserist"
+
+#, elixir-autogen, elixir-format
+msgid "%{organization} · via %{person}"
+msgstr "%{organization} · kasutaja %{person} kaudu"
+
+#, elixir-autogen, elixir-format
+msgid "Managed organization"
+msgstr "Hallatav organisatsioon"

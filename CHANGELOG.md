@@ -4,7 +4,8 @@
 
 - Internal managed-organization creation and conversion, with a required first
   manager, referral admission, credential revocation, and fresh credentials when
-  converting back. Creation and switching remain unavailable through the UI.
+  converting back. Creation/conversion remain internal until manager
+  administration is complete.
 - Manager lifecycle locks and last-active-manager protection cover grant
   removal and person deactivation/deletion; leaving an organization without an
   active manager requires an explicit override from a live own-admin session.
@@ -13,7 +14,7 @@
 - Managed-organization foundations (V226): manager grants, contact addresses,
   grant-bound session provenance and invitation kinds. Authentication refuses
   independent managed-account logins; scopes exclude Owner, Admin, wildcard and
-  API authority. Switching and managed-account creation remain unavailable
+  API authority. Managed-account creation remains unavailable
   until the rest of the organization lifecycle is implemented.
 - Account mail uses a managed organization's contact address, and the mailer
   removes reserved `.invalid` recipients from To, Cc and Bcc.
@@ -25,6 +26,13 @@
   profile components, and the manager's browser does not trigger organization
   time-zone detection or mismatch alerts. Host-transaction disconnect observers
   stop after 30 consecutive failed database checks.
+- Organization switching: enter/leave routes, dropdowns in both navs, and a
+  separate durable cookie slot that works while multi-account switching is off.
+  Entry is limited per root user and serializes concurrent requests and
+  revocation; switching away deletes and disconnects the organization token.
+- Acting-person attribution in activity metadata and screens, source-browser
+  organization sessions, contact addresses in user/session lists, presence and
+  mentions, managed badges, and switcher translations in all nine locales.
 
 ### Fixed
 

@@ -68,7 +68,13 @@ defmodule PhoenixKit.Users.Sessions do
         token_uuid: token.uuid,
         token_preview: fragment("encode(substring(?, 1, 4), 'hex')", token.token),
         user_uuid: user.uuid,
-        user_email: user.email,
+        user_email:
+          fragment(
+            "CASE WHEN ? THEN ? ELSE ? END",
+            user.managed_by_members,
+            user.contact_email,
+            user.email
+          ),
         user_is_active: user.is_active,
         user_confirmed_at: user.confirmed_at,
         browser: token.browser,
@@ -127,7 +133,13 @@ defmodule PhoenixKit.Users.Sessions do
         token_uuid: token.uuid,
         token_preview: fragment("encode(substring(?, 1, 4), 'hex')", token.token),
         user_uuid: user.uuid,
-        user_email: user.email,
+        user_email:
+          fragment(
+            "CASE WHEN ? THEN ? ELSE ? END",
+            user.managed_by_members,
+            user.contact_email,
+            user.email
+          ),
         user_is_active: user.is_active,
         user_confirmed_at: user.confirmed_at,
         browser: token.browser,
@@ -154,7 +166,16 @@ defmodule PhoenixKit.Users.Sessions do
     where(
       query,
       [token, user],
-      ilike(user.email, ^pattern) or
+      ilike(
+        fragment(
+          "CASE WHEN ? THEN ? ELSE ? END",
+          user.managed_by_members,
+          user.contact_email,
+          user.email
+        ),
+        ^pattern
+      ) or
+        ilike(user.organization_name, ^pattern) or
         ilike(fragment("encode(substring(?, 1, 4), 'hex')", token.token), ^pattern)
     )
   end
@@ -201,7 +222,13 @@ defmodule PhoenixKit.Users.Sessions do
         token_uuid: token.uuid,
         token_preview: fragment("encode(substring(?, 1, 4), 'hex')", token.token),
         user_uuid: user.uuid,
-        user_email: user.email,
+        user_email:
+          fragment(
+            "CASE WHEN ? THEN ? ELSE ? END",
+            user.managed_by_members,
+            user.contact_email,
+            user.email
+          ),
         user_is_active: user.is_active,
         user_confirmed_at: user.confirmed_at,
         browser: token.browser,
@@ -234,6 +261,7 @@ defmodule PhoenixKit.Users.Sessions do
   def list_user_device_sessions(%User{uuid: user_uuid}, current_token) do
     known = known_devices_by_fingerprint(user_uuid)
     current_uuid = current_session_uuid(user_uuid, current_token)
+    acting = acting_sessions_by_parent(user_uuid)
 
     from(token in UserToken,
       where: token.context == "session",
@@ -271,10 +299,40 @@ defmodule PhoenixKit.Users.Sessions do
         # when not narrowed.
         active_role_uuid: s.active_role_uuid,
         active_role: nil,
+        acting_organizations: Map.get(acting, s.token_uuid, []),
         is_current: s.token_uuid == current_uuid
       }
     end)
     |> with_active_roles()
+  end
+
+  defp acting_sessions_by_parent(person_uuid) do
+    alias PhoenixKit.Users.OrganizationManager
+
+    from(child in UserToken,
+      join: root in UserToken,
+      on: root.uuid == child.acting_session_uuid,
+      join: org in User,
+      on: org.uuid == child.user_uuid,
+      join: grant in OrganizationManager,
+      on: grant.uuid == child.organization_manager_uuid,
+      where:
+        child.context == "session" and root.context == "session" and
+          root.user_uuid == ^person_uuid,
+      where: org.managed_by_members and org.is_active,
+      where: grant.organization_uuid == org.uuid and grant.user_uuid == ^person_uuid,
+      where:
+        root.inserted_at > ago(@session_validity_in_days, "day") and
+          child.inserted_at > ago(@session_validity_in_days, "day"),
+      select: %{
+        parent: root.uuid,
+        token_uuid: child.uuid,
+        organization_uuid: org.uuid,
+        name: org.organization_name
+      }
+    )
+    |> Repo.all()
+    |> Enum.group_by(& &1.parent)
   end
 
   @doc """
@@ -345,7 +403,13 @@ defmodule PhoenixKit.Users.Sessions do
         token_uuid: token.uuid,
         token_preview: fragment("encode(substring(?, 1, 4), 'hex')", token.token),
         user_uuid: user.uuid,
-        user_email: user.email,
+        user_email:
+          fragment(
+            "CASE WHEN ? THEN ? ELSE ? END",
+            user.managed_by_members,
+            user.contact_email,
+            user.email
+          ),
         user_is_active: user.is_active,
         user_confirmed_at: user.confirmed_at,
         active_role_uuid: token.active_role_uuid,

@@ -679,6 +679,9 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
   defp crm_contact_label(%{email: email}) when is_binary(email) and email != "", do: email
   defp crm_contact_label(_contact), do: gettext("Unnamed contact")
 
+  defp user_display_name(%Auth.User{managed_by_members: true} = user),
+    do: Auth.User.display_name(user)
+
   defp user_display_name(user) do
     cond do
       user.first_name && user.last_name ->
@@ -691,7 +694,7 @@ defmodule PhoenixKitWeb.Live.Users.UserDetails do
         user.username
 
       true ->
-        user.email
+        Auth.User.delivery_email(user)
     end
   end
 

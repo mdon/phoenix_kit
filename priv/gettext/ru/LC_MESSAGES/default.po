@@ -21723,3 +21723,47 @@ msgstr "Вам не разрешено завершать сеансы этог�
 #, elixir-autogen, elixir-format
 msgid "These files belong to the module that stored them and cannot be changed here."
 msgstr "Эти файлы принадлежат модулю, который их сохранил, и здесь их изменить нельзя."
+
+#, elixir-autogen, elixir-format
+msgid "Back to my account"
+msgstr "Вернуться в мой аккаунт"
+
+#, elixir-autogen, elixir-format
+msgid "My account"
+msgstr "Мой аккаунт"
+
+#, elixir-autogen, elixir-format
+msgid "You are now acting as %{organization}."
+msgstr "Теперь вы действуете от имени %{organization}."
+
+#, elixir-autogen, elixir-format
+msgid "Too many organization switches. Please try again later."
+msgstr "Слишком много переключений организаций. Повторите попытку позже."
+
+#, elixir-autogen, elixir-format
+msgid "Could not enter that organization."
+msgstr "Не удалось войти в эту организацию."
+
+#, elixir-autogen, elixir-format
+msgid "You are back in your own account."
+msgstr "Вы вернулись в свой аккаунт."
+
+#, elixir-autogen, elixir-format
+msgid "Return to your own account before adding another account."
+msgstr "Вернитесь в свой аккаунт, прежде чем добавлять другой аккаунт."
+
+#, elixir-autogen, elixir-format
+msgid "Return to your own account before signing in as another user."
+msgstr "Вернитесь в свой аккаунт, прежде чем входить от имени другого пользователя."
+
+#, elixir-autogen, elixir-format
+msgid "%{organization}, from this browser"
+msgstr "%{organization}, из этого браузера"
+
+#, elixir-autogen, elixir-format
+msgid "%{organization} · via %{person}"
+msgstr "%{organization} · через %{person}"
+
+#, elixir-autogen, elixir-format
+msgid "Managed organization"
+msgstr "Управляемая организация"

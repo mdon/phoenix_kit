@@ -561,13 +561,7 @@ defmodule PhoenixKitWeb.Users.Auth do
     active_user = Auth.ensure_active_user(user)
 
     session = get_session(conn)
-    {multi_session_allowed?, multi_session_accounts} = MultiSession.scope_fields(session)
-
-    scope = %{
-      Scope.for_user(active_user)
-      | multi_session_accounts: multi_session_accounts,
-        multi_session_allowed?: multi_session_allowed?
-    }
+    scope = MultiSession.populate_scope(Scope.for_user(active_user), session)
 
     FormatCountry.put_viewer(active_user)
 
@@ -577,8 +571,9 @@ defmodule PhoenixKitWeb.Users.Auth do
   end
 
   defp ensure_user_token(conn) do
-    if token = get_session(conn, :user_token) do
-      {token, conn}
+    if get_session(conn, :user_token) do
+      conn = MultiSession.recover_organization(conn)
+      {get_session(conn, :user_token), conn}
     else
       conn = fetch_cookies(conn, signed: [@remember_me_cookie])
 
@@ -1621,13 +1616,7 @@ defmodule PhoenixKitWeb.Users.Auth do
       |> maybe_attach_timezone_hook()
 
     user = socket.assigns.phoenix_kit_current_user
-    {multi_session_allowed?, multi_session_accounts} = MultiSession.scope_fields(session)
-
-    scope = %{
-      Scope.for_user(user)
-      | multi_session_accounts: multi_session_accounts,
-        multi_session_allowed?: multi_session_allowed?
-    }
+    scope = MultiSession.populate_scope(Scope.for_user(user), session)
 
     # Locale is URL-driven: the URL's `:locale` segment wins; absent
     # that, we fall straight to the default. The previous session-locale
@@ -3032,7 +3021,10 @@ defmodule PhoenixKitWeb.Users.Auth do
     %{
       scope
       | multi_session_accounts: previous.multi_session_accounts,
-        multi_session_allowed?: previous.multi_session_allowed?
+        multi_session_allowed?: previous.multi_session_allowed?,
+        acting_organizations: previous.acting_organizations,
+        acting_person: previous.acting_person,
+        organization_root: previous.organization_root
     }
   end
 

@@ -21590,3 +21590,47 @@ msgstr "Sprawdzenie połączenia zwróciło nieoczekiwaną odpowiedź"
 #, elixir-autogen, elixir-format
 msgid "These files belong to the module that stored them and cannot be changed here."
 msgstr "Te pliki należą do modułu, który je zapisał, i nie można ich tutaj zmieniać."
+
+#, elixir-autogen, elixir-format
+msgid "Back to my account"
+msgstr "Powrót do mojego konta"
+
+#, elixir-autogen, elixir-format
+msgid "My account"
+msgstr "Moje konto"
+
+#, elixir-autogen, elixir-format
+msgid "You are now acting as %{organization}."
+msgstr "Działasz teraz jako %{organization}."
+
+#, elixir-autogen, elixir-format
+msgid "Too many organization switches. Please try again later."
+msgstr "Zbyt wiele zmian organizacji. Spróbuj ponownie później."
+
+#, elixir-autogen, elixir-format
+msgid "Could not enter that organization."
+msgstr "Nie udało się wejść do tej organizacji."
+
+#, elixir-autogen, elixir-format
+msgid "You are back in your own account."
+msgstr "Wrócono do Twojego własnego konta."
+
+#, elixir-autogen, elixir-format
+msgid "Return to your own account before adding another account."
+msgstr "Wróć do własnego konta przed dodaniem kolejnego konta."
+
+#, elixir-autogen, elixir-format
+msgid "Return to your own account before signing in as another user."
+msgstr "Wróć do własnego konta przed zalogowaniem jako inny użytkownik."
+
+#, elixir-autogen, elixir-format
+msgid "%{organization}, from this browser"
+msgstr "%{organization}, z tej przeglądarki"
+
+#, elixir-autogen, elixir-format
+msgid "%{organization} · via %{person}"
+msgstr "%{organization} · za pośrednictwem %{person}"
+
+#, elixir-autogen, elixir-format
+msgid "Managed organization"
+msgstr "Zarządzana organizacja"

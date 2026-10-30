@@ -123,7 +123,23 @@ defmodule PhoenixKit.Users.Auth.Scope do
             active_role: nil,
             switchable_roles: [],
             multi_session_accounts: [],
-            multi_session_allowed?: false
+            multi_session_allowed?: false,
+            acting_organizations: [],
+            acting_person: nil,
+            organization_root: nil
+
+  use Gettext, backend: PhoenixKitWeb.Gettext
+
+  @doc "The account label for the current browser, including organization provenance."
+  def session_display_name(%__MODULE__{user: %User{} = user, acting_person: %User{} = person}),
+    do:
+      gettext("%{organization} · via %{person}",
+        organization: User.display_name(user),
+        person: User.display_name(person)
+      )
+
+  def session_display_name(%__MODULE__{user: %User{} = user}), do: User.display_name(user)
+  def session_display_name(_), do: nil
 
   @doc """
   Creates a new scope for the given user.
