@@ -1,3 +1,11 @@
+## 3.2.2 - 2026-10-30
+
+### Fixed
+
+- Media settings list every library storage bucket with its integration, provider and small
+  role icons, instead of hiding backup bucket names behind a copy count.
+- Site storage labels use the configured project title in library lists and storage forms.
+
 ## 3.2.1 - 2026-10-29
 
 ### Added
