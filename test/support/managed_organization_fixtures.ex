@@ -4,6 +4,7 @@ defmodule PhoenixKit.Test.ManagedOrganizationFixtures do
   alias PhoenixKit.Test.Repo
   alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Users.Auth.UserToken
+  alias PhoenixKit.Users.ManagedOrganizations.Actor
   alias PhoenixKit.Users.OrganizationManager
   alias PhoenixKit.Users.Roles
 
@@ -83,6 +84,24 @@ defmodule PhoenixKit.Test.ManagedOrganizationFixtures do
     {token, row} = UserToken.build_email_token(user, context)
     Repo.insert!(row)
     token
+  end
+
+  def admin_actor do
+    user = person()
+    {:ok, _} = Roles.assign_role(user, "Admin")
+    {token, _row} = session(user)
+    {:ok, actor} = Actor.from_session(%{"user_token" => token})
+    {actor, user}
+  end
+
+  def acting_actor(s) do
+    {:ok, actor} =
+      Actor.from_session(%{
+        "user_token" => s.token,
+        "pk_session_accounts" => [s.root_token]
+      })
+
+    actor
   end
 
   defp with_user_role(user) do

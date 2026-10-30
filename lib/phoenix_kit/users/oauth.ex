@@ -308,6 +308,25 @@ if Code.ensure_loaded?(Ueberauth) do
     Links an OAuth provider to a user account.
     """
     def link_oauth_provider(%User{} = user, oauth_data) when is_map(oauth_data) do
+      Repo.transaction(fn ->
+        current =
+          Repo.one(from(u in User, where: u.uuid == ^user.uuid, lock: "FOR NO KEY UPDATE"))
+
+        case current do
+          %User{managed_by_members: true} -> Repo.rollback(:managed_organization)
+          %User{api_only: true} -> Repo.rollback(:api_only_account)
+          %User{hashed_password: hash} when hash == user.hashed_password -> :ok
+          _ -> Repo.rollback(:account_changed)
+        end
+
+        case insert_oauth_provider(user, oauth_data) do
+          {:ok, provider} -> provider
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end)
+    end
+
+    defp insert_oauth_provider(user, oauth_data) do
       attrs = %{
         user_uuid: user.uuid,
         provider: oauth_data.provider,

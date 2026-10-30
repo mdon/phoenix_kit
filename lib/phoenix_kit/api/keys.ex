@@ -111,6 +111,25 @@ defmodule PhoenixKit.API.Keys do
   @spec create_key(User.t(), Scope.t(), map()) ::
           {:ok, Key.t(), String.t()} | {:error, Ecto.Changeset.t() | atom()}
   def create_key(%User{} = owner, %Scope{} = creator_scope, attrs) when is_map(attrs) do
+    repo().transaction(fn ->
+      with :ok <- lock_mint_users(owner.uuid, creator_scope),
+           {:ok, key, token} <- insert_key(owner, creator_scope, attrs) do
+        {key, token}
+      else
+        {:error, reason} -> repo().rollback(reason)
+      end
+    end)
+    |> case do
+      {:ok, {key, token}} ->
+        log_created(key, creator_scope.user.uuid)
+        {:ok, key, token}
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  defp insert_key(owner, creator_scope, attrs) do
     {prefix, token, secret_hash} = Token.generate()
 
     with :ok <- authorize_creator(creator_scope),
@@ -123,10 +142,24 @@ defmodule PhoenixKit.API.Keys do
            |> Ecto.Changeset.put_change(:secret_hash, secret_hash)
            |> Ecto.Changeset.unique_constraint(:prefix)
            |> repo().insert() do
-      log_created(key, creator_scope.user.uuid)
       {:ok, key, token}
     end
   end
+
+  # Minting (creation AND rotation) locks the owner before keys. Conversion holds
+  # that same user lock while draining keys; a concurrent mint must finish
+  # before the drain's snapshot, or see the converted policy afterward.
+  defp lock_mint_users(owner_uuid, %Scope{user: %User{uuid: creator_uuid}}) do
+    owner = repo().one(from(u in User, where: u.uuid in ^[owner_uuid], lock: "FOR NO KEY UPDATE"))
+    creator = if owner_uuid == creator_uuid, do: owner, else: repo().get(User, creator_uuid)
+
+    case creator do
+      %User{managed_by_members: false, is_active: true} -> :ok
+      _ -> {:error, :forbidden}
+    end
+  end
+
+  defp lock_mint_users(_owner, _scope), do: {:error, :forbidden}
 
   defp authorize_creator(%Scope{user: %User{managed_by_members: true}}),
     do: {:error, :forbidden}
@@ -541,7 +574,9 @@ defmodule PhoenixKit.API.Keys do
     retire_at = DateTime.add(now(), grace_hours * 3600, :second)
 
     repo().transaction(fn ->
-      with {:ok, current} <- lock(uuid),
+      with %Key{} = original <- repo().get(Key, uuid),
+           :ok <- lock_mint_users(original.user_uuid, creator_scope),
+           {:ok, current} <- lock(uuid),
            :ok <- authorize_manage(creator_scope, current),
            :ok <- authorize_service_owner(current, creator_scope),
            :ok <- check_alive(current),
@@ -551,6 +586,7 @@ defmodule PhoenixKit.API.Keys do
              current |> Ecto.Changeset.change(revoked_at: retire_at) |> repo().update() do
         {retired, new_key, token}
       else
+        nil -> repo().rollback(:not_found)
         {:error, reason} -> repo().rollback(reason)
       end
     end)

@@ -122,9 +122,19 @@ defmodule PhoenixKit.Users.Roles do
         {:error, :role_not_found}
 
       role ->
-        with :ok <- managed_role_allowed(user, role) do
-          insert_role_assignment(repo, user, role, assigned_by, broadcast?)
-        end
+        repo.transaction(fn ->
+          # Conversion and assignment share the user-row lock. Recheck policy
+          # after acquiring it: a form may still hold an unmanaged struct.
+          repo.one(from(u in User, where: u.uuid == ^user.uuid, lock: "FOR NO KEY UPDATE"))
+
+          with :ok <- managed_role_allowed(user, role),
+               {:ok, assignment} <-
+                 insert_role_assignment(repo, user, role, assigned_by, broadcast?) do
+            assignment
+          else
+            {:error, reason} -> repo.rollback(reason)
+          end
+        end)
     end
   end
 

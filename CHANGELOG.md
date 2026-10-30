@@ -2,6 +2,14 @@
 
 ### Added
 
+- Internal managed-organization creation and conversion, with a required first
+  manager, referral admission, credential revocation, and fresh credentials when
+  converting back. Creation and switching remain unavailable through the UI.
+- Manager lifecycle locks and last-active-manager protection cover grant
+  removal and person deactivation/deletion; leaving an organization without an
+  active manager requires an explicit override from a live own-admin session.
+  Manager changes record activities and account notifications.
+
 - Managed-organization foundations (V226): manager grants, contact addresses,
   grant-bound session provenance and invitation kinds. Authentication refuses
   independent managed-account logins; scopes exclude Owner, Admin, wildcard and
@@ -17,6 +25,13 @@
   profile components, and the manager's browser does not trigger organization
   time-zone detection or mismatch alerts. Host-transaction disconnect observers
   stop after 30 consecutive failed database checks.
+
+### Fixed
+
+- Forms loaded before organization conversion cannot restore passwords, login
+  addresses, Google addresses or forbidden roles. OAuth linking and API-key
+  creation/rotation share conversion's account lock to prevent credentials from
+  escaping its drain.
 
 ## 3.0.0 - 2026-10-27
 

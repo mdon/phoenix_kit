@@ -729,6 +729,12 @@ the phase boundaries are work packages, not independent feature releases.
 
 ## Implementation progress (2026-10-29)
 
+Current status (2026-10-30): the remaining phase-1 backend and manager lifecycle
+code is complete and verified with PostgreSQL regression tests and the project
+gate. Creation/conversion remain internal. Switching, its routes/cookie
+handling, attribution/display audit and manager administration/invitations still
+gate exposing this feature.
+
 First foundation batch (part of phase 1):
 
 - [x] V226: managed-account policy and contact email, manager grants,
@@ -746,8 +752,8 @@ First foundation batch (part of phase 1):
 - [x] Scope ceiling and assignment guards; API key/service-user refusals.
 - [x] Shared display/delivery helper, core notifier and email notification
   routing, and `.invalid` recipient filtering at both mail transports.
-- [ ] Dedicated creation/conversion contexts and referral satisfaction
-  (remaining phase 1 work).
+- [x] Dedicated internal creation/conversion contexts and referral satisfaction
+  (fourth batch below).
 - [x] Reusable credential-settings guards and automatic timezone suppression
   for managed organizations (third batch below).
 - [x] Transactional dependent-token collection, disconnects and concurrent
@@ -838,8 +844,97 @@ Validation:
 - `mix precommit` passed (compile, test-file compilation, format, Credo,
   Dialyzer and all **480 JavaScript tests**). No migration changes in this batch.
 
-Creation/conversion and manager lifecycle locking remain pending. No public
-managed-account creation or acting-session minting is exposed by this batch.
+At the end of the third batch, creation/conversion and manager lifecycle locking
+were still pending; the fourth batch below implements them. No public
+managed-account creation or acting-session minting is exposed by these batches.
+
+Fourth batch — remaining phase 1 and manager lifecycle (2026-10-30, complete):
+
+- Dedicated internal creation and conversion contexts are implemented, with
+  first-manager requirements, default User role, unknown password hash,
+  confirmation/referral admission and no registration/bootstrap path.
+- Conversion drains every token context, provider link, Google address and API
+  key; conversion back requires new validated credentials, clears confirmation,
+  removes grants and cancels pending manager invitations atomically. No routes
+  or UI expose these operations yet.
+- Both conversion directions refuse forbidden staff/API roles. Converting back
+  cannot lift the managed ceiling over an illicit direct Owner/Admin assignment
+  or API-bearing custom role left on the account.
+- Manager mutations take a per-person advisory lock before organization locks;
+  person lifecycle discovers the person's grant set under that advisory lock,
+  then locks organizations in uuid order. Organization rows use `FOR NO KEY
+  UPDATE`, followed by user locks and fresh session/eligibility checks.
+  The advisory key uses the canonical UUID, so differently cased input cannot
+  split the topology lock and let deactivation miss a concurrently added grant.
+- Administrative authority carries current/root session references from the
+  trusted signed session. Bare users/scopes and borrowed admin sessions cannot
+  authorize creation, conversion or direct grant additions. Acting managers
+  can remove grants for their organization, with no last-manager override.
+- Last-active-manager checks now cover grant removal and person deactivation
+  and deletion. An override requires an explicit boolean plus a live own-admin
+  session reference. Deletion checks before module hooks and rechecks before
+  the actual delete.
+- Password/profile writes now recheck and lock current managed-account policy,
+  so a form loaded before conversion cannot restore credentials. Role grants
+  share conversion's user-row lock and recheck the permission ceiling.
+- OAuth linking and API-key creation/rotation also lock the account before
+  minting credentials. Conversion therefore drains a writer that commits
+  first, or the writer waits and sees the converted policy. Rotation locks
+  the owner before the key, avoiding the inverse lock order with conversion.
+- Manager added/removed activities and account-notification copy are wired to
+  actual row changes, including conversion back and person deletion; direct
+  additions/removals are idempotent.
+
+Internal entry points (no routes/UI yet):
+
+- `ManagedOrganizations.Actor.from_session/1` takes the trusted signed session;
+  its references must never be taken from event/request params. Contexts recheck
+  live tokens, root identity, confirmation/admission and effective staff roles.
+- `ManagedOrganizations.create/3`, `convert_to_managed/3` and
+  `convert_to_independent/3` take that actor. Conversion back returns an
+  unconfirmed account with validated new email/password; the later UI uses the
+  ordinary confirmation flow after commit. No mail is sent inside conversion.
+- `OrganizationManagers.add/3` is admin-only; `remove/4` also accepts a live
+  acting-manager credential for that organization. Manager additions by email
+  still await the invitation acceptance path (no direct person search).
+- Person status/deletion keeps the existing actor/rank API. An explicit
+  `allow_managerless: true` additionally requires `manager_actor:` from the
+  own-admin session, matching `actor:` / `current_user:` when supplied. System
+  callers without that credential cannot bypass the last-manager check.
+- Lock order: per-target-person advisory lock, affected organizations in uuid
+  order, person rows, actor user `KEY SHARE`, then parent session, grant and
+  current session `KEY SHARE`. The actor user lock precedes token locks so a
+  concurrent user deletion cannot hold that row while waiting for the token.
+  The last-manager lifecycle wrapper locks its user/override-actor rows together
+  in uuid order; outright user deletion uses `FOR UPDATE` to block FK inserts.
+
+Validation:
+
+- PostgreSQL regression run: **2,953 tests, 0 failures** (`integration/users`,
+  unit `users` and `api`, managed web-auth doors, admin password and managed
+  settings). These tests ran with integration enabled on a fresh scratch DB.
+- Latest focused run: **130 tests, 0 failures**, including **15 real-connection
+  lifecycle races** (remove/deactivate, multi-organization deactivation,
+  account-type vs grant, password/role vs conversion, session revocation and
+  both orderings of OAuth/API creation/API rotation vs conversion). Invite-only
+  admission is tested with the referral gate actually enabled.
+- Final person-deletion audit regression: **53 tests, 0 failures**. Password
+  mutation freshness/provenance regression: **45 tests, 0 failures**. The final
+  lifecycle/conversion run after the conversion-back role guard: **34 tests,
+  0 failures**, including all 15 lifecycle concurrency cases.
+- UUID-case regression rerun: **16 real-connection concurrency tests,
+  0 failures**. The final case exercises a grant insertion using an uppercase
+  UUID against a lowercase-UUID deactivation and proves the last-manager guard
+  still applies after the first transaction commits.
+- Final `mix precommit` passed after the canonical-UUID lock change: compile,
+  test-file compilation, format, Credo, Dialyzer and all **480 JavaScript tests**.
+  No migrations changed. The broad suite was followed by focused regression
+  runs for the final changes; the entire repository suite was not repeated.
+
+Next batch: phase 2's enter/leave context and routes, with the root-session,
+grant and organization locks, then the multi-session/cookie exception and
+switcher UI. Public creation/conversion still awaits those pieces and phase 3's
+admin/self-service managers and invitation acceptance flow.
 
 ## Tests
 
@@ -1179,12 +1274,11 @@ Follow-up status:
   transaction rolls back at cleanup, so a drain inside a host-owned transaction
   cannot produce a commit/disconnect assertion there. The external-module
   guide now explains the real-connection test setup.
-- **Grant eligibility is read without locks.** `OrganizationManager.changeset/2`
-  reads the person and organization in `validate_change`, and
-  `change_account_type/2` checks for grants without a lock. The session query
-  re-checks `account_type = 'person'`, so a race leaves a stale grant row,
-  not a working session. The phase-3 manager context should take the
-  organization lock and re-check the person in the same transaction.
+- **Grant eligibility locks — resolved in fourth batch.** The schema changeset
+  still performs ordinary validation reads, but all context mutations lock and
+  recheck the organization/person in their transaction. Account-type changes
+  share the per-person advisory lock and current user-row lock. Real PostgreSQL
+  tests cover both orders of grant insertion versus account-type conversion.
 - **Cost per logout.** Every token drain is now lock, dependents, delete and
   a post-commit absence check in a transaction (was one `DELETE`). Fine at
   current scale; noted in case session churn grows.

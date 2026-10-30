@@ -75,6 +75,7 @@ defmodule PhoenixKit.Users.Auth do
   alias PhoenixKit.Modules.Storage.Libraries
   alias PhoenixKit.Users.Auth.{User, UserNotifier, UserToken}
   alias PhoenixKit.Users.{CustomFields, RateLimiter, Role, Roles, WelcomeEmail}
+  alias PhoenixKit.Users.OrganizationManagers
   alias PhoenixKit.Users.Sessions.Revocation
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.FileHash
@@ -892,13 +893,12 @@ defmodule PhoenixKit.Users.Auth do
 
   """
   def update_user_password(user, password, attrs, opts \\ []) do
-    changeset =
-      user
-      |> User.password_changeset(attrs)
-      |> User.validate_current_password(password)
-
-    multi = Ecto.Multi.new()
-    multi = Ecto.Multi.update(multi, :user, changeset)
+    multi =
+      password_update_multi(user, fn current ->
+        current
+        |> User.password_changeset(attrs)
+        |> User.validate_current_password(password)
+      end)
 
     multi
     |> Revocation.multi_delete_all(:tokens, revoked_tokens_query(user),
@@ -1016,10 +1016,7 @@ defmodule PhoenixKit.Users.Auth do
   defp target_label(_other), do: "an unrecognised target"
 
   defp do_admin_update_user_password(user, attrs, context) do
-    changeset = User.password_changeset(user, attrs)
-
-    multi = Ecto.Multi.new()
-    multi = Ecto.Multi.update(multi, :user, changeset)
+    multi = password_update_multi(user, &User.password_changeset(&1, attrs))
 
     multi =
       Revocation.multi_delete_all(multi, :tokens, revoked_tokens_query(user))
@@ -1221,12 +1218,22 @@ defmodule PhoenixKit.Users.Auth do
   Changes a user's account type. Validates no members exist when switching org→person.
   """
   def change_account_type(%User{} = user, attrs) do
-    with :ok <- validate_manager_account_type(user, attrs),
-         :ok <- validate_can_change_type(user, attrs) do
-      user
-      |> User.account_type_changeset(attrs)
-      |> Repo.update()
-    end
+    OrganizationManagers.with_user_lock(user, [], fn current ->
+      with :ok <- validate_manager_account_type(current, attrs),
+           :ok <- validate_can_change_type(current, attrs) do
+        current
+        |> User.account_type_changeset(attrs)
+        |> Repo.update()
+      end
+    end)
+  end
+
+  defp validate_manager_account_type(%User{managed_by_members: true}, attrs) do
+    type = Map.get(attrs, :account_type, Map.get(attrs, "account_type"))
+
+    if type in [nil, "organization"],
+      do: :ok,
+      else: {:error, :managed_organization_requires_conversion}
   end
 
   defp validate_manager_account_type(user, attrs) do
@@ -1869,15 +1876,7 @@ defmodule PhoenixKit.Users.Auth do
 
   """
   def reset_user_password(user, attrs) do
-    # A reset LiveView may hold a struct from before an admin converted the
-    # account. Decide from its current policy, not that stale struct.
-    current = Repo.get!(User, user.uuid)
-    do_reset_user_password(current, attrs)
-  end
-
-  defp do_reset_user_password(user, attrs) do
-    multi = Ecto.Multi.new()
-    multi = Ecto.Multi.update(multi, :user, User.password_changeset(user, attrs))
+    multi = password_update_multi(user, &User.password_changeset(&1, attrs))
 
     multi
     |> Revocation.multi_delete_all(:tokens, revoked_tokens_query(user))
@@ -1899,6 +1898,27 @@ defmodule PhoenixKit.Users.Auth do
       {:error, :user, changeset, _} ->
         {:error, changeset}
     end
+  end
+
+  # A form can predate conversion or another password rotation. Keep current
+  # policy and hash locked through validation and the write, sharing conversion's
+  # organization-row lock. Preserve provenance already supplied by its token
+  # loader; a by-uuid read alone must not silently change the active role.
+  defp password_update_multi(user, changeset_fun) do
+    Ecto.Multi.new()
+    |> Ecto.Multi.run(:credential_user, fn repo, _ ->
+      current = repo.one!(from(u in User, where: u.uuid == ^user.uuid, lock: "FOR NO KEY UPDATE"))
+
+      {:ok,
+       %{
+         current
+         | active_role_uuid: user.active_role_uuid,
+           acting_user_uuid: user.acting_user_uuid,
+           acting_session_uuid: user.acting_session_uuid,
+           organization_manager_uuid: user.organization_manager_uuid
+       }}
+    end)
+    |> Ecto.Multi.update(:user, fn %{credential_user: current} -> changeset_fun.(current) end)
   end
 
   ## Role Management Functions
@@ -2120,10 +2140,7 @@ defmodule PhoenixKit.Users.Auth do
     end
   end
 
-  defp persist_user_profile(
-         %Ecto.Changeset{data: user, changes: %{custom_fields: _}} = changeset,
-         attrs
-       ) do
+  defp persist_user_profile(%Ecto.Changeset{data: user} = changeset, attrs) do
     # System writers update this same row atomically. Keep its lock from the
     # fresh read through the profile update, including a second validation:
     # a previously editable scalar may now be a system-managed object.
@@ -2137,7 +2154,15 @@ defmodule PhoenixKit.Users.Auth do
           raise Ecto.StaleEntryError, changeset: changeset, action: :update
 
         current ->
-          {:ok, User.profile_changeset(%{user | custom_fields: current.custom_fields}, attrs)}
+          refreshed = %{
+            user
+            | custom_fields: current.custom_fields,
+              email: current.email,
+              google_email: current.google_email,
+              managed_by_members: current.managed_by_members
+          }
+
+          {:ok, User.profile_changeset(refreshed, attrs)}
       end
     end)
     |> Ecto.Multi.update(:user, fn %{changeset: changeset} -> changeset end)
@@ -2146,10 +2171,6 @@ defmodule PhoenixKit.Users.Auth do
       {:ok, %{user: updated_user, changeset: changeset}} -> {:ok, {updated_user, changeset}}
       {:error, _step, changeset, _changes} -> {:error, changeset}
     end
-  end
-
-  defp persist_user_profile(changeset, _attrs) do
-    with {:ok, updated_user} <- Repo.update(changeset), do: {:ok, {updated_user, changeset}}
   end
 
   @doc """
@@ -2843,10 +2864,27 @@ defmodule PhoenixKit.Users.Auth do
   def update_user_status(user, attrs, opts \\ [])
 
   def update_user_status(%User{} = user, attrs, opts) do
+    removes_access = fn current ->
+      current |> User.status_changeset(attrs) |> Ecto.Changeset.get_field(:is_active) == false
+    end
+
+    with :ok <- authorize_status_actor(user, opts) do
+      OrganizationManagers.with_user_lock(
+        user,
+        Keyword.put(opts, :removes_access, removes_access),
+        fn current ->
+          with :ok <- authorize_status_actor(current, opts),
+               do: do_update_user_status_with_owner_guard(current, attrs)
+        end
+      )
+    end
+  end
+
+  defp authorize_status_actor(user, opts) do
     case Keyword.get(opts, :actor) do
       %User{} = actor ->
         if can_manage_user_status?(user, actor) do
-          do_update_user_status_with_owner_guard(user, attrs)
+          :ok
         else
           {:error, :insufficient_permissions}
         end
@@ -2859,7 +2897,7 @@ defmodule PhoenixKit.Users.Auth do
       # the unchecked path. Fails closed, matching
       # `admin_update_user_password/3`.
       nil ->
-        do_update_user_status_with_owner_guard(user, attrs)
+        :ok
 
       _malformed ->
         Logger.warning(
@@ -2872,7 +2910,7 @@ defmodule PhoenixKit.Users.Auth do
 
   defp do_update_user_status_with_owner_guard(user, attrs) do
     # Check if this would deactivate the last owner
-    if attrs["is_active"] == false or attrs[:is_active] == false do
+    if Ecto.Changeset.get_field(User.status_changeset(user, attrs), :is_active) == false do
       do_deactivate_user(user, attrs)
     else
       # Activation is always safe
@@ -3431,7 +3469,11 @@ defmodule PhoenixKit.Users.Auth do
   def delete_user(%User{} = user, opts \\ %{}) do
     current_user = Map.get(opts, :current_user)
 
-    with :ok <- validate_can_delete_user(user, current_user) do
+    with :ok <- validate_can_delete_user(user, current_user),
+         # Avoid running module lifecycle hooks for an already-refused last
+         # manager deletion. The actual delete rechecks under the same locks.
+         {:ok, _} <-
+           OrganizationManagers.with_user_lock(user, deletion_manager_opts(opts), &{:ok, &1}) do
       # Module lifecycle hooks run BEFORE the row delete, while the
       # user's related rows (memberships, assignments) still exist —
       # remediation the DB cascades can't do (ownership succession,
@@ -3446,6 +3488,16 @@ defmodule PhoenixKit.Users.Auth do
 
       do_delete_user(user, opts, current_user)
     end
+  end
+
+  defp deletion_manager_opts(opts) do
+    [
+      removes_access: true,
+      lock: "FOR UPDATE",
+      actor: Map.get(opts, :current_user),
+      manager_actor: Map.get(opts, :manager_actor),
+      allow_managerless: Map.get(opts, :allow_managerless, false)
+    ]
   end
 
   defp do_delete_user(user, opts, current_user) do
@@ -3653,6 +3705,8 @@ defmodule PhoenixKit.Users.Auth do
   # carry the answer; the templates additionally hand in an actor loaded the
   # same way. Preloaded assignments are the live set — an inactive assignment
   # is deleted, not flagged — so the two paths agree.
+  defp has_system_role?(%User{managed_by_members: true}, _role_name), do: false
+
   defp has_system_role?(%User{roles: roles}, role_name) when is_list(roles) do
     Enum.any?(roles, &(&1.name == role_name))
   end
@@ -3678,9 +3732,9 @@ defmodule PhoenixKit.Users.Auth do
 
   # Execute the deletion within a transaction
   defp execute_user_deletion(%User{} = user, opts) do
-    Revocation.transaction(fn ->
-      Repo.one(from(u in User, where: u.uuid == ^user.uuid, lock: "FOR UPDATE"))
+    OrganizationManagers.with_user_lock(user, deletion_manager_opts(opts), fn user ->
       Revocation.delete_all(UserToken.by_user_and_contexts_query(user, :all))
+      OrganizationManagers.clear_person_locked(user, Map.fetch!(opts, :current_user))
 
       # 1. Delete cascade data (related records that should be fully removed)
       delete_cascade_data(user)
@@ -3697,7 +3751,7 @@ defmodule PhoenixKit.Users.Auth do
           # 5. Broadcast the deletion event
           Events.broadcast_user_deleted(user)
 
-          %{deleted_user_uuid: user.uuid, anonymized_records: anonymized_count}
+          {:ok, %{deleted_user_uuid: user.uuid, anonymized_records: anonymized_count}}
 
         {:error, changeset} ->
           Repo.rollback({:error, changeset})

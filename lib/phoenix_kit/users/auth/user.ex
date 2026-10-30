@@ -595,7 +595,18 @@ defmodule PhoenixKit.Users.Auth.User do
     |> validate_user_timezone()
     |> validate_country()
     |> cast_user_custom_fields(attrs)
+    |> protect_managed_profile_credentials()
   end
+
+  defp protect_managed_profile_credentials(%{data: %{managed_by_members: true}} = changeset) do
+    Enum.reduce([:email, :google_email], changeset, fn field, acc ->
+      if changed?(acc, field),
+        do: add_error(acc, field, "cannot be changed for a managed organization"),
+        else: acc
+    end)
+  end
+
+  defp protect_managed_profile_credentials(changeset), do: changeset
 
   defp cast_user_custom_fields(changeset, attrs) do
     case submitted_custom_fields(attrs) do
