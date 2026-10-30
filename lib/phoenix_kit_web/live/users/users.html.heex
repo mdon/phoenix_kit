@@ -753,6 +753,7 @@
                                     `require_email_confirmation`. --%>
                               <%= if Auth.can_manage_user_status?(user, @actor_with_roles) do %>
                                 <.table_row_menu_button
+                                  :if={not user.managed_by_members}
                                   phx-click="request_confirmation_toggle"
                                   phx-value-user_uuid={user.uuid}
                                   phx-value-is_confirmed={to_string(!!user.confirmed_at)}
@@ -851,6 +852,7 @@
                     switch as much as for the status one. --%>
               <%= if Auth.can_manage_user_status?(user, @actor_with_roles) do %>
                 <.table_row_menu_button
+                  :if={not user.managed_by_members}
                   phx-click="request_confirmation_toggle"
                   phx-value-user_uuid={user.uuid}
                   phx-value-is_confirmed={to_string(!!user.confirmed_at)}

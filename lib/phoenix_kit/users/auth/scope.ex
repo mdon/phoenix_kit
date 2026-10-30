@@ -126,7 +126,8 @@ defmodule PhoenixKit.Users.Auth.Scope do
             multi_session_allowed?: false,
             acting_organizations: [],
             acting_person: nil,
-            organization_root: nil
+            organization_root: nil,
+            pending_invitations: []
 
   use Gettext, backend: PhoenixKitWeb.Gettext
 

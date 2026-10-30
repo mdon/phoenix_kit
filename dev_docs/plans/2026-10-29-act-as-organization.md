@@ -729,11 +729,11 @@ the phase boundaries are work packages, not independent feature releases.
 
 ## Implementation progress (2026-10-29)
 
-Current status (2026-10-30): the remaining phase-1 backend and manager lifecycle
-code is complete and verified with PostgreSQL regression tests and the project
-gate. Phase 2 switching is complete and verified (fifth batch below).
-Creation/conversion remain internal; manager administration/invitations still
-gate exposing the complete feature.
+Current status (2026-10-30): core phases 1–3 are implemented and verified with
+PostgreSQL regression tests and the project gate. Managed creation/conversion
+now have administrator controls; managers have self-service invitations and
+removal. The remaining plan item is the CRM package's explicit mirror option
+(phase 4), released after core.
 
 First foundation batch (part of phase 1):
 
@@ -759,7 +759,8 @@ First foundation batch (part of phase 1):
 - [x] Transactional dependent-token collection, disconnects and concurrent
   lifecycle tests; these must precede exposing managed-account creation.
 - [x] Switching, attribution, core display audit and switching translations (phase 2).
-- [ ] Managers UI/invitations and CRM integration (phases 3–4).
+- [x] Managers UI/invitations, creation/conversion controls and their translations (phase 3).
+- [ ] CRM integration (phase 4).
 
 No public managed-account creation, conversion or acting-session minting is
 exposed by these foundation batches. The first batch proved database
@@ -981,6 +982,42 @@ Fifth batch — phase 2 switching (2026-10-30, complete):
   rendering a managed organization without a contact address.
 - `mix precommit` passed with all **480 JavaScript tests**. No creation/conversion
   UI is exposed; phase 3 interfaces/invitations remain next.
+
+Sixth batch — phase 3 interfaces and invitations (2026-10-30, complete):
+
+- Implementing kind-aware manager invitations with locked acceptance, live
+  administrator/acting-manager authorization, scoped cancellation, generic
+  invite responses and per-person/organization rate limits.
+- InvitationHook is attached to all kit user surfaces, idempotently for hosts
+  that also attach it. Banners travel through the mounted scope into the layout;
+  acceptance re-reads the current session and refreshes the organization switcher.
+- Shared admin/self-service manager controls, contact editing, administrator-only
+  person search, conversion forms and dedicated managed creation are implemented.
+  Creation requires the organization switch and an own-account administrator;
+  person deactivation/deletion include the explicit last-manager override.
+- The manager kind accepts only active ordinary people, with current email and
+  confirmation policy checked under locks. A person's employment is unchanged.
+  Conversion back and person lifecycle changes cannot race a stale acceptance;
+  acceptance/decline/cancel status changes serialize. Expired pending invites
+  can be replaced; duplicates consume the rate limit and return generic copy.
+- New manager mail is registered in the template editor and all interface,
+  invitation and notification copy is in the catalog and all nine locales
+  (**49 entries**, with interpolation keys verified across locales).
+- Contact/conversion saves refresh their parent. Profile Settings reloads its
+  own token to preserve browser provenance; shared references never carry raw
+  tokens. Raw-token lookup SQL is excluded from debug logging and tested.
+  Managed organizations cannot be unconfirmed, including through stale forms.
+- PostgreSQL broad regression: **1,912 tests, 0 failures**. Final verification
+  after scope-refresh, contact-refresh and token-log refinements: **144 tests,
+  0 failures** across new/legacy invitation, switching, creation, settings and
+  tab contracts, including **18 real-connection race/rollback cases** (7 for
+  invitations and 11 for switching). The dedicated new manager/lifecycle UI
+  run passed **47 tests** before the final token-log assertion was added.
+- `mix precommit` passed: warnings-as-errors compile, test-file compilation,
+  formatting, Credo strict, Dialyzer and all **480 JavaScript tests**.
+- Core safety and UI paths now work together, satisfying the creation gate.
+  No version bump, publication or deployment is part of these implementation
+  batches. The separate CRM mirror work remains phase 4.
 
 ## Tests
 

@@ -1,10 +1,8 @@
 defmodule PhoenixKit.Users.ManagedOrganizations do
   @moduledoc """
-  Internal managed-account creation and conversion foundations.
+  Managed-account creation and conversion for own-account administrators.
 
-  These functions deliberately have no routes or UI yet. Managed creation must
-  not be exposed until switching, attribution and manager administration work
-  together. Every call takes an `Actor` made from a trusted signed session,
+  Every call takes an `Actor` made from a trusted signed session,
   rechecks an Owner/Admin's own live session and locks current database state.
   Creation never uses registration or the first-user Owner bootstrap.
   """

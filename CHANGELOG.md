@@ -4,8 +4,8 @@
 
 - Internal managed-organization creation and conversion, with a required first
   manager, referral admission, credential revocation, and fresh credentials when
-  converting back. Creation/conversion remain internal until manager
-  administration is complete.
+  converting back. An administrator's dedicated creation form requires an
+  active first manager; organization details provide conversion controls.
 - Manager lifecycle locks and last-active-manager protection cover grant
   removal and person deactivation/deletion; leaving an organization without an
   active manager requires an explicit override from a live own-admin session.
@@ -14,8 +14,7 @@
 - Managed-organization foundations (V226): manager grants, contact addresses,
   grant-bound session provenance and invitation kinds. Authentication refuses
   independent managed-account logins; scopes exclude Owner, Admin, wildcard and
-  API authority. Managed-account creation remains unavailable
-  until the rest of the organization lifecycle is implemented.
+  API authority.
 - Account mail uses a managed organization's contact address, and the mailer
   removes reserved `.invalid` recipients from To, Cc and Bcc.
 - Session revocation collects dependent organization sessions under row locks
@@ -30,6 +29,15 @@
   separate durable cookie slot that works while multi-account switching is off.
   Entry is limited per root user and serializes concurrent requests and
   revocation; switching away deletes and disconnects the organization token.
+- Shared manager administration in organization details and a non-hideable
+  Managers settings tab while acting. Managers invite by email; administrators
+  can search and add active people. Grant removal and person deactivation or
+  deletion require an explicit own-admin override to leave no active manager.
+- Manager invitations with locked, kind-aware acceptance, scoped cancellation,
+  generic invite responses, per-person/organization rate limits and mail for
+  both existing and new invitees. Kit pages show invitation banners and refresh
+  the organization switcher after acceptance; registration and confirmation
+  automatically accept the manager kind without changing employment.
 - Acting-person attribution in activity metadata and screens, source-browser
   organization sessions, contact addresses in user/session lists, presence and
   mentions, managed badges, and switcher translations in all nine locales.

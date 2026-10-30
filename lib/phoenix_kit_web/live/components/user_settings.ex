@@ -22,6 +22,9 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
 
     * `sections` — list of sections to display: `:identity`, `:custom_fields`, `:email`, `:password`, `:oauth`, `:notifications`, `:sessions`
       (default: all). `:profile` is accepted as a legacy alias that expands to `[:identity, :custom_fields]`
+    * `manager_actor` — a `ManagedOrganizations.Actor` from the host's trusted
+      signed session. Required to embed the `:managers` section while acting;
+      never construct it from event parameters.
     * `email_confirm_url_fn` — `(token -> url)` for email confirmation links
       (default: `&Routes.url("/profile/settings/confirm-email/\#{&1}")`)
     * `return_to` — where OAuth redirect returns to (default:
@@ -82,6 +85,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
     :oauth,
     :notifications,
     :sessions,
+    :managers,
     # Last on the page: a reset is the thing you reach for when something
     # is wrong, not part of the daily settings people scroll through.
     :etcher
@@ -154,6 +158,7 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
       |> assign(:id, assigns.id)
       |> assign(:user, user)
       |> assign(:sections, sections)
+      |> assign(:manager_actor, Map.get(assigns, :manager_actor, socket.assigns[:manager_actor]))
       |> assign(
         :show_google_email,
         not user.managed_by_members and
@@ -1104,6 +1109,16 @@ defmodule PhoenixKitWeb.Live.Components.UserSettings do
     ~H"""
     <div class="card bg-base-100 shadow-sm max-w-4xl mx-auto">
       <div class="card-body">
+        <.live_component
+          :if={
+            (:managers in @sections and @user.managed_by_members and @user.acting_user_uuid) &&
+              @manager_actor
+          }
+          module={PhoenixKitWeb.Live.Components.OrganizationManagers}
+          id={"#{@id}-managers"}
+          actor={@manager_actor}
+          organization_uuid={@user.uuid}
+        />
         <%!-- Identity Section (avatar, name, username, timezone) --%>
         <%= if :identity in @sections do %>
           <div>

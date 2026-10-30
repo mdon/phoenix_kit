@@ -28,6 +28,7 @@ defmodule PhoenixKitWeb.Live.Users.ProfileSettings do
   alias PhoenixKit.Modules.Storage.Libraries
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth
+  alias PhoenixKit.Users.ManagedOrganizations.Actor, as: OrganizationActor
   alias PhoenixKit.Utils.Routes
 
   alias PhoenixKitWeb.Components.ProfileSettingsTabs
@@ -58,6 +59,13 @@ defmodule PhoenixKitWeb.Live.Users.ProfileSettings do
   def mount(_params, session, socket) do
     {:ok,
      socket
+     |> assign(
+       :manager_actor,
+       case OrganizationActor.from_session(session) do
+         {:ok, actor} -> actor
+         _ -> nil
+       end
+     )
      |> assign(:page_title, gettext("Profile Settings"))
      |> assign(:project_title, Settings.get_project_title())
      # Raw session token of this browser — lets the Active Sessions section

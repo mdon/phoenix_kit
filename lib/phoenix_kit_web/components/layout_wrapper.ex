@@ -204,6 +204,16 @@ defmodule PhoenixKitWeb.Components.LayoutWrapper do
   slot :inner_block, required: false
 
   def app_layout(assigns) do
+    invitations =
+      case assigns[:pk_pending_invitations] do
+        [] ->
+          Map.get(assigns[:phoenix_kit_current_scope] || %{}, :pending_invitations, [])
+
+        pending ->
+          pending
+      end
+
+    assigns = assign(assigns, :pk_pending_invitations, invitations)
     # Guard against double-wrapping: when admin.html.heex layout auto-applies admin
     # chrome for plugin views, the LiveView's render/1 may also call app_layout.
     #

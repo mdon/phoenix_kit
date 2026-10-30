@@ -2477,6 +2477,7 @@ defmodule PhoenixKitWeb.Users.Auth do
     PhoenixKitWeb.Live.Modules => "modules",
     PhoenixKitWeb.Live.Users.Users => "users",
     PhoenixKitWeb.Users.UserForm => "users",
+    PhoenixKitWeb.Live.Users.ManagedOrganizationNew => "users",
     PhoenixKitWeb.Live.Users.UserDetails => "users",
     PhoenixKitWeb.Live.Users.Roles => "users",
     PhoenixKitWeb.Live.Users.PermissionsMatrix => "users",

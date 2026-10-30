@@ -1,6 +1,6 @@
 defmodule PhoenixKit.Users.OrganizationManagers do
   @moduledoc """
-  Internal, authorized manager lifecycle. No user-facing creation surface yet.
+  Authorized manager lifecycle shared by admin and self-service controls.
 
   Grant changes and person lifecycle changes share a per-person advisory lock,
   then organization row locks (`FOR NO KEY UPDATE`, uuid order), then user locks.
@@ -13,10 +13,78 @@ defmodule PhoenixKit.Users.OrganizationManagers do
 
   alias PhoenixKit.RepoHelper
   alias PhoenixKit.Users.Auth.User
+  alias PhoenixKit.Users.Invitations
   alias PhoenixKit.Users.ManagedOrganizations.Actor
   alias PhoenixKit.Users.ManagedOrganizations.Locks
   alias PhoenixKit.Users.OrganizationManager
   alias PhoenixKit.Users.Sessions.Revocation
+
+  @doc "Loads manager controls only for a live own-account administrator or acting manager."
+  def details(actor, organization_uuid) do
+    Revocation.transaction(fn ->
+      org = Locks.organization!(organization_uuid)
+      Locks.users!([Actor.person_uuid(actor)], "FOR KEY SHARE")
+      authority = actor |> Actor.authorize(org.uuid) |> Locks.value!()
+
+      grants =
+        RepoHelper.repo().all(
+          from(m in OrganizationManager,
+            where: m.organization_uuid == ^org.uuid,
+            preload: [:user],
+            order_by: m.inserted_at
+          )
+        )
+
+      invitations = Invitations.list_invitations(org.uuid, kind: :manager)
+      %{organization: org, authority: authority, grants: grants, invitations: invitations}
+    end)
+  end
+
+  def update_contact(actor, organization_uuid, attrs) do
+    Revocation.transaction(fn ->
+      org = Locks.organization!(organization_uuid)
+      Locks.users!([Actor.person_uuid(actor)], "FOR KEY SHARE")
+      actor |> Actor.authorize(org.uuid) |> Locks.value!()
+      unless org.managed_by_members, do: RepoHelper.repo().rollback(:organization_not_managed)
+      org |> User.contact_email_changeset(attrs) |> RepoHelper.repo().update() |> Locks.value!()
+    end)
+  end
+
+  @doc "Admin-only person search; managers add people only by email invitation."
+  def search(actor, organization_uuid, term) when is_binary(term) do
+    Revocation.transaction(fn ->
+      Locks.organization!(organization_uuid)
+      Locks.users!([Actor.person_uuid(actor)], "FOR KEY SHARE")
+      actor |> Actor.admin() |> Locks.value!()
+
+      search_people(term)
+    end)
+  end
+
+  def search_for_creation(actor, term) when is_binary(term) do
+    Revocation.transaction(fn ->
+      Locks.users!([Actor.person_uuid(actor)], "FOR KEY SHARE")
+      actor |> Actor.admin() |> Locks.value!()
+      search_people(term)
+    end)
+  end
+
+  defp search_people(term) do
+    pattern =
+      "%" <>
+        String.replace(String.trim(term), ["%", "_", "\\"], fn char -> "\\" <> char end) <> "%"
+
+    RepoHelper.repo().all(
+      from(u in User,
+        where: u.account_type == "person" and u.is_active and not u.api_only,
+        where:
+          ilike(u.email, ^pattern) or ilike(u.first_name, ^pattern) or
+            ilike(u.last_name, ^pattern),
+        order_by: u.email,
+        limit: 10
+      )
+    )
+  end
 
   def add(actor, organization_uuid, person_uuid) do
     Revocation.transaction(fn ->
@@ -103,7 +171,7 @@ defmodule PhoenixKit.Users.OrganizationManagers do
           |> OrganizationManager.changeset(%{
             organization_uuid: org.uuid,
             user_uuid: person_uuid,
-            granted_by_uuid: authority.person_uuid
+            granted_by_uuid: Map.get(authority, :granted_by_uuid, authority.person_uuid)
           })
           |> RepoHelper.repo().insert()
           |> Locks.value!()

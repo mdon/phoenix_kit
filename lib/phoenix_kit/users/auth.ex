@@ -1327,7 +1327,7 @@ defmodule PhoenixKit.Users.Auth do
   """
   def get_user_by_session_token(token) do
     {:ok, query} = UserToken.verify_session_token_query(token)
-    Repo.one(query)
+    Repo.one(query, log: false)
   end
 
   # Define session validity for query
@@ -1352,7 +1352,7 @@ defmodule PhoenixKit.Users.Auth do
       where: t.token == ^token and t.context == "session",
       where: t.inserted_at > ago(@session_validity_in_days, "day")
     )
-    |> Repo.one()
+    |> Repo.one(log: false)
   end
 
   @doc """
@@ -1693,16 +1693,21 @@ defmodule PhoenixKit.Users.Auth do
       {:error, %Ecto.Changeset{}}
   """
   def admin_unconfirm_user(%User{} = user) do
-    changeset = User.unconfirm_changeset(user)
+    result =
+      OrganizationManagers.with_user_lock(user, [], fn current ->
+        if current.managed_by_members do
+          {:error, :managed_organization}
+        else
+          current |> User.unconfirm_changeset() |> Repo.update()
+        end
+      end)
 
-    case Repo.update(changeset) do
-      {:ok, updated_user} = result ->
-        Events.broadcast_user_unconfirmed(updated_user)
-        result
-
-      error ->
-        error
+    case result do
+      {:ok, updated_user} -> Events.broadcast_user_unconfirmed(updated_user)
+      _ -> :ok
     end
+
+    result
   end
 
   @doc """

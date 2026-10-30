@@ -206,6 +206,21 @@ defmodule PhoenixKit.Users.Auth.UserNotifier do
     )
   end
 
+  @doc "Delivers a manager invitation, with a sign-in or registration link for the invitee."
+  def deliver_manager_invitation(email, organization_name, invitation_url) do
+    deliver_templated(
+      email,
+      email,
+      "organization_manager_invitation",
+      %{
+        "user_email" => email,
+        "organization_name" => organization_name,
+        "invitation_url" => invitation_url
+      },
+      &CoreTemplates.organization_manager_invitation_defaults/0
+    )
+  end
+
   @doc """
   Deliver magic link registration instructions.
 

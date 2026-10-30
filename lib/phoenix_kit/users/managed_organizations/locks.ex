@@ -52,6 +52,7 @@ defmodule PhoenixKit.Users.ManagedOrganizations.Locks do
     end
   end
 
+  def value!(:ok), do: :ok
   def value!({:ok, result}), do: result
   def value!({:error, reason}), do: RepoHelper.repo().rollback(reason)
 end
