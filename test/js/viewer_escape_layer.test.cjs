@@ -130,6 +130,17 @@ test("the arrow keys are left as they were", () => {
   assert.deepEqual(v.pushed, [{ event: "viewer_keydown", payload: { key: "ArrowRight" } }]);
 });
 
+test("the arrows do not step the viewer while the removal dialog is open over it", () => {
+  const v = mount();
+  v.doc.querySelector = (sel) => (sel === "[data-removal-state]" ? {} : null);
+  const e = v.press("ArrowRight");
+  assert.deepEqual(v.pushed, []);
+  assert.equal(e.prevented, false);
+  v.doc.querySelector = () => null;
+  v.press("ArrowRight");
+  assert.equal(v.pushed.length, 1, "and step again once it is closed");
+});
+
 test("a picker's viewer (popover) is shown in the top layer on mount, once", () => {
   const el = viewerEl({ popover: true });
   const v = mount({ el });

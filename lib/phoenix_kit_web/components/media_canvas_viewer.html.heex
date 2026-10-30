@@ -891,7 +891,10 @@
                 phx-click="delete_file"
                 phx-value-file-uuid={f.file_uuid}
                 phx-target={"##{@parent_id}"}
-                data-confirm={gettext("Permanently delete this file? This cannot be undone.")}
+                data-confirm={
+                  if !@server_confirm,
+                    do: gettext("Permanently delete this file? This cannot be undone.")
+                }
                 class="btn btn-error btn-outline btn-sm gap-2"
               >
                 <.icon name="hero-trash" class="w-4 h-4" /> {gettext("Delete forever")}

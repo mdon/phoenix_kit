@@ -598,10 +598,13 @@
               phx-click="delete_selected"
               phx-target={@myself}
               data-confirm={
-                delete_selected_confirm(
-                  @selected_files,
-                  @selected_folders,
-                  @filter_trash
+                client_confirm(
+                  @removal_guarded,
+                  delete_selected_confirm(
+                    @selected_files,
+                    @selected_folders,
+                    @filter_trash
+                  )
                 )
               }
               class="btn btn-sm btn-error gap-1"
@@ -828,10 +831,13 @@
               phx-click="empty_trash"
               phx-target={@myself}
               data-confirm={
-                ngettext(
-                  "Permanently delete %{count} trashed file?",
-                  "Permanently delete all %{count} trashed files?",
-                  @total_count
+                client_confirm(
+                  @removal_guarded,
+                  ngettext(
+                    "Permanently delete %{count} trashed file?",
+                    "Permanently delete all %{count} trashed files?",
+                    @total_count
+                  )
                 )
               }
               class={[
