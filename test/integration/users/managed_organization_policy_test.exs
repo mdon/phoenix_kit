@@ -125,6 +125,7 @@ defmodule PhoenixKit.Users.ManagedOrganizationPolicyTest do
 
   test "the ceiling also covers sub-keys of api" do
     assert Scope.managed_ceiling_key?("api.keys")
+    assert Scope.managed_ceiling_key?("api_personal_keys")
     refute Scope.managed_ceiling_key?("apiary")
     refute Scope.managed_ceiling_key?("users")
   end

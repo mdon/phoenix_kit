@@ -230,6 +230,13 @@ defmodule PhoenixKit.Users.ManagedOrganizationLifecycleTest do
     assert {:error, :managed_organization} = OAuth.link_oauth_provider(stale, data)
     assert {:error, :forbidden} = Keys.create_key(stale, scope, %{name: "No"})
 
+    assert {:error, :owner_inactive} =
+             Keys.create_personal_key(
+               scope,
+               %{name: "No", expires_at: DateTime.add(DateTime.utc_now(), 3600)},
+               impersonated: false
+             )
+
     assert {:ok, _} =
              ManagedOrganizations.convert_to_independent(actor, stale.uuid, %{
                email: "fresh-#{UUIDv7.generate()}@example.com",

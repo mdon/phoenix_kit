@@ -260,7 +260,7 @@ defmodule PhoenixKit.Users.Auth.Scope do
   @doc false
   @spec managed_ceiling_key?(String.t()) :: boolean()
   def managed_ceiling_key?(key) when is_binary(key),
-    do: key in [@superadmin_key, "api"] or String.starts_with?(key, "api.")
+    do: key in [@superadmin_key, "api", "api_personal_keys"] or String.starts_with?(key, "api.")
 
   # Not narrowed: the union across every held role, exactly as before the
   # active role existed. Narrowed: only the roles in effect.

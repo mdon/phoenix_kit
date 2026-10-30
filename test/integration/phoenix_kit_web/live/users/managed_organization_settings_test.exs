@@ -18,7 +18,7 @@ defmodule PhoenixKitWeb.Live.Users.ManagedOrganizationSettingsTest do
       render_component(UserSettings,
         id: "managed",
         user: user,
-        sections: [:identity, :email, :password, :oauth, :sessions],
+        sections: [:identity, :email, :password, :oauth, :sessions, :api_keys],
         show_google_email: true
       )
 
@@ -26,6 +26,7 @@ defmodule PhoenixKitWeb.Live.Users.ManagedOrganizationSettingsTest do
     refute html =~ "Change Password"
     refute html =~ "Connected Accounts"
     refute html =~ "Active Sessions"
+    refute html =~ "managed-api-keys"
     refute html =~ "Google Email"
     refute html =~ ~s(phx-hook="TimezoneDetector")
     refute html =~ user.email

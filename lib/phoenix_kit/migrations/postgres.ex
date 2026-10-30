@@ -7,9 +7,16 @@ defmodule PhoenixKit.Migrations.Postgres do
 
   ## Migration Versions
 
-  ### V226 - Managed organizations and session provenance ⚡ LATEST
+  ### V227 - Managed organizations and session provenance ⚡ LATEST
 
   Manager grants, delivery addresses, dependent acting sessions and invitation kinds.
+
+  ### V226 - Personal API keys
+
+  `phoenix_kit_api_keys.personal` (`boolean NOT NULL DEFAULT false`): a person's own key, made through
+  `PhoenixKit.API.Keys.create_personal_key/3` by a holder of the `api_personal_keys` or `api` permission. It
+  works only while its owner holds `api_personal_keys` or `api`, must expire, cannot need approval, and
+  only its owner rotates it. Existing keys read `false` and behave as before. Additive, no rewrite.
 
   ### V225 - A short code on every file
 
@@ -1044,7 +1051,7 @@ defmodule PhoenixKit.Migrations.Postgres do
   alias PhoenixKit.Migrations.Repair.Environment
 
   @initial_version 135
-  @current_version 226
+  @current_version 227
 
   # Core 3.0 no longer creates or changes any module's table (plan
   # `dev_docs/plans/2026-10-25-module-table-ownership.md`, step 8): V135..V225

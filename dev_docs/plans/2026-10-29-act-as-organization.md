@@ -86,7 +86,7 @@ identity, the API key paths and the CRM mirror all change (below).
 
 ## Design
 
-### 1. Data model (V226)
+### 1. Data model (V227)
 
 ```
 phoenix_kit_users                      (existing table)
@@ -138,7 +138,7 @@ phoenix_kit_organization_invitations   (existing core table)
   check is not enough).
 - **Pending uniqueness includes `kind`.** Today's unique index is
   `(organization_uuid, email) WHERE pending`
-  (`phoenix_kit_org_invitations_pending_unique_idx` in V135). V226 drops
+  (`phoenix_kit_org_invitations_pending_unique_idx` in V135). V227 drops
   it and creates `(organization_uuid, email, kind) WHERE pending`, so a
   pending member invite and a pending manager invite for the same address
   can coexist. Leaving the old index in place would make a pending member
@@ -154,7 +154,7 @@ phoenix_kit_organization_invitations   (existing core table)
   index names on CREATE, schema anchors on existence checks). The new columns
   and table go into the generated manifest and reference
   (`dev_docs/squash/README.md`, "Manifest & reference policy"), not only a
-  chain-hash restamp. V226 is the next free version (V225 is
+  chain-hash restamp. V227 follows the published personal-key migration V226 (V225 is
   `phoenix_kit_files.short_code`).
 
 ### 2. The placeholder login email
@@ -695,7 +695,7 @@ The admin sessions list uses the display helper (§5), not the placeholder.
 
 ## Phases
 
-1. **Core model + doors** — V226, schema/changeset changes (including
+1. **Core model + doors** — V227, schema/changeset changes (including
    `kind`, the kind CHECK, dropping the old pending-unique index and
    creating `(organization_uuid, email, kind) WHERE pending`, mapping
    that index in the changeset), placeholder email, dedicated create
@@ -739,7 +739,7 @@ deployment are separate work from this implementation.
 
 First foundation batch (part of phase 1):
 
-- [x] V226: managed-account policy and contact email, manager grants,
+- [x] V227: managed-account policy and contact email, manager grants,
   cascading token provenance and indexes, invitation kind and pending index.
 - [x] Catalog-generated manifest overlay and SQL reference, preserving the
   historical baseline; regeneration script in `dev_docs/squash/`.
@@ -777,7 +777,7 @@ Validation of this batch:
   `PGDATABASE=<scratch-test-db> PGPOOL=10 mix test --max-cases 8` —
   **89 doctests, 12,905 tests, 0 failures, 38 skipped, 1 excluded**.
   The excluded test requires `CREATEROLE`, which the test role lacks.
-- V226's 27 generated manifest objects match the real catalog in `public`
+- V227's 27 generated manifest objects match the real catalog in `public`
   and in the named-prefix full-chain test. Migration rerun, down/up,
   constraint enforcement and an empty `search_path` are covered.
 
@@ -1162,7 +1162,7 @@ Seventh batch — phase 4 CRM mirror (2026-10-30, complete):
   or role the form never offered); a `users` holder without credential
   authority cannot add a manager. The Managers settings section is absent
   when not acting, and is not in `@hideable`.
-- Prefix migration test covers V226 (kind column, kind CHECK, pending-unique
+- Prefix migration test covers V227 (kind column, kind CHECK, pending-unique
   index now includes `kind`); module-owned-tables test sees the new core
   table; both new token columns are indexed.
 
@@ -1308,7 +1308,7 @@ What changed because of it:
 
 - **Pending unique index.** V135's
   `phoenix_kit_org_invitations_pending_unique_idx` is
-  `(organization_uuid, email) WHERE pending`. V226 replaces it with
+  `(organization_uuid, email) WHERE pending`. V227 replaces it with
   `(organization_uuid, email, kind) WHERE pending`, plus a CHECK on
   `kind`. The changeset maps that index by name so a race is the generic
   answer, not a raw DB error. Today's changeset only constrains `:token`.
@@ -1358,7 +1358,7 @@ requirements were tightened before starting:
 - Phases are implementation work packages. Managed creation/conversion is
   exposed only after the safety requirements from phases 1–3 work together.
 
-Start with V226, the schema, session-query guard and authentication doors.
+Start with V227, the schema, session-query guard and authentication doors.
 Validate against real PostgreSQL, including a named prefix. Add switching
 and UI after the foundation is verified.
 

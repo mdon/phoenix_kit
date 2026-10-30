@@ -1,4 +1,4 @@
--- Generated V226 reference: users, tokens, managers and invitations.
+-- Generated V227 reference: users, tokens, managers and invitations.
 ALTER TABLE ONLY __SCHEMA__.phoenix_kit_organization_invitations
     ADD CONSTRAINT phoenix_kit_organization_invitations_invited_by_uuid_fkey FOREIGN KEY (invited_by_uuid) REFERENCES __SCHEMA__.phoenix_kit_users(uuid) ON DELETE SET NULL;
 

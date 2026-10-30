@@ -87,7 +87,7 @@ defmodule PhoenixKit.Integration.PrefixMigrationTest do
     snapshot = Probe.snapshot(Repo, @schema)
 
     for object <- ExpectedSchema.objects(@schema),
-        Enum.any?(object.revisions, &(elem(&1, 0) == 226)) do
+        Enum.any?(object.revisions, &(elem(&1, 0) == 227)) do
       {_version, expected} = List.last(object.revisions)
       observed = Probe.lookup(snapshot, object.check)
       assert observed != nil, object.id
