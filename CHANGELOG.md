@@ -41,6 +41,16 @@
 - Acting-person attribution in activity metadata and screens, source-browser
   organization sessions, contact addresses in user/session lists, presence and
   mentions, managed badges, and switcher translations in all nine locales.
+- Media browser picker mode supports ordered single or multiple selections,
+  selection limits, scoped file checks, and uploads isolated from other browsers.
+- Picker viewers preview files and select or deselect them without changing
+  file details, annotations, or viewer preferences.
+- Optional file removal guards check host references before removal and provide
+  server-side confirmation, usage details, and host-controlled release actions.
+
+### Changed
+
+- Update Etcher to 0.24.0.
 
 ### Fixed
 

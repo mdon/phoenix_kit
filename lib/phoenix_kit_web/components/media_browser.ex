@@ -4861,10 +4861,10 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     # action on one (move, trash, delete) is a folder action.
     folders =
       if socket.assigns.folder_actions,
-        do: MapSet.new(socket.assigns.folders, & &1.uuid),
-        else: MapSet.new()
+        do: socket.assigns.folders,
+        else: []
 
-    {files, folders}
+    {files, MapSet.new(folders, & &1.uuid)}
   end
 
   defp box_uuids(list, allowed) when is_list(list) do

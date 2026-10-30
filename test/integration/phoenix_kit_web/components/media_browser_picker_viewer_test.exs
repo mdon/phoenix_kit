@@ -622,7 +622,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowserPickerViewerTest do
       )
       |> render_click()
 
-      user = PhoenixKit.Users.Auth.get_user(ctx.user.uuid)
+      user = Auth.get_user(ctx.user.uuid)
       assert (user.custom_fields || %{})["media_viewer_info_collapsed"] == nil
     end
   end
