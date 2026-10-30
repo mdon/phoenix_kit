@@ -22017,3 +22017,8 @@ msgid "Maximum %{count} file"
 msgid_plural "Maximum %{count} files"
 msgstr[0] "Maximal %{count} Datei"
 msgstr[1] "Maximal %{count} Dateien"
+
+#: lib/phoenix_kit_web/components/media_canvas_viewer.html.heex
+#, elixir-autogen, elixir-format
+msgid "Deselect"
+msgstr "Abwählen"
