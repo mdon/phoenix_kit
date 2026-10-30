@@ -22009,3 +22009,20 @@ msgstr "Propietario inactivo"
 #, elixir-autogen, elixir-format
 msgid "The expiry date can be %{date} at the latest."
 msgstr "La fecha de caducidad puede ser como máximo el %{date}."
+
+#: lib/phoenix_kit_web/components/media_browser/header.html.heex
+#, elixir-autogen, elixir-format
+msgid "Wait for the uploads to finish"
+msgstr "Espera a que terminen las subidas"
+
+#: lib/phoenix_kit_web/components/media_browser.ex
+#, elixir-autogen, elixir-format
+msgid "No open media browser could receive this upload."
+msgstr "Ningún explorador de medios abierto pudo recibir esta subida."
+
+#: lib/phoenix_kit_web/components/media_browser/header.html.heex
+#, elixir-autogen, elixir-format
+msgid "Maximum %{count} file"
+msgid_plural "Maximum %{count} files"
+msgstr[0] "Máximo %{count} archivo"
+msgstr[1] "Máximo %{count} archivos"

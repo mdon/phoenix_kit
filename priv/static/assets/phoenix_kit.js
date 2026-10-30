@@ -2592,6 +2592,10 @@ if (typeof window.Chart === "undefined") {
 
         const card = e.target.closest && e.target.closest('[phx-click="click_file"]');
         if (!card) return;
+        // Only this browser's own cards: a page can hold two (a picker opened
+        // beside another), and each has a stand-in of its own.
+        const browser = el.parentElement;
+        if (browser && !browser.contains(card)) return;
         // Select mode turns the same click into a checkbox toggle, and a
         // picker's click may open nothing at all. The browser marks which it
         // is, so this can stay out of both.
@@ -8790,11 +8794,31 @@ if (typeof window.Chart === "undefined") {
       this.setupDragDrop();
       this.setupLongPress();
       this.setupBoxSelect();
+      this.setupPickConfirm();
     },
 
     destroyed: function() {
       if (this.el.__pkCancelBox) this.el.__pkCancelBox();
       if (this.el.__pkBoxHook === this) this.el.__pkBoxHook = null;
+      if (this._pickDblClick) this.el.removeEventListener("dblclick", this._pickDblClick);
+    },
+
+    // A single-pick picker (`data-pick-mode="single"`) confirms on a double
+    // click, file-dialog style: the two clicks have picked the file already,
+    // and this names it again so the server confirms exactly that one.
+    // LiveView has no double-click binding, so the hook listens. Read on
+    // every event, so a re-render that changes the mode needs no rewiring.
+    setupPickConfirm: function() {
+      var self = this;
+      this._pickDblClick = function(e) {
+        if (self.el.dataset.pickMode !== "single") return;
+        var card = e.target && e.target.closest && e.target.closest('[phx-click="click_file"]');
+        if (!card || card.closest('[phx-hook="MediaDragDrop"]') !== self.el) return;
+        var uuid = card.getAttribute("phx-value-file-uuid");
+        if (!uuid) return;
+        self.pushEventTo(self.el, "pick_quick_confirm", { "file-uuid": uuid });
+      };
+      this.el.addEventListener("dblclick", this._pickDblClick);
     },
 
     updated: function() {
@@ -9991,6 +10015,12 @@ if (typeof window.Chart === "undefined") {
       // stash holds file bytes, and the next person to sign in on this browser
       // must not be offered the last one's files.
       this._user = this.el.dataset.user || "";
+      // Set on a picker only. Events pushed by a component reach EVERY
+      // UploadResume hook on the page, so a picker names itself in them and
+      // answers only its own; it also keeps its stash apart (`_scopeNow`), or
+      // its leftovers and its Resume would be offered to the browser beside it.
+      this._browser = this.el.dataset.browser || "";
+      this._picker = this.el.dataset.picker === "true";
       this._scopes = {};
       this._live = {};
       this._root = this.el.parentElement || document.body;
@@ -10010,9 +10040,9 @@ if (typeof window.Chart === "undefined") {
       this._beat = setInterval(function() { self._heartbeat(); }, UPLOAD_STASH_HEARTBEAT_MS);
       this._rescan = null;
 
-      this.handleEvent("phoenix_kit:upload-received", function(p) { self._forget(p.keys); });
-      this.handleEvent("phoenix_kit:upload-discard", function(p) { self._forget(p.keys); });
-      this.handleEvent("phoenix_kit:upload-resume", function(p) { self._resume(p.keys); });
+      this.handleEvent("phoenix_kit:upload-received", function(p) { if (self._mine(p)) self._forget(p.keys); });
+      this.handleEvent("phoenix_kit:upload-discard", function(p) { if (self._mine(p)) self._forget(p.keys); });
+      this.handleEvent("phoenix_kit:upload-resume", function(p) { if (self._mine(p)) self._resume(p.keys); });
 
       // A just-loaded page may still be restoring; give it a moment, then
       // report whatever an earlier page load left behind.
@@ -10043,7 +10073,17 @@ if (typeof window.Chart === "undefined") {
     _scopeNow() {
       var folder = "";
       try { folder = new URLSearchParams(window.location.search).get("folder") || ""; } catch (_) {}
-      return window.location.pathname + "\u0000" + folder + "\u0000" + this._user;
+      var scope = window.location.pathname + "\u0000" + folder + "\u0000" + this._user;
+      // A picker's records are its own. A browser that is not a picker keeps
+      // the scope it always had, so its leftovers survive an upgrade.
+      return this._picker && this._browser ? scope + "\u0000" + this._browser : scope;
+    },
+
+    // A picker's events name it (`browser`); a browser that is not a picker
+    // sends none. A picker answers only its own, any other only the unnamed.
+    _mine(p) {
+      var named = p && p.browser;
+      return this._picker ? named === this._browser : !named;
     },
 
     // The scope a file was picked under — what the server's acknowledgement of
@@ -10157,7 +10197,8 @@ if (typeof window.Chart === "undefined") {
             return new File([row.blob], row.name, { type: row.type, lastModified: row.lastModified });
           });
         if (!files.length) return;
-        var input = self._root.querySelector("#folder-drop-upload-form input[type=file]") ||
+        // `<id>-folder-drop-upload-form` in a picker, which carries its id.
+        var input = self._root.querySelector('form[id$="folder-drop-upload-form"] input[type=file]') ||
                     self._root.querySelector("input[type=file][data-phx-upload-ref]");
         if (!input || typeof DataTransfer === "undefined") return;
         var dt = new DataTransfer();
