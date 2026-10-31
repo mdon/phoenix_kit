@@ -22359,3 +22359,13 @@ msgstr "Этот файл используется чем-то другим (н�
 #, elixir-autogen, elixir-format
 msgid "Some files in this folder are in use by something else, so they and their folders were kept."
 msgstr "Некоторые файлы в этой папке используются чем-то другим, поэтому они и их папки были сохранены."
+
+#: lib/phoenix_kit_web/components/media_browser.ex:3051
+#, elixir-autogen, elixir-format
+msgid "Could not delete the folder. Nothing was removed."
+msgstr "Не удалось удалить папку. Ничего не было удалено."
+
+#: lib/phoenix_kit_web/components/media_browser.ex:3052
+#, elixir-autogen, elixir-format
+msgid "Could not move the folder to the trash. Nothing was moved."
+msgstr "Не удалось переместить папку в корзину. Ничего не было перемещено."

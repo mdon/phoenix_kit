@@ -12,7 +12,9 @@ defmodule PhoenixKitWeb.Components.MediaBrowserDeleteTranslationsTest do
 
   @singular [
     "This file is in use by something else (a comment, for instance), so it can't be deleted.",
-    "Some files in this folder are in use by something else, so they and their folders were kept."
+    "Some files in this folder are in use by something else, so they and their folders were kept.",
+    "Could not delete the folder. Nothing was removed.",
+    "Could not move the folder to the trash. Nothing was moved."
   ]
 
   @plural [
@@ -21,7 +23,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowserDeleteTranslationsTest do
     {"%{count} item could not be removed.", "%{count} items could not be removed."}
   ]
 
-  for locale <- ~w(ru et) do
+  for locale <- ~w(de es et fr it pl ru uk) do
     describe "#{locale}" do
       test "the single messages are translated" do
         Gettext.with_locale(@backend, unquote(locale), fn ->

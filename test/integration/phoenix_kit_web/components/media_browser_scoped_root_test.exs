@@ -130,7 +130,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowserScopedRootTest do
     test "takes the link away and says so", ctx do
       assert linked?(ctx.media, ctx.sub), "the sub-order points at it"
 
-      {:noreply, socket} =
+      {:noreply, _socket} =
         MediaBrowser.handle_event(
           "delete_file",
           %{"file-uuid" => ctx.media.uuid},
@@ -157,7 +157,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowserScopedRootTest do
       elsewhere = folder!(ctx.user, "elsewhere")
       {:ok, _} = Storage.move_file_to_folder(stranger.uuid, elsewhere.uuid, nil)
 
-      {:noreply, socket} =
+      {:noreply, _socket} =
         MediaBrowser.handle_event(
           "delete_file",
           %{"file-uuid" => stranger.uuid},
@@ -175,7 +175,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowserScopedRootTest do
       # `trash_file` shares the gate, and refused with "Cannot move file
       # outside the allowed scope" — an error about scope for a file the
       # folder was displaying.
-      {:noreply, socket} =
+      {:noreply, _socket} =
         MediaBrowser.handle_event(
           "trash_file",
           %{"file_uuid" => ctx.media.uuid},
@@ -206,7 +206,7 @@ defmodule PhoenixKitWeb.Components.MediaBrowserScopedRootTest do
       own = file!(ctx.user)
       {:ok, _} = Storage.move_file_to_folder(own.uuid, ctx.sub.uuid, nil)
 
-      {:noreply, socket} =
+      {:noreply, _socket} =
         MediaBrowser.handle_event(
           "delete_file",
           %{"file-uuid" => own.uuid},

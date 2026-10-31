@@ -22276,3 +22276,13 @@ msgstr "Seda faili kasutatakse mujal (näiteks kommentaaris), seetõttu ei saa s
 #, elixir-autogen, elixir-format
 msgid "Some files in this folder are in use by something else, so they and their folders were kept."
 msgstr "Mõnda selle kausta faili kasutatakse mujal, seetõttu need ja nende kaustad jäeti alles."
+
+#: lib/phoenix_kit_web/components/media_browser.ex:3051
+#, elixir-autogen, elixir-format
+msgid "Could not delete the folder. Nothing was removed."
+msgstr "Kaust ei õnnestunud kustutada. Midagi ei eemaldatud."
+
+#: lib/phoenix_kit_web/components/media_browser.ex:3052
+#, elixir-autogen, elixir-format
+msgid "Could not move the folder to the trash. Nothing was moved."
+msgstr "Kaust ei õnnestunud prügikasti liigutada. Midagi ei liigutatud."

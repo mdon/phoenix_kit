@@ -4283,6 +4283,11 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
     scope = scope_folder_id(socket)
     {files, folders} = shown_selection(socket)
 
+    # Files the removal guard kept (`removal_except`) are not attempted, let
+    # alone counted as failures: `removal_execute` reports them as "kept: in
+    # use", and a result here would call the same files "could not be removed".
+    files = Enum.reject(files, &(&1.uuid in removal_except(socket)))
+
     # Each result is counted: the flash used to report every selected item
     # as deleted, whatever happened to it.
     file_results =
@@ -4292,7 +4297,6 @@ defmodule PhoenixKitWeb.Components.MediaBrowser do
         # destroyed, no matter how a uuid ended up in the selection.
         Enum.map(files, fn file ->
           if file.status == "trashed" && Storage.within_scope?(file.folder_uuid, scope) &&
-               file.uuid not in removal_except(socket) &&
                (is_nil(removal_only(socket)) or file.uuid in removal_only(socket)),
              do: Storage.delete_file_completely(file),
              else: {:error, :not_removable}
