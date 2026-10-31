@@ -101,6 +101,13 @@ defmodule PhoenixKit.Modules.Storage.DeleteFileInUseTest do
       assert {:ok, _} = Storage.delete_file_completely(file)
       refute exists?(file)
     end
+
+    test "a row gone before the delete answers :not_found, not a raise", %{user: u} do
+      file = trashed!(u, "gone")
+      Repo.delete!(file)
+
+      assert {:error, :not_found} = Storage.delete_file_completely(file)
+    end
   end
 
   describe "emptying the trash" do

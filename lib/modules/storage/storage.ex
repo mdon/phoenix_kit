@@ -2392,7 +2392,8 @@ defmodule PhoenixKit.Modules.Storage do
   A file in the subtree that cannot be deleted (`{:error, :in_use}` from
   `delete_file_completely/1`) stays, and so do the folders that hold it, up to
   this one: everything else is removed, and the answer is `{:error, :in_use}`
-  rather than `{:ok, folder}`.
+  rather than `{:ok, folder}`. A file whose row vanished mid-delete
+  (`{:error, :not_found}`) blocks nothing — it holds no folder any more.
   """
   def delete_folder_completely(folder, scope_folder_id \\ nil, opts \\ [])
 
@@ -2443,8 +2444,10 @@ defmodule PhoenixKit.Modules.Storage do
     # Folders that still hold such a file are kept, with every folder above them
     # inside this subtree: a folder's key on its files is `ON DELETE SET NULL`, so
     # deleting one would not delete the file it still holds — it would drop the
-    # file, quietly, into the media root.
-    kept = folders_still_holding(for({file, {:error, _}} <- results, do: file), subtree_uuids)
+    # file, quietly, into the media root. `{:error, :not_found}` blocks nothing:
+    # the row is already gone (a concurrent delete), so no folder still holds it.
+    blocked = for {file, {:error, reason}} when reason != :not_found <- results, do: file
+    kept = folders_still_holding(blocked, subtree_uuids)
 
     # Delete folders from deepest first so parent_uuid foreign keys
     # don't break. `folder_subtree_uuids/1` walks breadth-first; reverse
